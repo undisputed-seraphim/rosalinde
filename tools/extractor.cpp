@@ -73,11 +73,10 @@ int main(int argc, char* argv[]) try {
 			if (extract_file.ends_with(".acb")) {
 				ACB acb(iss); // Too spammy
 			} else if (extract_file.ends_with(".ftx")) {
-				FTX ftx;
-				ftx.parse(iss);
-				for (const auto& entry : ftx) {
-					std::cout << entry.name << std::endl;
-					std::ofstream(entry.name, std::ios::binary).write(entry.rgba.data(), entry.rgba.size());
+				const auto textures = FTX::parse(iss);
+				for (const auto& entry : textures) {
+					std::cout << entry.name << " w: " << entry.width << " h: " << entry.height << std::endl;
+					//std::ofstream(entry.name, std::ios::binary).write(entry.rgba.data(), entry.rgba.size());
 				}
 			} else if (extract_file.ends_with(".fms")) {
 				const auto lines = parse_fms(iss);

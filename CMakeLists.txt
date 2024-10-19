@@ -22,4 +22,4 @@ target_include_directories(eltolinde PUBLIC
 add_executable(rosalinde "tools/extractor.cpp")
 target_link_libraries(rosalinde PRIVATE eltolinde)
 
-add_subdirectory(viewer)
+#add_subdirectory(viewer)

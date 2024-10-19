@@ -9,12 +9,12 @@
 
 #pragma pack(push, 1)
 struct ftex_header {
-	char magic[4];
+	char ftex[4];
 	uint32_t file_size;
 	uint32_t header_size;
 	uint32_t count;
 
-	static constexpr std::string_view FTX0 = "FTEX";
+	static constexpr std::string_view MAGIC = "FTEX";
 };
 
 struct ftex_entry {
@@ -26,15 +26,15 @@ struct ftex_entry {
 };
 
 struct ftx0_header {
-	char magic[4];
+	char ftx0[4];
 	uint32_t file_size;
 	uint32_t header_size;
 
-	static constexpr std::string_view FTX0 = "FTX0";
+	static constexpr std::string_view MAGIC = "FTX0";
 };
 
 struct tex_header {
-	char magic[4];
+	char _tex[4];
 	uint32_t format;
 	uint32_t _unk0;
 	uint32_t width;
@@ -44,7 +44,7 @@ struct tex_header {
 	uint32_t s1;
 	uint32_t s2;
 
-	static constexpr std::string_view _TEX = ".tex";
+	static constexpr std::string_view MAGIC = ".tex";
 };
 #pragma pack(pop)
 
@@ -55,65 +55,42 @@ int im_bc4();
 int im_bc7(const tex_header&, std::span<char>, std::vector<char>&);
 void tegra_x1_swizzle(const tex_header&, std::vector<char>&);
 
-FTX::FTX() noexcept {}
-FTX::FTX(FTX&& other) noexcept
-	: _entries({}) {
-	std::swap(_entries, other._entries);
-}
+namespace FTX {
 
-FTX::iterator FTX::begin() { return _entries.begin(); }
-FTX::iterator FTX::end() { return _entries.end(); }
-FTX::const_iterator FTX::begin() const { return _entries.begin(); }
-FTX::const_iterator FTX::end() const { return _entries.end(); }
-FTX::const_iterator FTX::cbegin() const { return _entries.cend(); }
-FTX::const_iterator FTX::cend() const { return _entries.cend(); }
-
-FTX::size_type FTX::size() const noexcept { return _entries.size(); }
-bool FTX::empty() const noexcept { return _entries.empty(); }
-
-bool FTX::parse(std::istream& is) { return parse(std::move(is)); }
-bool FTX::parse(std::istream&& is) {
+std::vector<Entry> parse(std::istream& is) { return parse(std::move(is)); }
+std::vector<Entry> parse(std::istream&& is) {
 	is.seekg(0, std::ios::beg);
 	const auto ftex_hdr = read_value<ftex_header>(is);
-	if (std::string_view(ftex_hdr.magic, sizeof(ftex_hdr.magic)) != ftex_header::FTX0) {
-		return false;
+	if (std::string_view(ftex_hdr.ftex, sizeof(ftex_hdr.ftex)) != ftex_header::MAGIC) {
+		return {};
 	}
 
-	_entries.clear();
+	std::vector<Entry> entries;
 	discard_bytes<16>(is);
 	for (uint32_t i = 0; i < ftex_hdr.count; ++i) {
 		const auto entry = read_value<ftex_entry>(is);
 		auto filename = std::string(entry.filename, strlen(entry.filename));
-		_entries.emplace_back(Entry{std::move(filename), 0, 0});
+		entries.emplace_back(Entry{std::move(filename), {}, 0, 0});
 	}
 
+	std::vector<char> buffer = {};
 	is.seekg(ftex_hdr.header_size, std::ios::beg);
-	for (uint32_t i = 0; i < ftex_hdr.count; ++i) {
+	for (auto& entry : entries) {
 		const auto curpos = is.tellg();
 		const auto ftx0_hdr = read_value<ftx0_header>(is);
-		if (std::string_view(ftx0_hdr.magic, sizeof(ftx0_hdr.magic)) != ftx0_header::FTX0) {
-			return false;
+		if (std::string_view(ftx0_hdr.ftx0, sizeof(ftx0_hdr.ftx0)) != ftx0_header::MAGIC) {
+			return {};
 		}
 		is.seekg(size_t(curpos) + ftx0_hdr.header_size, std::ios::beg);
-		_entries[i].offset = is.tellg();
-		_entries[i].size = ftx0_hdr.file_size;
-		_entries[i].rgba.resize(ftx0_hdr.file_size);
-		is.seekg(ftx0_hdr.file_size, std::ios::cur);
-	}
-
-	for (auto& entry : _entries) {
-		entry.rgba.resize(entry.size);
-		is.seekg(entry.offset, std::ios::beg);
-		is.read(entry.rgba.data(), entry.size);
-		is.seekg(entry.offset, std::ios::beg);
 		const auto hdr = read_value<tex_header>(is);
-		if (std::string_view(hdr.magic, sizeof(hdr.magic)) != tex_header::_TEX) {
+		if (std::string_view(hdr._tex, sizeof(hdr._tex)) != tex_header::MAGIC) {
 			continue;
 		}
-		std::cout << entry.name << "\tw: " << hdr.width << " h: " << hdr.height << " s1: " << hdr.s1
-				  << " s2: " << hdr.s2 << std::endl;
+		is.seekg(-sizeof(hdr), std::ios::cur);
 		entry.width = hdr.width;
 		entry.height = hdr.height;
+		buffer.resize(ftx0_hdr.file_size);
+		is.read(buffer.data(), ftx0_hdr.file_size);
 
 		switch (hdr.format) {
 		case 0x44:
@@ -123,20 +100,19 @@ bool FTX::parse(std::istream&& is) {
 			im_bc4();
 			break;
 		case 0x4d:
-			im_bc7(hdr, entry.rgba, _buffer);
-			tegra_x1_swizzle(hdr, _buffer);
+			im_bc7(hdr, buffer, entry.rgba);
+			tegra_x1_swizzle(hdr, entry.rgba);
 			break;
 		default: {
 			std::cout << "Unsupported format" << std::endl;
-			return false;
+			return {};
 		}
-		}
-		if (!_buffer.empty()) {
-			std::swap(entry.rgba, _buffer);
 		}
 	}
-	return true;
+	return entries;
 }
+
+} // namespace FTX
 
 int im_bc3() {
 	// TODO: Same as DXT4, DXT5
