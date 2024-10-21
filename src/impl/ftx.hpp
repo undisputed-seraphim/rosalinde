@@ -1,9 +1,8 @@
 #pragma once
 
-#include <fstream>
+#include <istream>
 #include <span>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace FTX {
@@ -17,5 +16,6 @@ struct Entry {
 
 std::vector<Entry> parse(std::istream&);
 std::vector<Entry> parse(std::istream&&);
+std::vector<Entry> parse(std::span<char>);
 
 } // namespace FTX

@@ -43,7 +43,7 @@ public:
 	bool empty() const noexcept { return _files.empty(); }
 
 private:
-	void unpack(std::istream&);
+	void unpack(std::istream&&);
 
 	std::string _filepath;
 	std::vector<entry> _files;

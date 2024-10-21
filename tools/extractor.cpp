@@ -1,4 +1,4 @@
-#include "argparse.hpp"
+#include <argparse.hpp>
 #include <eltolinde.hpp>
 
 #include <filesystem>
@@ -76,17 +76,22 @@ int main(int argc, char* argv[]) try {
 				const auto textures = FTX::parse(iss);
 				for (const auto& entry : textures) {
 					std::cout << entry.name << " w: " << entry.width << " h: " << entry.height << std::endl;
-					//std::ofstream(entry.name, std::ios::binary).write(entry.rgba.data(), entry.rgba.size());
+					std::ofstream(entry.name, std::ios::binary).write(entry.rgba.data(), entry.rgba.size());
 				}
 			} else if (extract_file.ends_with(".fms")) {
 				const auto lines = parse_fms(iss);
 				for (const auto& l : lines) {
+					if (l.empty()) continue;
 					std::cout << l << '\n';
 				}
 			} else if (extract_file.ends_with(".mbs")) {
 				MBS mbs(iss);
 				std::cout << mbs.filename() << std::endl;
-				mbs.dump();
+				auto q = mbs.extract();
+				auto ofs = std::ofstream("dump.txt");
+				ofs << q;
+				ofs = std::ofstream(mbs.filename(), std::ios::binary);
+				ofs.write(buffer.data(), buffer.size());
 			}
 		} else {
 			std::cout << extract_file << " not found.\n";

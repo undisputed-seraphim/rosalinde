@@ -11,6 +11,11 @@ class UTF {
 public:
 	class field {
 	public:
+		struct data_t {
+			uint32_t offset;
+			uint32_t size;
+		};
+
 		using value_t = std::variant<
 			uint8_t,
 			int8_t,
@@ -23,7 +28,7 @@ public:
 			float,
 			double,
 			std::string,
-			std::vector<char>,
+			data_t,
 			std::monostate>;
 		enum class type {
 			UINT8 = 0,

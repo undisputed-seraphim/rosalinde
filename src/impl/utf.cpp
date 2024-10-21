@@ -5,46 +5,114 @@
 #include <spanstream>
 #include <streambuf>
 
-class cpk_streambuf : public std::streambuf {
-	std::streambuf* src;
-	char ch;
-	uint32_t j;
+class utf_streambuf final : public std::streambuf {
+	std::streambuf* _sbuf;
+	uint32_t _j;
+	static constexpr uint32_t j0 = 0x655F;
+	static constexpr uint32_t t = 0x4115;
 
 public:
-	cpk_streambuf(std::streambuf* sbuf)
-		: src(sbuf)
-		, j(0x655F) {}
+	utf_streambuf(std::streambuf* sbuf)
+		: _sbuf(sbuf)
+		, _j(j0) {}
+	utf_streambuf(const utf_streambuf&) = delete;
+	utf_streambuf(utf_streambuf&&) noexcept = default;
 
-	int underflow() {
-		traits_type::int_type i = src->sbumpc();
+	utf_streambuf& operator=(utf_streambuf&&) noexcept = default;
+
+protected:
+	pos_type seekoff(off_type off, std::ios::seekdir dir, std::ios::openmode which) override final {
+		const auto oldpos = _sbuf->pubseekoff(0, std::ios::cur, which);
+		const auto newpos = _sbuf->pubseekoff(off, dir, which);
+		int64_t delta = newpos - oldpos;
+		if (delta < 0) {
+			_j = j0;
+			delta = newpos;
+		}
+		for (int64_t i = 0; i < delta; ++i) {
+			_j *= t;
+		}
+		return newpos;
+	}
+
+	pos_type seekpos(pos_type pos, std::ios::openmode which) override final {
+		const auto oldpos = _sbuf->pubseekoff(0, std::ios::cur, which);
+		const auto newpos = _sbuf->pubseekpos(pos, which);
+		int64_t delta = newpos - oldpos;
+		if (delta < 0) {
+			_j = j0;
+			delta = newpos;
+		}
+		for (int64_t i = 0; i < delta; ++i) {
+			_j *= t;
+		}
+		return newpos;
+	}
+
+	int_type underflow() override final {
+		int_type i = _sbuf->sgetc();
 		if (!traits_type::eq_int_type(i, traits_type::eof())) {
-			i ^= (j & 0xFF);
-			j += 0x4115;
-			ch = traits_type::to_char_type(i);
-			setg(&ch, &ch, &ch + 1); // make one read position available
+			i ^= (_j & 0xFF);
 		}
 		return i;
 	}
+
+	int_type uflow() override final {
+		int_type i = _sbuf->sbumpc();
+		if (!traits_type::eq_int_type(i, traits_type::eof())) {
+			i ^= (_j & 0xFF);
+			_j *= t;
+		}
+		return i;
+	}
+
+	std::streamsize xsgetn(char_type* s, std::streamsize count) override final {
+		const auto get = _sbuf->sgetn(s, count);
+		for (int64_t i = 0; i < get; ++i) {
+			s[i] ^= (_j & 0xFF);
+			_j *= t;
+		}
+		return get;
+	}
+
+	std::streambuf* setbuf(char_type* buffer, std::streamsize count) override final {
+		return _sbuf->pubsetbuf(buffer, count);
+	}
+	void imbue(const std::locale& l) override final { _sbuf->pubimbue(l); }
+	std::streamsize showmanyc() override final { return _sbuf->in_avail(); }
+};
+
+class cpk_istream final : public std::istream {
+	utf_streambuf _sbuf;
+
+public:
+	cpk_istream(std::istream& is)
+		: std::istream(&_sbuf)
+		, _sbuf(is.rdbuf()) {}
+	cpk_istream(const cpk_istream&) = delete;
+	cpk_istream(cpk_istream&&) noexcept = default;
+
+	cpk_istream& operator=(cpk_istream&&) noexcept = default;
 };
 
 #pragma pack(push, 1)
-	struct chunk_header {
-		char magic[4];
-		uint32_t table_size;
-		uint32_t rows_offset;
-		uint32_t string_offset;
-		uint32_t data_offset;
-		uint32_t table_name;
-		uint16_t num_columns;
-		uint16_t row_length;
-		uint32_t num_rows;
+struct chunk_header {
+	char magic[4];
+	uint32_t table_size;
+	uint32_t rows_offset;
+	uint32_t string_offset;
+	uint32_t data_offset;
+	uint32_t table_name;
+	uint16_t num_columns;
+	uint16_t row_length;
+	uint32_t num_rows;
 
-		std::istream& operator>>(std::istream& i);
-		friend std::istream& operator>>(std::istream&, chunk_header&);
-	};
+	std::istream& operator>>(std::istream& i);
+	friend std::istream& operator>>(std::istream&, chunk_header&);
+};
 #pragma pack(pop)
 
-std::string read_string(const uint32_t block_offset, std::istream& iss) {
+static std::string read_string(const uint32_t block_offset, std::istream& iss) {
 	uint32_t offset = read_value_swap_endian<uint32_t>(iss);
 	offset += block_offset;
 
@@ -55,16 +123,11 @@ std::string read_string(const uint32_t block_offset, std::istream& iss) {
 	return value;
 }
 
-std::vector<char> read_data(const uint32_t block_offset, std::istream& iss) {
+static UTF::field::data_t read_data2(const uint32_t block_offset, std::istream& iss) {
 	uint32_t offset = read_value_swap_endian<uint32_t>(iss);
 	offset += block_offset;
 	uint32_t length = read_value_swap_endian<uint32_t>(iss);
-
-	const size_t tell = iss.tellg();
-	iss.seekg(offset, std::ios::beg);
-	std::vector<char> value(length, '\0');
-	iss.read(value.data(), length).seekg(tell, std::ios::beg);
-	return value;
+	return {offset, length};
 }
 
 std::istream& chunk_header::operator>>(std::istream& i) {
@@ -118,7 +181,7 @@ UTF::field::value_t read_type(const chunk_header& header, UTF::field::type type_
 	case UTF::field::type::STRING:
 		return (read_string(header.string_offset, is));
 	case UTF::field::type::DATA_ARRAY:
-		return (read_data(header.data_offset, is));
+		return (read_data2(header.data_offset, is));
 	default:
 		return (std::monostate{});
 	}
@@ -126,7 +189,7 @@ UTF::field::value_t read_type(const chunk_header& header, UTF::field::type type_
 
 constexpr const char ciphered_utf[] = {0x1F, 0x9E, 0xF3, 0xF5};
 
-bool is_ciphered_utf(std::istream& is) {
+static bool is_ciphered_utf(std::istream& is) {
 	char magic[4];
 	is.read(magic, sizeof(magic));
 	is.seekg(-sizeof(magic), std::ios::cur);
@@ -136,17 +199,19 @@ bool is_ciphered_utf(std::istream& is) {
 UTF::UTF() {}
 
 UTF::UTF(std::istream& is) {
-	auto* buf = is.rdbuf();
 	if (is_ciphered_utf(is)) {
-		// Assumes no cipher, for now
+		auto sb = utf_streambuf(is.rdbuf());
+		is.set_rdbuf(&sb);
+		parse(std::move(is));
 	} else {
 		parse(std::move(is));
 	}
 }
 UTF::UTF(std::istream&& is) {
-	auto* buf = is.rdbuf();
 	if (is_ciphered_utf(is)) {
-		// Assumes no cipher, for now
+		auto sb = utf_streambuf(is.rdbuf());
+		is.set_rdbuf(&sb);
+		parse(std::move(is));
 	} else {
 		parse(std::move(is));
 	}
@@ -156,6 +221,7 @@ UTF::UTF(std::vector<char> bytes) {
 	if (bytes.empty()) {
 		return;
 	}
+
 	if (::strncmp(bytes.data(), ciphered_utf, sizeof(ciphered_utf)) == 0) {
 		for (uint32_t i = 0, j = 0x655F; i < bytes.size(); i++, j *= 0x4115) {
 			bytes[i] ^= (j & 0xFF);
@@ -166,6 +232,18 @@ UTF::UTF(std::vector<char> bytes) {
 		return;
 	}
 	parse(std::ispanstream(bytes));
+	/*
+	auto iss = std::ispanstream(bytes, std::ios::binary);
+	if (is_ciphered_utf(iss)) {
+		parse(cpk_istream(iss));
+	} else {
+		constexpr const char _utf[] = {'@', 'U', 'T', 'F'};
+		if (::strncmp(bytes.data(), _utf, sizeof(_utf)) != 0) {
+			return;
+		}
+		parse(std::move(iss));
+	}
+	*/
 }
 
 UTF::iterator UTF::begin() { return _fields.begin(); }
@@ -185,12 +263,13 @@ UTF::const_iterator UTF::find(const std::string& key) const {
 bool UTF::empty() const noexcept { return _fields.empty(); }
 
 void UTF::parse(std::istream&& is) {
+	const uint64_t offset = is.tellg();
 	chunk_header hdr;
 	is >> hdr;
 
-	hdr.rows_offset += 8;
-	hdr.data_offset += 8;
-	hdr.string_offset += 8;
+	hdr.rows_offset += 8 + offset;
+	hdr.data_offset += 8 + offset;
+	hdr.string_offset += 8 + offset;
 
 	for (uint32_t i = 0; i < hdr.num_columns; ++i) {
 		const uint8_t flags = read_value<uint8_t>(is);
@@ -254,8 +333,8 @@ void UTF::dump(const UTF& table) {
 				break;
 			}
 			case field::type::DATA_ARRAY: {
-				const auto val = std::get<std::vector<char>>(value);
-				std::cout << "data of length " << val.size() << ';';
+				const auto val = std::get<field::data_t>(value);
+				std::cout << "data of length " << val.size << "; ";
 				break;
 			}
 			default: {

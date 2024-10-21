@@ -148,7 +148,7 @@ int64_t compress(const std::vector<char>& src, std::vector<char>& dst) {
 	return layla_compress((uint8_t*)dst.data(), &size, (const uint8_t*)src.data(), src.size());
 }
 
-int64_t decompress(std::span<const char> in, std::vector<char>& out) {
+int64_t decompress(std::span<char> in, std::vector<char>& out) {
 	header h;
 	std::memcpy((char*)&h, in.data(), sizeof(h));
 	if (std::string_view(h.magic, sizeof(h.magic)) != CRILAYLA) {
@@ -157,13 +157,12 @@ int64_t decompress(std::span<const char> in, std::vector<char>& out) {
 
 	static constexpr int meta = 256;
 	out.resize(h.decompress_size + meta);
+
+	// TODO We can optimize here.
 	std::memcpy(out.data(), in.data() + in.size() - meta, meta);
 	in = in.subspan(sizeof(h), in.size() - meta - sizeof(h));
-
-	// TODO this needs to be more efficient and avoid allocating.
-	std::vector<char> reversed(in.size(), '\0');
-	std::copy(in.crbegin(), in.crend(), reversed.begin());
-	layla_decompress(h, std::span(reversed), std::span(out).subspan(meta));
+	std::reverse(in.begin(), in.end());
+	layla_decompress(h, in, std::span(out).subspan(meta));
 
 	return h.decompress_size;
 }
