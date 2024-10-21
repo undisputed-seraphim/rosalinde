@@ -4,7 +4,7 @@
 #include <iostream>
 #include <istream>
 
-void parse(const UTF& utf_table) {
+static void parse(const UTF& utf_table, std::istream& is) {
 	for (const auto& entry : utf_table) {
 		if (!entry.name.ends_with("Table")) {
 			continue;
@@ -12,8 +12,9 @@ void parse(const UTF& utf_table) {
 		if (entry.type_ != UTF::field::type::DATA_ARRAY) {
 			continue;
 		}
-		auto data = entry.cast_at<std::vector<char>>(0).value_or(std::vector<char>{});
-		const UTF subtable(data);
+		const auto data = entry.cast_at<UTF::field::data_t>(0).value_or(UTF::field::data_t{0, 0});
+		is.seekg(data.offset, std::ios::beg);
+		const UTF subtable(is);
 		if (!subtable.empty()) {
 			std::cout << "-----> Reading sub table " << entry.name << " with " << entry.values.size() << " entries:\n";
 			UTF::dump(subtable);
@@ -24,12 +25,10 @@ void parse(const UTF& utf_table) {
 
 ACB::ACB(std::istream& is) {
 	auto utf_table = UTF(is);
-	// UTF::dump(utf_table);
-	parse(utf_table);
+	parse(utf_table, is);
 }
 
 ACB::ACB(std::istream&& is) {
 	auto utf_table = UTF(std::move(is));
-	// UTF::dump(utf_table);
-	parse(utf_table);
+	parse(utf_table, is);
 }

@@ -1,6 +1,7 @@
 #include "ftx.hpp"
-#include "bc7decomp/bc7decomp.h"
 #include "utils.hpp"
+
+#include <detex-0.1.2alpha2/detex.h>
 
 #include <array>
 #include <iostream>
@@ -50,9 +51,9 @@ struct tex_header {
 
 // Forward declarations
 // Returns 0 if no error.
-int im_bc3();
-int im_bc4();
-int im_bc7(const tex_header&, std::span<char>, std::vector<char>&);
+int im_bc3(const tex_header&, std::span<uint8_t>, std::vector<char>&);
+int im_bc4(const tex_header&, std::span<uint8_t>, std::vector<char>&);
+int im_bc7(const tex_header&, std::span<uint8_t>, std::vector<char>&);
 void tegra_x1_swizzle(const tex_header&, std::vector<char>&);
 
 namespace FTX {
@@ -73,7 +74,7 @@ std::vector<Entry> parse(std::istream&& is) {
 		entries.emplace_back(Entry{std::move(filename), {}, 0, 0});
 	}
 
-	std::vector<char> buffer = {};
+	std::vector<uint8_t> buffer = {};
 	is.seekg(ftex_hdr.header_size, std::ios::beg);
 	for (auto& entry : entries) {
 		const auto curpos = is.tellg();
@@ -90,14 +91,15 @@ std::vector<Entry> parse(std::istream&& is) {
 		entry.width = hdr.width;
 		entry.height = hdr.height;
 		buffer.resize(ftx0_hdr.file_size);
-		is.read(buffer.data(), ftx0_hdr.file_size);
+		is.read(reinterpret_cast<char*>(buffer.data()), ftx0_hdr.file_size);
 
 		switch (hdr.format) {
 		case 0x44:
-			im_bc3();
+			im_bc3(hdr, buffer, entry.rgba);
 			break;
 		case 0x49:
-			im_bc4();
+			im_bc4(hdr, buffer, entry.rgba);
+			tegra_x1_swizzle(hdr, entry.rgba);
 			break;
 		case 0x4d:
 			im_bc7(hdr, buffer, entry.rgba);
@@ -112,27 +114,52 @@ std::vector<Entry> parse(std::istream&& is) {
 	return entries;
 }
 
+std::vector<Entry> parse(std::span<char> buffer) { return parse(std::ispanstream(buffer, std::ios::binary)); }
+
 } // namespace FTX
 
-int im_bc3() {
-	// TODO: Same as DXT4, DXT5
+int im_bc3(const tex_header& header, std::span<uint8_t> buffer, std::vector<char>& outbuf) {
+	buffer = buffer.last(buffer.size() - header.s1);
+	outbuf.resize(header.s2 * 4);
+	for (int i = 0; i < header.s2; i += 8) {
+		if (detexDecompressBlockBC3(
+				buffer.data() + i, DETEX_MODE_MASK_ALL, 0, reinterpret_cast<uint8_t*>(outbuf.data() + (i * 4)))) {
+			// OK, continue
+		} else {
+			std::cout << "Failed on block " << i << '\n';
+			return i;
+		}
+	}
 	return 0;
 }
 
-int im_bc4() {
-	// TODO: In D3D10
+int im_bc4(const tex_header& header, std::span<uint8_t> buffer, std::vector<char>& outbuf) {
+	buffer = buffer.last(buffer.size() - header.s1);
+	outbuf.resize(header.s2 * 4);
+	for (int i = 0; i < header.s2; i += 8) {
+		if (detexDecompressBlockRGTC1(
+				buffer.data() + i, DETEX_MODE_MASK_ALL, 0, reinterpret_cast<uint8_t*>(outbuf.data() + (i * 4)))) {
+			// OK, continue
+		} else {
+			std::cout << "Failed on block " << i << '\n';
+			return i;
+		}
+	}
 	return 0;
 }
 
-int im_bc7(const tex_header& header, std::span<char> buffer, std::vector<char>& outbuf) {
+int im_bc7(const tex_header& header, std::span<uint8_t> buffer, std::vector<char>& outbuf) {
 	buffer = buffer.last(buffer.size() - header.s1);
 	outbuf.resize(header.s2 * 4);
 	for (int i = 0; i < header.s2; i += 16) {
-		bc7decomp::color_rgba* pos = reinterpret_cast<bc7decomp::color_rgba*>(outbuf.data() + (i * 4));
-		if (bc7decomp::unpack_bc7(buffer.data() + i, pos)) {
+		if (detexDecompressBlockBPTC(
+				buffer.data() + i,
+				DETEX_MODE_MASK_ALL_MODES_BPTC,
+				0,
+				reinterpret_cast<uint8_t*>(outbuf.data() + (i * 4)))) {
 			// OK, continue
 		} else {
-			outbuf.resize(0);
+			std::cout << "Failed on block " << i << '\n';
 			return i;
 		}
 	}
@@ -140,6 +167,9 @@ int im_bc7(const tex_header& header, std::span<char> buffer, std::vector<char>& 
 }
 
 void tegra_x1_swizzle(const tex_header& header, std::vector<char>& buffer) {
+	if (buffer.empty()) {
+		return;
+	}
 	// clang-format off
 	static constexpr auto bits = std::array{
 		std::array{    0x40,    0x32,     0xd},
@@ -173,14 +203,14 @@ void tegra_x1_swizzle(const tex_header& header, std::vector<char>& buffer) {
 		return bit;
 	};
 
-	constexpr const char magic[4] = {'R', 'G', 'B', 'A'};
-	constexpr uint32_t hdr_offset = sizeof(magic) + sizeof(header.width) + sizeof(header.height);
-
 	std::vector<char> result(buffer.size());
-	auto oss = std::ospanstream(result, std::ios::binary);
-	oss.write(magic, sizeof(magic));
-	oss.write((char*)&header.width, sizeof(header.width));
-	oss.write((char*)&header.height, sizeof(header.height));
+	const struct {
+		char magic[4];
+		uint32_t width;
+		uint32_t height;
+	} hdr{{'R', 'G', 'B', 'A'}, header.width, header.height};
+	constexpr uint32_t hdr_offset = sizeof(hdr);
+	::memcpy(result.data(), (char*)&hdr, sizeof(hdr));
 
 	constexpr uint32_t bpp = 4; // RBGA
 	constexpr uint32_t row = 4 * bpp;

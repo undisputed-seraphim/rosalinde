@@ -1,9 +1,10 @@
 #include "cpk.hpp"
-#include "bc7decomp/bc7decomp.h"
 #include "endian_swap.hpp"
+#include "streams.hpp"
 #include "utf.hpp"
 #include "utils.hpp"
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <span>
@@ -14,12 +15,12 @@ constexpr uint32_t TOC_magic = 0x20434F54; // "TOC " reversed endian
 
 // crilayla.cpp
 int64_t compress(const std::vector<char>& src, std::vector<char>& dst);
-int64_t decompress(std::span<const char> in, std::vector<char>& out);
+int64_t decompress(std::span<char> in, std::vector<char>& out);
 
 CPK::CPK(std::string_view path)
-	: _filepath(std::string(path)) {
-	auto ifs = std::ifstream(_filepath, std::ios::binary);
-	unpack(ifs);
+	: _filepath(std::string(path))
+	, _buffer({}) {
+	unpack(std::ifstream(_filepath, std::ios::binary));
 }
 
 CPK::CPK(CPK&& other) noexcept
@@ -31,8 +32,6 @@ CPK::CPK(CPK&& other) noexcept
 bool CPK::entry::operator<(const entry& e) const noexcept { return id < e.id; }
 
 bool CPK::extract(const entry& e, std::vector<char>& out) const {
-	std::cout << "File: " << e.path << '/' << e.name << " off: " << hex(e.offset) << " c: " << e.compressed_size
-			  << " d: " << e.decompressed_size << std::endl;
 	auto ifs = std::ifstream(_filepath, std::ios::binary);
 	out.resize(e.decompressed_size);
 	ifs.seekg(e.offset, std::ios::beg);
@@ -61,8 +60,12 @@ std::vector<CPK::entry>::const_iterator CPK::at_id(uint32_t id) const noexcept {
 }
 
 std::vector<CPK::entry>::const_iterator CPK::by_name(std::string_view name, std::string_view path) const noexcept {
-	return std::find_if(
-		_files.begin(), _files.end(), [name, path](const entry& e) { return (e.name == name) && (e.path == path); });
+	return std::find_if(_files.begin(), _files.end(), [name, path](const entry& e) {
+		if (name == "*") {
+			return (e.path == path);
+		}
+		return (e.name == name) && (e.path == path);
+	});
 }
 
 std::vector<CPK::entry>::const_iterator CPK::by_name(std::string_view fullname) const noexcept {
@@ -105,27 +108,9 @@ std::vector<CPK::entry> generate_TOC(const UTF& utf, uint64_t offset = 0) {
 	return ret;
 }
 
-uint64_t read_cpk_header(std::istream& i, uint32_t magic);
+namespace {
 
-void CPK::unpack(std::istream& is) {
-	uint64_t size = read_cpk_header(is, CPK_magic);
-	std::vector<char> buffer(size, 0);
-	is.read(buffer.data(), size);
-	auto utf_table = UTF(std::move(buffer));
-	// dump(utf_table);
-
-	if (auto iter = utf_table.find("TocOffset"); iter != utf_table.end() && iter->valid) {
-		const auto offset = iter->cast_at<uint64_t>(0).value();
-		is.seekg(offset, std::ios::beg);
-		size = read_cpk_header(is, TOC_magic);
-		buffer.resize(size);
-		is.read(buffer.data(), size);
-		auto toc_table = UTF(std::move(buffer));
-		_files = generate_TOC(toc_table, offset);
-	}
-}
-
-uint64_t read_cpk_header(std::istream& i, const uint32_t magic) {
+uint64_t read_header(std::istream& i, const uint32_t magic) {
 #pragma pack(push, 1)
 	struct table_header {
 		uint32_t magic;
@@ -140,4 +125,27 @@ uint64_t read_cpk_header(std::istream& i, const uint32_t magic) {
 			"Mismatched magic bytes at offset " + std::to_string(size_t(i.tellg()) - sizeof(header)));
 	}
 	return header.length;
+}
+
+} // anonymous namespace
+
+void CPK::unpack(std::istream&& is) {
+	uint64_t size = read_header(is, CPK_magic);
+	//_buffer.resize(size, 0);
+	//is.read(_buffer.data(), size);
+	//auto utf_table = UTF(std::move(_buffer));
+	auto utf_table = UTF(io::isubstream(is, size));
+
+	if (auto iter = utf_table.find("TocOffset"); iter != utf_table.end() && iter->valid) {
+		const auto offset = iter->cast_at<uint64_t>(0).value();
+		is.seekg(offset, std::ios::beg);
+		size = read_header(is, TOC_magic);
+
+		_buffer = std::vector<char>(size);
+		is.read(_buffer.data(), size);
+		auto toc_table = UTF(std::move(_buffer));
+		//auto toc_table = UTF(io::isubstream(is, size));
+
+		_files = generate_TOC(toc_table, offset);
+	}
 }
