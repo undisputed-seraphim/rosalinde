@@ -13,6 +13,7 @@
 #include <glm/glm.hpp>
 #define GLM_ENABLE_EXPERIMENTAL 1
 #include <glm/gtx/string_cast.hpp>
+#include <glxx/error.hpp>
 
 #include <cstdio>
 #include <spanstream>
@@ -106,9 +107,11 @@ void enable_depth(GLenum depthFunc = 0) {
 
 int main(int argc, char* argv[]) try {
 	fs::path cpkpath;
+	bool debug = false;
 	po::options_description desc;
 	desc.add_options()("help,h", "Print this help message")(
-		"cpk", po::value<fs::path>(&cpkpath)->required(), "Path to Unicorn.cpk");
+		"cpk", po::value<fs::path>(&cpkpath)->required(), "Path to Unicorn.cpk")(
+		"dbg,d", po::value<bool>(&debug), "Debug messages in OpenGL");
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	try {
@@ -130,7 +133,6 @@ int main(int argc, char* argv[]) try {
 
 	static constexpr int W = 1920, H = 1080;
 
-	constexpr const char* glsl_version = "#version 300 es";
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
@@ -148,6 +150,10 @@ int main(int argc, char* argv[]) try {
 
 	if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
 		throw std::runtime_error("Failed to initialize GLAD");
+	}
+	if (debug) {
+		glEnable(GL_DEBUG_OUTPUT);
+		glDebugMessageCallback(&message_callback, NULL);
 	}
 
 	printf(" Version: %s\n", glGetString(GL_VERSION));
@@ -186,10 +192,10 @@ int main(int argc, char* argv[]) try {
 	const auto& IDLE = scarlet_quad.skeletons()[0];
 	const Quad::Animation* selected_anim = &scarlet_quad.animations()[IDLE.bones[0].id];
 
-	unsigned int VBO[4];
+	unsigned int VBO[5];
 	unsigned int VAO, EBO;
 	glGenVertexArrays(1, &VAO);
-	glGenBuffers(4, VBO);
+	glGenBuffers(5, VBO);
 	glGenBuffers(1, &EBO);
 
 	glBindVertexArray(VAO);
@@ -201,7 +207,7 @@ int main(int argc, char* argv[]) try {
 	std::vector<unsigned> indices;
 	std::vector<float> fog;
 	std::vector<float> z;
-	std::vector<short> texid;
+	std::vector<float> texid;
 
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -245,40 +251,40 @@ int main(int argc, char* argv[]) try {
 				fog.clear();
 				z.clear();
 				indices.clear();
+				texid.clear();
 
 				const auto& kf = scarlet_quad.keyframes()[tl.attach.id];
 
-				//const auto& blend = scarlet_quad.blends()[kf.layers[0].blendid];
+				// const auto& blend = scarlet_quad.blends()[kf.layers[0].blendid];
 				enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
-				//enable_depth(GL_LESS); // No output with this.
+				// enable_depth(GL_LESS); // No output with this.
 
 				fog.resize(kf.layers.size() * 16, 1.0);
 				const float zrate = 1.0 / (kf.layers.size() + 1);
 				float depth = 1.0;
 				unsigned i = 0;
 				for (const auto& layer : kf.layers) {
-
 					const auto& texture = scarlet_textures[layer.texid];
 					uv.push_back(transform_UV(texture, layer.src));
 					xyz.push_back(transform(layer.dst));
 					indices.insert(indices.end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
-					texid.insert(texid.end(), {layer.texid, layer.texid, layer.texid, layer.texid});
+					texid.insert(
+						texid.end(), {(float)layer.texid, (float)layer.texid, (float)layer.texid, (float)layer.texid});
 
 					depth -= zrate;
 					z.insert(z.end(), {depth, depth, depth, depth});
 					i += 4;
 				}
 
-				// for (int i = 0; i < scarlet_textures.size(); ++i) {
-				//	scarlet_textures[i].Active(GL_TEXTURE0 + i).Bind();
-				// }
-				const auto& texture = scarlet_textures[1].Active(GL_TEXTURE0).Bind();
-				// scarlet_textures[1].Active(GL_TEXTURE0).Bind();
-
 				const auto& shader = GetKeyframeShader().Use();
+				const auto& texture0 = scarlet_textures[0].Active(GL_TEXTURE0).Bind();
+				const auto& texture1 = scarlet_textures[1].Active(GL_TEXTURE0 + 1).Bind();
+
 				shader.SetUniform("u_pxsize", {(float)W, (float)H});
-				shader.SetUniform("u_imsize", {1.0 / texture.Width, 1.0 / texture.Height});
-				shader.SetUniform("u_tex", 0);
+				shader.SetUniform("u_texsz0", {1.0 / texture0.Width, 1.0 / texture0.Height});
+				shader.SetUniform("u_texsz1", {1.0 / texture1.Width, 1.0 / texture1.Height});
+				shader.SetUniform("u_tex0", 0);
+				shader.SetUniform("u_tex1", 1);
 
 				glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
 				glBufferData(GL_ARRAY_BUFFER, sizeof(float) * fog.size(), fog.data(), GL_STATIC_DRAW);
@@ -299,6 +305,11 @@ int main(int argc, char* argv[]) try {
 				glBufferData(GL_ARRAY_BUFFER, sizeof(float) * z.size(), z.data(), GL_STATIC_DRAW);
 				glEnableVertexAttribArray(3);
 				glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+				glBindBuffer(GL_ARRAY_BUFFER, VBO[4]);
+				glBufferData(GL_ARRAY_BUFFER, sizeof(float) * texid.size(), texid.data(), GL_STATIC_DRAW);
+				glEnableVertexAttribArray(4);
+				glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
 				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 				glBufferData(

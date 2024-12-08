@@ -137,7 +137,7 @@ public:
 	}
 
 	explicit operator GLuint() const noexcept { return _hnd; }
-	explicit operator bool() const noexcept { return _hnd != 0; }
+	explicit operator bool() const noexcept { return (_hnd != 0) && (glIsBuffer(_hnd)); }
 
 	Buffer& operator=(const Buffer& other) = delete;
 	Buffer& operator=(Buffer&& other) = default;

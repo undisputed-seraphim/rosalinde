@@ -1,4 +1,4 @@
-#include "gl/buffers.hpp"
+#include "glxx/buffers.hpp"
 
 namespace gl {
 
