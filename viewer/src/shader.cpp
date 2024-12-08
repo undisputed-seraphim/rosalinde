@@ -2,40 +2,20 @@
 #include <glm/ext.hpp>
 #include <iostream>
 
-#include "shader.hpp"
 #include "glxx/error.hpp"
+#include "shader.hpp"
 
 // clang-format off
-constexpr std::string_view drawline_vert_src = "# version 300 es\n"
-"in      highp vec2 a_xy;\n"
-"uniform highp vec2 u_pxsize;\n"
-"        highp vec2 XY;\n"
-
-"void main(void) {\n"
-"    XY = a_xy * u_pxsize;\n"
-"    gl_Position = vec4(XY.x, XY.y, 1.0 , 1.0);\n"
-"}";
-
-constexpr std::string_view drawline_frag_src = "# version 300 es\n"
-"uniform highp vec4 u_color;\n"
-"out     highp vec4 fragColor;\n"
-
-"void main(void) {\n"
-"    fragColor = u_color;\n"
-"}";
-
 constexpr std::string_view kf_vert_src = "# version 300 es\n"
 "in      highp vec4  a_fog;\n"
 "in      highp vec3  a_xyz;\n"
 "in      highp vec2  a_uv;\n"
 "in      lowp  float a_z;\n"
-"in      lowp  float a_texid;\n"
 "uniform highp vec2  u_pxsize;\n"
 "        highp vec2  XY;\n"
 "        highp float z;\n"
 "out     highp vec4  v_fog;\n"
 "out     highp vec2  v_uv;\n"
-"out     lowp  float v_texid;\n"
 
 "void main(void) {\n"
 "    z = 1.0 / a_xyz.z;\n"
@@ -43,80 +23,27 @@ constexpr std::string_view kf_vert_src = "# version 300 es\n"
 
 "    v_fog = a_fog;\n"
 "    v_uv  = a_uv;\n"
-"    v_texid = a_texid;\n"
 "    gl_Position = vec4(XY.x, -XY.y, a_z, 1.0);\n"
 "}";
 
 constexpr std::string_view kf_frag_src = "# version 300 es\n"
 "in      highp vec4  v_fog;\n"
 "in      highp vec2  v_uv;\n"
-"in      lowp  float v_texid;\n"
-"uniform highp vec2  u_texsz0;\n"
-"uniform highp vec2  u_texsz1;\n"
-"uniform sampler2D   u_tex0;\n"
-"uniform sampler2D   u_tex1;\n"
-"        highp vec4  FOG;\n"
-"        highp vec2  UV0;\n"
-"        highp vec2  UV1;\n"
-"        highp vec4  m;\n"
+"uniform sampler2D   u_tex;\n"
 "out     highp vec4  fragColor;\n"
 
 "void main(void) {\n"
-"    FOG = v_fog;\n"
-"    UV0  = v_uv * u_texsz0;\n"
-"    UV1  = v_uv * u_texsz1;\n"
-"    m = mix(texture(u_tex0, UV0), texture(u_tex1, UV1), v_texid);\n"
-"    fragColor = m * FOG;\n"
-"}";
-
-constexpr std::string_view vram_vert = "# version 300 es\n"
-"in      highp vec2 a_xy;\n"
-"in      highp vec2 a_uv;\n"
-"uniform highp vec2 u_pxsize[2];\n"
-"        highp vec2 XY;\n"
-"out     highp vec2 v_uv;\n"
-
-"void main(void) {\n"
-"    v_uv = a_uv;\n"
-"    // convert 0.0 to 1.0 => -1.0 to +1.0\n"
-"    XY = (a_xy * u_pxsize[0] * 2.0) - 1.0;\n"
-"    gl_Position = vec4(XY.x, XY.y, 1.0, 1.0);\n"
-"}";
-
-constexpr std::string_view vram_frag = "# version 300 es\n"
-"in      highp vec2 v_uv;\n"
-"uniform sampler2D  u_tex;\n"
-"uniform highp vec2 u_pxsize[2];\n"
-"        highp vec2 UV;\n"
-"out     highp vec4 fragColor;\n"
-
-"void main(void) {\n"
-"    UV = v_uv * u_pxsize[1];\n"
-"    fragColor = texture(u_tex, UV);\n"
+"    fragColor = texture(u_tex, v_uv) * v_fog;\n"
 "}";
 // clang-format on
 
 static void checkCompileErrors(GLuint object);
 static void checkLinkErrors(GLuint object);
 
-const Shader& GetVRamShader() {
-	static Shader shader;
-	if (!shader) {
-		shader.Compile(vram_vert, vram_frag);
-	}
-	return shader;
-}
 const Shader& GetKeyframeShader() {
 	static Shader shader;
 	if (!shader) {
 		shader.Compile(kf_vert_src, kf_frag_src);
-	}
-	return shader;
-}
-const Shader& GetDrawlineShader() {
-	static Shader shader;
-	if (!shader) {
-		shader.Compile(drawline_vert_src, drawline_frag_src);
 	}
 	return shader;
 }
@@ -226,23 +153,21 @@ int Shader::GetUniformLocation(const char* name) const { return glGetUniformLoca
 
 // checks if compilation or linking failed and if so, print the error logs
 void checkCompileErrors(GLuint object) {
-	char infoLog[1024];
+	char infoLog[512];
 	GLint success;
 	glGetShaderiv(object, GL_COMPILE_STATUS, &success);
 	if (success != GL_TRUE) {
 		glGetShaderInfoLog(object, sizeof(infoLog), NULL, infoLog);
-		std::cout << "| ERROR::Shader: Compile-time error:\n"
-				  << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
+		std::cout << "| ERROR::Shader: Compile-time error:\n" << infoLog << std::endl;
 	}
 }
 
 void checkLinkErrors(GLuint object) {
-	char infoLog[1024];
+	char infoLog[512];
 	GLint success;
-	glGetShaderiv(object, GL_COMPILE_STATUS, &success);
+	glGetProgramiv(object, GL_LINK_STATUS, &success);
 	if (success != GL_TRUE) {
 		glGetProgramInfoLog(object, sizeof(infoLog), NULL, infoLog);
-		std::cout << "| ERROR::Shader: Link-time error:\n"
-				  << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
+		std::cout << "| ERROR::Shader: Link-time error:\n" << infoLog << std::endl;
 	}
 }

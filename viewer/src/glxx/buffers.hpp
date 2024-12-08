@@ -69,7 +69,10 @@ public:
 
 	Buffer() { glGenBuffers(1, &_hnd); }
 	Buffer(const Buffer&) = delete;
-	Buffer(Buffer&&) noexcept = default;
+	Buffer(Buffer&& other) noexcept
+		: _hnd(other._hnd) {
+		other._hnd = 0;
+	}
 	~Buffer() noexcept { glDeleteBuffers(1, _hnd); }
 
 	const Buffer& bind() const noexcept {
@@ -101,11 +104,6 @@ public:
 		GLint64 sz;
 		glGetBufferParameteri64v(BufferType, GL_BUFFER_SIZE, &sz);
 		return sz;
-	}
-
-	static Buffer FromHandle(GLuint handle) {
-		assert(glIsBuffer(handle) == GL_TRUE);
-		return Buffer(handle);
 	}
 
 	const Buffer& drawArray(GLint first = 0, Mode m = Mode::TRIANGLES) const noexcept {
@@ -140,7 +138,10 @@ public:
 	explicit operator bool() const noexcept { return (_hnd != 0) && (glIsBuffer(_hnd)); }
 
 	Buffer& operator=(const Buffer& other) = delete;
-	Buffer& operator=(Buffer&& other) = default;
+	Buffer& operator=(Buffer&& other) noexcept {
+		_hnd = other._hnd;
+		other._hnd = 0;
+	}
 };
 
 template <typename ValueT>
