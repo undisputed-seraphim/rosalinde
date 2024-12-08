@@ -79,19 +79,29 @@ glm::mat4x3 transform(glm::mat4x2 vertices) {
 }
 
 glm::mat4x2 transform_UV(const Texture2D& texture, glm::mat4x2 quad) {
-	/*
-	const glm::vec2 MAGIC{(texture.Width == 2048) ? 1152 : 128, 128};
 	for (int i = 0; i < 4; ++i) {
-		quad[i][0] = texture.Width * quad[i][0] + MAGIC[0];
-		quad[i][1] = texture.Height * quad[i][1] + MAGIC[1];
+		quad[i][0] = quad[i][0] * texture.Width;
+		quad[i][1] = quad[i][1] * texture.Height;
 	}
 	return quad;
-	*/
-	for (int i = 0; i < 4; ++i) {
-		quad[i][0] *= texture.Width;
-		quad[i][1] *= texture.Height;
+}
+
+void enable_blend(const glm::vec4 blend) {
+	glBlendColor(blend[0], blend[1], blend[2], blend[3]);
+	glBlendEquation(GL_FUNC_ADD);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
+}
+
+void enable_depth(GLenum depthFunc = 0) {
+	if (depthFunc == 0) {
+		glClear(GL_DEPTH_BUFFER_BIT);
+		glClearDepth(1.0);
+		glDisable(GL_DEPTH_TEST);
+		return;
 	}
-	return quad;
+	glDepthFunc(depthFunc);
+	glEnable(GL_DEPTH_TEST);
 }
 
 int main(int argc, char* argv[]) try {
@@ -128,8 +138,7 @@ int main(int argc, char* argv[]) try {
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-	Uint32 window_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN;
-	SDL_Window* window = SDL_CreateWindow("Rosalinde", W, H, window_flags);
+	SDL_Window* window = SDL_CreateWindow("Rosalinde", W, H, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
 	if (window == nullptr) {
 		printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
 		return -1;
@@ -165,7 +174,8 @@ int main(int argc, char* argv[]) try {
 		cpk.extract(*ftx, buffer);
 		std::vector<Texture2D> ret;
 		for (const auto& texentry : FTX::parse(buffer)) {
-			std::cout << "Texture: " << texentry.name << '\t' << texentry.width << ':' << texentry.height << '\n';
+			std::cout << "Texture: " << texentry.name << '\t' << texentry.width << ':' << texentry.height
+					  << " bytes: " << texentry.rgba.size() << '\n';
 			ret.emplace_back(texentry.width, texentry.height, texentry.rgba.data());
 		}
 		return ret;
@@ -194,7 +204,6 @@ int main(int argc, char* argv[]) try {
 	std::vector<short> texid;
 
 	// Our state
-	bool show_demo_window = false;
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 	bool done = false;
@@ -238,29 +247,37 @@ int main(int argc, char* argv[]) try {
 				indices.clear();
 
 				const auto& kf = scarlet_quad.keyframes()[tl.attach.id];
+
+				//const auto& blend = scarlet_quad.blends()[kf.layers[0].blendid];
+				enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
+				//enable_depth(GL_LESS); // No output with this.
+
 				fog.resize(kf.layers.size() * 16, 1.0);
 				const float zrate = 1.0 / (kf.layers.size() + 1);
 				float depth = 1.0;
 				unsigned i = 0;
 				for (const auto& layer : kf.layers) {
+
 					const auto& texture = scarlet_textures[layer.texid];
-					xyz.push_back(transform(layer.dst));
 					uv.push_back(transform_UV(texture, layer.src));
-					texid.push_back(layer.texid);
+					xyz.push_back(transform(layer.dst));
 					indices.insert(indices.end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
+					texid.insert(texid.end(), {layer.texid, layer.texid, layer.texid, layer.texid});
 
 					depth -= zrate;
 					z.insert(z.end(), {depth, depth, depth, depth});
 					i += 4;
 				}
 
-				for (int i = 0; i < scarlet_textures.size(); ++i) {
-					scarlet_textures[i].Active(GL_TEXTURE0 + i).Bind();
-				}
+				// for (int i = 0; i < scarlet_textures.size(); ++i) {
+				//	scarlet_textures[i].Active(GL_TEXTURE0 + i).Bind();
+				// }
+				const auto& texture = scarlet_textures[1].Active(GL_TEXTURE0).Bind();
+				// scarlet_textures[1].Active(GL_TEXTURE0).Bind();
 
 				const auto& shader = GetKeyframeShader().Use();
 				shader.SetUniform("u_pxsize", {(float)W, (float)H});
-				shader.SetUniform("u_imsize", {1.0 / 4096, 1.0 / 4096});
+				shader.SetUniform("u_imsize", {1.0 / texture.Width, 1.0 / texture.Height});
 				shader.SetUniform("u_tex", 0);
 
 				glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
