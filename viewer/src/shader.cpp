@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "shader.hpp"
+#include "glxx/error.hpp"
 
 // clang-format off
 constexpr std::string_view drawline_vert_src = "# version 300 es\n"
@@ -28,39 +29,44 @@ constexpr std::string_view kf_vert_src = "# version 300 es\n"
 "in      highp vec3  a_xyz;\n"
 "in      highp vec2  a_uv;\n"
 "in      lowp  float a_z;\n"
+"in      lowp  float a_texid;\n"
 "uniform highp vec2  u_pxsize;\n"
 "        highp vec2  XY;\n"
 "        highp float z;\n"
 "out     highp vec4  v_fog;\n"
 "out     highp vec2  v_uv;\n"
-"out     highp float v_z;\n"
+"out     lowp  float v_texid;\n"
 
 "void main(void) {\n"
 "    z = 1.0 / a_xyz.z;\n"
-"    XY  = a_xyz.xy * z * (2.0 / u_pxsize);\n"
+"    XY = a_xyz.xy * z * (2.0 / u_pxsize);\n"
 
-"    v_fog = a_fog * z;\n"
-"    v_uv  = a_uv  * z;\n"
-"    v_z   = z;\n"
+"    v_fog = a_fog;\n"
+"    v_uv  = a_uv;\n"
+"    v_texid = a_texid;\n"
 "    gl_Position = vec4(XY.x, -XY.y, a_z, 1.0);\n"
 "}";
 
 constexpr std::string_view kf_frag_src = "# version 300 es\n"
 "in      highp vec4  v_fog;\n"
 "in      highp vec2  v_uv;\n"
-"in      highp float v_z;\n"
-"uniform sampler2D   u_tex;\n"
-"uniform highp vec2  u_imsize;\n"
+"in      lowp  float v_texid;\n"
+"uniform highp vec2  u_texsz0;\n"
+"uniform highp vec2  u_texsz1;\n"
+"uniform sampler2D   u_tex0;\n"
+"uniform sampler2D   u_tex1;\n"
 "        highp vec4  FOG;\n"
-"        highp vec2  UV;\n"
-"        highp float z;\n"
+"        highp vec2  UV0;\n"
+"        highp vec2  UV1;\n"
+"        highp vec4  m;\n"
 "out     highp vec4  fragColor;\n"
 
 "void main(void) {\n"
-"    z   = 1.0 / v_z;\n"
-"    FOG = v_fog * z;\n"
-"    UV  = v_uv  * z * u_imsize;\n"
-"    fragColor = texture(u_tex, UV) * FOG;\n"
+"    FOG = v_fog;\n"
+"    UV0  = v_uv * u_texsz0;\n"
+"    UV1  = v_uv * u_texsz1;\n"
+"    m = mix(texture(u_tex0, UV0), texture(u_tex1, UV1), v_texid);\n"
+"    fragColor = m * FOG;\n"
 "}";
 
 constexpr std::string_view vram_vert = "# version 300 es\n"
@@ -221,9 +227,9 @@ int Shader::GetUniformLocation(const char* name) const { return glGetUniformLoca
 // checks if compilation or linking failed and if so, print the error logs
 void checkCompileErrors(GLuint object) {
 	char infoLog[1024];
-	int success;
+	GLint success;
 	glGetShaderiv(object, GL_COMPILE_STATUS, &success);
-	if (!success) {
+	if (success != GL_TRUE) {
 		glGetShaderInfoLog(object, sizeof(infoLog), NULL, infoLog);
 		std::cout << "| ERROR::Shader: Compile-time error:\n"
 				  << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
@@ -232,9 +238,9 @@ void checkCompileErrors(GLuint object) {
 
 void checkLinkErrors(GLuint object) {
 	char infoLog[1024];
-	int success;
+	GLint success;
 	glGetShaderiv(object, GL_COMPILE_STATUS, &success);
-	if (!success) {
+	if (success != GL_TRUE) {
 		glGetProgramInfoLog(object, sizeof(infoLog), NULL, infoLog);
 		std::cout << "| ERROR::Shader: Link-time error:\n"
 				  << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;

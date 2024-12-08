@@ -21,7 +21,7 @@ public:
 	Texture2D(unsigned int width, unsigned int height, const void* const data);
 
 	Texture2D(const Texture2D&) = delete;
-	Texture2D(Texture2D&&) noexcept = default;
+	Texture2D(Texture2D&&) noexcept;
 	~Texture2D() noexcept;
 
 	// generates texture from image data
@@ -31,4 +31,6 @@ public:
 	const Texture2D& Bind() const;
 
 	bool Render(unsigned int fbo);
+
+	bool Validate() const noexcept;
 };

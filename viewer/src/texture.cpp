@@ -1,4 +1,5 @@
 #include <glad/glad.h>
+#include <iostream>
 
 #include "texture.hpp"
 
@@ -23,6 +24,11 @@ Texture2D::Texture2D(unsigned int width, unsigned int height, const void* const 
 	Generate(width, height, data);
 }
 
+Texture2D::Texture2D(Texture2D&& other) noexcept
+	: ID(other.ID) {
+	other.ID = 0;
+}
+
 Texture2D::~Texture2D() noexcept {
 	glBindTexture(GL_TEXTURE_2D, 0);
 	if (ID > 0)
@@ -30,6 +36,7 @@ Texture2D::~Texture2D() noexcept {
 }
 
 void Texture2D::Generate(unsigned int width, unsigned int height, const void* const data) {
+	glBindTexture(GL_TEXTURE_2D, 0);
 	this->Width = width;
 	this->Height = height;
 	// create Texture
@@ -63,3 +70,5 @@ bool Texture2D::Render(const unsigned int fbo) {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	return (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
 }
+
+bool Texture2D::Validate() const noexcept { return glIsTexture(ID) == GL_TRUE; }
