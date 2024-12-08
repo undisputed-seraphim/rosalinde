@@ -50,6 +50,4 @@ private:
 	unsigned int _id;
 };
 
-const Shader& GetVRamShader();
 const Shader& GetKeyframeShader();
-const Shader& GetDrawlineShader();

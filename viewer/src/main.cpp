@@ -11,8 +11,6 @@
 #include <glad/glad.h>
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
-#define GLM_ENABLE_EXPERIMENTAL 1
-#include <glm/gtx/string_cast.hpp>
 #include <glxx/error.hpp>
 
 #include <cstdio>
@@ -21,7 +19,14 @@
 namespace fs = std::filesystem;
 namespace po = ::boost::program_options;
 
-auto camera = glm::mat4{2, 0, 0, 0, 0, 2, 0, 322, 0, 0, 1, 0, 0, 0, 0, 1};
+// clang-format off
+auto camera = glm::mat4{
+	2, 0, 0, 0,
+	0, 2, 0, 322,
+	0, 0, 1, 0,
+	0, 0, 0, 1
+};
+// clang-format on
 
 // IN:  Quad vertices
 // OUT: Triangle vertices, transformed
@@ -30,37 +35,19 @@ glm::mat4x3 transform(glm::mat4x2 vertices) {
 	camera[0][0] = 2.07219708396179;
 	camera[1][1] = 2.07219708396179;
 
-	const auto dst = glm::mat4x2{
-		camera[0][0] * vertices[0][0] + camera[0][1] * vertices[0][1] + camera[0][2] + camera[0][3],
-		camera[1][0] * vertices[0][0] + camera[1][1] * vertices[0][1] + camera[1][2] + camera[1][3],
-	
-		camera[0][0] * vertices[1][0] + camera[0][1] * vertices[1][1] + camera[0][2] + camera[0][3],
-		camera[1][0] * vertices[1][0] + camera[1][1] * vertices[1][1] + camera[1][2] + camera[1][3],
-
-		camera[0][0] * vertices[2][0] + camera[0][1] * vertices[2][1] + camera[0][2] + camera[0][3],
-		camera[1][0] * vertices[2][0] + camera[1][1] * vertices[2][1] + camera[1][2] + camera[1][3],
-
-		camera[0][0] * vertices[3][0] + camera[0][1] * vertices[3][1] + camera[0][2] + camera[0][3],
-		camera[1][0] * vertices[3][0] + camera[1][1] * vertices[3][1] + camera[1][2] + camera[1][3],
+	const auto v2 = glm::mat4{
+		glm::vec4(vertices[0], 1.0, 1.0),
+		glm::vec4(vertices[1], 1.0, 1.0),
+		glm::vec4(vertices[2], 1.0, 1.0),
+		glm::vec4(vertices[3], 1.0, 1.0),
 	};
 
-	// perspective_mat3
-	const auto v = glm::mat4x3{
-		glm::vec3{dst[0], 1.0},
-		glm::vec3{dst[1], 1.0},
-		glm::vec3{dst[2], 1.0},
-		glm::vec3{dst[3], 1.0}
-	};
-	const auto c = glm::mat3{
+	const glm::mat4x3 v = glm::transpose(camera) * v2;
+	const auto h = glm::transpose(glm::mat3{
 		glm::cross(glm::cross(v[0], v[2]), glm::cross(v[1], v[3])),
 		glm::cross(glm::cross(v[0], v[1]), glm::cross(v[3], v[2])),
 		glm::cross(glm::cross(v[0], v[3]), glm::cross(v[1], v[2]))
-	};
-	const auto h = glm::mat3{
-		c[0][0], c[1][0], c[2][0],
-		c[0][1], c[1][1], c[2][1],
-		c[0][2], c[1][2], c[2][2]
-	};
+	});
 
 	//perspective_quad
 	const auto h_inv = glm::mat3{
@@ -79,12 +66,27 @@ glm::mat4x3 transform(glm::mat4x2 vertices) {
 	return t;
 }
 
-glm::mat4x2 transform_UV(const Texture2D& texture, glm::mat4x2 quad) {
-	for (int i = 0; i < 4; ++i) {
-		quad[i][0] = quad[i][0] * texture.Width;
-		quad[i][1] = quad[i][1] * texture.Height;
+glm::mat4x2 transformUV(glm::mat4x2 uv, const std::vector<FTX::Entry>& textures, int16_t texid) {
+	const auto& t = textures[texid];
+	const glm::vec2 dims{t.width, t.height};
+	glm::vec2 d(0.0);
+	for (int16_t i = 0; i < textures.size(); ++i) {
+		if (i == texid) {
+			for (int j = 0; j < 4; ++j) {
+				uv[j] *= dims;
+				uv[j][0] += d[0];
+				//uv[j][1] += d[1];
+
+				// Due to some weird error, the x-axis of the texture
+				// must be shifted right by 2, to avoid artifacts.
+				uv[j][0] += 2;
+			}
+		}
+		d[0] += float(textures[i].width);
+		d[1] = std::max(d[1], float(textures[i].height));
 	}
-	return quad;
+	uv /= d;
+	return uv;
 }
 
 void enable_blend(const glm::vec4 blend) {
@@ -105,13 +107,43 @@ void enable_depth(GLenum depthFunc = 0) {
 	glEnable(GL_DEPTH_TEST);
 }
 
+GLuint generate_texture_map(const std::vector<FTX::Entry>& textures) {
+	unsigned total_width = 0;
+	unsigned max_height = 0;
+	for (const auto& t : textures) {
+		total_width += t.width;
+		max_height = std::max(max_height, (unsigned)t.height);
+	}
+
+	GLuint id;
+	glGenTextures(1, &id);
+	glBindTexture(GL_TEXTURE_2D, id);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, total_width, max_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+	total_width = 0;
+	for (const auto& t : textures) {
+		glTexSubImage2D(GL_TEXTURE_2D, 0, total_width, 0, t.width, t.height, GL_RGBA, GL_UNSIGNED_BYTE, t.rgba.data());
+		total_width += t.width;
+	}
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+	return id;
+}
+
 int main(int argc, char* argv[]) try {
 	fs::path cpkpath;
 	bool debug = false;
+	int index = 0;
 	po::options_description desc;
 	desc.add_options()("help,h", "Print this help message")(
 		"cpk", po::value<fs::path>(&cpkpath)->required(), "Path to Unicorn.cpk")(
-		"dbg,d", po::value<bool>(&debug), "Debug messages in OpenGL");
+		"dbg,d", po::value<bool>(&debug), "Debug messages in OpenGL")(
+		"index,i", po::value<int>(&index), "Multipurpose index");
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	try {
@@ -169,27 +201,21 @@ int main(int argc, char* argv[]) try {
 
 	std::vector<char> buffer;
 	const auto scarlet_mbs = [&cpk, &buffer]() {
-		auto mbs = cpk.by_name("Scarlet_F.mbs", "Chara");
+		auto mbs = cpk.by_name("Virginia_F.mbs", "Chara");
 		cpk.extract(*mbs, buffer);
 		std::cout << "MBS: " << mbs->name << '\n';
 		return MBS(std::ispanstream(buffer, std::ios::binary));
 	}();
 	const auto scarlet_quad = scarlet_mbs.extract();
-	const auto scarlet_textures = [&cpk, &buffer]() {
-		auto ftx = cpk.by_name("Scarlet_F00.ftx", "Chara");
-		cpk.extract(*ftx, buffer);
-		std::vector<Texture2D> ret;
-		for (const auto& texentry : FTX::parse(buffer)) {
-			std::cout << "Texture: " << texentry.name << '\t' << texentry.width << ':' << texentry.height
-					  << " bytes: " << texentry.rgba.size() << '\n';
-			ret.emplace_back(texentry.width, texentry.height, texentry.rgba.data());
-		}
-		return ret;
-	}();
+	cpk.extract(*cpk.by_name("Virginia_F00.ftx", "Chara"), buffer);
+	const auto scarlet_textures = FTX::parse(buffer);
+	GLuint tex = generate_texture_map(scarlet_textures);
+	glBindTexture(GL_TEXTURE_2D, tex);
+	glActiveTexture(GL_TEXTURE0);
 
 	int timestep = 0;
 
-	const auto& IDLE = scarlet_quad.skeletons()[0];
+	const auto& IDLE = scarlet_quad.skeletons()[index];
 	const Quad::Animation* selected_anim = &scarlet_quad.animations()[IDLE.bones[0].id];
 
 	unsigned int VBO[5];
@@ -203,11 +229,10 @@ int main(int argc, char* argv[]) try {
 	////////////////
 
 	std::vector<glm::mat4x3> xyz;
-	std::vector<glm::mat4x2> uv;
+	std::vector<glm::mat4x2> uv; // TODO UV artifacts, need to solve
 	std::vector<unsigned> indices;
-	std::vector<float> fog;
+	std::vector<float> fog; // should be int if possible
 	std::vector<float> z;
-	std::vector<float> texid;
 
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -251,11 +276,9 @@ int main(int argc, char* argv[]) try {
 				fog.clear();
 				z.clear();
 				indices.clear();
-				texid.clear();
 
 				const auto& kf = scarlet_quad.keyframes()[tl.attach.id];
 
-				// const auto& blend = scarlet_quad.blends()[kf.layers[0].blendid];
 				enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
 				// enable_depth(GL_LESS); // No output with this.
 
@@ -265,11 +288,9 @@ int main(int argc, char* argv[]) try {
 				unsigned i = 0;
 				for (const auto& layer : kf.layers) {
 					const auto& texture = scarlet_textures[layer.texid];
-					uv.push_back(transform_UV(texture, layer.src));
+					uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
 					xyz.push_back(transform(layer.dst));
 					indices.insert(indices.end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
-					texid.insert(
-						texid.end(), {(float)layer.texid, (float)layer.texid, (float)layer.texid, (float)layer.texid});
 
 					depth -= zrate;
 					z.insert(z.end(), {depth, depth, depth, depth});
@@ -277,14 +298,9 @@ int main(int argc, char* argv[]) try {
 				}
 
 				const auto& shader = GetKeyframeShader().Use();
-				const auto& texture0 = scarlet_textures[0].Active(GL_TEXTURE0).Bind();
-				const auto& texture1 = scarlet_textures[1].Active(GL_TEXTURE0 + 1).Bind();
 
 				shader.SetUniform("u_pxsize", {(float)W, (float)H});
-				shader.SetUniform("u_texsz0", {1.0 / texture0.Width, 1.0 / texture0.Height});
-				shader.SetUniform("u_texsz1", {1.0 / texture1.Width, 1.0 / texture1.Height});
-				shader.SetUniform("u_tex0", 0);
-				shader.SetUniform("u_tex1", 1);
+				shader.SetUniform("u_tex", 0);
 
 				glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
 				glBufferData(GL_ARRAY_BUFFER, sizeof(float) * fog.size(), fog.data(), GL_STATIC_DRAW);
@@ -305,11 +321,6 @@ int main(int argc, char* argv[]) try {
 				glBufferData(GL_ARRAY_BUFFER, sizeof(float) * z.size(), z.data(), GL_STATIC_DRAW);
 				glEnableVertexAttribArray(3);
 				glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-				glBindBuffer(GL_ARRAY_BUFFER, VBO[4]);
-				glBufferData(GL_ARRAY_BUFFER, sizeof(float) * texid.size(), texid.data(), GL_STATIC_DRAW);
-				glEnableVertexAttribArray(4);
-				glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
 				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 				glBufferData(

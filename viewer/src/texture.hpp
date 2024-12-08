@@ -1,36 +1,28 @@
 #pragma once
 
 class Texture2D {
+	unsigned _hnd;
+	unsigned _w, _h;
+
 public:
-	// holds the ID of the texture object, used for all texture operations to reference to this particular texture
-	unsigned int ID;
-	// texture image dimensions
-	unsigned int Width, Height; // width and height of loaded image in pixels
-	// texture Format
-	unsigned int Internal_Format; // format of texture object
-	unsigned int Image_Format;	  // format of loaded image
-	// texture configuration
-	unsigned int Wrap_S;	 // wrapping mode on S axis
-	unsigned int Wrap_T;	 // wrapping mode on T axis
-	unsigned int Filter_Min; // filtering mode if texture pixels < screen pixels
-	unsigned int Filter_Max; // filtering mode if texture pixels > screen pixels
+	struct Image {
+		unsigned width, height;
+		const void* pixels = NULL;
+	};
 
-	// constructor (sets default texture modes)
 	Texture2D();
-	Texture2D(unsigned int width, unsigned int height);
-	Texture2D(unsigned int width, unsigned int height, const void* const data);
-
 	Texture2D(const Texture2D&) = delete;
 	Texture2D(Texture2D&&) noexcept;
 	~Texture2D() noexcept;
 
 	// generates texture from image data
-	void Generate(unsigned int width, unsigned int height, const void* const data);
+	void Init(Image);
+	void Subimage(Image, unsigned xoffset, unsigned yoffset);
 
 	const Texture2D& Active(unsigned samplerID) const noexcept;
-	const Texture2D& Bind() const;
+	const Texture2D& Bind() const noexcept;
+	const Texture2D& Unbind() const noexcept;
 
-	bool Render(unsigned int fbo);
-
-	bool Validate() const noexcept;
+	explicit operator unsigned() const noexcept;
+	explicit operator bool() const noexcept;
 };
