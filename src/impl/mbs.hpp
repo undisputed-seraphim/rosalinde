@@ -30,12 +30,11 @@ public:
 			std::array<glm::vec4, 4> fog;
 			int16_t blendid;
 			int16_t texid;
-			// uint32_t attribute; // Always zero here
-			// uint8_t color; // Unused?
+			uint32_t attribute;
+			uint8_t color;
 		};
 		int32_t id;
 		std::vector<Layer> layers;
-		std::vector<int32_t> order;
 	};
 
 	struct Hitbox {
