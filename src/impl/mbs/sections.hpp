@@ -1,39 +1,41 @@
 #pragma once
 
+#include "../mbs.hpp"
 #include <cstdint>
 #include <iosfwd>
 #include <vector>
-#include "../mbs.hpp"
 
 namespace MBS_ {
 
 #pragma pack(push, 1)
+// Fragment RGBA - nds_quad18c
 struct section_0 {
-	// nds_quad18c - Seems like a struct to hold colors/transparency
 	uint32_t center;
-	uint32_t colors[4]; // Fog color - 4 corners each x RGBA
+	uint32_t colors[4]; // 4xRGBA
 	uint32_t topleft;
 };
 
+// Texture UV coords - nds_quad30p
 struct section_1 {
-	// nds_quad30p - Texture UV coords
 	float center[2];
 	float values[8]; // 4x2
 	float topleft[2];
 };
 
+// Vertex - nds_quad30p
 struct section_2 {
-	// nds_quad30p - Vertices
 	float unused0[2];
 	float values[8]; // 4x2
 	float topleft[2];
 };
 
+// Hitbox?
 struct section_3 {
 	float hitbox[8]; // 4x2
-	float _xyz[12]; // 4x3 [1, -0, 0 , -0, -1, 0 , -1, -0, 0 , -0, 1, 0]
+	float _xyz[12];	 // 4x3 [1, -0, 0 , -0, -1, 0 , -1, -0, 0 , -0, 1, 0]
 };
 
+// Keyframe Layer
 struct section_4 {
 	uint32_t _unk0;
 	uint8_t color_id;
@@ -41,9 +43,9 @@ struct section_4 {
 	uint8_t blend_id;
 	uint8_t tex_id;
 	uint32_t attributes;
-	uint16_t s1_id;
-	uint16_t s0_id;
-	uint16_t s2_id;
+	uint16_t s1_id; // id of texture uv
+	uint16_t s0_id; // id of fog color
+	uint16_t s2_id; // id of vertex
 	uint16_t _pad;
 };
 
@@ -54,15 +56,16 @@ struct section_5 {
 	uint32_t flags;
 };
 
+// Keyframe
 struct section_6 {
 	float left;
 	float top;
 	float right;
 	float bottom;
-	uint32_t s4_id;
-	uint16_t s5_id;
-	uint16_t s4_no;
-	uint8_t s5_no;
+	uint32_t s4_id; // starting layer id
+	uint16_t s5_id; // starting hitbox id
+	uint16_t s4_no; // nr of layers
+	uint8_t s5_no;	// nr of hitboxes
 	uint8_t flags;
 	uint16_t _pad0;
 };

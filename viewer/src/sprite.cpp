@@ -18,8 +18,7 @@ void Sprite::Animate(int current_active_anim) const {
 
 	if (tl.attach.objt == Quad::ObjectType::KEYFRAME) {
 		const auto& kf = _q.keyframes().at(tl.attach.id);
-		for (const auto order : kf.order) {
-			const auto& layer = kf.layers.at(order);
+		for (const auto& layer : kf.layers) {
 			const auto& texture = _textures.at(layer.texid);
 			const auto& shader = GetKeyframeShader();
 		}

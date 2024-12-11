@@ -61,9 +61,9 @@ struct s8sa_loop {
 
 std::vector<s8sa_loop> s8sa_loop::preprocess(const v77& v77) {
 	struct s8_sa {
-		int32_t _0;
-		int32_t _1;
-		uint32_t _2;
+		int32_t id;
+		int32_t nr;
+		uint32_t sum;
 	};
 	const std::vector<s8_sa> s8sa = [](const std::vector<section_a>& sa) {
 		std::vector<s8_sa> out;
@@ -83,7 +83,7 @@ std::vector<s8sa_loop> s8sa_loop::preprocess(const v77& v77) {
 		int32_t j = 0;
 		std::unordered_map<int, int> line;
 		while (true) {
-			const int32_t s8k = sav._0 + j;
+			const int32_t s8k = sav.id + j;
 			if (v77.s8.size() < s8k) {
 				break;
 			}
@@ -203,10 +203,8 @@ void lol::get_anims_skels(const v77& v77) {
 
 				const bool flipx = s8flag_set(s8flag_mode::FLIPX, s8.flags);
 				const bool flipy = s8flag_set(s8flag_mode::FLIPY, s8.flags);
-
 				const auto s7k = s8.s7_id;
 				tl.matrix = s7_matrix(v77.s7[s7k], flipx, flipy);
-
 				tl.color = v77.s7[s7k].fog;
 				tl.time = s8.frames;
 				tl.matrix_mix = s8.s7_interpolation;
@@ -257,8 +255,8 @@ void lol::get_keyframes_hitboxes_slots(const v77& v77) {
 				::memcpy(&layer.src, s1v.values, sizeof(layer.src));
 			}
 
-			// layer.attribute = s4v.attr;
-			// layer.color = s4v.color_id;
+			layer.attribute = s4.attributes;
+			layer.color = s4.color_id;
 		}
 		keyframe.id = i;
 
@@ -275,6 +273,9 @@ void lol::get_keyframes_hitboxes_slots(const v77& v77) {
 		hitbox.id = i;
 
 		// Slots
+		// Section 6 holds keyframe layers and hitboxes.
+		// But if both are empty, then it is a placeholder that references
+		// other keyframes and hitboxes.
 		auto& slot = _slots[i];
 		if (s6.s4_no > 0 && s6.s5_no > 0) {
 			slot.attachments.push_back(Quad::Attach{(int32_t)i, Quad::ObjectType::KEYFRAME});
