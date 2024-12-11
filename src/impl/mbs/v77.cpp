@@ -136,11 +136,11 @@ Quad v77::to_quad() const {
 	return static_cast<Quad>(q);
 }
 
-glm::mat4x4 s7_matrix(const section_7& s7, const bool flipx, const bool flipy) {
+glm::mat4 s7_matrix(const section_7& s7, const bool flipx, const bool flipy) {
 	const int8_t x = flipx ? -1 : 1;
 	const int8_t y = flipy ? -1 : 1;
 	// Scale
-	glm::mat4x4 m{1};
+	glm::mat4 m{1};
 	m[0][0] = s7.scale[0] * x;
 	m[1][1] = s7.scale[1] * y;
 
@@ -160,6 +160,15 @@ glm::mat4x4 s7_matrix(const section_7& s7, const bool flipx, const bool flipy) {
 	m[1][3] += s7.move[1] * y;
 	m[2][3] += s7.move[2];
 	return m;
+}
+
+glm::vec4 rgba_uint32_to_float4(const uint32_t rgba) {
+	return (glm::vec4(
+		static_cast<float>((rgba >> 24) & 0xFF),
+		static_cast<float>((rgba >> 16) & 0xFF),
+		static_cast<float>((rgba >>  8) & 0xFF),
+		static_cast<float>((rgba >>  0) & 0xFF)
+	) / 255.0f);
 }
 
 void lol::get_anims_skels(const v77& v77) {
@@ -204,7 +213,7 @@ void lol::get_anims_skels(const v77& v77) {
 				const bool flipy = s8flag_set(s8flag_mode::FLIPY, s8.flags);
 
 				const auto s7k = s8.s7_id;
-				const auto s7m = s7_matrix(v77.s7[s7k], flipx, flipy);
+				tl.matrix = s7_matrix(v77.s7[s7k], flipx, flipy);
 
 				tl.color = v77.s7[s7k].fog;
 				tl.time = s8.frames;
@@ -212,9 +221,6 @@ void lol::get_anims_skels(const v77& v77) {
 				tl.color_mix = s8.s7_interpolation;
 				tl.keyframe_mix = s8.s6_interpolation;
 				tl.hitbox_mix = s8.s5s3_interpolation;
-
-				static_assert(sizeof(tl.matrix) == sizeof(s7m));
-				::memcpy(&tl.matrix, &s7m[0][0], sizeof(tl.matrix));
 			}
 		}
 	}
@@ -245,10 +251,12 @@ void lol::get_keyframes_hitboxes_slots(const v77& v77) {
 			layer.blendid = s4.blend_id;
 
 			const auto& s0 = v77.s0[s4.s0_id];
-			if (s0.center != 0xFFFFFFFF) {
-				static_assert(sizeof(layer.fog) == sizeof(s0.colors));
-				::memcpy(&layer.fog, s0.colors, sizeof(layer.fog));
-			}
+			layer.fog = {
+				rgba_uint32_to_float4(s0.colors[0]),
+				rgba_uint32_to_float4(s0.colors[1]),
+				rgba_uint32_to_float4(s0.colors[2]),
+				rgba_uint32_to_float4(s0.colors[3]),
+			};
 
 			if (s4flag_set(s4flag_mode::TEX, s4.flags)) {
 				layer.texid = s4.tex_id;
@@ -270,8 +278,8 @@ void lol::get_keyframes_hitboxes_slots(const v77& v77) {
 			const auto& s5 = v77.s5[s6.s5_id + j];
 			const auto& s3 = v77.s3[s5.s3_id];
 			auto& layer = hitbox.layers[j];
-			static_assert(sizeof(layer.hitbox) == sizeof(s3.r));
-			::memcpy(&layer.hitbox, &s3.r, sizeof(layer.hitbox));
+			static_assert(sizeof(layer.hitbox) == sizeof(s3.hitbox));
+			::memcpy(&layer.hitbox, &s3.hitbox, sizeof(layer.hitbox));
 		}
 		hitbox.id = i;
 

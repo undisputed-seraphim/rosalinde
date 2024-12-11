@@ -9,53 +9,29 @@ namespace MBS_ {
 
 #pragma pack(push, 1)
 struct section_0 {
-	// nds_quad18c
+	// nds_quad18c - Seems like a struct to hold colors/transparency
 	uint32_t center;
-	uint32_t colors[4]; // c0 ~ c3
-	uint32_t c0_2;
+	uint32_t colors[4]; // Fog color - 4 corners each x RGBA
+	uint32_t topleft;
 };
 
 struct section_1 {
-	// nds_quad30p - first 2 and last 2 values are not used..?
-	float unused0[2];
-	float values[8];
-	float unused1[2];
+	// nds_quad30p - Texture UV coords
+	float center[2];
+	float values[8]; // 4x2
+	float topleft[2];
 };
 
 struct section_2 {
-	// nds_quad30p - first 2 and last 2 values are not used..?
+	// nds_quad30p - Vertices
 	float unused0[2];
-	float values[8];
-	float unused1[2];
+	float values[8]; // 4x2
+	float topleft[2];
 };
 
 struct section_3 {
-	struct rect {
-		float x1;
-		float y1;
-		float x2;
-		float y2;
-		float x3;
-		float y3;
-		float x4;
-		float y4;
-	};
-	struct xyz {
-		float x1;
-		float y1;
-		float z1; // = 0
-		float x2;
-		float y2;
-		float z2; // = 0
-		float x3;
-		float y3;
-		float z3; // = 0
-		float x4;
-		float y4;
-		float z4; // = 0
-	};
-	rect r;
-	xyz _xyz;
+	float hitbox[8]; // 4x2
+	float _xyz[12]; // 4x3 [1, -0, 0 , -0, -1, 0 , -1, -0, 0 , -0, 1, 0]
 };
 
 struct section_4 {
@@ -91,6 +67,7 @@ struct section_6 {
 	uint16_t _pad0;
 };
 
+// We want to turn this struct into a translate-rotate-scale 4x4 matrix
 struct section_7 {
 	float move[3];
 	float rotate[3];
