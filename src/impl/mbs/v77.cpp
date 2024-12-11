@@ -52,23 +52,6 @@ uint32_t s8flag_set(s8flag_mode f, uint32_t flag) {
 	return 0;
 }
 
-struct s8_sa {
-	int32_t _0;
-	int32_t _1;
-	uint32_t _2;
-
-	static std::vector<s8_sa> preprocess(const std::vector<section_a>&);
-};
-
-std::vector<s8_sa> s8_sa::preprocess(const std::vector<section_a>& sa) {
-	std::vector<s8_sa> out;
-	out.reserve(sa.size());
-	for (const auto& i : sa) {
-		out.emplace_back(s8_sa{int32_t(i.s8_id) + i.s8_st, int32_t(i.s8_no) - i.s8_st, i.s8_sum});
-	}
-	return out;
-}
-
 struct s8sa_loop {
 	int loop;
 	std::vector<section_8> times;
@@ -77,7 +60,19 @@ struct s8sa_loop {
 };
 
 std::vector<s8sa_loop> s8sa_loop::preprocess(const v77& v77) {
-	const std::vector<s8_sa> s8sa = s8_sa::preprocess(v77.sa);
+	struct s8_sa {
+		int32_t _0;
+		int32_t _1;
+		uint32_t _2;
+	};
+	const std::vector<s8_sa> s8sa = [](const std::vector<section_a>& sa) {
+		std::vector<s8_sa> out;
+		out.reserve(sa.size());
+		for (const auto& i : sa) {
+			out.emplace_back(s8_sa{int32_t(i.s8_id) + i.s8_st, int32_t(i.s8_no) - i.s8_st, i.s8_sum});
+		}
+		return out;
+	}(v77.sa);
 
 	std::vector<s8sa_loop> s8sa_loops(s8sa.size());
 	for (uint32_t i = 0; i < s8sa.size(); ++i) {
@@ -139,36 +134,33 @@ Quad v77::to_quad() const {
 glm::mat4 s7_matrix(const section_7& s7, const bool flipx, const bool flipy) {
 	const int8_t x = flipx ? -1 : 1;
 	const int8_t y = flipy ? -1 : 1;
-	// Scale
 	glm::mat4 m{1};
-	m[0][0] = s7.scale[0] * x;
-	m[1][1] = s7.scale[1] * y;
-
-	// Rotate
-	// TODO: This part is most certainly wrong. Values for sample only.
-	m *= glm::rotate(m, s7.rotate[2], {0, 0, 1});
-	// TODO: See if the if-statement can be removed.
-	if (s7.rotate[1] != 0.0) {
-		m *= glm::rotate(m, s7.rotate[1], {0, 1, 0});
-	}
-	if (s7.rotate[0] != 0.0) {
-		m *= glm::rotate(m, s7.rotate[0], {1, 0, 0});
-	}
 
 	// Translate
 	m[0][3] += s7.move[0] * x;
 	m[1][3] += s7.move[1] * y;
 	m[2][3] += s7.move[2];
+
+	// Rotate
+	m *= glm::rotate(m, s7.rotate[2], {0, 0, 1});
+	m *= glm::rotate(m, s7.rotate[1], {0, 1, 0});
+	m *= glm::rotate(m, s7.rotate[0], {1, 0, 0});
+
+	// Scale
+	m[0][0] = s7.scale[0] * x;
+	m[1][1] = s7.scale[1] * y;
 	return m;
 }
 
 glm::vec4 rgba_uint32_to_float4(const uint32_t rgba) {
+	// clang-format off
 	return (glm::vec4(
 		static_cast<float>((rgba >> 24) & 0xFF),
 		static_cast<float>((rgba >> 16) & 0xFF),
 		static_cast<float>((rgba >>  8) & 0xFF),
 		static_cast<float>((rgba >>  0) & 0xFF)
 	) / 255.0f);
+	// clang-format on
 }
 
 void lol::get_anims_skels(const v77& v77) {
@@ -267,7 +259,6 @@ void lol::get_keyframes_hitboxes_slots(const v77& v77) {
 
 			// layer.attribute = s4v.attr;
 			// layer.color = s4v.color_id;
-
 		}
 		keyframe.id = i;
 
