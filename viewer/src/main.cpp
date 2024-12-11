@@ -229,9 +229,9 @@ int main(int argc, char* argv[]) try {
 	////////////////
 
 	std::vector<glm::mat4x3> xyz;
-	std::vector<glm::mat4x2> uv; // TODO UV artifacts, need to solve
+	std::vector<glm::mat4x2> uv;
 	std::vector<unsigned> indices;
-	std::vector<float> fog; // should be int if possible
+	std::vector<glm::vec4> fog;
 	std::vector<float> z;
 
 	// Our state
@@ -282,7 +282,6 @@ int main(int argc, char* argv[]) try {
 				enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
 				// enable_depth(GL_LESS); // No output with this.
 
-				fog.resize(kf.layers.size() * 16, 1.0);
 				const float zrate = 1.0 / (kf.layers.size() + 1);
 				float depth = 1.0;
 				unsigned i = 0;
@@ -291,6 +290,7 @@ int main(int argc, char* argv[]) try {
 					uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
 					xyz.push_back(transform(layer.dst));
 					indices.insert(indices.end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
+					fog.insert(fog.end(), layer.fog.begin(), layer.fog.end());
 
 					depth -= zrate;
 					z.insert(z.end(), {depth, depth, depth, depth});
@@ -303,7 +303,7 @@ int main(int argc, char* argv[]) try {
 				shader.SetUniform("u_tex", 0);
 
 				glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
-				glBufferData(GL_ARRAY_BUFFER, sizeof(float) * fog.size(), fog.data(), GL_STATIC_DRAW);
+				glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * fog.size(), &fog[0][0], GL_STATIC_DRAW);
 				glEnableVertexAttribArray(0);
 				glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
