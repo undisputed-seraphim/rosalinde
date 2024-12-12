@@ -4,7 +4,6 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-#include "shader.hpp"
 #include "texture.hpp"
 #include <eltolinde.hpp>
 
@@ -14,11 +13,20 @@ public:
 	Sprite(const Sprite&) = delete;
 	~Sprite() noexcept = default;
 
-	void AddTexture(Texture2D&&);
-
-	void Animate(int anim) const;
+	void Animate(int anim);
+	void AnimateKeyframe(const Quad::Keyframe& kf);
 
 private:
 	Quad _q;
-	std::vector<Texture2D> _textures;
+
+	unsigned int VBO[5];
+	unsigned int EBO;
+	unsigned int tex;
+	
+	uint32_t mask;
+	std::vector<glm::mat4x3> xyz;
+	std::vector<glm::mat4x2> uv;
+	std::vector<unsigned> indices;
+	std::vector<glm::vec4> fog;
+	std::vector<float> z;
 };

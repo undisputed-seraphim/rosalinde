@@ -17,9 +17,10 @@ public:
     ~State() noexcept;
 
     struct MbsFtx {
-        std::string chara_mbs, chara_ftx, face_mbs, face_ftx, op_mbs, op_ftx;
+        std::string mbs, ftx;
+        std::vector<uint32_t> variations;
     };
-    static const std::unordered_map<std::string, MbsFtx> Characters;
+    static const std::unordered_map<std::string, MbsFtx> Chara;
 
     void render();
 };
