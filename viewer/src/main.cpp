@@ -20,7 +20,7 @@ namespace fs = std::filesystem;
 namespace po = ::boost::program_options;
 
 // clang-format off
-auto camera = glm::mat4{
+static auto camera = glm::mat4{
 	2, 0, 0, 0,
 	0, 2, 0, 322,
 	0, 0, 1, 0,
@@ -30,7 +30,7 @@ auto camera = glm::mat4{
 
 // IN:  Quad vertices
 // OUT: Triangle vertices, transformed
-glm::mat4x3 transform(glm::mat4x2 vertices) {
+static glm::mat4x3 transform(glm::mat4x2 vertices) {
 	// clang-format off
 	camera[0][0] = 2.07219708396179;
 	camera[1][1] = 2.07219708396179;
@@ -66,7 +66,7 @@ glm::mat4x3 transform(glm::mat4x2 vertices) {
 	return t;
 }
 
-glm::mat4x2 transformUV(glm::mat4x2 uv, const std::vector<FTX::Entry>& textures, int16_t texid) {
+static glm::mat4x2 transformUV(glm::mat4x2 uv, const std::vector<FTX::Entry>& textures, int16_t texid) {
 	const auto& t = textures[texid];
 	const glm::vec2 dims{t.width, t.height};
 	glm::vec2 d(0.0);
@@ -75,7 +75,6 @@ glm::mat4x2 transformUV(glm::mat4x2 uv, const std::vector<FTX::Entry>& textures,
 			for (int j = 0; j < 4; ++j) {
 				uv[j] *= dims;
 				uv[j][0] += d[0];
-				//uv[j][1] += d[1];
 
 				// Due to some weird error, the x-axis of the texture
 				// must be shifted right by 2, to avoid artifacts.
@@ -226,6 +225,11 @@ int main(int argc, char* argv[]) try {
 
 	glBindVertexArray(VAO);
 
+	enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
+
+	static constexpr unsigned SCARLET_1 = 0x4000 + 0x1000;
+	static constexpr unsigned SCARLET_2 = 0x2000 + 0x800;
+
 	////////////////
 
 	std::vector<glm::mat4x3> xyz;
@@ -238,14 +242,7 @@ int main(int argc, char* argv[]) try {
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 	bool done = false;
-#ifdef __EMSCRIPTEN__
-	// For an Emscripten build we are disabling file-system access, so let's not attempt to do a fopen() of the
-	// imgui.ini file. You may manually call LoadIniSettingsFromMemory() to load settings from your own storage.
-	io.IniFilename = nullptr;
-	EMSCRIPTEN_MAINLOOP_BEGIN
-#else
 	while (!done)
-#endif
 	{
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
@@ -262,8 +259,7 @@ int main(int argc, char* argv[]) try {
 
 		// Rendering
 		glViewport(0, 0, W, H);
-		glClearColor(
-			clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
+		glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		SDL_Delay(50); // Slow down animation
@@ -279,21 +275,22 @@ int main(int argc, char* argv[]) try {
 
 				const auto& kf = scarlet_quad.keyframes()[tl.attach.id];
 
-				enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
-				// enable_depth(GL_LESS); // No output with this.
-
 				const float zrate = 1.0 / (kf.layers.size() + 1);
 				float depth = 1.0;
 				unsigned i = 0;
 				for (const auto& layer : kf.layers) {
+					if (layer.attribute & 0x8000) {
+						continue;
+					}
+
+					xyz.push_back(transform(layer.dst));
 					const auto& texture = scarlet_textures[layer.texid];
 					uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
-					xyz.push_back(transform(layer.dst));
-					indices.insert(indices.end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
 					fog.insert(fog.end(), layer.fog.begin(), layer.fog.end());
 
 					depth -= zrate;
 					z.insert(z.end(), {depth, depth, depth, depth});
+					indices.insert(indices.end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
 					i += 4;
 				}
 
@@ -335,9 +332,6 @@ int main(int argc, char* argv[]) try {
 
 		SDL_GL_SwapWindow(window);
 	}
-#ifdef __EMSCRIPTEN__
-	EMSCRIPTEN_MAINLOOP_END;
-#endif
 
 	// Cleanup
 	SDL_GL_DestroyContext(gl_context);
