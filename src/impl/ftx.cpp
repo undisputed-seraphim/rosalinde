@@ -4,7 +4,6 @@
 #include <detex-0.1.2alpha2/detex.h>
 
 #include <array>
-#include <iostream>
 #include <spanstream>
 #include <vector>
 
@@ -49,13 +48,6 @@ struct tex_header {
 };
 #pragma pack(pop)
 
-// Forward declarations
-// Returns 0 if no error.
-int im_bc3(const tex_header&, std::span<uint8_t>, std::vector<char>&);
-int im_bc4(const tex_header&, std::span<uint8_t>, std::vector<char>&);
-int im_bc7(const tex_header&, std::span<uint8_t>, std::vector<char>&);
-void tegra_x1_swizzle(const tex_header&, std::vector<char>&);
-
 namespace FTX {
 
 std::vector<Entry> parse(std::istream& is) { return parse(std::move(is)); }
@@ -71,10 +63,9 @@ std::vector<Entry> parse(std::istream&& is) {
 	for (uint32_t i = 0; i < ftex_hdr.count; ++i) {
 		const auto entry = read_value<ftex_entry>(is);
 		auto filename = std::string(entry.filename, strlen(entry.filename));
-		entries.emplace_back(Entry{std::move(filename), {}, 0, 0});
+		entries.emplace_back(Entry{std::move(filename), {}, 0, 0, 0, 0, Compression::NONE, Swizzle::NONE});
 	}
 
-	std::vector<uint8_t> buffer = {};
 	is.seekg(ftex_hdr.header_size, std::ios::beg);
 	for (auto& entry : entries) {
 		const auto curpos = is.tellg();
@@ -90,24 +81,27 @@ std::vector<Entry> parse(std::istream&& is) {
 		is.seekg(-sizeof(hdr), std::ios::cur);
 		entry.width = hdr.width;
 		entry.height = hdr.height;
-		buffer.resize(ftx0_hdr.file_size);
-		is.read(reinterpret_cast<char*>(buffer.data()), ftx0_hdr.file_size);
+		entry.compressed_size = hdr.s1;
+		entry.uncompressed_size = hdr.s2;
+		entry.rgba.resize(ftx0_hdr.file_size);
+		is.read(reinterpret_cast<char*>(entry.rgba.data()), ftx0_hdr.file_size);
 
 		switch (hdr.format) {
 		case 0x44:
-			im_bc3(hdr, buffer, entry.rgba);
+			entry.comp = Compression::BC3_UNORM;
+			entry.swizzle = Swizzle::TEGRA_X1;
 			break;
 		case 0x49:
-			im_bc4(hdr, buffer, entry.rgba);
-			tegra_x1_swizzle(hdr, entry.rgba);
+			entry.comp = Compression::BC4_UNORM;
+			entry.swizzle = Swizzle::TEGRA_X1;
 			break;
 		case 0x4d:
-			im_bc7(hdr, buffer, entry.rgba);
-			tegra_x1_swizzle(hdr, entry.rgba);
+			entry.comp = Compression::BC7_UNORM;
+			entry.swizzle = Swizzle::TEGRA_X1;
 			break;
 		default: {
-			std::cout << "Unsupported format" << std::endl;
-			return {};
+			entry.comp = Compression::NONE;
+			entry.swizzle = Swizzle::TEGRA_X1;
 		}
 		}
 	}
@@ -116,57 +110,108 @@ std::vector<Entry> parse(std::istream&& is) {
 
 std::vector<Entry> parse(std::span<char> buffer) { return parse(std::ispanstream(buffer, std::ios::binary)); }
 
-} // namespace FTX
+// Forward declarations for decompress
+unsigned texture_decompress_bc3(
+	unsigned compressed_size,
+	unsigned uncompressed_size,
+	std::span<const uint8_t> in,
+	std::vector<uint8_t>& out);
+unsigned texture_decompress_bc4(
+	unsigned compressed_size,
+	unsigned uncompressed_size,
+	std::span<const uint8_t> in,
+	std::vector<uint8_t>& out);
+unsigned texture_decompress_bc7(
+	unsigned compressed_size,
+	unsigned uncompressed_size,
+	std::span<const uint8_t> in,
+	std::vector<uint8_t>& out);
 
-int im_bc3(const tex_header& header, std::span<uint8_t> buffer, std::vector<char>& outbuf) {
-	buffer = buffer.last(buffer.size() - header.s1);
-	outbuf.resize(header.s2 * 4);
-	for (int i = 0; i < header.s2; i += 8) {
-		if (detexDecompressBlockBC3(
-				buffer.data() + i, DETEX_MODE_MASK_ALL, 0, reinterpret_cast<uint8_t*>(outbuf.data() + (i * 4)))) {
-			// OK, continue
+// Forward declarations for deswizzle
+static void tegra_x1_deswizzle(unsigned width, unsigned height, std::span<const uint8_t>, std::vector<uint8_t>&);
+
+unsigned decompress(Entry& entry) {
+	int ret = 0;
+	std::vector<uint8_t> buffer;
+	switch (entry.comp) {
+	case Compression::BC7_UNORM: {
+		ret = texture_decompress_bc7(entry.compressed_size, entry.uncompressed_size, entry.rgba, buffer);
+		break;
+	}
+	case Compression::NONE:
+	default:
+		break; // no-op
+	}
+	std::swap(entry.rgba, buffer);
+	return ret;
+}
+
+unsigned texture_decompress_bc3(
+	const unsigned compressed_size,
+	const unsigned uncompressed_size,
+	std::span<const uint8_t> in,
+	std::vector<uint8_t>& out) {
+	in = in.last(in.size() - compressed_size);
+	out.resize(uncompressed_size * 4);
+	for (unsigned i = 0; i < uncompressed_size; i += 8) {
+		if (detexDecompressBlockBC3(in.data() + i, DETEX_MODE_MASK_ALL, 0, out.data() + (i * 4))) {
 		} else {
-			std::cout << "Failed on block " << i << '\n';
 			return i;
 		}
 	}
 	return 0;
 }
 
-int im_bc4(const tex_header& header, std::span<uint8_t> buffer, std::vector<char>& outbuf) {
-	buffer = buffer.last(buffer.size() - header.s1);
-	outbuf.resize(header.s2 * 4);
-	for (int i = 0; i < header.s2; i += 8) {
-		if (detexDecompressBlockRGTC1(
-				buffer.data() + i, DETEX_MODE_MASK_ALL, 0, reinterpret_cast<uint8_t*>(outbuf.data() + (i * 4)))) {
-			// OK, continue
+unsigned texture_decompress_bc4(
+	const unsigned compressed_size,
+	const unsigned uncompressed_size,
+	std::span<const uint8_t> in,
+	std::vector<uint8_t>& out) {
+	in = in.last(in.size() - compressed_size);
+	out.resize(uncompressed_size * 4);
+	for (unsigned i = 0; i < uncompressed_size; i += 8) {
+		if (detexDecompressBlockRGTC1(in.data() + i, DETEX_MODE_MASK_ALL, 0, out.data() + (i * 4))) {
 		} else {
-			std::cout << "Failed on block " << i << '\n';
 			return i;
 		}
 	}
 	return 0;
 }
 
-int im_bc7(const tex_header& header, std::span<uint8_t> buffer, std::vector<char>& outbuf) {
-	buffer = buffer.last(buffer.size() - header.s1);
-	outbuf.resize(header.s2 * 4);
-	for (int i = 0; i < header.s2; i += 16) {
-		if (detexDecompressBlockBPTC(
-				buffer.data() + i,
-				DETEX_MODE_MASK_ALL_MODES_BPTC,
-				0,
-				reinterpret_cast<uint8_t*>(outbuf.data() + (i * 4)))) {
-			// OK, continue
+unsigned texture_decompress_bc7(
+	const unsigned compressed_size,
+	const unsigned uncompressed_size,
+	std::span<const uint8_t> in,
+	std::vector<uint8_t>& out) {
+	in = in.last(in.size() - compressed_size);
+	out.resize(uncompressed_size * 4);
+	for (unsigned i = 0; i < uncompressed_size; i += 16) {
+		if (detexDecompressBlockBPTC(in.data() + i, DETEX_MODE_MASK_ALL_MODES_BPTC, 0, out.data() + (i * 4))) {
 		} else {
-			std::cout << "Failed on block " << i << '\n';
 			return i;
 		}
 	}
 	return 0;
 }
 
-void tegra_x1_swizzle(const tex_header& header, std::vector<char>& buffer) {
+void deswizzle(Entry& entry) {
+	std::vector<uint8_t> buffer;
+	switch (entry.swizzle) {
+	case Swizzle::TEGRA_X1:
+		tegra_x1_deswizzle(entry.width, entry.height, entry.rgba, buffer);
+	case Swizzle::NONE:
+	default:
+		// no-op
+		break;
+	}
+	std::swap(entry.rgba, buffer);
+}
+
+void tegra_x1_deswizzle(
+	const unsigned width,
+	const unsigned height,
+	std::span<const uint8_t> buffer,
+	std::vector<uint8_t>& result) {
 	if (buffer.empty()) {
 		return;
 	}
@@ -203,12 +248,12 @@ void tegra_x1_swizzle(const tex_header& header, std::vector<char>& buffer) {
 		return bit;
 	};
 
-	std::vector<char> result(buffer.size());
+	result.resize(buffer.size());
 	const struct {
 		char magic[4];
 		uint32_t width;
 		uint32_t height;
-	} hdr{{'R', 'G', 'B', 'A'}, header.width, header.height};
+	} hdr{{'R', 'G', 'B', 'A'}, width, height};
 	constexpr uint32_t hdr_offset = sizeof(hdr);
 	::memcpy(result.data(), (char*)&hdr, sizeof(hdr));
 
@@ -216,8 +261,8 @@ void tegra_x1_swizzle(const tex_header& header, std::vector<char>& buffer) {
 	constexpr uint32_t row = 4 * bpp;
 	const uint32_t len_pix = buffer.size();
 	const uint32_t len_blk = len_pix >> 6;
-	const uint32_t w = (header.width >> 2);
-	const uint32_t h = (header.height >> 2);
+	const uint32_t w = (width >> 2);
+	const uint32_t h = (height >> 2);
 	for (const auto bit : bits) {
 		if (len_blk <= bit[0]) {
 			uint32_t pos = 0;
@@ -238,5 +283,6 @@ void tegra_x1_swizzle(const tex_header& header, std::vector<char>& buffer) {
 			break;
 		}
 	}
-	buffer = result;
 }
+
+} // namespace FTX

@@ -207,7 +207,11 @@ int main(int argc, char* argv[]) try {
 	}();
 	const auto scarlet_quad = scarlet_mbs.extract();
 	cpk.extract(*cpk.by_name("Virginia_F00.ftx", "Chara"), buffer);
-	const auto scarlet_textures = FTX::parse(buffer);
+	auto scarlet_textures = FTX::parse(buffer);
+	for (auto& texture : scarlet_textures) {
+		FTX::decompress(texture);
+		FTX::deswizzle(texture);
+	}
 	GLuint tex = generate_texture_map(scarlet_textures);
 	glBindTexture(GL_TEXTURE_2D, tex);
 	glActiveTexture(GL_TEXTURE0);
@@ -242,8 +246,7 @@ int main(int argc, char* argv[]) try {
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 	bool done = false;
-	while (!done)
-	{
+	while (!done) {
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
 			// ImGui_ImplSDL3_ProcessEvent(&event);
@@ -279,7 +282,7 @@ int main(int argc, char* argv[]) try {
 				float depth = 1.0;
 				unsigned i = 0;
 				for (const auto& layer : kf.layers) {
-					if (layer.attribute & 0x8000) {
+					if (layer.attribute & 0x2) {
 						continue;
 					}
 
