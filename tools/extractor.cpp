@@ -76,7 +76,8 @@ int main(int argc, char* argv[]) try {
 				const auto textures = FTX::parse(iss);
 				for (const auto& entry : textures) {
 					std::cout << entry.name << " w: " << entry.width << " h: " << entry.height << std::endl;
-					std::ofstream(entry.name, std::ios::binary).write(entry.rgba.data(), entry.rgba.size());
+					const char* data = reinterpret_cast<const char*>(entry.rgba.data());
+					std::ofstream(entry.name, std::ios::binary).write(data, entry.rgba.size());
 				}
 			} else if (extract_file.ends_with(".fms")) {
 				const auto lines = parse_fms(iss);
