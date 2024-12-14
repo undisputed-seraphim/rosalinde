@@ -49,10 +49,10 @@ struct section_4 {
 	uint16_t _pad;
 };
 
-struct section_5 {
+struct section_5 { // 6 rows (scarlet), 7 rows (virginia), 0 rows (BGBtSanctum_Opening)
 	uint16_t s3_id;
-	uint8_t _unk0;
-	uint8_t _unk1;
+	uint8_t _unk0; // all 0
+	uint8_t _unk1; // all 0
 	uint32_t flags;
 };
 
@@ -112,27 +112,28 @@ struct section_9 {
 	uint8_t _0_1;
 };
 
-struct section_a {
-	uint16_t s8_id;
+// Bones?
+struct section_a { // 971 (0x3cb) rows (scarlet), 1029 (0x405) rows (virginia), 34 rows (BGBtSanctum_Opening)
+	uint16_t s8_id; // Monotonically increasing w/ gaps
 	uint16_t s8_no;
 	uint32_t s8_sum;
-	uint32_t s8_sum_once;
-	uint32_t _unk0;
+	int32_t s8_sum_once; // either -1 or small number < 255/0xFF
+	int32_t _unk0; // either -1 or small number < 255/0xFF
 	uint16_t sb_id;
-	uint8_t sb_no;
+	uint8_t sb_no; // 0 1 bool
 	uint8_t s8_st; // 0 1 bool
-	uint16_t _unk1;
-	uint16_t _unk2;
+	uint16_t _unk1; // small number, doesn't exceed one hex digit (0xF)
+	uint16_t _pad; // always 0
 };
 
-struct section_b {
-	uint32_t _unk0;
-	uint16_t _unk1;
-	uint32_t _unk2;
-	uint16_t _unk3;
-	uint16_t _unk4;
-	uint32_t _unk5;
-	uint16_t _pad;
+struct section_b { // 25 (0x19) rows (scarlet), 66 (0x42) rows (virginia), 0 rows (BGBtSanctum_Opening)
+	uint32_t _unk0; // 3~75 (0x4b)
+	uint16_t _unk1; // 1~17 (0x11)
+	uint32_t _unk2; // all 0
+	uint16_t _unk3; // all 0
+	uint16_t _unk4; // 0~3
+	uint32_t _unk5; // all 0
+	uint16_t _pad; // all 0
 };
 #pragma pack(pop)
 
@@ -154,6 +155,8 @@ struct v77 {
 	friend std::ostream& operator<<(std::ostream&, const v77&);
 
 	Quad to_quad() const;
+
+	void print_to_file() const;
 };
 
 } // namespace MBS_

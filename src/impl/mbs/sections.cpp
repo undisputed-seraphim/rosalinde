@@ -1,6 +1,8 @@
 #include "sections.hpp"
 #include "../../utils.hpp"
 #include <array>
+#include <format>
+#include <fstream>
 #include <ostream>
 
 namespace MBS_ {
@@ -83,10 +85,33 @@ v77 v77::read(std::istream& is) {
 }
 
 std::ostream& operator<<(std::ostream& os, const v77& v) {
-	os << v.s0.size() << ' ' << v.s1.size() << ' ' << v.s2.size() << ' ' << v.s3.size() << ' ' << v.s4.size() << ' '
-	   << v.s5.size() << ' ' << v.s6.size() << ' ' << v.s7.size() << ' ' << v.s8.size() << ' ' << v.s9.size() << ' '
-	   << v.sa.size() << ' ' << v.sb.size() << '\n';
+	v.print_to_file();
 	return os;
+}
+
+using namespace std::literals;
+
+void v77::print_to_file() const {
+	auto ofs = std::ofstream("section_b.csv");
+	ofs << "col0,col1,col2,col3,col4,col5,pad\n" << std::hex;
+	constexpr auto fmtsb = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
+	for (const auto& s : sb) {
+		ofs << std::format(fmtsb, s._unk0, s._unk1, s._unk2, s._unk3, s._unk4, s._unk5, s._pad);
+	}
+
+	ofs = std::ofstream("section_5.csv");
+	ofs << "s3_id,unk0,unk1,flags\n" << std::hex;
+	constexpr auto fmts5 = "{:#x},{:#x},{:#x},{:#x}\n"sv;
+	for (const auto& s : s5) {
+		ofs << std::format(fmts5, s.s3_id, s._unk0, s._unk1, s.flags);
+	}
+
+	ofs = std::ofstream("section_a.csv");
+	ofs << "s8_id,s8_no,s8_sum,s8_sumonce,unk0,sb_id,sb_no,s8_st,unk1,unk2\n" << std::hex;
+	constexpr auto fmtsa = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
+	for (const auto& s : sa) {
+		ofs << std::format(fmtsa, s.s8_id, s.s8_no, s.s8_sum, s.s8_sum_once, s._unk0, s.sb_id, s.sb_no, s.s8_st, s._unk1, s._pad);
+	}
 }
 
 } // namespace MBS_
