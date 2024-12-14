@@ -60,19 +60,11 @@ struct s8sa_loop {
 };
 
 std::vector<s8sa_loop> s8sa_loop::preprocess(const v77& v77) {
-	const std::vector<int> s8sa = [](const std::vector<section_a>& sa) {
-		std::vector<int> out;
-		out.reserve(sa.size());
-		for (const auto& i : sa) {
-			out.emplace_back(int32_t(i.s8_id) + i.s8_st);
-		}
-		return out;
-	}(v77.sa);
-
-	std::vector<s8sa_loop> s8sa_loops(s8sa.size());
-	for (uint32_t i = 0; i < s8sa.size(); ++i) {
-		const int sav = s8sa[i];
-		auto& [loop, times] = s8sa_loops[i];
+	std::vector<s8sa_loop> s8sa_loops;
+	s8sa_loops.reserve(v77.sa.size());
+	for (const auto& a : v77.sa) {
+		const int sav = a.s8_id + a.s8_st;
+		auto& [loop, times] = s8sa_loops.emplace_back();
 		loop = -1;
 
 		int32_t j = 0;
@@ -159,7 +151,7 @@ glm::vec4 rgba_uint32_to_float4(const uint32_t rgba) {
 }
 
 void lol::get_anims_skels(const v77& v77) {
-	const auto salist = s8sa_loop::preprocess(v77);
+	const auto s8list = s8sa_loop::preprocess(v77);
 
 	_animations.reserve(v77.s9.size());
 	_skeletons.reserve(v77.s9.size());
@@ -175,13 +167,13 @@ void lol::get_anims_skels(const v77& v77) {
 
 			auto& anim = _animations.emplace_back(Animation{});
 			anim.id = sak;
-			anim.loop_id = salist[sak].loop;
+			anim.loop_id = s8list[sak].loop;
 
 			auto& bone = skel.bones.emplace_back(Skeleton::Bone{});
 			bone.id = sak;
 			bone.attach = Attach{sak, ObjectType::ANIMATION};
 
-			for (const auto& s8 : salist[sak].times) {
+			for (const auto& s8 : s8list[sak].times) {
 				auto& tl = anim.timelines.emplace_back(Animation::Timeline{});
 				tl.attach = [](const section_6& s6, uint16_t s6k) {
 					if (s6.s4_no > 0 && s6.s5_no > 0) {
