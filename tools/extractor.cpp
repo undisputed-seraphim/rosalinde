@@ -1,6 +1,6 @@
-#include <argparse.hpp>
 #include <eltolinde.hpp>
 
+#include <boost/program_options.hpp>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -13,6 +13,7 @@
 #endif
 
 namespace fs = std::filesystem;
+namespace po = boost::program_options;
 
 int main(int argc, char* argv[]) try {
 #ifdef _MSC_VER
@@ -20,21 +21,23 @@ int main(int argc, char* argv[]) try {
 #endif
 	std::string path_str;
 	std::string extract_file;
-	argparse::ArgumentParser program("rosalinde");
-	program.add_argument("--cpk").required().help("Input CPK file to examine.").store_into(path_str);
-	program.add_argument("--extract", "-e").help("Extract file by name.").store_into(extract_file);
-	program.add_argument("--list", "-l").flag().help("List files within the CPK archive.");
-
-	if (argc == 1) {
-		std::cout << program << std::endl;
-		return 0;
-	}
+	bool list = false;
+	po::options_description desc;
+	desc.add_options()(
+		"cpk", po::value<std::string>(&path_str)->required(), "Path to Unicorn.cpk")(
+		"dbg,d", po::value<std::string>(&extract_file), "Debug messages in OpenGL")(
+		"index,i", po::value<bool>(&list), "Multipurpose index");
+	po::variables_map vm;
+	po::store(po::parse_command_line(argc, argv, desc), vm);
 	try {
-		program.parse_args(argc, argv);
-	} catch (const std::exception& e) {
-		std::cerr << e.what() << '\n';
-		std::cerr << program << std::endl;
-		return 1;
+		po::notify(vm);
+		if (vm.count("help")) {
+			std::cout << desc << std::endl;
+			return 1;
+		}
+	} catch (const po::required_option& e) {
+		std::cout << desc << '\n';
+		throw;
 	}
 
 	fs::path file_path(path_str);
@@ -51,7 +54,7 @@ int main(int argc, char* argv[]) try {
 	}
 	CPK cpk(path_str);
 
-	if (program["--list"] == true) {
+	if (list) {
 		for (const auto& file : cpk) {
 			std::cout << file.path << " / " << file.name << "\toffset: " << file.offset
 					  << "\tsize: " << file.compressed_size << '\n';

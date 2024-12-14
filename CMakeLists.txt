@@ -36,6 +36,6 @@ target_include_directories(eltolinde PUBLIC
 )
 
 add_executable(rosalinde "tools/extractor.cpp")
-target_link_libraries(rosalinde PRIVATE eltolinde argparse)
+target_link_libraries(rosalinde PRIVATE eltolinde Boost::program_options)
 
 add_subdirectory(viewer)
