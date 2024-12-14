@@ -60,30 +60,25 @@ struct s8sa_loop {
 };
 
 std::vector<s8sa_loop> s8sa_loop::preprocess(const v77& v77) {
-	struct s8_sa {
-		int32_t id;
-		int32_t nr;
-		uint32_t sum;
-	};
-	const std::vector<s8_sa> s8sa = [](const std::vector<section_a>& sa) {
-		std::vector<s8_sa> out;
+	const std::vector<int> s8sa = [](const std::vector<section_a>& sa) {
+		std::vector<int> out;
 		out.reserve(sa.size());
 		for (const auto& i : sa) {
-			out.emplace_back(s8_sa{int32_t(i.s8_id) + i.s8_st, int32_t(i.s8_no) - i.s8_st, i.s8_sum});
+			out.emplace_back(int32_t(i.s8_id) + i.s8_st);
 		}
 		return out;
 	}(v77.sa);
 
 	std::vector<s8sa_loop> s8sa_loops(s8sa.size());
 	for (uint32_t i = 0; i < s8sa.size(); ++i) {
-		const auto& sav = s8sa[i];
-		auto& [loop, time] = s8sa_loops[i];
+		const int sav = s8sa[i];
+		auto& [loop, times] = s8sa_loops[i];
 		loop = -1;
 
 		int32_t j = 0;
 		std::unordered_map<int, int> line;
 		while (true) {
-			const int32_t s8k = sav.id + j;
+			const int32_t s8k = sav + j;
 			if (v77.s8.size() < s8k) {
 				break;
 			}
@@ -91,7 +86,7 @@ std::vector<s8sa_loop> s8sa_loop::preprocess(const v77& v77) {
 
 			if (line.count(s8k) == 0) {
 				line[s8k] = line.size();
-				time.push_back(s8v);
+				times.push_back(s8v);
 
 				if (s8flag_set(s8flag_mode::JUMP, s8v.flags)) {
 					j = s8v.loop_s8_id;
