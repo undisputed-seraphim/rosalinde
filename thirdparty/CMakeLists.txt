@@ -9,9 +9,6 @@ target_include_directories(imgui PUBLIC
     $<INSTALL_INTERFACE:/>
 )
 
-add_library(argparse INTERFACE)
-target_include_directories(argparse INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/argparse-3.1/")
-
 file(GLOB detex_src "${CMAKE_CURRENT_SOURCE_DIR}/detex-0.1.2alpha2/*")
 add_library(detex STATIC ${detex_src})
 target_include_directories(detex PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
