@@ -81,16 +81,6 @@ Sprite::Sprite(Quad q)
 void Sprite::Animate(int current_active_anim) {
 	static int timestep = 0;
 
-	const auto& a = _q.animations().at(current_active_anim);
-	const auto& tl = a.timelines.at(timestep++);
-	timestep %= a.timelines.size();
-
-	switch (tl.attach.objt) {
-	case Quad::ObjectType::KEYFRAME: {
-		AnimateKeyframe(_q.keyframes()[tl.attach.id]);
-		break;
-	}
-	}
 }
 
 void Sprite::AnimateKeyframe(const Quad::Keyframe& kf) {

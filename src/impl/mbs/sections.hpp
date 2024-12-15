@@ -8,28 +8,28 @@
 namespace MBS_ {
 
 #pragma pack(push, 1)
-// Fragment RGBA - nds_quad18c
+// Fragment RGBA
 struct section_0 {
 	uint32_t center;
 	uint32_t colors[4]; // 4xRGBA
 	uint32_t topleft;
 };
 
-// Texture UV coords - nds_quad30p
+// Texture UV coords
 struct section_1 {
 	float center[2];
 	float values[8]; // 4x2
 	float topleft[2];
 };
 
-// Vertex - nds_quad30p
+// Vertex
 struct section_2 {
 	float unused0[2];
 	float values[8]; // 4x2
 	float topleft[2];
 };
 
-// Hitbox?
+// Hitbox
 struct section_3 {
 	float hitbox[8]; // 4x2
 	float _xyz[12];	 // 4x3 [1, -0, 0 , -0, -1, 0 , -1, -0, 0 , -0, 1, 0]
@@ -49,7 +49,7 @@ struct section_4 {
 	uint16_t _pad;
 };
 
-struct section_5 { // 6 rows (scarlet), 7 rows (virginia), 0 rows (BGBtSanctum_Opening)
+struct section_5 {
 	uint16_t s3_id;
 	uint8_t _unk0; // all 0
 	uint8_t _unk1; // all 0
@@ -96,36 +96,34 @@ struct section_8 {
 	uint32_t sfx_id;
 };
 
-// Animation names
 struct section_9 {
 	float left;
 	float top;
 	float right;
 	float bottom;
 	char name[24];
-	uint16_t sa_set_id;
+	uint16_t sa_set_id; // disabled if 0
 	uint8_t sa_set_no;
 	uint8_t sa_set_main;
 	uint16_t sa_sb_set_id;
 	uint8_t sa_sb_set_no;
-	uint8_t _0_1;
+	uint8_t disabled; // 0 = enabled, 1 = disabled
 };
 
-// Bones?
-struct section_a { // 971 (0x3cb) rows (scarlet), 1029 (0x405) rows (virginia), 34 rows (BGBtSanctum_Opening)
-	uint16_t s8_id; // Monotonically increasing w/ gaps
-	uint16_t s8_no;
-	uint32_t s8_sum;
+struct section_a {
+	uint16_t s8_id; // starting id
+	uint16_t s8_no; // number of subsequent entries
+	uint32_t s8_sum; // total number of frames
 	int32_t s8_sum_once; // either -1 or small number < 255/0xFF
 	int32_t _unk0; // either -1 or small number < 255/0xFF
 	uint16_t sb_id;
 	uint8_t sb_no; // 0 1 bool
 	uint8_t s8_st; // 0 1 bool
-	uint16_t _unk1; // small number, doesn't exceed one hex digit (0xF)
+	uint16_t track_id;
 	uint16_t _pad; // always 0
 };
 
-struct section_b { // 25 (0x19) rows (scarlet), 66 (0x42) rows (virginia), 0 rows (BGBtSanctum_Opening)
+struct section_b {
 	uint32_t _unk0; // 3~75 (0x4b)
 	uint16_t _unk1; // 1~17 (0x11)
 	uint32_t _unk2; // all 0

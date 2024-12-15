@@ -284,74 +284,72 @@ int main(int argc, char* argv[]) try {
 		SDL_Delay(50); // Slow down animation
 
 		int longest_track_size = 0;
-		for (const auto& [objid, objt] : IDLE.bones) {
-			if (objt != Quad::ObjectType::ANIMATION) {
+		for (const auto& track : IDLE.tracks) {
+			const auto& tl = track.keyframes[timestep % track.keyframes.size()];
+			if (tl.attach.objt != Quad::ObjectType::KEYFRAME) {
 				continue;
 			}
-			const auto& track = scarlet_quad.animations()[objid];
-			const auto& tl = track.timelines[timestep % track.timelines.size()];
-			if (tl.attach.objt == Quad::ObjectType::KEYFRAME) {
-				longest_track_size = std::max(longest_track_size, (int)track.timelines.size());
-				xyz.clear();
-				uv.clear();
-				fog.clear();
-				z.clear();
-				indices.clear();
+			longest_track_size = std::max(longest_track_size, (int)track.keyframes.size());
+			xyz.clear();
+			uv.clear();
+			fog.clear();
+			z.clear();
+			indices.clear();
 
-				const auto& kf = scarlet_quad.keyframes()[tl.attach.id];
+			const auto& kf = scarlet_quad.keyframes()[tl.attach.id];
 
-				const float zrate = 1.0 / (kf.layers.size() + 1);
-				float depth = 1.0;
-				unsigned i = 0;
-				for (const auto& layer : kf.layers) {
-					if (layer.attribute & SCARLET_2) {
-						continue;
-					}
-					// Unfortunately not all attachment offsets are the same
-					//const auto m = (tl.matrix != glm::mat4{1.0}) ? glm::translate(tl.matrix, glm::vec3{-100, 40, 0}) : glm::mat4{1.0};
-					const glm::mat4x2 dst = {
-						glm::vec2{tl.matrix * glm::vec4(layer.dst[0], 0.0, 1.0)},
-						glm::vec2{tl.matrix * glm::vec4(layer.dst[1], 0.0, 1.0)},
-						glm::vec2{tl.matrix * glm::vec4(layer.dst[2], 0.0, 1.0)},
-						glm::vec2{tl.matrix * glm::vec4(layer.dst[3], 0.0, 1.0)}};
-					xyz.push_back(transform(dst));
-					const auto& texture = scarlet_textures[layer.texid];
-					uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
-					fog.insert(fog.end(), layer.fog.begin(), layer.fog.end());
-
-					depth -= zrate;
-					z.insert(z.end(), {depth, depth, depth, depth});
-					indices.insert(indices.end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
-					i += 4;
+			const float zrate = 1.0 / (kf.layers.size() + 1);
+			float depth = 1.0;
+			unsigned i = 0;
+			for (const auto& layer : kf.layers) {
+				if (layer.attribute & SCARLET_2) {
+					continue;
 				}
+				// Unfortunately not all attachment offsets are the same
+				// const auto m = (tl.matrix != glm::mat4{1.0}) ? glm::translate(tl.matrix, glm::vec3{-100, 40, 0}) :
+				// glm::mat4{1.0};
+				const glm::mat4x2 dst = {
+					glm::vec2{tl.matrix * glm::vec4(layer.dst[0], 0.0, 1.0)},
+					glm::vec2{tl.matrix * glm::vec4(layer.dst[1], 0.0, 1.0)},
+					glm::vec2{tl.matrix * glm::vec4(layer.dst[2], 0.0, 1.0)},
+					glm::vec2{tl.matrix * glm::vec4(layer.dst[3], 0.0, 1.0)}};
+				xyz.push_back(transform(dst));
+				const auto& texture = scarlet_textures[layer.texid];
+				uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
+				fog.insert(fog.end(), layer.fog.begin(), layer.fog.end());
 
-				const auto& shader = GetKeyframeShader().Use();
-
-				shader.SetUniform("u_pxsize", {(float)W, (float)H});
-				shader.SetUniform("u_tex", 0);
-
-				glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
-				glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * fog.size(), &fog[0][0], GL_STATIC_DRAW);
-				glEnableVertexAttribArray(0);
-				glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-				glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-				glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x3) * xyz.size(), &xyz[0][0][0], GL_STATIC_DRAW);
-				glEnableVertexAttribArray(1);
-				glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-				glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
-				glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x2) * uv.size(), &uv[0][0][0], GL_STATIC_DRAW);
-				glEnableVertexAttribArray(2);
-				glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-				glBindBuffer(GL_ARRAY_BUFFER, VBO[3]);
-				glBufferData(GL_ARRAY_BUFFER, sizeof(float) * z.size(), z.data(), GL_STATIC_DRAW);
-				glEnableVertexAttribArray(3);
-				glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-				ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, indices).drawElements(gl::Mode::TRIANGLES);
+				depth -= zrate;
+				z.insert(z.end(), {depth, depth, depth, depth});
+				indices.insert(indices.end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
+				i += 4;
 			}
+
+			const auto& shader = GetKeyframeShader().Use();
+
+			shader.SetUniform("u_pxsize", {(float)W, (float)H});
+			shader.SetUniform("u_tex", 0);
+
+			glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * fog.size(), &fog[0][0], GL_STATIC_DRAW);
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+			glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x3) * xyz.size(), &xyz[0][0][0], GL_STATIC_DRAW);
+			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+			glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x2) * uv.size(), &uv[0][0][0], GL_STATIC_DRAW);
+			glEnableVertexAttribArray(2);
+			glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+			glBindBuffer(GL_ARRAY_BUFFER, VBO[3]);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(float) * z.size(), z.data(), GL_STATIC_DRAW);
+			glEnableVertexAttribArray(3);
+			glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+			ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, indices).drawElements(gl::Mode::TRIANGLES);
 		}
 		(++timestep) %= longest_track_size;
 

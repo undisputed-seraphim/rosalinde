@@ -55,7 +55,7 @@ MBS::MBS(MBS&&) noexcept = default;
 MBS::~MBS() noexcept { _dataptr.reset(); }
 
 Quad MBS::extract() const {
-	auto makequad_v77 = [](const MBS_::v77& v77) -> Quad { return v77.to_quad(); };
+	auto makequad_v77 = [](const MBS_::v77& v77) -> Quad { v77.print_to_file(); return v77.to_quad(); };
 	auto monostate = [](const std::monostate&) -> Quad { return Quad{}; };
 	return std::visit(overloads{makequad_v77, monostate}, *_dataptr);
 }
@@ -126,27 +126,21 @@ std::ostream& Quad::operator<<(std::ostream& os) const {
 		os << "\t\tcount: " << keyframe.layers.size() << "\n\n";
 	}
 	os << '\n';
-	os << "Animations\n";
-	for (const auto& animation : _animations) {
-		os << "\tID: " << animation.id << '\n';
-		os << "\tLoop ID: " << animation.loop_id << '\n';
-		for (const auto& timeline : animation.timelines) {
-			const auto& m = timeline.matrix;
-			os << "\t\tTime: " << timeline.time << '\n';
-			os << "\t\tAttach: " << timeline.attach << '\n';
-			//os << "\t\tMatrix: " << std::format(fmt4f, m[0], m[1], m[2], m[3]);
-			//os << "\t\t        " << std::format(fmt4f, m[4], m[5], m[6], m[7]);
-			//os << "\t\t        " << std::format(fmt4f, m[8], m[9], m[10], m[11]);
-			//os << "\t\t        " << std::format(fmt4f, m[12], m[13], m[14], m[15]);
-		}
-	}
-	os << '\n';
 	os << "Skeletons\n";
 	for (const auto& skeleton : _skeletons) {
 		os << "\tName: " << skeleton.name << '\n';
-		for (const auto& [objid, objt] : skeleton.bones) {
-			os << "\t\tID: " << objid << '\n';
-			os << "\t\tAttach: " << objt << '\n';
+		for (const auto& animation : skeleton.tracks) {
+			os << "\tID: " << animation.id << '\n';
+			os << "\tLoop ID: " << animation.loop_id << '\n';
+			for (const auto& keyframe : animation.keyframes) {
+				const auto& m = keyframe.matrix;
+				os << "\t\tTime: " << keyframe.time << '\n';
+				os << "\t\tKeyframe: " << keyframe.attach.id << '\n';
+				// os << "\t\tMatrix: " << std::format(fmt4f, m[0], m[1], m[2], m[3]);
+				// os << "\t\t        " << std::format(fmt4f, m[4], m[5], m[6], m[7]);
+				// os << "\t\t        " << std::format(fmt4f, m[8], m[9], m[10], m[11]);
+				// os << "\t\t        " << std::format(fmt4f, m[12], m[13], m[14], m[15]);
+			}
 		}
 	}
 	return os;
