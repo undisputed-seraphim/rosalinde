@@ -60,17 +60,13 @@ public:
 
 		int32_t id;
 		int32_t loop_id;
-		std::vector<Timeline> timelines;
+		std::vector<Timeline> keyframes;
 		glm::vec4 bounds; // left right top bottom
 	};
 
 	struct Skeleton {
 		std::string name;
-		std::vector<Attach> bones;
-	};
-
-	struct Slot {
-		std::vector<Attach> attachments;
+		std::vector<Animation> tracks;
 	};
 
 	struct Blend {
@@ -126,19 +122,12 @@ public:
 		LogicOp r, g, b, a;
 	};
 
-	struct Link {
-		int32_t id;
-	};
-
 	virtual ~Quad() noexcept = default;
 
 	const std::vector<Keyframe>& keyframes() const { return _keyframes; }
 	const std::vector<Hitbox>& hitboxes() const { return _hitboxes; }
-	const std::vector<Animation>& animations() const { return _animations; }
 	const std::vector<Skeleton>& skeletons() const { return _skeletons; }
-	const std::vector<Slot>& slots() const { return _slots; }
 	const std::vector<Blend>& blends() const { return _blends; }
-	const std::vector<Link>& links() const { return _links; }
 
 	std::ostream& operator<<(std::ostream&) const;
 	friend std::ostream& operator<<(std::ostream&, const Quad&);
@@ -146,11 +135,8 @@ public:
 protected:
 	std::vector<Keyframe> _keyframes;
 	std::vector<Hitbox> _hitboxes;
-	std::vector<Animation> _animations;
 	std::vector<Skeleton> _skeletons;
-	std::vector<Slot> _slots;
 	std::vector<Blend> _blends;
-	std::vector<Link> _links;
 };
 
 std::ostream& operator<<(std::ostream&, const Quad&);

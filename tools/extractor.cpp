@@ -25,8 +25,8 @@ int main(int argc, char* argv[]) try {
 	po::options_description desc;
 	desc.add_options()(
 		"cpk", po::value<std::string>(&path_str)->required(), "Path to Unicorn.cpk")(
-		"extract,e", po::value<std::string>(&extract_file), "Debug messages in OpenGL")(
-		"index,i", po::value<bool>(&list), "Multipurpose index");
+		"extract,e", po::value<std::string>(&extract_file), "Extract file")(
+		"list,l", po::value<bool>(&list), "List files");
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	try {
