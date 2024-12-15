@@ -254,6 +254,9 @@ int main(int argc, char* argv[]) try {
 				done = true;
 			if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
 				done = true;
+			if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+				camera[2][2] += (event.wheel.y / 10);
+			}
 		}
 		if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) {
 			SDL_Delay(10);
