@@ -89,7 +89,7 @@ std::vector<s8sa_loop> s8sa_loop::preprocess(const v77& v77) {
 		loop = -1;
 
 		std::unordered_map<int, int> line;
-		for (int j = 0, s8k = sav + j; s8k < v77.s8.size(); s8k = sav + j) {
+		for (int j = 0, s8k = sav; s8k < v77.s8.size(); s8k = sav + j) {
 			const auto& s8v = v77.s8[s8k];
 			if (line.count(s8k) == 0) {
 				line[s8k] = line.size();
@@ -234,6 +234,61 @@ void lol::get_keyframes_hitboxes_slots(const v77& v77) {
 		if (s6.s4_no > 0 && s6.s5_no > 0) {
 			slot.attachments.push_back(Quad::Attach{(int32_t)i, Quad::ObjectType::KEYFRAME});
 			slot.attachments.push_back(Quad::Attach{(int32_t)i, Quad::ObjectType::HITBOX});
+		}
+	}
+}
+
+class Sprite {
+public:
+	struct Animation { // section 9
+		struct Keyframe { // section 6
+			struct Layer { // section 4
+				std::array<glm::vec4, 4> color; // section 0
+				std::array<glm::vec2, 4> uv;    // section 1
+				std::array<glm::vec2, 4> quad;  // section 2
+				uint8_t tex_id;
+				uint8_t flags;
+				uint32_t attributes;
+			};
+
+			std::vector<Layer> layers;
+			std::array<glm::vec2, 4> hitbox; // section 5->3
+			glm::vec4 bbox; // left right top bottom
+		};
+
+		std::string name;
+		glm::vec4 bbox; // left right top bottom
+		glm::mat4 transform; // section 7
+		std::vector<Keyframe> keyframes; // section A->8
+		// Animations contain some number of s8,
+	};
+
+	const std::vector<Animation>& animations() const noexcept {
+		return _animations;
+	}
+
+	void operator()(const v77&);
+
+protected:
+	std::vector<Animation> _animations;
+};
+
+void Sprite::operator()(const v77& v77) {
+	_animations.clear();
+	_animations.reserve(v77.s9.size());
+	for (const auto& s9 : v77.s9) {
+		if (s9.sa_set_no < 1) {
+			continue;
+		}
+		auto& anim = _animations.emplace_back();
+		anim.name.assign(s9.name);
+		anim.bbox = {s9.left, s9.right, s9.top, s9.bottom};
+
+		for (uint16_t sak = s9.sa_set_id; sak < (s9.sa_sb_set_id + s9.sa_sb_set_no); ++sak) {
+			const auto& sa = v77.sa[sak];
+			for (uint16_t s8k = sa.s8_id; s8k < (sa.s8_id + sa.s8_no); ++s8k) {
+				const auto& s8 = v77.s8[s8k];
+			}
 		}
 	}
 }

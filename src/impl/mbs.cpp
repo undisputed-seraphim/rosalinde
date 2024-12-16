@@ -55,7 +55,7 @@ MBS::MBS(MBS&&) noexcept = default;
 MBS::~MBS() noexcept { _dataptr.reset(); }
 
 Quad MBS::extract() const {
-	auto makequad_v77 = [](const MBS_::v77& v77) -> Quad { return v77.to_quad(); };
+	auto makequad_v77 = [](const MBS_::v77& v77) -> Quad { v77.print_to_file(); return v77.to_quad(); };
 	auto monostate = [](const std::monostate&) -> Quad { return Quad{}; };
 	return std::visit(overloads{makequad_v77, monostate}, *_dataptr);
 }

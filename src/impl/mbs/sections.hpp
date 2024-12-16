@@ -103,12 +103,12 @@ struct section_9 {
 	float right;
 	float bottom;
 	char name[24];
-	uint16_t sa_set_id;
+	uint16_t sa_set_id; // disabled if 0
 	uint8_t sa_set_no;
 	uint8_t sa_set_main;
 	uint16_t sa_sb_set_id;
 	uint8_t sa_sb_set_no;
-	uint8_t _0_1;
+	uint8_t disabled; // 0 = enabled, 1 = disabled
 };
 
 // Bones?
@@ -121,7 +121,7 @@ struct section_a { // 971 (0x3cb) rows (scarlet), 1029 (0x405) rows (virginia), 
 	uint16_t sb_id;
 	uint8_t sb_no; // 0 1 bool
 	uint8_t s8_st; // 0 1 bool
-	uint16_t _unk1; // small number, doesn't exceed one hex digit (0xF)
+	uint16_t track_id;
 	uint16_t _pad; // always 0
 };
 
