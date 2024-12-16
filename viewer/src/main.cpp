@@ -11,6 +11,7 @@
 #include <glad/glad.h>
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
+#include <glxx/buffers.hpp>
 #include <glxx/error.hpp>
 
 #include <cstdio>
@@ -227,6 +228,8 @@ int main(int argc, char* argv[]) try {
 	glGenBuffers(5, VBO);
 	glGenBuffers(1, &EBO);
 
+	//gl::uiElementBuffer ebo;
+
 	glBindVertexArray(VAO);
 
 	enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
@@ -330,6 +333,7 @@ int main(int argc, char* argv[]) try {
 					GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned) * indices.size(), indices.data(), GL_STATIC_DRAW);
 
 				glDrawElements(GL_TRIANGLES, xyz.size() * 4 * 3, GL_UNSIGNED_INT, 0);
+				//ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, indices).drawElements(gl::Mode::TRIANGLES);
 			}
 			if (tl.attach.objt == Quad::ObjectType::ANIMATION) {
 				const auto& anim = scarlet_quad.animations().at(tl.attach.id);
