@@ -138,12 +138,13 @@ GLuint generate_texture_map(const std::vector<FTX::Entry>& textures) {
 int main(int argc, char* argv[]) try {
 	fs::path cpkpath;
 	bool debug = false;
+	bool list = false;
 	int index = 0;
 	po::options_description desc;
 	desc.add_options()("help,h", "Print this help message")(
 		"cpk", po::value<fs::path>(&cpkpath)->required(), "Path to Unicorn.cpk")(
 		"dbg,d", po::value<bool>(&debug), "Debug messages in OpenGL")(
-		"index,i", po::value<int>(&index), "Multipurpose index");
+		"index,i", po::value<int>(&index), "Multipurpose index")("list,l", po::bool_switch(&list), "List animations.");
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	try {
@@ -162,6 +163,27 @@ int main(int argc, char* argv[]) try {
 		printf("Error: SDL_Init(): %s\n", SDL_GetError());
 		return -1;
 	}
+
+	const CPK cpk(cpkpath.string());
+
+	std::vector<char> buffer;
+	const auto scarlet_mbs = [&cpk, &buffer]() {
+		auto mbs = cpk.by_name("Scarlet_F.mbs", "Chara");
+		cpk.extract(*mbs, buffer);
+		std::cout << "MBS: " << mbs->name << '\n';
+		return MBS(std::ispanstream(buffer, std::ios::binary));
+	}();
+	const auto scarlet_quad = scarlet_mbs.extract();
+	if (list) {
+		const int num = scarlet_quad.skeletons().size();
+		for (int i = 0; i < num; ++i) {
+			std::cout << i << ": " << scarlet_quad.skeletons()[i].name << '\n';
+		}
+		return 0;
+	}
+
+	cpk.extract(*cpk.by_name("Scarlet_F00.ftx", "Chara"), buffer);
+	auto scarlet_textures = FTX::parse(buffer);
 
 	static constexpr int W = 1920, H = 1080;
 
@@ -197,18 +219,6 @@ int main(int argc, char* argv[]) try {
 	SDL_GL_SetSwapInterval(1); // Enable vsync
 	SDL_ShowWindow(window);
 
-	const CPK cpk(cpkpath.string());
-
-	std::vector<char> buffer;
-	const auto scarlet_mbs = [&cpk, &buffer]() {
-		auto mbs = cpk.by_name("Scarlet_F.mbs", "Chara");
-		cpk.extract(*mbs, buffer);
-		std::cout << "MBS: " << mbs->name << '\n';
-		return MBS(std::ispanstream(buffer, std::ios::binary));
-	}();
-	const auto scarlet_quad = scarlet_mbs.extract();
-	cpk.extract(*cpk.by_name("Scarlet_F00.ftx", "Chara"), buffer);
-	auto scarlet_textures = FTX::parse(buffer);
 	for (auto& texture : scarlet_textures) {
 		FTX::decompress(texture);
 		FTX::deswizzle(texture);
@@ -222,13 +232,13 @@ int main(int argc, char* argv[]) try {
 	const auto& IDLE = scarlet_quad.skeletons()[index];
 	std::cout << IDLE.name << std::endl;
 
-	unsigned int VBO[5];
+	unsigned int VBO[4];
 	unsigned int VAO, EBO;
 	glGenVertexArrays(1, &VAO);
-	glGenBuffers(5, VBO);
+	glGenBuffers(4, VBO);
 	glGenBuffers(1, &EBO);
 
-	//gl::uiElementBuffer ebo;
+	gl::uiElementBuffer ebo;
 
 	glBindVertexArray(VAO);
 
@@ -297,12 +307,13 @@ int main(int argc, char* argv[]) try {
 					if (layer.attribute & SCARLET_2) {
 						continue;
 					}
+					// Unfortunately not all attachment offsets are the same
+					//const auto m = (tl.matrix != glm::mat4{1.0}) ? glm::translate(tl.matrix, glm::vec3{-100, 40, 0}) : glm::mat4{1.0};
 					const glm::mat4x2 dst = {
 						glm::vec2{tl.matrix * glm::vec4(layer.dst[0], 0.0, 1.0)},
 						glm::vec2{tl.matrix * glm::vec4(layer.dst[1], 0.0, 1.0)},
 						glm::vec2{tl.matrix * glm::vec4(layer.dst[2], 0.0, 1.0)},
-						glm::vec2{tl.matrix * glm::vec4(layer.dst[3], 0.0, 1.0)}
-					};
+						glm::vec2{tl.matrix * glm::vec4(layer.dst[3], 0.0, 1.0)}};
 					xyz.push_back(transform(dst));
 					const auto& texture = scarlet_textures[layer.texid];
 					uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
@@ -339,12 +350,7 @@ int main(int argc, char* argv[]) try {
 				glEnableVertexAttribArray(3);
 				glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
-				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-				glBufferData(
-					GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned) * indices.size(), indices.data(), GL_STATIC_DRAW);
-
-				glDrawElements(GL_TRIANGLES, xyz.size() * 4 * 3, GL_UNSIGNED_INT, 0);
-				//ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, indices).drawElements(gl::Mode::TRIANGLES);
+				ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, indices).drawElements(gl::Mode::TRIANGLES);
 			}
 		}
 		(++timestep) %= longest_track_size;

@@ -5,6 +5,7 @@
 
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
+#include <glm/gtx/euler_angles.hpp>
 
 namespace MBS_ {
 
@@ -126,15 +127,11 @@ glm::mat4 s7_matrix(const section_7& s7, const bool flipx, const bool flipy) {
 	m = glm::scale(m, glm::vec3{
 		s7.scale[0] * x,
 		s7.scale[1] * y,
-		0.0
+		1.0
 	});
 
-	// Rotate
-	m = glm::rotate(m, s7.rotate[2], {0, 0, 1});
-	m = glm::rotate(m, s7.rotate[1], {0, 1, 0});
-	m = glm::rotate(m, s7.rotate[0], {1, 0, 0});
+	m *= glm::eulerAngleXYZ(s7.rotate[0], s7.rotate[1], s7.rotate[2]);
 
-	// Translate
 	m = glm::translate(m, glm::vec3{
 		s7.move[0] * x,
 		s7.move[1] * y,
