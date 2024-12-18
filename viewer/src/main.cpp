@@ -201,13 +201,13 @@ int main(int argc, char* argv[]) try {
 
 	std::vector<char> buffer;
 	const auto scarlet_mbs = [&cpk, &buffer]() {
-		auto mbs = cpk.by_name("Virginia_F.mbs", "Chara");
+		auto mbs = cpk.by_name("Scarlet_F.mbs", "Chara");
 		cpk.extract(*mbs, buffer);
 		std::cout << "MBS: " << mbs->name << '\n';
 		return MBS(std::ispanstream(buffer, std::ios::binary));
 	}();
 	const auto scarlet_quad = scarlet_mbs.extract();
-	cpk.extract(*cpk.by_name("Virginia_F00.ftx", "Chara"), buffer);
+	cpk.extract(*cpk.by_name("Scarlet_F00.ftx", "Chara"), buffer);
 	auto scarlet_textures = FTX::parse(buffer);
 	for (auto& texture : scarlet_textures) {
 		FTX::decompress(texture);
@@ -220,7 +220,7 @@ int main(int argc, char* argv[]) try {
 	int timestep = 0;
 
 	const auto& IDLE = scarlet_quad.skeletons()[index];
-	const Quad::Animation* selected_anim = &scarlet_quad.animations()[IDLE.bones[0].id];
+	std::cout << IDLE.name << std::endl;
 
 	unsigned int VBO[5];
 	unsigned int VAO, EBO;
@@ -272,10 +272,16 @@ int main(int argc, char* argv[]) try {
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		SDL_Delay(50); // Slow down animation
-		if (selected_anim != nullptr) {
-			const auto& tl = selected_anim->timelines[timestep++];
-			timestep %= selected_anim->timelines.size();
+
+		int longest_track_size = 0;
+		for (const auto& bone : IDLE.bones) {
+			if (bone.attach.objt != Quad::ObjectType::ANIMATION) {
+				continue;
+			}
+			const auto& track = scarlet_quad.animations()[bone.attach.id];
+			const auto& tl = track.timelines[timestep % track.timelines.size()];
 			if (tl.attach.objt == Quad::ObjectType::KEYFRAME) {
+				longest_track_size = std::max(longest_track_size, (int)track.timelines.size());
 				xyz.clear();
 				uv.clear();
 				fog.clear();
@@ -288,11 +294,16 @@ int main(int argc, char* argv[]) try {
 				float depth = 1.0;
 				unsigned i = 0;
 				for (const auto& layer : kf.layers) {
-					if (layer.attribute & 0x2) {
+					if (layer.attribute & SCARLET_2) {
 						continue;
 					}
-
-					xyz.push_back(transform(layer.dst));
+					const glm::mat4x2 dst = {
+						glm::vec2{tl.matrix * glm::vec4(layer.dst[0], 0.0, 1.0)},
+						glm::vec2{tl.matrix * glm::vec4(layer.dst[1], 0.0, 1.0)},
+						glm::vec2{tl.matrix * glm::vec4(layer.dst[2], 0.0, 1.0)},
+						glm::vec2{tl.matrix * glm::vec4(layer.dst[3], 0.0, 1.0)}
+					};
+					xyz.push_back(transform(dst));
 					const auto& texture = scarlet_textures[layer.texid];
 					uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
 					fog.insert(fog.end(), layer.fog.begin(), layer.fog.end());
@@ -335,10 +346,8 @@ int main(int argc, char* argv[]) try {
 				glDrawElements(GL_TRIANGLES, xyz.size() * 4 * 3, GL_UNSIGNED_INT, 0);
 				//ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, indices).drawElements(gl::Mode::TRIANGLES);
 			}
-			if (tl.attach.objt == Quad::ObjectType::ANIMATION) {
-				const auto& anim = scarlet_quad.animations().at(tl.attach.id);
-			}
 		}
+		(++timestep) %= longest_track_size;
 
 		SDL_GL_SwapWindow(window);
 	}
