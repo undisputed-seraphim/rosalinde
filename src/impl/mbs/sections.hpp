@@ -70,7 +70,6 @@ struct section_6 {
 	uint16_t _pad0;
 };
 
-// We want to turn this struct into a translate-rotate-scale 4x4 matrix
 struct section_7 {
 	float move[3];
 	float rotate[3];

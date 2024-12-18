@@ -30,6 +30,7 @@ target_compile_definitions(eltolinde PUBLIC
     "GLM_FORCE_EXPLICIT_CTOR=1"
     "GLM_FORCE_ALIGNED_GENTYPES=1"
     "GLM_FORCE_RADIANS=1"
+    "GLM_ENABLE_EXPERIMENTAL=1"
 )
 target_include_directories(eltolinde PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>

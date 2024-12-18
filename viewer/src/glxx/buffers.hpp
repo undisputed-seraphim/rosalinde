@@ -81,7 +81,7 @@ public:
 		other._hnd = 0;
 		std::swap(_storage, other._storage);
 	}
-	~Buffer() noexcept { glDeleteBuffers(1, _hnd); }
+	~Buffer() noexcept { glDeleteBuffers(1, &_hnd); }
 
 	GLuint release() {
 		const GLuint handle = _hnd;
@@ -125,8 +125,9 @@ public:
 	}
 
 	Buffer& setData(buffer::Usage u, std::span<const ValueT> data) noexcept {
-		_storage.assign(data);
-		glBufferData(BufferType, sizeof(ValueT) * _storage.size(), _storage.data(), u);
+		//_storage.assign(data.begin(), data.end());
+		//glBufferData(BufferType, sizeof(ValueT) * _storage.size(), _storage.data(), u);
+		glBufferData(BufferType, sizeof(ValueT) * data.size(), data.data(), u);
 		return *this;
 	}
 
@@ -160,17 +161,16 @@ public:
 		constexpr GLenum type = []() {
 			if constexpr (std::is_same_v<ValueT, std::uint8_t>) {
 				return GL_UNSIGNED_BYTE;
-			}
-			if constexpr (std::is_same_v<ValueT, std::uint16_t>) {
+			} else if constexpr (std::is_same_v<ValueT, std::uint16_t>) {
 				return GL_UNSIGNED_SHORT;
-			}
-			if constexpr (std::is_same_v<ValueT, std::uint32_t>) {
+			} else if constexpr (std::is_same_v<ValueT, std::uint32_t>) {
 				return GL_UNSIGNED_INT;
+			} else {
+				static_assert(false, "drawElements can only be used with uchar, ushort, or uint.");
 			}
-			static_assert(false, "drawElements can only be used with uchar, ushort, or uint.");
 		}();
 		const uint64_t count = gl_size() / sizeof(ValueT);
-		glDrawElements(m, count, type);
+		glDrawElements(m, count, type, 0);
 		return *this;
 	}
 
