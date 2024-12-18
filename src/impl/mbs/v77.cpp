@@ -121,21 +121,25 @@ Quad v77::to_quad() const {
 glm::mat4 s7_matrix(const section_7& s7, const bool flipx, const bool flipy) {
 	const int8_t x = flipx ? -1 : 1;
 	const int8_t y = flipy ? -1 : 1;
-	glm::mat4 m{1};
+	glm::mat4 m{1.0};
 
-	// Translate
-	m[0][3] += s7.move[0] * x;
-	m[1][3] += s7.move[1] * y;
-	m[2][3] += s7.move[2];
+	m = glm::scale(m, glm::vec3{
+		s7.scale[0] * x,
+		s7.scale[1] * y,
+		0.0
+	});
 
 	// Rotate
-	m *= glm::rotate(m, s7.rotate[2], {0, 0, 1});
-	m *= glm::rotate(m, s7.rotate[1], {0, 1, 0});
-	m *= glm::rotate(m, s7.rotate[0], {1, 0, 0});
+	m = glm::rotate(m, s7.rotate[2], {0, 0, 1});
+	m = glm::rotate(m, s7.rotate[1], {0, 1, 0});
+	m = glm::rotate(m, s7.rotate[0], {1, 0, 0});
 
-	// Scale
-	m[0][0] = s7.scale[0] * x;
-	m[1][1] = s7.scale[1] * y;
+	// Translate
+	m = glm::translate(m, glm::vec3{
+		s7.move[0] * x,
+		s7.move[1] * y,
+		s7.move[2]
+	});
 	return m;
 }
 
