@@ -144,9 +144,9 @@ std::ostream& Quad::operator<<(std::ostream& os) const {
 	os << "Skeletons\n";
 	for (const auto& skeleton : _skeletons) {
 		os << "\tName: " << skeleton.name << '\n';
-		for (const auto& bone : skeleton.bones) {
-			os << "\t\tID: " << bone.id << '\n';
-			os << "\t\tAttach: " << bone.attach << '\n';
+		for (const auto& [objid, objt] : skeleton.bones) {
+			os << "\t\tID: " << objid << '\n';
+			os << "\t\tAttach: " << objt << '\n';
 		}
 	}
 	return os;

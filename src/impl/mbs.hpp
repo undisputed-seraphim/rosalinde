@@ -35,6 +35,7 @@ public:
 		};
 		int32_t id;
 		std::vector<Layer> layers;
+		glm::vec4 bounds; // left right top bottom
 	};
 
 	struct Hitbox {
@@ -60,15 +61,12 @@ public:
 		int32_t id;
 		int32_t loop_id;
 		std::vector<Timeline> timelines;
+		glm::vec4 bounds; // left right top bottom
 	};
 
 	struct Skeleton {
-		struct Bone {
-			int32_t id;
-			Attach attach;
-		};
 		std::string name;
-		std::vector<Bone> bones;
+		std::vector<Attach> bones;
 	};
 
 	struct Slot {
