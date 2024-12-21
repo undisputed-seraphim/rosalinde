@@ -108,9 +108,7 @@ std::vector<CPK::entry> generate_TOC(const UTF& utf, uint64_t offset = 0) {
 	return ret;
 }
 
-namespace {
-
-uint64_t read_header(std::istream& i, const uint32_t magic) {
+static uint64_t read_header(std::istream& i, const uint32_t magic) {
 #pragma pack(push, 1)
 	struct table_header {
 		uint32_t magic;
@@ -127,21 +125,19 @@ uint64_t read_header(std::istream& i, const uint32_t magic) {
 	return header.length;
 }
 
-} // anonymous namespace
-
 void CPK::unpack(std::istream&& is) {
 	uint64_t size = read_header(is, CPK_magic);
-	//_buffer.resize(size, 0);
-	//is.read(_buffer.data(), size);
-	//auto utf_table = UTF(std::move(_buffer));
-	auto utf_table = UTF(io::isubstream(is, size));
+	_buffer.resize(size, 0);
+	is.read(_buffer.data(), size);
+	auto utf_table = UTF(std::move(_buffer));
+	//auto utf_table = UTF(io::isubstream(is, size));
 
 	if (auto iter = utf_table.find("TocOffset"); iter != utf_table.end() && iter->valid) {
 		const auto offset = iter->cast_at<uint64_t>(0).value();
 		is.seekg(offset, std::ios::beg);
 		size = read_header(is, TOC_magic);
 
-		_buffer = std::vector<char>(size);
+		_buffer.resize(size);
 		is.read(_buffer.data(), size);
 		auto toc_table = UTF(std::move(_buffer));
 		//auto toc_table = UTF(io::isubstream(is, size));

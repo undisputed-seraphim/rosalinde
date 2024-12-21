@@ -284,11 +284,11 @@ int main(int argc, char* argv[]) try {
 		SDL_Delay(50); // Slow down animation
 
 		int longest_track_size = 0;
-		for (const auto& bone : IDLE.bones) {
-			if (bone.attach.objt != Quad::ObjectType::ANIMATION) {
+		for (const auto& [objid, objt] : IDLE.bones) {
+			if (objt != Quad::ObjectType::ANIMATION) {
 				continue;
 			}
-			const auto& track = scarlet_quad.animations()[bone.attach.id];
+			const auto& track = scarlet_quad.animations()[objid];
 			const auto& tl = track.timelines[timestep % track.timelines.size()];
 			if (tl.attach.objt == Quad::ObjectType::KEYFRAME) {
 				longest_track_size = std::max(longest_track_size, (int)track.timelines.size());

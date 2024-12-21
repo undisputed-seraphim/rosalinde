@@ -169,10 +169,11 @@ void lol::get_anims_skels(const v77& v77) {
 			auto& anim = _animations.emplace_back(Animation{});
 			anim.id = sak;
 			anim.loop_id = s8list[sak].loop;
+			anim.bounds = glm::vec4{s9.left, s9.right, s9.top, s9.bottom};
 
-			auto& bone = skel.bones.emplace_back(Skeleton::Bone{});
+			auto& bone = skel.bones.emplace_back();
 			bone.id = sak;
-			bone.attach = Attach{sak, ObjectType::ANIMATION};
+			bone.objt = ObjectType::ANIMATION;
 
 			for (const auto& s8 : s8list[sak].times) {
 				auto& tl = anim.timelines.emplace_back(Animation::Timeline{});
@@ -214,6 +215,7 @@ void lol::get_keyframes_hitboxes_slots(const v77& v77) {
 
 		// Keyframes
 		auto& keyframe = _keyframes[i];
+		keyframe.bounds = glm::vec4{s6.left, s6.right, s6.top, s6.bottom};
 		keyframe.layers.resize(s6.s4_no);
 		for (int j = 0; j < s6.s4_no; ++j) {
 			const auto& s4 = v77.s4[s6.s4_id + j];
