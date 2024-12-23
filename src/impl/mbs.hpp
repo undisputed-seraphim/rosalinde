@@ -31,7 +31,7 @@ public:
 			int16_t blendid;
 			int16_t texid;
 			uint32_t attribute;
-			uint8_t color;
+			uint8_t colorid;
 		};
 		int32_t id;
 		std::vector<Layer> layers;
