@@ -252,7 +252,7 @@ int main(int argc, char* argv[]) try {
 	std::vector<glm::mat4x3> xyz;
 	std::vector<glm::mat4x2> uv;
 	std::vector<unsigned> indices;
-	std::vector<glm::vec4> fog;
+	std::vector<uint32_t> fog;
 	std::vector<float> z;
 
 	// Our state
@@ -316,7 +316,7 @@ int main(int argc, char* argv[]) try {
 				xyz.push_back(transform(dst));
 				const auto& texture = scarlet_textures[layer.texid];
 				uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
-				fog.insert(fog.end(), layer.fog.begin(), layer.fog.end());
+				fog.insert(fog.end(), std::begin(layer.fog), std::end(layer.fog));
 
 				depth -= zrate;
 				z.insert(z.end(), {depth, depth, depth, depth});
@@ -330,9 +330,9 @@ int main(int argc, char* argv[]) try {
 			shader.SetUniform("u_tex", 0);
 
 			glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * fog.size(), &fog[0][0], GL_STATIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(uint32_t) * fog.size(), fog.data(), GL_STATIC_DRAW);
 			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, (void*)0);
+			glVertexAttribPointer(0, 4, GL_UNSIGNED_BYTE, GL_TRUE, 0, (void*)0);
 
 			glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
 			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x3) * xyz.size(), &xyz[0][0][0], GL_STATIC_DRAW);

@@ -64,17 +64,6 @@ static glm::mat4 s7_matrix(const section_7& s7, const bool flipx, const bool fli
 	return m;
 }
 
-static glm::vec4 rgba_uint32_to_float4(const uint32_t rgba) {
-	// clang-format off
-	return (glm::vec4(
-		static_cast<float>((rgba >> 24) & 0xFF),
-		static_cast<float>((rgba >> 16) & 0xFF),
-		static_cast<float>((rgba >>  8) & 0xFF),
-		static_cast<float>((rgba >>  0) & 0xFF)
-	) / 255.0f);
-	// clang-format on
-}
-
 namespace {
 
 struct s8sa_loop {
@@ -197,12 +186,7 @@ void lol::get_keyframes_hitboxes_slots(const v77& v77) {
 			layer.blendid = s4.blend_id;
 
 			const auto& s0 = v77.s0[s4.s0_id];
-			layer.fog = {
-				rgba_uint32_to_float4(s0.colors[0]),
-				rgba_uint32_to_float4(s0.colors[1]),
-				rgba_uint32_to_float4(s0.colors[2]),
-				rgba_uint32_to_float4(s0.colors[3]),
-			};
+			std::memcpy(layer.fog, s0.colors, sizeof(layer.fog));
 
 			if (!(s4flag_mode::NOTEX & s4.flags)) {
 				layer.texid = s4.tex_id;

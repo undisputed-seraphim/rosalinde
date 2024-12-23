@@ -27,6 +27,6 @@ private:
 	std::vector<glm::mat4x3> xyz;
 	std::vector<glm::mat4x2> uv;
 	std::vector<unsigned> indices;
-	std::vector<glm::vec4> fog;
+	std::vector<uint32_t> fog;
 	std::vector<float> z;
 };
