@@ -78,10 +78,7 @@ static glm::mat4x2 transformUV(glm::mat4x2 uv, const std::vector<FTX::Entry>& te
 Sprite::Sprite(Quad q)
 	: _q(std::move(q)) {}
 
-void Sprite::Animate(int current_active_anim) {
-	static int timestep = 0;
-
-}
+void Sprite::Animate(int current_active_anim) { static int timestep = 0; }
 
 void Sprite::AnimateKeyframe(const Quad::Keyframe& kf) {
 	GLint W, H;
@@ -103,7 +100,7 @@ void Sprite::AnimateKeyframe(const Quad::Keyframe& kf) {
 		}
 		xyz.push_back(transform(layer.dst));
 		indices.insert(indices.end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
-		fog.insert(fog.end(), layer.fog.begin(), layer.fog.end());
+		fog.insert(fog.end(), std::begin(layer.fog), std::end(layer.fog));
 
 		depth -= zrate;
 		z.insert(z.end(), {depth, depth, depth, depth});
@@ -115,9 +112,9 @@ void Sprite::AnimateKeyframe(const Quad::Keyframe& kf) {
 	shader.SetUniform("u_tex", 0);
 
 	glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * fog.size(), &fog[0][0], GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(uint32_t) * fog.size(), fog.data(), GL_STATIC_DRAW);
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, (void*)0);
+	glVertexAttribPointer(0, 4, GL_UNSIGNED_BYTE, GL_TRUE, 0, (void*)0);
 
 	glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x3) * xyz.size(), &xyz[0][0][0], GL_STATIC_DRAW);

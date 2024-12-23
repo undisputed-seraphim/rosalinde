@@ -27,7 +27,7 @@ public:
 		struct Layer {
 			glm::mat4x2 dst;
 			glm::mat4x2 src;
-			std::array<glm::vec4, 4> fog;
+			uint32_t fog[4];
 			int16_t blendid;
 			int16_t texid;
 			uint32_t attribute;
