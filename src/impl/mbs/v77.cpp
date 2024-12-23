@@ -183,20 +183,20 @@ void lol::get_keyframes_hitboxes_slots(const v77& v77) {
 			const auto& s2 = v77.s2[s4.s2_id];
 			static_assert(sizeof(layer.dst) == sizeof(s2.values));
 			::memcpy(&layer.dst, s2.values, sizeof(layer.dst));
-			layer.blendid = s4.blend_id;
 
 			const auto& s0 = v77.s0[s4.s0_id];
 			std::memcpy(layer.fog, s0.colors, sizeof(layer.fog));
 
 			if (!(s4flag_mode::NOTEX & s4.flags)) {
-				layer.texid = s4.tex_id;
 				const auto& s1v = v77.s1[s4.s1_id];
 				static_assert(sizeof(layer.src) == sizeof(s1v.values));
 				::memcpy(&layer.src, s1v.values, sizeof(layer.src));
 			}
 
+			layer.texid = s4.tex_id;
+			layer.blendid = s4.blend_id;
 			layer.attribute = s4.attributes;
-			layer.color = s4.color_id;
+			layer.colorid = s4.color_id;
 		}
 		keyframe.id = i;
 
