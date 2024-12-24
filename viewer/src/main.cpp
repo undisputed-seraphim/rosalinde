@@ -270,13 +270,11 @@ int main(int argc, char* argv[]) try {
 				// Unfortunately not all attachment offsets are the same
 				// const auto m = (tl.matrix != glm::mat4{1.0}) ? glm::translate(tl.matrix, glm::vec3{-100, 40, 0}) :
 				// glm::mat4{1.0};
-				const glm::mat4x3 dst = {
+				xyz.push_back(glm::mat4x3{
 					glm::vec3{layer.dst[0], depth},
 					glm::vec3{layer.dst[1], depth},
 					glm::vec3{layer.dst[2], depth},
-					glm::vec3{layer.dst[3], depth}};
-				xyz.push_back(dst);
-				const auto& texture = scarlet_textures[layer.texid];
+					glm::vec3{layer.dst[3], depth}});
 				uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
 				fog.insert(fog.end(), std::begin(layer.fog), std::end(layer.fog));
 
