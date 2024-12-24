@@ -1,6 +1,7 @@
 #include "shader.hpp"
 #include "state.hpp"
 #include "texture.hpp"
+#include "camera.hpp"
 
 #include <SDL3/SDL.h>
 #include <array>
@@ -19,15 +20,6 @@
 
 namespace fs = std::filesystem;
 namespace po = ::boost::program_options;
-
-// clang-format off
-static auto camera = glm::mat4{
-	2, 0, 0, 0,
-	0, 2, 0, 322,
-	0, 0, 1, 0,
-	0, 0, 0, 1
-};
-// clang-format on
 
 static glm::mat4x2 transformUV(glm::mat4x2 uv, const std::vector<FTX::Entry>& textures, int16_t texid) {
 	const auto& t = textures[texid];
@@ -130,7 +122,7 @@ int main(int argc, char* argv[]) try {
 
 	std::vector<char> buffer;
 	const auto scarlet_mbs = [&cpk, &buffer]() {
-		auto mbs = cpk.by_name("Scarlet_F.mbs", "Chara");
+		auto mbs = cpk.by_name("Virginia_F.mbs", "Chara");
 		cpk.extract(*mbs, buffer);
 		std::cout << "MBS: " << mbs->name << '\n';
 		return MBS(std::ispanstream(buffer, std::ios::binary));
@@ -144,7 +136,7 @@ int main(int argc, char* argv[]) try {
 		return 0;
 	}
 
-	cpk.extract(*cpk.by_name("Scarlet_F00.ftx", "Chara"), buffer);
+	cpk.extract(*cpk.by_name("Virginia_F00.ftx", "Chara"), buffer);
 	auto scarlet_textures = FTX::parse(buffer);
 
 	static constexpr int W = 1920, H = 1080;
@@ -220,6 +212,7 @@ int main(int argc, char* argv[]) try {
 
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
+	Camera cam;
 
 	bool done = false;
 	while (!done) {
@@ -231,7 +224,7 @@ int main(int argc, char* argv[]) try {
 			if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
 				done = true;
 			if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-				camera[2][2] += (event.wheel.y / 10);
+				cam.zoom(event.wheel.y);
 			}
 		}
 		if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) {
@@ -285,7 +278,8 @@ int main(int argc, char* argv[]) try {
 
 			const auto& shader = GetKeyframeShader().Use();
 
-			shader.SetUniform("u_transform", tl.matrix);
+			shader.SetUniform("u_model", tl.matrix);
+			shader.SetUniform("u_view", cam.lookAt());
 			shader.SetUniform("u_proj", proj);
 			shader.SetUniform("u_tex", 0);
 
