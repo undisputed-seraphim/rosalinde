@@ -30,10 +30,6 @@ static glm::mat4x2 transformUV(glm::mat4x2 uv, const std::vector<FTX::Entry>& te
 			for (int j = 0; j < 4; ++j) {
 				uv[j] *= dims;
 				uv[j][0] += d[0];
-
-				// Due to some weird error, the x-axis of the texture
-				// must be shifted right by 2, to avoid artifacts.
-				uv[j][0] += 2;
 			}
 		}
 		d[0] += float(textures[i].width);
