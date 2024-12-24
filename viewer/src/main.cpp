@@ -29,44 +29,6 @@ static auto camera = glm::mat4{
 };
 // clang-format on
 
-// IN:  Quad vertices
-// OUT: Triangle vertices, transformed
-static glm::mat4x3 transform(glm::mat4x2 vertices) {
-	// clang-format off
-	camera[0][0] = 2.07219708396179;
-	camera[1][1] = 2.07219708396179;
-
-	const auto v2 = glm::mat4{
-		glm::vec4(vertices[0], 1.0, 1.0),
-		glm::vec4(vertices[1], 1.0, 1.0),
-		glm::vec4(vertices[2], 1.0, 1.0),
-		glm::vec4(vertices[3], 1.0, 1.0),
-	};
-
-	const glm::mat4x3 v = glm::transpose(camera) * v2;
-	const auto h = glm::transpose(glm::mat3{
-		glm::cross(glm::cross(v[0], v[2]), glm::cross(v[1], v[3])),
-		glm::cross(glm::cross(v[0], v[1]), glm::cross(v[3], v[2])),
-		glm::cross(glm::cross(v[0], v[3]), glm::cross(v[1], v[2]))
-	});
-
-	//perspective_quad
-	const auto h_inv = glm::mat3{
-		 0,     0,  0.005,
-	-0.001,     0,  0.015,
-		 0, 0.001, -0.015
-	};
-	const glm::mat3 m3 = h_inv * h;
-	const auto t = glm::mat4x3{
-		glm::vec3{10, 10, 1} * m3,
-		glm::vec3{20, 10, 1} * m3,
-		glm::vec3{20, 20, 1} * m3,
-		glm::vec3{10, 20, 1} * m3,
-	};
-	// clang-format on
-	return t;
-}
-
 static glm::mat4x2 transformUV(glm::mat4x2 uv, const std::vector<FTX::Entry>& textures, int16_t texid) {
 	const auto& t = textures[texid];
 	const glm::vec2 dims{t.width, t.height};
@@ -249,6 +211,8 @@ int main(int argc, char* argv[]) try {
 
 	////////////////
 
+	const auto proj = glm::ortho((-W) / 2.0f, W / 2.0f, H / 2.0f, (-H) / 2.0f);
+
 	std::vector<glm::mat4x3> xyz;
 	std::vector<glm::mat4x2> uv;
 	std::vector<unsigned> indices;
@@ -313,7 +277,7 @@ int main(int argc, char* argv[]) try {
 					glm::vec2{tl.matrix * glm::vec4(layer.dst[1], 0.0, 1.0)},
 					glm::vec2{tl.matrix * glm::vec4(layer.dst[2], 0.0, 1.0)},
 					glm::vec2{tl.matrix * glm::vec4(layer.dst[3], 0.0, 1.0)}};
-				xyz.push_back(transform(dst));
+				xyz.push_back(dst);
 				const auto& texture = scarlet_textures[layer.texid];
 				uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
 				fog.insert(fog.end(), std::begin(layer.fog), std::end(layer.fog));
@@ -326,7 +290,7 @@ int main(int argc, char* argv[]) try {
 
 			const auto& shader = GetKeyframeShader().Use();
 
-			shader.SetUniform("u_pxsize", {(float)W, (float)H});
+			shader.SetUniform("u_proj", proj);
 			shader.SetUniform("u_tex", 0);
 
 			glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);

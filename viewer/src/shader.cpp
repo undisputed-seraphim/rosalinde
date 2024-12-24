@@ -11,19 +11,14 @@ constexpr std::string_view kf_vert_src = "# version 300 es\n"
 "in      highp vec3  a_xyz;\n"
 "in      highp vec2  a_uv;\n"
 "in      lowp  float a_z;\n"
-"uniform highp vec2  u_pxsize;\n"
-"        highp vec2  XY;\n"
-"        highp float z;\n"
+"uniform highp mat4  u_proj;\n"
 "out     highp vec4  v_fog;\n"
 "out     highp vec2  v_uv;\n"
 
 "void main(void) {\n"
-"    z = 1.0 / a_xyz.z;\n"
-"    XY = a_xyz.xy * z * (2.0 / u_pxsize);\n"
-
 "    v_fog = a_fog;\n"
 "    v_uv  = a_uv;\n"
-"    gl_Position = vec4(XY.x, -XY.y, a_z, 1.0);\n"
+"    gl_Position = u_proj * vec4(a_xyz.x, a_xyz.y, a_z, 1.0);\n"
 "}";
 
 constexpr std::string_view kf_frag_src = "# version 300 es\n"
