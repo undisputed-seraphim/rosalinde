@@ -24,7 +24,8 @@ constexpr std::string_view kf_frag_src = "# version 300 es\n"
 "out     highp vec4  fragColor;\n"
 
 "void main(void) {\n"
-"    fragColor = texture(u_tex, v_uv) * v_fog;\n"
+// x-axis of texture must be shifted by 2 to avoid artifacts.
+"    fragColor = textureOffset(u_tex, v_uv, ivec2(2, 0)) * v_fog;\n"
 "}";
 // clang-format on
 
