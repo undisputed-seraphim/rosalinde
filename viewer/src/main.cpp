@@ -1,7 +1,7 @@
+#include "camera.hpp"
 #include "shader.hpp"
 #include "state.hpp"
 #include "texture.hpp"
-#include "camera.hpp"
 
 #include <SDL3/SDL.h>
 #include <array>
@@ -122,7 +122,7 @@ int main(int argc, char* argv[]) try {
 
 	std::vector<char> buffer;
 	const auto scarlet_mbs = [&cpk, &buffer]() {
-		auto mbs = cpk.by_name("Virginia_F.mbs", "Chara");
+		auto mbs = cpk.by_name("Scarlet_F.mbs", "Chara");
 		cpk.extract(*mbs, buffer);
 		std::cout << "MBS: " << mbs->name << '\n';
 		return MBS(std::ispanstream(buffer, std::ios::binary));
@@ -136,7 +136,7 @@ int main(int argc, char* argv[]) try {
 		return 0;
 	}
 
-	cpk.extract(*cpk.by_name("Virginia_F00.ftx", "Chara"), buffer);
+	cpk.extract(*cpk.by_name("Scarlet_F00.ftx", "Chara"), buffer);
 	auto scarlet_textures = FTX::parse(buffer);
 
 	static constexpr int W = 1920, H = 1080;
@@ -213,6 +213,7 @@ int main(int argc, char* argv[]) try {
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
 	Camera cam;
+	bool mouseDown = false;
 
 	bool done = false;
 	while (!done) {
@@ -225,6 +226,15 @@ int main(int argc, char* argv[]) try {
 				done = true;
 			if (event.type == SDL_EVENT_MOUSE_WHEEL) {
 				cam.zoom(event.wheel.y);
+			}
+			if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+				mouseDown = true;
+			}
+			if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+				mouseDown = false;
+			}
+			if (mouseDown && SDL_EVENT_MOUSE_MOTION) {
+				cam.move(event.motion.xrel, event.motion.yrel);
 			}
 		}
 		if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) {

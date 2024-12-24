@@ -6,11 +6,12 @@ class Camera {
 	glm::vec3 _pos;
 	glm::vec3 _front;
 	glm::vec3 _up;
-	float _yaw, _pitch, _zoom;
+	float _zoom;
 
 public:
 	Camera();
 
+	void move(float xrel, float yrel);
 	void zoom(float y);
 
 	glm::mat4 lookAt() const;
