@@ -1,13 +1,14 @@
 #include "camera.hpp"
+#include <algorithm>
 #include <glm/ext.hpp>
 
 Camera::Camera()
 	: _pos(0, 0, 0)
 	, _front(0, 0, -1)
 	, _up(0, 1, 0)
-	, _yaw(-90)
-	, _pitch(0)
 	, _zoom(1) {}
+
+void Camera::move(float x, float y) { _pos += glm::vec3{-x, -y, 0.0}; }
 
 void Camera::zoom(float y) { _zoom += (y / 10.0); }
 
