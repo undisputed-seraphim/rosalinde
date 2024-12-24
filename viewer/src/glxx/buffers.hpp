@@ -125,9 +125,8 @@ public:
 	}
 
 	Buffer& setData(buffer::Usage u, std::span<const ValueT> data) noexcept {
-		//_storage.assign(data.begin(), data.end());
-		//glBufferData(BufferType, sizeof(ValueT) * _storage.size(), _storage.data(), u);
-		glBufferData(BufferType, sizeof(ValueT) * data.size(), data.data(), u);
+		_storage.assign(data.begin(), data.end());
+		glBufferData(BufferType, sizeof(ValueT) * _storage.size(), _storage.data(), u);
 		return *this;
 	}
 

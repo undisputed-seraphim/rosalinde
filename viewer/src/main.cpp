@@ -186,14 +186,11 @@ int main(int argc, char* argv[]) try {
 	const auto& IDLE = scarlet_quad.skeletons()[index];
 	std::cout << IDLE.name << std::endl;
 
+	gl::uiElementBuffer indices;
 	unsigned int VBO[3];
-	unsigned int VAO, EBO;
-	glGenVertexArrays(1, &VAO);
 	glGenBuffers(3, VBO);
-	glGenBuffers(1, &EBO);
-
-	gl::uiElementBuffer ebo;
-
+	unsigned int VAO;
+	glGenVertexArrays(1, &VAO);
 	glBindVertexArray(VAO);
 
 	enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
@@ -207,7 +204,6 @@ int main(int argc, char* argv[]) try {
 
 	std::vector<glm::mat4x3> xyz;
 	std::vector<glm::mat4x2> uv;
-	std::vector<unsigned> indices;
 	std::vector<uint32_t> fog;
 
 	// Our state
@@ -259,7 +255,7 @@ int main(int argc, char* argv[]) try {
 			xyz.clear();
 			uv.clear();
 			fog.clear();
-			indices.clear();
+			indices.storage().clear();
 
 			const auto& kf = scarlet_quad.keyframes()[tl.attach.id];
 
@@ -282,7 +278,7 @@ int main(int argc, char* argv[]) try {
 				fog.insert(fog.end(), std::begin(layer.fog), std::end(layer.fog));
 
 				depth -= zrate;
-				indices.insert(indices.end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
+				indices.storage().insert(indices.storage().end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
 				i += 4;
 			}
 
@@ -299,16 +295,16 @@ int main(int argc, char* argv[]) try {
 			glVertexAttribPointer(0, 4, GL_UNSIGNED_BYTE, GL_TRUE, 0, (void*)0);
 
 			glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x3) * xyz.size(), &xyz[0][0][0], GL_STATIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x3) * xyz.size(), glm::value_ptr(xyz[0]), GL_STATIC_DRAW);
 			glEnableVertexAttribArray(1);
 			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
 			glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x2) * uv.size(), &uv[0][0][0], GL_STATIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x2) * uv.size(), glm::value_ptr(uv[0]), GL_STATIC_DRAW);
 			glEnableVertexAttribArray(2);
 			glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
-			ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, indices).drawElements(gl::Mode::TRIANGLES);
+			indices.bind().setData(gl::buffer::Usage::STATIC_DRAW).drawElements(gl::Mode::TRIANGLES);
 		}
 		(++timestep) %= longest_track_size;
 
