@@ -4,6 +4,7 @@
 #include "texture.hpp"
 
 #include <SDL3/SDL.h>
+#include <algorithm>
 #include <array>
 #include <boost/program_options.hpp>
 #include <eltolinde.hpp>
@@ -21,21 +22,10 @@
 namespace fs = std::filesystem;
 namespace po = ::boost::program_options;
 
-static glm::mat4x2 transformUV(glm::mat4x2 uv, const std::vector<FTX::Entry>& textures, int16_t texid) {
-	const auto& t = textures[texid];
-	const glm::vec2 dims{t.width, t.height};
-	glm::vec2 d(0.0);
-	for (int16_t i = 0; i < textures.size(); ++i) {
-		if (i == texid) {
-			for (int j = 0; j < 4; ++j) {
-				uv[j] *= dims;
-				uv[j][0] += d[0];
-			}
-		}
-		d[0] += float(textures[i].width);
-		d[1] = std::max(d[1], float(textures[i].height));
+static glm::mat4x2 transformUV(glm::mat4x2 uv, const FTX::Entry& t) {
+	for (int i = 0; i < 4; ++i) {
+		uv[i] = glm::vec2{uv[i][0] * t.width, uv[i][1] * t.height};
 	}
-	uv /= d;
 	return uv;
 }
 
@@ -57,31 +47,28 @@ void enable_depth(GLenum depthFunc = 0) {
 	glEnable(GL_DEPTH_TEST);
 }
 
-GLuint generate_texture_map(const std::vector<FTX::Entry>& textures) {
-	unsigned total_width = 0;
-	unsigned max_height = 0;
+GLuint generate_array_texture(const std::vector<FTX::Entry>& textures) {
+	float max_x = 0, max_y = 0;
 	for (const auto& t : textures) {
-		total_width += t.width;
-		max_height = std::max(max_height, (unsigned)t.height);
+		max_x = std::max(max_x, float(t.width));
+		max_y = std::max(max_y, float(t.height));
 	}
-
 	GLuint id;
 	glGenTextures(1, &id);
-	glBindTexture(GL_TEXTURE_2D, id);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, total_width, max_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, id);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_ALWAYS);
 
-	total_width = 0;
-	for (const auto& t : textures) {
-		glTexSubImage2D(GL_TEXTURE_2D, 0, total_width, 0, t.width, t.height, GL_RGBA, GL_UNSIGNED_BYTE, t.rgba.data());
-		total_width += t.width;
+	glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, max_x, max_y, textures.size());
+	for (int i = 0; i < textures.size(); ++i) {
+		const auto& t = textures[i];
+		glTexSubImage3D(
+			GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, t.width, t.height, 1, GL_RGBA, GL_UNSIGNED_BYTE, t.rgba.data());
 	}
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 	return id;
 }
 
@@ -118,7 +105,7 @@ int main(int argc, char* argv[]) try {
 
 	std::vector<char> buffer;
 	const auto scarlet_mbs = [&cpk, &buffer]() {
-		auto mbs = cpk.by_name("Scarlet_F.mbs", "Chara");
+		auto mbs = cpk.by_name("Virginia_F.mbs", "Chara");
 		cpk.extract(*mbs, buffer);
 		std::cout << "MBS: " << mbs->name << '\n';
 		return MBS(std::ispanstream(buffer, std::ios::binary));
@@ -132,7 +119,7 @@ int main(int argc, char* argv[]) try {
 		return 0;
 	}
 
-	cpk.extract(*cpk.by_name("Scarlet_F00.ftx", "Chara"), buffer);
+	cpk.extract(*cpk.by_name("Virginia_F00.ftx", "Chara"), buffer);
 	auto scarlet_textures = FTX::parse(buffer);
 
 	static constexpr int W = 1920, H = 1080;
@@ -173,8 +160,8 @@ int main(int argc, char* argv[]) try {
 		FTX::decompress(texture);
 		FTX::deswizzle(texture);
 	}
-	GLuint tex = generate_texture_map(scarlet_textures);
-	glBindTexture(GL_TEXTURE_2D, tex);
+	GLuint tex = generate_array_texture(scarlet_textures);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, tex);
 	glActiveTexture(GL_TEXTURE0);
 
 	int timestep = 0;
@@ -183,8 +170,8 @@ int main(int argc, char* argv[]) try {
 	std::cout << IDLE.name << std::endl;
 
 	gl::uiElementBuffer indices;
-	unsigned int VBO[3];
-	glGenBuffers(3, VBO);
+	unsigned int VBO[4];
+	glGenBuffers(4, VBO);
 	unsigned int VAO;
 	glGenVertexArrays(1, &VAO);
 	glBindVertexArray(VAO);
@@ -201,6 +188,7 @@ int main(int argc, char* argv[]) try {
 	std::vector<glm::mat4x3> xyz;
 	std::vector<glm::mat4x2> uv;
 	std::vector<uint32_t> fog;
+	std::vector<int16_t> texids;
 
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -251,6 +239,7 @@ int main(int argc, char* argv[]) try {
 			xyz.clear();
 			uv.clear();
 			fog.clear();
+			texids.clear();
 			indices.storage().clear();
 
 			const auto& kf = scarlet_quad.keyframes()[tl.attach.id];
@@ -270,8 +259,9 @@ int main(int argc, char* argv[]) try {
 					glm::vec3{layer.dst[1], depth},
 					glm::vec3{layer.dst[2], depth},
 					glm::vec3{layer.dst[3], depth}});
-				uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
+				uv.push_back(transformUV(layer.src, scarlet_textures[layer.texid]));
 				fog.insert(fog.end(), std::begin(layer.fog), std::end(layer.fog));
+				texids.insert(texids.end(), {layer.texid, layer.texid, layer.texid, layer.texid});
 
 				depth -= zrate;
 				indices.storage().insert(indices.storage().end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
@@ -299,6 +289,11 @@ int main(int argc, char* argv[]) try {
 			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x2) * uv.size(), glm::value_ptr(uv[0]), GL_STATIC_DRAW);
 			glEnableVertexAttribArray(2);
 			glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+			glBindBuffer(GL_ARRAY_BUFFER, VBO[3]);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(int16_t) * texids.size(), texids.data(), GL_STATIC_DRAW);
+			glEnableVertexAttribArray(3);
+			glVertexAttribPointer(3, 1, GL_SHORT, GL_FALSE, 0, (void*)0);
 
 			indices.bind().setData(gl::buffer::Usage::STATIC_DRAW).drawElements(gl::Mode::TRIANGLES);
 		}
