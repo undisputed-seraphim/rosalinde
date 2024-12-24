@@ -194,10 +194,10 @@ int main(int argc, char* argv[]) try {
 	const auto& IDLE = scarlet_quad.skeletons()[index];
 	std::cout << IDLE.name << std::endl;
 
-	unsigned int VBO[4];
+	unsigned int VBO[3];
 	unsigned int VAO, EBO;
 	glGenVertexArrays(1, &VAO);
-	glGenBuffers(4, VBO);
+	glGenBuffers(3, VBO);
 	glGenBuffers(1, &EBO);
 
 	gl::uiElementBuffer ebo;
@@ -217,7 +217,6 @@ int main(int argc, char* argv[]) try {
 	std::vector<glm::mat4x2> uv;
 	std::vector<unsigned> indices;
 	std::vector<uint32_t> fog;
-	std::vector<float> z;
 
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -257,7 +256,6 @@ int main(int argc, char* argv[]) try {
 			xyz.clear();
 			uv.clear();
 			fog.clear();
-			z.clear();
 			indices.clear();
 
 			const auto& kf = scarlet_quad.keyframes()[tl.attach.id];
@@ -273,17 +271,16 @@ int main(int argc, char* argv[]) try {
 				// const auto m = (tl.matrix != glm::mat4{1.0}) ? glm::translate(tl.matrix, glm::vec3{-100, 40, 0}) :
 				// glm::mat4{1.0};
 				const glm::mat4x2 dst = {
-					glm::vec2{tl.matrix * glm::vec4(layer.dst[0], 0.0, 1.0)},
-					glm::vec2{tl.matrix * glm::vec4(layer.dst[1], 0.0, 1.0)},
-					glm::vec2{tl.matrix * glm::vec4(layer.dst[2], 0.0, 1.0)},
-					glm::vec2{tl.matrix * glm::vec4(layer.dst[3], 0.0, 1.0)}};
+					glm::vec2{tl.matrix * glm::vec4(layer.dst[0], depth, 1.0)},
+					glm::vec2{tl.matrix * glm::vec4(layer.dst[1], depth, 1.0)},
+					glm::vec2{tl.matrix * glm::vec4(layer.dst[2], depth, 1.0)},
+					glm::vec2{tl.matrix * glm::vec4(layer.dst[3], depth, 1.0)}};
 				xyz.push_back(dst);
 				const auto& texture = scarlet_textures[layer.texid];
 				uv.push_back(transformUV(layer.src, scarlet_textures, layer.texid));
 				fog.insert(fog.end(), std::begin(layer.fog), std::end(layer.fog));
 
 				depth -= zrate;
-				z.insert(z.end(), {depth, depth, depth, depth});
 				indices.insert(indices.end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
 				i += 4;
 			}
@@ -307,11 +304,6 @@ int main(int argc, char* argv[]) try {
 			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x2) * uv.size(), &uv[0][0][0], GL_STATIC_DRAW);
 			glEnableVertexAttribArray(2);
 			glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-			glBindBuffer(GL_ARRAY_BUFFER, VBO[3]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(float) * z.size(), z.data(), GL_STATIC_DRAW);
-			glEnableVertexAttribArray(3);
-			glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
 			ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, indices).drawElements(gl::Mode::TRIANGLES);
 		}
