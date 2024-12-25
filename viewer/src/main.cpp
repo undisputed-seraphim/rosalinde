@@ -1,7 +1,6 @@
 #include "camera.hpp"
 #include "shader.hpp"
 #include "state.hpp"
-#include "texture.hpp"
 
 #include <SDL3/SDL.h>
 #include <algorithm>
@@ -195,6 +194,8 @@ int main(int argc, char* argv[]) try {
 	Camera cam;
 	bool mouseDown = false;
 
+	const auto& shader = GetKeyframeShader().Use();
+
 	bool done = false;
 	while (!done) {
 		SDL_Event event;
@@ -251,9 +252,6 @@ int main(int argc, char* argv[]) try {
 				if (layer.attribute & SCARLET_2) {
 					continue;
 				}
-				// Unfortunately not all attachment offsets are the same
-				// const auto m = (tl.matrix != glm::mat4{1.0}) ? glm::translate(tl.matrix, glm::vec3{-100, 40, 0}) :
-				// glm::mat4{1.0};
 				xyz.push_back(glm::mat4x3{
 					glm::vec3{layer.dst[0], depth},
 					glm::vec3{layer.dst[1], depth},
@@ -267,12 +265,11 @@ int main(int argc, char* argv[]) try {
 				indices.storage().insert(indices.storage().end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
 				i += 4;
 			}
+			// Unfortunately not all attachment offsets are the same
+			// const auto m = (tl.matrix != glm::mat4{1.0}) ? glm::translate(tl.matrix, glm::vec3{-100, 40, 0}) :
+			// glm::mat4{1.0};
 
-			const auto& shader = GetKeyframeShader().Use();
-
-			shader.SetUniform("u_model", tl.matrix);
-			shader.SetUniform("u_view", cam.lookAt());
-			shader.SetUniform("u_proj", proj);
+			shader.SetUniform("u_mvp", proj * cam.lookAt() * tl.matrix);
 			shader.SetUniform("u_tex", 0);
 
 			glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
