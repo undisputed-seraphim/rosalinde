@@ -132,36 +132,6 @@ public:
 	Texture& operator=(Texture&& other) = default;
 };
 
-template <texture::Type2D TexType>
-class TextureAtlas : public Texture<TexType> {
-	unsigned _w_occupied, _h_occupied;
-
-	struct subtex_id {
-
-	};
-public:
-	using Texture<TexType>::Texture;
-	using Texture<TexType>::TextureType;
-	using Texture<TexType>::ValueType;
-	using Texture<TexType>::Format;
-
-	TextureAtlas& SetSubImage(unsigned width, unsigned height, std::span<const uint8_t> data) {
-		unsigned xoff = 0, yoff = 0;
-		if (_w_occupied + width <= this->width()) {
-			xoff = _w_occupied;
-			_w_occupied += width;
-		} else if (_h_occupied + height <= this->height()) {
-			yoff = _h_occupied;
-			_h_occupied += height;
-		} else {
-			throw std::runtime_error("Not enough space in texture atlas");
-		}
-		glTexSubImage2D(TextureType, 0, xoff, yoff, width, height, Format, ValueType, data.data());
-		return *this;
-	}
-};
-
 using Texture2D = Texture<texture::Type2D::TEX_2D>;
-//using TextureAtlas2D = TextureAtlas<texture::Type2D::TEX_2D>;
 
 } // namespace gl

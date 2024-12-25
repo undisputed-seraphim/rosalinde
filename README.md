@@ -2,7 +2,7 @@ View and animate sprites from VW.
 
 TODO:
 - Fix timings of simultaneously played animation tracks - currently they don't align
-- Implement better matrix transform for vertex coordinates.
+- Most attachments are also dislocated
 - Clean up code in main.cpp
 - Implement rendering to texture
 
