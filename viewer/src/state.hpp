@@ -5,7 +5,6 @@
 #include <vector>
 
 #include "shader.hpp"
-#include "texture.hpp"
 
 class State {
     uint32_t _tgt_fb;
