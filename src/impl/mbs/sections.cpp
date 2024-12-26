@@ -92,7 +92,15 @@ std::ostream& operator<<(std::ostream& os, const v77& v) {
 using namespace std::literals;
 
 void v77::print_to_file() const {
-	auto ofs = std::ofstream("section_5.csv");
+	auto ofs = std::ofstream("section_4.csv");
+	ofs << "unk0,flags,tex_id,attributes\n" << std::hex;
+	constexpr auto fmts4 = "{},{},{},{}\n"sv;
+	constexpr auto fmts4_hex = "{:#x},{:#x},{:#x},{:#x}\n"sv;
+	for (const auto& s : s4) {
+		ofs << std::format(fmts4, s._unk0, s.flags, s.tex_id, s.attributes);
+	}
+	
+	ofs = std::ofstream("section_5.csv");
 	ofs << "s3_id,unk0,unk1,flags\n" << std::hex;
 	constexpr auto fmts5 = "{},{},{},{}\n"sv;
 	constexpr auto fmts5_hex = "{:#x},{:#x},{:#x},{:#x}\n"sv;

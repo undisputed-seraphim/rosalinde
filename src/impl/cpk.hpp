@@ -1,33 +1,36 @@
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
 
 class CPK {
 public:
-	struct entry {
+	struct directory_entry {
 		uint32_t id;
 		uint64_t offset;
 		uint64_t compressed_size;
 		uint64_t decompressed_size;
-		std::string name;
-		std::string path;
+		std::filesystem::path _path;
 
-		bool operator<(const entry&) const noexcept;
+		const std::filesystem::path& path() const noexcept;
+		operator const std::filesystem::path&() const noexcept;
+		std::uintmax_t file_size() const;
+
+		bool operator<(const directory_entry&) const noexcept;
 	};
 
-	CPK(std::string_view path);
+	explicit CPK(std::filesystem::path);
 	CPK(const CPK&) = delete;
 	CPK(CPK&&) noexcept;
 
-	const std::string& filepath() const noexcept { return _filepath; }
+	const std::vector<char>& extract(const directory_entry&) const;
+	bool extract(const directory_entry&, std::vector<char>&) const;
 
-	bool extract(const entry&, std::vector<char>&) const;
-
-	using size_type = std::vector<entry>::size_type;
-	using iterator = std::vector<entry>::iterator;
-	using const_iterator = std::vector<entry>::const_iterator;
+	using size_type = std::vector<directory_entry>::size_type;
+	using iterator = std::vector<directory_entry>::iterator;
+	using const_iterator = std::vector<directory_entry>::const_iterator;
 
 	iterator begin() noexcept;
 	iterator end() noexcept;
@@ -36,8 +39,7 @@ public:
 	const_iterator cbegin() const noexcept;
 	const_iterator cend() const noexcept;
 	const_iterator at_id(uint32_t id) const noexcept;
-	const_iterator by_name(std::string_view name, std::string_view path) const noexcept;
-	const_iterator by_name(std::string_view fullname) const noexcept;
+	const_iterator by_name(const std::filesystem::path&) const;
 
 	size_type size() const noexcept { return _files.size(); }
 	bool empty() const noexcept { return _files.empty(); }
@@ -45,7 +47,7 @@ public:
 private:
 	void unpack(std::istream&&);
 
-	std::string _filepath;
-	std::vector<entry> _files;
+	std::filesystem::path _filepath;
+	std::vector<directory_entry> _files;
 	mutable std::vector<char> _buffer;
 };

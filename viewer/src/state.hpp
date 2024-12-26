@@ -1,5 +1,6 @@
 #pragma once
 
+#include <eltolinde.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -7,25 +8,21 @@
 #include "shader.hpp"
 
 class State {
-    uint32_t _tgt_fb;
+	CPK _cpk;
+	uint32_t _tgt_fb;
+	uint32_t _texture;
 
 public:
-    State();
-    State(const State&) = delete;
-    State(State&&) noexcept = default;
-    ~State() noexcept;
+	State(const std::string& path);
+	State(const State&) = delete;
+	State(State&&) noexcept = default;
+	~State() noexcept;
 
-    struct MbsFtx {
-        std::string mbs, ftx;
-        std::vector<uint32_t> variations;
-    };
-    static const std::unordered_map<std::string, MbsFtx> Chara;
+	struct Job {
+		std::vector<std::string> mbs, ftx;					// mbs and ftx filenames. Most will have just one each
+		std::unordered_map<std::string, uint32_t> variants; // Flags for each variant of the character
+	};
+	static const std::unordered_map<std::string, Job> Chara;
 
-    void render();
+	void LoadSprite(const std::string& classname);
 };
-
-namespace gl {
-
-void depth(int d = 0);
-
-}
