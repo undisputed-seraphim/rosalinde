@@ -22,8 +22,9 @@ namespace fs = std::filesystem;
 namespace po = ::boost::program_options;
 
 static glm::mat4x2 transformUV(glm::mat4x2 uv, const FTX::Entry& t) {
+	const glm::vec2 dims{t.width, t.height};
 	for (int i = 0; i < 4; ++i) {
-		uv[i] = glm::vec2{uv[i][0] * t.width, uv[i][1] * t.height};
+		uv[i] *= dims;
 	}
 	return uv;
 }
@@ -100,13 +101,13 @@ int main(int argc, char* argv[]) try {
 		return -1;
 	}
 
-	const CPK cpk(cpkpath.string());
+	const CPK cpk(cpkpath);
 
 	std::vector<char> buffer;
 	const auto scarlet_mbs = [&cpk, &buffer]() {
-		auto mbs = cpk.by_name("Virginia_F.mbs", "Chara");
+		auto mbs = cpk.by_name("CharaFace/Face_Scarlet_F.mbs");
 		cpk.extract(*mbs, buffer);
-		std::cout << "MBS: " << mbs->name << '\n';
+		std::cout << "MBS: " << mbs->path() << '\n';
 		return MBS(std::ispanstream(buffer, std::ios::binary));
 	}();
 	const auto scarlet_quad = scarlet_mbs.extract();
@@ -117,9 +118,6 @@ int main(int argc, char* argv[]) try {
 		}
 		return 0;
 	}
-
-	cpk.extract(*cpk.by_name("Virginia_F00.ftx", "Chara"), buffer);
-	auto scarlet_textures = FTX::parse(buffer);
 
 	static constexpr int W = 1920, H = 1080;
 
@@ -155,9 +153,12 @@ int main(int argc, char* argv[]) try {
 	SDL_GL_SetSwapInterval(1); // Enable vsync
 	SDL_ShowWindow(window);
 
+	cpk.extract(*cpk.by_name("CharaFace/Face_Scarlet_F00.ftx"), buffer);
+	auto scarlet_textures = FTX::parse(buffer);
 	for (auto& texture : scarlet_textures) {
 		FTX::decompress(texture);
 		FTX::deswizzle(texture);
+		std::cout << texture.name << " : " << texture.width << " x " << texture.height << '\n';
 	}
 	GLuint tex = generate_array_texture(scarlet_textures);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, tex);
@@ -249,7 +250,7 @@ int main(int argc, char* argv[]) try {
 			float depth = 1.0;
 			unsigned i = 0;
 			for (const auto& layer : kf.layers) {
-				if (layer.attribute & SCARLET_2) {
+				if (layer.attribute & SCARLET_1) {
 					continue;
 				}
 				xyz.push_back(glm::mat4x3{

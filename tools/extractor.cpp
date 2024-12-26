@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) try {
 
 	if (list) {
 		for (const auto& file : cpk) {
-			std::cout << file.path << " / " << file.name << "\toffset: " << file.offset
+			std::cout << file.path().string() << "\toffset: " << file.offset
 					  << "\tsize: " << file.compressed_size << '\n';
 		}
 		std::cout << "Discovered " << cpk.size() << " files." << std::endl;

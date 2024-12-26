@@ -1,123 +1,155 @@
 #include "state.hpp"
 
 #include <glad/glad.h>
+#include <spanstream>
 
-// NOTE: Eltlinde needs override
 // clang-format off
-const std::unordered_map<std::string, State::MbsFtx> State::Chara = {
-    {"Fighter", MbsFtx{"Fighter_M.mbs", "Fighter_M00.ftx", {0}}},
-    {"Vanguard", MbsFtx{"Fighter_HG_M.mbs", "Fighter_HG_M00.ftx", {0}}},
-    {"Soldier_F", MbsFtx{"Soldier_F.mbs", "Soldier_F00.ftx", {0}}},
-    {"Sergeant_F", MbsFtx{"Soldier_HG_F.mbs", "Soldier_HG_F00.ftx", {0}}},
-    {"Soldier_M", MbsFtx{"Soldier_M.mbs", "Soldier_M00.ftx", {0}}},
-    {"Sergeant_M", MbsFtx{"Soldier_HG_M.mbs", "Soldier_HG_M00.ftx", {0}}},
-    {"Housecarl", MbsFtx{"Huscarl_M.mbs", "Huscarl_M00.ftx", {0}}},
-    {"Viking", MbsFtx{"Huscarl_HG_M.mbs", "Huscarl_HG_M00.ftx", {0}}},
-    {"Swordfighter_F", MbsFtx{"Swordsman_F.mbs", "Swordsman_F00.ftx", {0}}},
-    {"Swordmaster_F", MbsFtx{"Swordsman_HG_F.mbs", "Swordsman_HG_F00.ftx", {0}}},
-    {"Swordfighter_M", MbsFtx{"Swordsman_M.mbs", "Swordsman_M00.ftx", {0}}},
-    {"Swordmaster_M", MbsFtx{"Swordsman_HG_M.mbs", "Swordsman_HG_M00.ftx", {0}}},
-    {"Sellsword_F", MbsFtx{"Mercenary_F.mbs", "Mercenary_F00.ftx", {0}}},
-    {"Landsknecht_F", MbsFtx{"Mercenary_HG_F.mbs", "Mercenary_HG_F00.ftx", {0}}},
-    {"Sellsword_M", MbsFtx{"Mercenary_M.mbs", "Mercenary_M00.ftx", {0}}},
-    {"Landsknecht_M", MbsFtx{"Mercenary_HG_M.mbs", "Mercenary_HG_M00.ftx", {0}}},
-    {"Hoplite", MbsFtx{"Hoplite_M.mbs", "Hoplite_M00.ftx", {0}}},
-    {"Legionnaire", MbsFtx{"Hoplite_HG_M.mbs", "Hoplite_HG_M00.ftx", {0}}},
-    {"Gladiator", MbsFtx{"Gladiator_HG_M.mbs", "Gladiator_HG_M00.ftx", {0}}},
-    {"Berserker", MbsFtx{"Gladiator_M.mbs", "Gladiator_M00.ftx", {0}}},
-    {"Warrior_F", MbsFtx{"Warrior_F.mbs", "Warrior_F00.ftx", {0}}},
-    {"Breaker_F", MbsFtx{"Warrior_HG_F.mbs", "Warrior_HG_F00.ftx", {0}}},
-    {"Warrior_M", MbsFtx{"Warrior_M.mbs", "Warrior_M00.ftx", {0}}},
-    {"Breaker_M", MbsFtx{"Warrior_HG_M.mbs", "Warrior_HG_M00.ftx", {0}}},
-    {"Hunter", MbsFtx{"Hunter_M.mbs", "Hunter_M00.ftx", {0}}},
-    {"Sniper", MbsFtx{"Hunter_HG_M.mbs", "Hunter_HG_M00.ftx", {0}}},
-    {"Shieldshooter", MbsFtx{"Ranger_F.mbs", "Ranger_F00.ftx", {0}}},
-    {"Arbalist", MbsFtx{"Ranger_HG_F.mbs", "Ranger_HG_F00.ftx", {0}}},
-    {"Thief", MbsFtx{"Thief_M.mbs", "Thief_M00.ftx", {0}}},
-    {"Rogue", MbsFtx{"Thief_HG_M.mbs", "Thief_HG_M00.ftx", {0}}},
-    {"Knight", MbsFtx{"Knight_M.mbs", "Knight_M00.ftx", {0}}},
-    {"GreatKnight", MbsFtx{"Knight_HG_M.mbs", "Knight_HG_M00.ftx", {0}}},
-    {"RadiantKnight", MbsFtx{"WhiteKnight_F.mbs", "WhiteKnight_F00.ftx", {0}}},
-    {"SaintedKnight", MbsFtx{"WhiteKnight_HG_F.mbs", "WhiteKnight_HG_F00.ftx", {0}}},
-    {"DarkKnight", MbsFtx{"BlackKnight_M.mbs", "BlackKnight_M00.ftx", {0}}},
-    {"DoomKnight", MbsFtx{"BlackKnight_HG_M.mbs", "BlackKnight_HG_M00.ftx", {0}}},
-    {"Cleric", MbsFtx{"Cleric_F.mbs", "Cleric_F00.ftx", {0}}},
-    {"Bishop", MbsFtx{"Cleric_HG_F.mbs", "Cleric_HG_F00.ftx", {0}}},
-    {"Wizard", MbsFtx{"Wizard_M.mbs", "Wizard_M00.ftx", {0}}},
-    {"Warlock", MbsFtx{"Wizard_HG_M.mbs", "Wizard_HG_M00.ftx", {0}}},
-    {"Witch", MbsFtx{"Witch_F.mbs", "Witch_F00.ftx", {0}}},
-    {"Sorceress", MbsFtx{"Witch_HG_F.mbs", "Witch_HG_F00.ftx", {0}}},
-    {"Shaman", MbsFtx{"Shaman_F.mbs", "Shaman_F00.ftx", {0}}},
-    {"Druid", MbsFtx{"Shaman_HG_F.mbs", "Shaman_HG_F00.ftx", {0}}},
-    {"WyvernKnight", MbsFtx{"WyvernKnight_F.mbs", "WyvernKnight_F00.ftx", {0}}},
-    {"WyvernMaster", MbsFtx{"WyvernKnight_HG_F.mbs", "WyvernKnight_HG_F00.ftx", {0}}},
-    {"GryphonKnight", MbsFtx{"GriffonKnight_F.mbs", "GriffonKnight_F00.ftx", {0}}},
-    {"GryphonMaster", MbsFtx{"GriffonKnight_HG_F.mbs", "GriffonKnight_HG_F00.ftx", {0}}},
-    {"Lord", MbsFtx{"Lord_M.mbs", "Lord_M00.ftx", {0}}},
-    {"High LordMbsFtx", MbsFtx{"Lord_HG_M.mbs", "Lord_HG_M00.ftx", {0}}},
-    {"Crusader", MbsFtx{"Virginia_F.mbs", "Virginia_F00.ftx", {0}}},
-    {"Valkyria", MbsFtx{"Virginia_F.mbs", "Virginia_F00.ftx", {0}}},
-    {"Paladin", MbsFtx{"WhiteKnight_HG_M.mbs", "WhiteKnight_HG_M00.ftx", {0}}},
-    {"Prince", MbsFtx{"Prince_M.mbs", "Prince_M00.ftx", {0}}},
-    {"Dreadnought", MbsFtx{"Armoria_HG_F.mbs", "Armoria_HG_F00.ftx", {0}}},
-    {"ElvenFencer_F", MbsFtx{"ElfFencer_F.mbs", "ElfFencer_F00.ftx", {0}}},
-    {"ElvenFencer_M", MbsFtx{"ElfFencer_M.mbs", "ElfFencer_M00.ftx", {0}}},
-    {"ElvenArcher_F", MbsFtx{"ElfArcher_F.mbs", "ElfArcher_F00.ftx", {0}}},
-    {"ElvenArcher_M", MbsFtx{"ElfArcher_M.mbs", "ElfArcher_M00.ftx", {0}}},
-    {"ElvenAugur", MbsFtx{"Eltlinde_F00.mbs", "Eltlinde_F00.ftx", {0}}},
-    {"ElvenSibyl", MbsFtx{"Eltlinde_F10.mbs", "Eltlinde_F10.ftx", {0}}},
-    {"Werewolf", MbsFtx{"WereWolf_M.mbs", "WereWolf_M00.ftx", {0}}},
-    {"Werebear", MbsFtx{"WereBear_M.mbs", "WereBear_M00.ftx", {0}}},
-    {"Werefox", MbsFtx{"WereFox_F.mbs", "WereFox_F00.ftx", {0}}},
-    {"Wereowl", MbsFtx{"WereOwl_F.mbs", "WereOwl_F00.ftx", {0}}},
-    {"Werelion", MbsFtx{"Gladiator_HG_M.mbs", "Gladiator_HG_M00.ftx", {0}}},
-    {"SnowRanger", MbsFtx{"Unify_M.mbs", "Unify_M00.ftx", {0}}},
-    {"Feathersword", MbsFtx{"FeatherSword_F.mbs", "FeatherSword_F00.ftx", {0}}},
-    {"Featherbow", MbsFtx{"FeatherBow_F.mbs", "FeatherBow_F00.ftx", {0}}},
-    {"Featherstaff", MbsFtx{"FeatherRod_M.mbs", "FeatherRod_M00.ftx", {0}}},
-    {"Feathershield", MbsFtx{"FeatherShield_M.mbs", "FeatherShield_M00.ftx", {0}}},
-    {"Priestess", MbsFtx{"Scarlet_F.mbs", "Scarlet_F00.ftx", {0x4000 + 0x1000}}},
-    {"HighPriestess", MbsFtx{"Scarlet_F.mbs", "Scarlet_F00.ftx", {0x2000 + 0x800}}},
-    {"DarkLord", MbsFtx{"BlackPrince_HG_M.mbs", "BlackPrince_HG_M00.ftx", {0}}},
-    {"Overlord", MbsFtx{"BlackPrince_M.mbs", "BlackPrince_M00.ftx", {0}}},
-    {"Necromancer", MbsFtx{"Necromancer_M.mbs", "Necromancer_M00.ftx", {0}}},
-    {"DarkMarquess_Sword", MbsFtx{"DarkMarquess_S_M.mbs", "DarkMarquess_S_M00.ftx", {0}}},
-    {"DarkMarquess_Axe", MbsFtx{"DarkMarquess_A_F.mbs", "DarkMarquess_A_F00.ftx", {0}}},
-    {"DarkMarquess_Spear", MbsFtx{"DarkMarquess_L_M.mbs", "DarkMarquess_L_M00.ftx", {0}}},
-    {"DarkMarquess_Staff", MbsFtx{"DarkMarquess_R_F.mbs", "DarkMarquess_R_F00.ftx", {0}}},
+const std::unordered_map<std::string, State::Job> State::Chara = {
+	{"Fighter", Job{{"Chara/Fighter_M.mbs"}, {"Chara/Fighter_M00.ftx"},                                { {"Lex", 0}, {"Colm", 0}, {"Generic", 0} }}},
+	{"Vanguard", Job{{"Chara/Fighter_HG_M.mbs"}, {"Chara/Fighter_HG_M00.ftx"},                         { {"Lex", 0}, {"Colm", 0}, {"Generic", 0} }}},
+	{"Soldier_F",  Job{{"Chara/Soldier_F.mbs"}, {"Chara/Soldier_F00.ftx"},                             { {"Chloe", 0}, {"Generic", 0} }}},
+	{"Sergeant_F", Job{{"Chara/Soldier_HG_F.mbs"}, {"Chara/Soldier_HG_F00.ftx"},                       { {"Chloe", 0}, {"Generic", 0} }}},
+	{"Soldier_M",  Job{{"Chara/Soldier_M.mbs"}, {"Chara/Soldier_M00.ftx"},                             { {"Gailey", 0}, {"Generic", 0} }}},
+	{"Sergeant_M", Job{{"Chara/Soldier_HG_M.mbs"}, {"Chara/Soldier_HG_M00.ftx"},                       { {"Gailey", 0}, {"Generic", 0} }}},
+	{"Housecarl", Job{{"Chara/Huscarl_M.mbs"}, {"Chara/Huscarl_M00.ftx"},                              { {"Aubin", 0}, {"Generic", 0} }}},
+	{"Viking", Job{{"Chara/Huscarl_HG_M.mbs"}, {"Chara/Huscarl_HG_M00.ftx"},                           { {"Aubin", 0}, {"Generic", 0} }}},
+	{"Swordfighter_F", Job{{"Chara/Swordsman_F.mbs"}, {"Chara/Swordsman_F00.ftx"},                     { {"Melisandre", 0}, {"Leah", 0}, {"Generic", 0} }}},
+	{"Swordmaster_F",  Job{{"Chara/Swordsman_HG_F.mbs"}, {"Chara/Swordsman_HG_F00.ftx"},               { {"Melisandre", 0}, {"Leah", 0}, {"Generic", 0} }}},
+	{"Swordfighter_M", Job{{"Chara/Swordsman_M.mbs"}, {"Chara/Swordsman_M00.ftx"},                     { {"Aramis", 0}, {"Generic", 0} }}},
+	{"Swordmaster_M",  Job{{"Chara/Swordsman_HG_M.mbs"}, {"Chara/Swordsman_HG_M00.ftx"},               { {"Aramis", 0}, {"Generic", 0} }}},
+	{"Sellsword_F",   Job{{"Chara/Mercenary_F.mbs"}, {"Chara/Mercenary_F00.ftx"},                      { {"Berenice", 0}, {"Berengaria", 0}, {"Generic", 0} }}},
+	{"Landsknecht_F", Job{{"Chara/Mercenary_HG_F.mbs"}, {"Chara/Mercenary_HG_F00.ftx"},                { {"Berenice", 0}, {"Berengaria", 0}, {"Generic", 0} }}},
+	{"Sellsword_M",   Job{{"Chara/Mercenary_M.mbs"}, {"Chara/Mercenary_M00.ftx"},                      { {"Magellan", 0}, {"Jeremy", 0}, {"Generic", 0} }}},
+	{"Landsknecht_M", Job{{"Chara/Mercenary_HG_M.mbs"}, {"Chara/Mercenary_HG_M00.ftx"},                { {"Magellan", 0}, {"Jeremy", 0}, {"Generic", 0} }}},
+	{"Hoplite", Job{{"Chara/Hoplite_M.mbs"}, {"Chara/Hoplite_M00.ftx"},                                { {"Hodrick", 0}, {"Bryce", 0}, {"Beaumont", 0}, {"Generic", 0} }}},
+	{"Legionnaire", Job{{"Chara/Hoplite_HG_M.mbs"}, {"Chara/Hoplite_HG_M00.ftx"},                      { {"Hodrick", 0}, {"Bryce", 0}, {"Beaumont", 0}, {"Generic", 0} }}},
+	{"Gladiator", Job{{"Chara/Gladiator_HG_M.mbs"}, {"Chara/Gladiator_HG_M00.ftx"},                    { {"Bruno", 0}, {"Generic", 0} }}},
+	{"Berserker", Job{{"Chara/Gladiator_M.mbs"}, {"Chara/Gladiator_M00.ftx"},                          { {"Bruno", 0}, {"Generic", 0} }}},
+	{"Warrior_F", Job{{"Chara/Warrior_F.mbs"}, {"Chara/Warrior_F00.ftx"},                              { {"Mordon", 0}, {"Generic", 0} }}},
+	{"Breaker_F", Job{{"Chara/Warrior_HG_F.mbs"}, {"Chara/Warrior_HG_F00.ftx"},                        { {"Mordon", 0}, {"Generic", 0} }}},
+	{"Warrior_M", Job{{"Chara/Warrior_M.mbs"}, {"Chara/Warrior_M00.ftx"},                              { {"Nina", 0}, {"Mille", 0}, {"Kitra", 0}, {"Generic", 0} }}},
+	{"Breaker_M", Job{{"Chara/Warrior_HG_M.mbs"}, {"Chara/Warrior_HG_M00.ftx"},                        { {"Nina", 0}, {"Mille", 0}, {"Kitra", 0}, {"Generic", 0} }}},
+	{"Hunter", Job{{"Chara/Hunter_M.mbs"}, {"Chara/Hunter_M00.ftx"},                                   { {"Rolf", 0}, {"Mandrin", 0}, {"Generic", 0} }}},
+	{"Sniper", Job{{"Chara/Hunter_HG_M.mbs"}, {"Chara/Hunter_HG_M00.ftx"},                             { {"Rolf", 0}, {"Mandrin", 0}, {"Generic", 0} }}},
+	{"Arbalist", Job{{"Chara/Ranger_F.mbs"}, {"Chara/Ranger_F00.ftx"},                                 { {"Liza", 0}, {"Generic", 0} }}},
+	{"Shieldshooter", Job{{"Chara/Ranger_HG_F.mbs"}, {"Chara/Ranger_HG_F00.ftx"},                      { {"Liza", 0}, {"Generic", 0} }}},
+	{"Thief", Job{{"Chara/Thief_M.mbs"}, {"Chara/Thief_M00.ftx"},                                      { {"Travis", 0}, {"Gammel", 0}, {"Generic", 0} }}},
+	{"Rogue", Job{{"Chara/Thief_HG_M.mbs"}, {"Chara/Thief_HG_M00.ftx"},                                { {"Travis", 0}, {"Gammel", 0}, {"Generic", 0} }}},
+	{"Knight", Job{{"Chara/Knight_M.mbs"}, {"Chara/Knight_M00.ftx"},                                   { {"Clive", 0}, {"Adel", 0}, {"Renault", 0}, {"Jerome", 0}, {"Generic", 0} }}},
+	{"GreatKnight", Job{{"Chara/Knight_HG_M.mbs"}, {"Chara/Knight_HG_M00.ftx"},                        { {"Clive", 0}, {"Adel", 0}, {"Renault", 0}, {"Jerome", 0}, {"Generic", 0} }}},
+	{"RadiantKnight", Job{{"Chara/WhiteKnight_F.mbs"}, {"Chara/WhiteKnight_F00.ftx"},                  { {"Monica", 0}, {"Miriam", 0}, {"Generic", 0} }}},
+	{"SaintedKnight", Job{{"Chara/WhiteKnight_HG_F.mbs"}, {"Chara/WhiteKnight_HG_F00.ftx"},            { {"Monica", 0}, {"Miriam", 0}, {"Generic", 0} }}},
+	{"DarkKnight", Job{{"Chara/BlackKnight_M.mbs"}, {"Chara/BlackKnight_M00.ftx"},                     { {"Gloucester", 0}, {"Generic", 0} }}},
+	{"DoomKnight", Job{{"Chara/BlackKnight_HG_M.mbs"}, {"Chara/BlackKnight_HG_M00.ftx"},               { {"Gloucester", 0}, {"Generic", 0} }}},
+	{"Cleric", Job{{"Chara/Cleric_F.mbs"}, {"Chara/Cleric_F00.ftx"},                                   { {"Sharon", 0}, {"Tatiana", 0}, {"Primm", 0}, {"Generic", 0} }}},
+	{"Bishop", Job{{"Chara/Cleric_HG_F.mbs"}, {"Chara/Cleric_HG_F00.ftx"},                             { {"Sharon", 0}, {"Tatiana", 0}, {"Primm", 0}, {"Generic", 0} }}},
+	{"Wizard", Job{{"Chara/Wizard_M.mbs"}, {"Chara/Wizard_M00.ftx"},                                   { {"Auch", 0}, {"Generic", 0} }}},
+	{"Warlock", Job{{"Chara/Wizard_HG_M.mbs"}, {"Chara/Wizard_HG_M00.ftx"},                            { {"Auch", 0}, {"Generic", 0} }}},
+	{"Witch", Job{{"Chara/Witch_F.mbs"}, {"Chara/Witch_F00.ftx"},                                      { {"Yahna", 0}, {"Generic", 0} }}},
+	{"Sorceress", Job{{"Chara/Witch_HG_F.mbs"}, {"Chara/Witch_HG_F00.ftx"},                            { {"Yahna", 0}, {"Generic", 0} }}},
+	{"Shaman", Job{{"Chara/Shaman_F.mbs"}, {"Chara/Shaman_F00.ftx"},                                   { {"Selvie", 0}, {"Generic", 0} }}},
+	{"Druid", Job{{"Chara/Shaman_HG_F.mbs"}, {"Chara/Shaman_HG_F00.ftx"},                              { {"Selvie", 0}, {"Generic", 0} }}},
+	{"WyvernKnight",  Job{{"Chara/WyvernKnight_F.mbs"}, {"Chara/WyvernKnight_F00.ftx"},                { {"Hilda", 0}, {"Generic", 0} }}},
+	{"WyvernMaster",  Job{{"Chara/WyvernKnight_HG_F.mbs"}, {"Chara/WyvernKnight_HG_F00.ftx"},          { {"Hilda", 0}, {"Generic", 0} }}},
+	{"GryphonKnight", Job{{"Chara/GriffonKnight_F.mbs"}, {"Chara/GriffonKnight_F00.ftx"},              { {"Fran", 0}, {"Celeste", 0}, {"Generic", 0} }}},
+	{"GryphonMaster", Job{{"Chara/GriffonKnight_HG_F.mbs"}, {"Chara/GriffonKnight_HG_F00.ftx"},        { {"Fran", 0}, {"Celeste", 0}, {"Generic", 0} }}},
+	{"Lord", Job{{"Chara/Lord_M.mbs"}, {"Chara/Lord_M00.ftx"},                                         { {"Alain", 0} }}},
+	{"HighLord", Job{{"Chara/Lord_HG_M.mbs"}, {"Chara/Lord_HG_M00.ftx"},                               { {"Alain", 0} }}},
+	{"Crusader", Job{{"Chara/Virginia_F.mbs"}, {"Chara/Virginia_F00.ftx"},                             { {"Virginia", 0}, {"Ilenia", 0} }}},
+	{"Valkyria", Job{{"Chara/Virginia_F.mbs"}, {"Chara/Virginia_F00.ftx"},                             { {"Virginia", 0}, {"Ilenia", 0} }}},
+	{"Paladin", Job{{"Chara/WhiteKnight_HG_M.mbs"}, {"Chara/WhiteKnight_HG_M00.ftx"},                  { {"Josef", 0} }}},
+	{"Prince", Job{{"Chara/Prince_M.mbs"}, {"Chara/Prince_M00.ftx"},                                   { {"Gilbert", 0} }}},
+	{"Dreadnought", Job{{"Chara/Armoria_HG_F.mbs"}, {"Chara/Armoria_HG_F00.ftx"},                      { {"Amalia", 0} }}},
+	{"ElvenFencer_F", Job{{"Chara/ElfFencer_F.mbs"}, {"Chara/ElfFencer_F00.ftx"},                      { {"Railanor", 0}, {"Generic", 0} }}},
+	{"ElvenFencer_M", Job{{"Chara/ElfFencer_M.mbs"}, {"Chara/ElfFencer_M00.ftx"},                      { {"Ithilion", 0}, {"Generic", 0} }}},
+	{"ElvenArcher_F", Job{{"Chara/ElfArcher_F.mbs"}, {"Chara/ElfArcher_F00.ftx"},                      { {"Ridiel", 0}, {"Galadmir", 0}, {"Generic", 0} }}},
+	{"ElvenArcher_M", Job{{"Chara/ElfArcher_M.mbs"}, {"Chara/ElfArcher_M00.ftx"},                      { {"Lhinalagos", 0}, {"Generic", 0} }}},
+	{"ElvenAugur", Job{{"Chara/Eltlinde_F.mbs", "Chara/Eltlinde_F00.mbs"}, {"Chara/Eltlinde_F00.ftx"}, { {"Rosalinde", 0} } }},
+	{"ElvenSibyl", Job{{"Chara/Eltlinde_F.mbs", "Chara/Eltlinde_F10.mbs"}, {"Chara/Eltlinde_F10.ftx"}, { {"Eltolinde", 0} } }},
+	{"Werewolf", Job{{"Chara/WereWolf_M.mbs"}, {"Chara/WereWolf_M00.ftx"},                             { {"Govil", 0}, {"Generic", 0} }}},
+	{"Werebear", Job{{"Chara/WereBear_M.mbs"}, {"Chara/WereBear_M00.ftx"},                             { {"Dinah", 0}, {"Generic", 0} }}},
+	{"Werefox",  Job{{"Chara/WereFox_F.mbs"}, {"Chara/WereFox_F00.ftx"},                               { {"Bertrans", 0}, {"Generic", 0} }}},
+	{"Wereowl",  Job{{"Chara/WereOwl_F.mbs"}, {"Chara/WereOwl_F00.ftx"},                               { {"Ramona", 0}, {"Generic", 0} }}},
+	{"Werelion", Job{{"Chara/Gladiator_HG_M.mbs"}, {"Chara/Gladiator_HG_M00.ftx"},                     { {"Morard", 0} }}},
+	{"SnowRanger", Job{{"Chara/Unify_M.mbs"}, {"Chara/Unify_M00.ftx"},                                 { {"Yunifi", 0} }}},
+	{"Feathersword",  Job{{"Chara/FeatherSword_F.mbs"}, {"Chara/FeatherSword_F00.ftx"},                { {"Ochlys", 0}, {"Umerus", 0}, {"Generic", 0} }}},
+	{"Featherbow",    Job{{"Chara/FeatherBow_F.mbs"}, {"Chara/FeatherBow_F00.ftx"},                    { {"Raenys", 0}, {"Generic", 0} }}},
+	{"Featherstaff",  Job{{"Chara/FeatherRod_M.mbs"}, {"Chara/FeatherRod_M00.ftx"},                    { {"Sanatio", 0}, {"Generic", 0} }}},
+	{"Feathershield", Job{{"Chara/FeatherShield_M.mbs"}, {"Chara/FeatherShield_M00.ftx"},              { {"Fodoquia", 0}, {"Generic", 0} }}},
+	{"Priestess",     Job{{"Chara/Scarlet_F.mbs"}, {"Chara/Scarlet_F00.ftx"},                          { {"Scarlett", 0x4000 + 0x1000} }}},
+	{"HighPriestess", Job{{"Chara/Scarlet_F.mbs"}, {"Chara/Scarlet_F00.ftx"},                          { {"Scarlett", 0x2000 + 0x800} }}},
+	{"DarkLord", Job{{"Chara/BlackPrince_HG_M.mbs"}, {"Chara/BlackPrince_HG_M00.ftx"},                 { {"Galerius", 0} }}},
+	{"Overlord", Job{{"Chara/BlackPrince_M.mbs"}, {"Chara/BlackPrince_M00.ftx"},                       { {"Galerius", 0} }}},
+	{"Necromancer", Job{{"Chara/Necromancer_M.mbs"}, {"Chara/Necromancer_M00.ftx"},                    { {"Baltro", 0} }}},
+	{"DarkMarquess_Sword", Job{{"Chara/DarkMarquess_S_M.mbs"}, {"Chara/DarkMarquess_S_M00.ftx"},       { {"Nigel", 0}, {"Holonius", 0} }}},
+	{"DarkMarquess_Axe",   Job{{"Chara/DarkMarquess_A_F.mbs"}, {"Chara/DarkMarquess_A_F00.ftx"},       { {"Berengaria", 0}, {"Theodora", 0} }}},
+	{"DarkMarquess_Lance", Job{{"Chara/DarkMarquess_L_M.mbs"}, {"Chara/DarkMarquess_L_M00.ftx"},       { {"Elgor", 0}, {"Belisarios", 0} }}},
+	{"DarkMarquess_Rod",   Job{{"Chara/DarkMarquess_R_F.mbs"}, {"Chara/DarkMarquess_R_F00.ftx"},       { {"Alcina", 0}, {"Narcesse", 0} }}},
 };
 // clang-format on
 
-State::State() {
+static GLuint make_texture_array(std::vector<FTX::Entry> textures) {
+	float max_x = 0, max_y = 0;
+	for (auto& t : textures) {
+		FTX::decompress(t);
+		FTX::deswizzle(t);
+		max_x = std::max(max_x, float(t.width));
+		max_y = std::max(max_y, float(t.height));
+		std::cout << t.name << '\t' << t.width << 'x' << t.height << '\n';
+	}
+	GLuint id;
+	glGenTextures(1, &id);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, id);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_ALWAYS);
+
+	glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, max_x, max_y, textures.size());
+	for (int i = 0; i < textures.size(); ++i) {
+		const auto& t = textures[i];
+		glTexSubImage3D(
+			GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, t.width, t.height, 1, GL_RGBA, GL_UNSIGNED_BYTE, t.rgba.data());
+	}
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+	return id;
+}
+
+State::State(const std::string& path)
+	: _cpk(path) {
 	glGenFramebuffers(1, &_tgt_fb);
 	glBindFramebuffer(GL_FRAMEBUFFER, _tgt_fb);
 }
 
 State::~State() noexcept { glDeleteFramebuffers(1, &_tgt_fb); }
 
-void State::render() {
-	GLuint renderedTexture;
-	glGenTextures(1, &renderedTexture);
-	glBindTexture(GL_TEXTURE_2D, renderedTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1920, 1080, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderedTexture, 0);
-    GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
-    glDrawBuffers(1, DrawBuffers);
-}
-
-namespace gl {
-
-void depth(int d) {
-	if (d == 0) {
-		glClear(GL_DEPTH_BUFFER_BIT);
-		glClearDepthf(0.0f);
-		return glDisable(GL_DEPTH_TEST);
+void State::LoadSprite(const std::string& classname) {
+	const auto iter = Chara.find(classname);
+	if (iter == Chara.end()) {
+		return;
 	}
-	glDepthFunc(d);
-	return glEnable(GL_DEPTH_TEST);
+	std::vector<char> buffer;
+	for (const auto& mbs : iter->second.mbs) {
+		auto entry = _cpk.by_name(mbs);
+		if (entry == _cpk.end()) {
+			continue;
+		}
+		_cpk.extract(*entry, buffer);
+		MBS mbs(std::ispanstream(buffer, std::ios::binary));
+		// TODO
+		std::cout << "MBS: " << entry->path() << '\n';
+	}
+	std::vector<FTX::Entry> textures;
+	textures.reserve(iter->second.ftx.size());
+	for (const auto& ftx : iter->second.ftx) {
+		auto entry = _cpk.by_name(ftx);
+		if (entry == _cpk.end()) {
+			continue;
+		}
+		_cpk.extract(*entry, buffer);
+		auto txt = FTX::parse(buffer);
+		std::move(txt.begin(), txt.end(), std::back_inserter(textures));
+	}
+	_texture = make_texture_array(std::move(textures));
 }
-
-} // namespace gl
