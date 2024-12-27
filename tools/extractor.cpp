@@ -92,10 +92,6 @@ int main(int argc, char* argv[]) try {
 				MBS mbs(iss);
 				std::cout << mbs.filename() << std::endl;
 				auto q = mbs.extract();
-				auto ofs = std::ofstream("dump.txt");
-				ofs << q;
-				ofs = std::ofstream(mbs.filename(), std::ios::binary);
-				ofs.write(buffer.data(), buffer.size());
 			}
 		} else {
 			std::cout << extract_file << " not found.\n";
