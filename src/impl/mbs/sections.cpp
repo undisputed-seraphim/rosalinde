@@ -5,7 +5,7 @@
 #include <fstream>
 #include <ostream>
 
-namespace MBS_ {
+namespace mbs {
 
 struct lookup_entry {
 	int16_t c;			// offset location offset
@@ -93,15 +93,15 @@ using namespace std::literals;
 
 void v77::print_to_file() const {
 	auto ofs = std::ofstream("section_4.csv");
-	ofs << "unk0,flags,tex_id,attributes\n" << std::hex;
+	ofs << "unk0,flags,tex_id,attributes\n";
 	constexpr auto fmts4 = "{},{},{},{}\n"sv;
 	constexpr auto fmts4_hex = "{:#x},{:#x},{:#x},{:#x}\n"sv;
 	for (const auto& s : s4) {
 		ofs << std::format(fmts4, s._unk0, s.flags, s.tex_id, s.attributes);
 	}
-	
+
 	ofs = std::ofstream("section_5.csv");
-	ofs << "s3_id,unk0,unk1,flags\n" << std::hex;
+	ofs << "s3_id,unk0,unk1,flags\n";
 	constexpr auto fmts5 = "{},{},{},{}\n"sv;
 	constexpr auto fmts5_hex = "{:#x},{:#x},{:#x},{:#x}\n"sv;
 	for (const auto& s : s5) {
@@ -109,7 +109,7 @@ void v77::print_to_file() const {
 	}
 
 	ofs = std::ofstream("section_6.csv");
-	ofs << "s4_id,s5_id,s4_no,s5_no,flags,_pad0\n" << std::hex;
+	ofs << "s4_id,s5_id,s4_no,s5_no,flags,_pad0\n";
 	constexpr auto fmts6 = "{},{},{},{},{},{}\n"sv;
 	constexpr auto fmts6_hex = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
 	for (const auto& s : s6) {
@@ -117,20 +117,33 @@ void v77::print_to_file() const {
 	}
 
 	ofs = std::ofstream("section_8.csv");
-	ofs << "s6_id,_pad0,s7_id,frames,flags,loop_s8_id,s5s3_interpolation,interpolation_rate,s7_interpolation,s6_"
+	ofs << "s6_id,_pad0,s7_id,frames,"
+		<< "FLIPX,FLIPY,JUMP,0x20,0x80,HITBOX,LAST,0x2000," // flags
+		<< "loop_s8_id,s5s3_interpolation,interpolation_rate,s7_interpolation,s6_"
 		   "interpolation,s0s1s2_interpolation,n_180,_pad1,_pad2,sfx_mute,sfx_id\n"
 		<< std::hex;
-	constexpr auto fmts8 = "{},{},{},{},{:#b},{},{},{},{},{},{},{},{},{},{},{}\n"sv;
+	constexpr auto fmts8 = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n"sv;
 	constexpr auto fmts8_hex =
 		"{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
+	constexpr auto fmts8flag = "{},{},{},{},{},{},{},{}";
 	for (const auto& s : s8) {
+		const auto flagstr = std::format(fmts8flag,
+			(s.flags & 0x01 ? 1 : 0),
+			(s.flags & 0x02 ? 1 : 0),
+			(s.flags & 0x04 ? 1 : 0),
+			(s.flags & 0x20 ? 1 : 0),
+			(s.flags & 0x80 ? 1 : 0),
+			(s.flags & 0x400 ? 1 : 0),
+			(s.flags & 0x800 ? 1 : 0),
+			(s.flags & 0x2000 ? 1 : 0)
+		);
 		ofs << std::format(
 			fmts8,
 			s.s6_id,
 			s._pad0,
 			s.s7_id,
 			s.frames,
-			s.flags,
+			flagstr,
 			s.loop_s8_id,
 			s.s5s3_interpolation,
 			s.interpolation_rate,
@@ -145,7 +158,7 @@ void v77::print_to_file() const {
 	}
 
 	ofs = std::ofstream("section_9.csv");
-	ofs << "name,sa_set_id,sa_set_no,sa_set_main,sa_sb_set_id,sa_sb_set_no,_0_1\n" << std::hex;
+	ofs << "name,sa_set_id,sa_set_no,sa_set_main,sa_sb_set_id,sa_sb_set_no,_0_1\n";
 	constexpr auto fmts9 = "{},{},{},{},{},{},{}\n"sv;
 	constexpr auto fmts9_hex = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
 	for (const auto& s : s9) {
@@ -154,7 +167,7 @@ void v77::print_to_file() const {
 	}
 
 	ofs = std::ofstream("section_a.csv");
-	ofs << "s8_id,s8_no,s8_sum,s8_sumonce,unk0,sb_id,sb_no,s8_st,unk1,unk2\n" << std::hex;
+	ofs << "s8_id,s8_no,s8_sum,s8_sumonce,unk0,sb_id,sb_no,s8_st,unk1,unk2\n";
 	constexpr auto fmtsa = "{},{},{},{},{},{},{},{},{},{}\n"sv;
 	constexpr auto fmtsa_hex = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
 	for (const auto& s : sa) {
@@ -163,7 +176,7 @@ void v77::print_to_file() const {
 	}
 
 	ofs = std::ofstream("section_b.csv");
-	ofs << "col0,col1,col2,col3,col4,col5,pad\n" << std::hex;
+	ofs << "col0,col1,col2,col3,col4,col5,pad\n";
 	constexpr auto fmtsb = "{},{},{},{},{},{},{}\n"sv;
 	constexpr auto fmtsb_hex = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
 	for (const auto& s : sb) {
@@ -171,4 +184,4 @@ void v77::print_to_file() const {
 	}
 }
 
-} // namespace MBS_
+} // namespace mbs

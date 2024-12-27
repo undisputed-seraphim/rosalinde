@@ -105,16 +105,16 @@ int main(int argc, char* argv[]) try {
 
 	std::vector<char> buffer;
 	const auto scarlet_mbs = [&cpk, &buffer]() {
-		auto mbs = cpk.by_name("CharaFace/Face_Scarlet_F.mbs");
+		auto mbs = cpk.by_name("Chara/Scarlet_F.mbs");
 		cpk.extract(*mbs, buffer);
 		std::cout << "MBS: " << mbs->path() << '\n';
 		return MBS(std::ispanstream(buffer, std::ios::binary));
 	}();
 	const auto scarlet_quad = scarlet_mbs.extract();
 	if (list) {
-		const int num = scarlet_quad.skeletons().size();
-		for (int i = 0; i < num; ++i) {
-			std::cout << i << ": " << scarlet_quad.skeletons()[i].name << '\n';
+		int i = 0;
+		for (const auto& [name, anims] : scarlet_quad.animationsets()) {
+			std::cout << i++ << ": " << name << '\n';
 		}
 		return 0;
 	}
@@ -153,7 +153,7 @@ int main(int argc, char* argv[]) try {
 	SDL_GL_SetSwapInterval(1); // Enable vsync
 	SDL_ShowWindow(window);
 
-	cpk.extract(*cpk.by_name("CharaFace/Face_Scarlet_F00.ftx"), buffer);
+	cpk.extract(*cpk.by_name("Chara/Scarlet_F00.ftx"), buffer);
 	auto scarlet_textures = FTX::parse(buffer);
 	for (auto& texture : scarlet_textures) {
 		FTX::decompress(texture);
@@ -166,8 +166,8 @@ int main(int argc, char* argv[]) try {
 
 	int timestep = 0;
 
-	const auto& IDLE = scarlet_quad.skeletons()[index];
-	std::cout << IDLE.name << std::endl;
+	const auto& IDLE = *std::next(scarlet_quad.animationsets().begin(), index);
+	std::cout << IDLE.first << std::endl;
 
 	gl::uiElementBuffer indices;
 	unsigned int VBO[4];
@@ -232,9 +232,10 @@ int main(int argc, char* argv[]) try {
 		SDL_Delay(50); // Slow down animation
 
 		int longest_track_size = 0;
-		for (const auto& track : IDLE.tracks) {
+		for (const auto& track : IDLE.second) {
 			const auto& tl = track.keyframes[timestep % track.keyframes.size()];
-			if (tl.attach.objt != Quad::ObjectType::KEYFRAME) {
+			const auto& kf = scarlet_quad.keyframes()[tl.keyframe_id];
+			if (kf.layers.empty()) {
 				continue;
 			}
 			longest_track_size = std::max(longest_track_size, (int)track.keyframes.size());
@@ -244,13 +245,12 @@ int main(int argc, char* argv[]) try {
 			texids.clear();
 			indices.storage().clear();
 
-			const auto& kf = scarlet_quad.keyframes()[tl.attach.id];
-
 			const float zrate = 1.0 / (kf.layers.size() + 1);
 			float depth = 1.0;
 			unsigned i = 0;
-			for (const auto& layer : kf.layers) {
-				if (layer.attribute & SCARLET_1) {
+			for (const auto layerid : kf.layers) {
+				const auto& layer = scarlet_quad.layers()[layerid];
+				if (layer.attributes & SCARLET_2) {
 					continue;
 				}
 				xyz.push_back(glm::mat4x3{
@@ -266,9 +266,6 @@ int main(int argc, char* argv[]) try {
 				indices.storage().insert(indices.storage().end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
 				i += 4;
 			}
-			// Unfortunately not all attachment offsets are the same
-			// const auto m = (tl.matrix != glm::mat4{1.0}) ? glm::translate(tl.matrix, glm::vec3{-100, 40, 0}) :
-			// glm::mat4{1.0};
 
 			shader.SetUniform("u_mvp", proj * cam.lookAt() * tl.matrix);
 			shader.SetUniform("u_tex", 0);

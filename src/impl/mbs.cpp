@@ -39,7 +39,7 @@ struct mbs_header {
 };
 #pragma pack(pop)
 
-struct MBS::data_t : public std::variant<MBS_::v77, std::monostate> {
+struct MBS::data_t : public std::variant<mbs::v77, std::monostate> {
 	~data_t() noexcept {}
 };
 
@@ -55,7 +55,7 @@ MBS::MBS(MBS&&) noexcept = default;
 MBS::~MBS() noexcept { _dataptr.reset(); }
 
 Quad MBS::extract() const {
-	auto makequad_v77 = [](const MBS_::v77& v77) -> Quad { v77.print_to_file(); return v77.to_quad(); };
+	auto makequad_v77 = [](const mbs::v77& v77) -> Quad { v77.print_to_file(); return v77.to_quad(); };
 	auto monostate = [](const std::monostate&) -> Quad { return Quad{}; };
 	return std::visit(overloads{makequad_v77, monostate}, *_dataptr);
 }
@@ -74,8 +74,7 @@ std::unique_ptr<MBS::data_t> MBS::read(std::istream& is) {
 
 	switch (h.version) {
 	case 0x77: {
-		return std::make_unique<data_t>(MBS_::v77::read(is));
-		break;
+		return std::make_unique<data_t>(mbs::v77::read(is));
 	}
 	case 0x66:
 	case 0x6b:
@@ -89,61 +88,3 @@ std::unique_ptr<MBS::data_t> MBS::read(std::istream& is) {
 	}
 	return std::make_unique<MBS::data_t>(std::monostate{});
 }
-
-std::ostream& operator<<(std::ostream& os, const Quad::ObjectType o) {
-	using ObjectType = Quad::ObjectType;
-	switch (o) {
-	case ObjectType::KEYFRAME:
-		return os << "keyframe";
-	case ObjectType::HITBOX:
-		return os << "hitbox";
-	case ObjectType::SLOT:
-		return os << "slot";
-	case ObjectType::ANIMATION:
-		return os << "animation";
-	case ObjectType::SKELETON:
-		return os << "skeleton";
-	}
-	return os << "none";
-}
-
-std::ostream& operator<<(std::ostream& os, const Quad::Attach& a) { return os << a.objt << ' ' << a.id; }
-
-std::ostream& Quad::operator<<(std::ostream& os) const {
-	static constexpr std::string_view fmt4f = "[{} {} {} {}]\n";
-	static constexpr std::string_view fmt8f = "[{} {} {} {} {} {} {} {}]\n";
-	os << "Keyframes\n";
-	for (const auto& keyframe : _keyframes) {
-		os << "\tID: " << keyframe.id << '\n';
-		for (const auto& layer : keyframe.layers) {
-			// TODO
-			//const auto& sq = layer.srcquad;
-			//const auto& dq = layer.dstquad;
-			//os << "\t\tSrc: " << std::format(fmt8f, sq[0], sq[1], sq[2], sq[3], sq[4], sq[5], sq[6], sq[7]);
-			//os << "\t\tDst: " << std::format(fmt8f, dq[0], dq[1], dq[2], dq[3], dq[4], dq[5], dq[6], dq[7]);
-			//os << '\n';
-		}
-		os << "\t\tcount: " << keyframe.layers.size() << "\n\n";
-	}
-	os << '\n';
-	os << "Skeletons\n";
-	for (const auto& skeleton : _skeletons) {
-		os << "\tName: " << skeleton.name << '\n';
-		for (const auto& animation : skeleton.tracks) {
-			os << "\tID: " << animation.id << '\n';
-			os << "\tLoop ID: " << animation.loop_id << '\n';
-			for (const auto& keyframe : animation.keyframes) {
-				const auto& m = keyframe.matrix;
-				os << "\t\tTime: " << keyframe.time << '\n';
-				os << "\t\tKeyframe: " << keyframe.attach.id << '\n';
-				// os << "\t\tMatrix: " << std::format(fmt4f, m[0], m[1], m[2], m[3]);
-				// os << "\t\t        " << std::format(fmt4f, m[4], m[5], m[6], m[7]);
-				// os << "\t\t        " << std::format(fmt4f, m[8], m[9], m[10], m[11]);
-				// os << "\t\t        " << std::format(fmt4f, m[12], m[13], m[14], m[15]);
-			}
-		}
-	}
-	return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const Quad& q) { return (q.operator<<(os)); }

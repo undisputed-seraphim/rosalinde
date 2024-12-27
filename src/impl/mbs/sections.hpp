@@ -5,7 +5,7 @@
 #include <iosfwd>
 #include <vector>
 
-namespace MBS_ {
+namespace mbs {
 
 #pragma pack(push, 1)
 // Fragment RGBA
@@ -111,14 +111,14 @@ struct section_9 {
 };
 
 struct section_a {
-	uint16_t s8_id; // starting id
-	uint16_t s8_no; // number of subsequent entries
-	uint32_t s8_sum; // total number of frames
+	uint16_t s8_id;		 // starting id
+	uint16_t s8_no;		 // number of subsequent entries
+	uint32_t s8_sum;	 // total number of frames
 	int32_t s8_sum_once; // either -1 or small number < 255/0xFF
-	int32_t _unk0; // either -1 or small number < 255/0xFF
+	int32_t _unk0;		 // either -1 or small number < 255/0xFF
 	uint16_t sb_id;
 	uint8_t sb_no; // 0 1 bool
-	uint8_t s8_st; // 0 1 bool
+	uint8_t s8_st; // 0 1 bool // Means ignore or subtract one, or offset start by +1
 	uint16_t track_id;
 	uint16_t _pad; // always 0
 };
@@ -130,7 +130,7 @@ struct section_b {
 	uint16_t _unk3; // all 0
 	uint16_t _unk4; // 0~3
 	uint32_t _unk5; // all 0
-	uint16_t _pad; // all 0
+	uint16_t _pad;	// all 0
 };
 #pragma pack(pop)
 
@@ -156,4 +156,4 @@ struct v77 {
 	void print_to_file() const;
 };
 
-} // namespace MBS_
+} // namespace mbs
