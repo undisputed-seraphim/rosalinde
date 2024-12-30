@@ -54,8 +54,8 @@ static glm::mat4 s7_matrix(const section_7& s7, const bool flipx, const bool fli
 	const int8_t y = flipy ? -1 : 1;
 	glm::mat4 m{1.0};
 	m = glm::scale(m, glm::vec3{s7.scale[0] * x, s7.scale[1] * y, 1.0});
-	m *= glm::eulerAngleXYZ(s7.rotate[0], s7.rotate[1], s7.rotate[2]);
 	m = glm::translate(m, glm::vec3{s7.move[0] * x, s7.move[1] * y, s7.move[2]});
+	m *= glm::eulerAngleXYZ(s7.rotate[0], s7.rotate[1], s7.rotate[2]);
 	return m;
 }
 
