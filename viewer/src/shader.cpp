@@ -2,10 +2,10 @@
 
 // clang-format off
 constexpr std::string_view kf_vert_src = "# version 300 es\n"
-"in      highp vec4  a_fog;\n"
-"in      highp vec3  a_xyz;\n"
-"in      highp vec2  a_uv;\n"
 "in             int  a_texid;\n"
+"in      highp vec2  a_uv;\n"
+"in      highp vec3  a_xyz;\n"
+"in      highp vec4  a_fog;\n"
 "uniform highp mat4  u_mvp;\n"
 "out     highp vec4  v_fog;\n"
 "out     highp vec2  v_uv;\n"

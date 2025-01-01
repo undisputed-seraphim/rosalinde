@@ -21,14 +21,6 @@
 namespace fs = std::filesystem;
 namespace po = ::boost::program_options;
 
-static glm::mat4x2 transformUV(glm::mat4x2 uv, const FTX::Entry& t) {
-	const glm::vec2 dims{t.width, t.height};
-	for (int i = 0; i < 4; ++i) {
-		uv[i] *= dims;
-	}
-	return uv;
-}
-
 void enable_blend(const glm::vec4 blend) {
 	glBlendColor(blend[0], blend[1], blend[2], blend[3]);
 	glBlendEquation(GL_FUNC_ADD);
@@ -170,8 +162,8 @@ int main(int argc, char* argv[]) try {
 	std::cout << IDLE.first << std::endl;
 
 	gl::uiElementBuffer indices;
-	unsigned int VBO[4];
-	glGenBuffers(4, VBO);
+	unsigned int VBO;
+	glGenBuffers(1, &VBO);
 	unsigned int VAO;
 	glGenVertexArrays(1, &VAO);
 	glBindVertexArray(VAO);
@@ -185,10 +177,15 @@ int main(int argc, char* argv[]) try {
 
 	const auto proj = glm::ortho((-W) / 2.0f, W / 2.0f, H / 2.0f, (-H) / 2.0f);
 
-	std::vector<glm::mat4x3> xyz;
-	std::vector<glm::mat4x2> uv;
-	std::vector<uint32_t> fog;
-	std::vector<int16_t> texids;
+#pragma pack(push, 1)
+	struct vertex {
+		int16_t texid;
+		glm::vec2 uv;
+		glm::vec3 xyz;
+		uint32_t fog;
+	};
+#pragma pack(pop)
+	std::vector<vertex> vertices;
 
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -239,10 +236,7 @@ int main(int argc, char* argv[]) try {
 				continue;
 			}
 			longest_track_size = std::max(longest_track_size, (int)track.keyframes.size());
-			xyz.clear();
-			uv.clear();
-			fog.clear();
-			texids.clear();
+			vertices.clear();
 			indices.storage().clear();
 
 			const float zrate = 1.0 / (kf.layers.size() + 1);
@@ -253,14 +247,17 @@ int main(int argc, char* argv[]) try {
 				if (layer.attributes & SCARLET_2) {
 					continue;
 				}
-				xyz.push_back(glm::mat4x3{
-					glm::vec3{layer.dst[0], depth},
-					glm::vec3{layer.dst[1], depth},
-					glm::vec3{layer.dst[2], depth},
-					glm::vec3{layer.dst[3], depth}});
-				uv.push_back(transformUV(layer.src, scarlet_textures[layer.texid]));
-				fog.insert(fog.end(), std::begin(layer.fog), std::end(layer.fog));
-				texids.insert(texids.end(), {layer.texid, layer.texid, layer.texid, layer.texid});
+				const auto& tex = scarlet_textures[layer.texid];
+				const auto texdim = glm::vec2{tex.width, tex.height};
+
+				for (int j = 0; j < 4; ++j) {
+					vertices.emplace_back(vertex{
+						layer.texid,
+						layer.src[j] * texdim,
+						glm::vec3{layer.dst[j], depth},
+						layer.fog[j]
+					});
+				}
 
 				depth -= zrate;
 				indices.storage().insert(indices.storage().end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
@@ -269,26 +266,16 @@ int main(int argc, char* argv[]) try {
 
 			shader.SetUniform("u_mvp", proj * cam.lookAt() * tl.matrix);
 			shader.SetUniform("u_tex", 0);
-
-			glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(uint32_t) * fog.size(), fog.data(), GL_STATIC_DRAW);
+			glBindBuffer(GL_ARRAY_BUFFER, VBO);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
 			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(0, 4, GL_UNSIGNED_BYTE, GL_TRUE, 0, (void*)0);
-
-			glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x3) * xyz.size(), glm::value_ptr(xyz[0]), GL_STATIC_DRAW);
+			glVertexAttribPointer(0, 1, GL_SHORT, GL_FALSE, sizeof(vertex), (void*)offsetof(vertex, texid));
 			glEnableVertexAttribArray(1);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-			glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(glm::mat4x2) * uv.size(), glm::value_ptr(uv[0]), GL_STATIC_DRAW);
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)offsetof(vertex, uv));
 			glEnableVertexAttribArray(2);
-			glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-			glBindBuffer(GL_ARRAY_BUFFER, VBO[3]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(int16_t) * texids.size(), texids.data(), GL_STATIC_DRAW);
+			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)offsetof(vertex, xyz));
 			glEnableVertexAttribArray(3);
-			glVertexAttribPointer(3, 1, GL_SHORT, GL_FALSE, 0, (void*)0);
+			glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex), (void*)offsetof(vertex, fog));
 
 			indices.bind().setData(gl::buffer::Usage::STATIC_DRAW).drawElements(gl::Mode::TRIANGLES);
 		}

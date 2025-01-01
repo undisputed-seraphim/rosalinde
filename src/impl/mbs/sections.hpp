@@ -2,12 +2,18 @@
 
 #include "../mbs.hpp"
 #include <cstdint>
+#include <glm/ext/vector_float2.hpp>
+#include <glm/ext/vector_float3.hpp>
 #include <iosfwd>
 #include <vector>
 
 namespace mbs {
 
 #pragma pack(push, 1)
+
+static_assert(sizeof(glm::vec2) == sizeof(float) * 2);
+static_assert(sizeof(glm::vec3) == sizeof(float) * 3);
+
 // Fragment RGBA
 struct section_0 {
 	uint32_t center;
@@ -18,21 +24,21 @@ struct section_0 {
 // Texture UV coords
 struct section_1 {
 	float center[2];
-	float values[8]; // 4x2
+	glm::vec2 values[4];
 	float topleft[2];
 };
 
 // Vertex
 struct section_2 {
 	float unused0[2];
-	float values[8]; // 4x2
+	glm::vec2 values[4];
 	float topleft[2];
 };
 
 // Hitbox
 struct section_3 {
-	float hitbox[8]; // 4x2
-	float _xyz[12];	 // 4x3 [1, -0, 0 , -0, -1, 0 , -1, -0, 0 , -0, 1, 0]
+	glm::vec2 hitbox[4];
+	glm::vec3 _xyz[4]; // [1, -0, 0 , -0, -1, 0 , -1, -0, 0 , -0, 1, 0]
 };
 
 // Keyframe Layer
@@ -71,9 +77,9 @@ struct section_6 {
 };
 
 struct section_7 {
-	float move[3];
-	float rotate[3];
-	float scale[2];
+	glm::vec3 move;
+	glm::vec3 rotate;
+	glm::vec2 scale;
 	uint32_t fog;
 };
 
