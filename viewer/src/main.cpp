@@ -260,7 +260,7 @@ int main(int argc, char* argv[]) try {
 				}
 
 				depth -= zrate;
-				indices.storage().insert(indices.storage().end(), {i + 0, i + 1, i + 2, i + 0, i + 2, i + 3});
+				indices.storage().insert(indices.storage().end(), {i + 0, i + 1, i + 3, i + 1, i + 2, i + 3});
 				i += 4;
 			}
 
