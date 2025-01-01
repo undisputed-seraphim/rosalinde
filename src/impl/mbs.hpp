@@ -11,8 +11,8 @@ class Quad {
 public:
 	// s0, s1, s2
 	struct Layer {
-		glm::mat4x2 src;
-		glm::mat4x2 dst;
+		glm::vec2 src[4];
+		glm::vec2 dst[4];
 		uint32_t fog[4];
 		uint8_t colorid;
 		uint8_t flags;
