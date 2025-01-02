@@ -35,6 +35,7 @@ public:
 			glm::mat4 matrix; // s7
 			uint32_t color;
 			uint32_t keyframe_id; // s6
+			int16_t kf_interpolation;
 		};
 
 		int32_t loop_id;

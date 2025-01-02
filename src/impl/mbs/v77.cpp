@@ -135,6 +135,7 @@ void lol::get_animations(const v77& v77) {
 				tl.matrix = s7_matrix(s7, flipx, flipy);
 				tl.color = s7.fog;
 				tl.frames = s8.frames;
+				tl.kf_interpolation = s8.s6_interpolation;
 			}
 		}
 	}
