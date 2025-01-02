@@ -22,6 +22,13 @@
 namespace fs = std::filesystem;
 namespace po = ::boost::program_options;
 
+static glm::vec2 interpolated(glm::vec2 from, glm::vec2 to, float interpolation) {
+	if (from == to) {
+		return from;
+	}
+	return from + ((to - from) * interpolation);
+}
+
 void enable_blend(const glm::vec4 blend) {
 	glBlendColor(blend[0], blend[1], blend[2], blend[3]);
 	glBlendEquation(GL_FUNC_ADD);
@@ -137,7 +144,7 @@ int main(int argc, char* argv[]) try {
 	glBindTexture(GL_TEXTURE_2D_ARRAY, tex);
 	glActiveTexture(GL_TEXTURE0);
 
-	int timestep = 0;
+	buffer.clear();
 
 	const auto& IDLE = *std::next(scarlet_quad.animationsets().begin(), index);
 	std::cout << IDLE.first << std::endl;
@@ -169,10 +176,12 @@ int main(int argc, char* argv[]) try {
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
 	Camera cam;
+	std::vector<int> trackstep(IDLE.second.size(), 0);
+	std::vector<int> tracktime(IDLE.second.size(), 0);
+
 	const auto& shader = GetKeyframeShader().Use();
 
-	bool done = false;
-	while (!done) {
+	for (bool done = false; !done;) {
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
 			// ImGui_ImplSDL3_ProcessEvent(&event);
@@ -201,36 +210,45 @@ int main(int argc, char* argv[]) try {
 		glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		SDL_Delay(50); // Slow down animation
-
-		int longest_track_size = 0;
-		for (const auto& track : IDLE.second) {
-			const auto& tl = track.keyframes[timestep % track.keyframes.size()];
-			const auto& kf = scarlet_quad.keyframes()[tl.keyframe_id];
-			if (kf.layers.empty()) {
+		for (int t = 0; t < IDLE.second.size(); ++t) {
+			auto& step = trackstep[t];
+			auto& time = tracktime[t];
+			const auto& track = IDLE.second[t];
+			const auto& tl = track.keyframes[time];
+			const auto& kf1 = scarlet_quad.keyframes()[tl.keyframe_id];
+			if (kf1.layers.empty()) {
 				continue;
 			}
-			longest_track_size = std::max(longest_track_size, (int)track.keyframes.size());
+
+			const auto& tl2 = (time == track.keyframes.size() - 1) ? track.keyframes[0] : track.keyframes[time + 1];
+			const auto& kf2 = scarlet_quad.keyframes()[tl2.keyframe_id];
+
 			vertices.storage().clear();
 			indices.storage().clear();
 
-			const float zrate = 1.0 / (kf.layers.size() + 1);
+			const float interpolation = (float(step) / float(tl.frames));
+			const float zrate = 1.0 / (kf1.layers.size() + 1);
 			float depth = 1.0;
 			unsigned i = 0;
-			for (const auto layerid : kf.layers) {
-				const auto& layer = scarlet_quad.layers()[layerid];
-				if (layer.attributes & SCARLET_2) {
+			for (int k = 0; k < kf1.layers.size(); ++k) {
+				const auto& layer1 = scarlet_quad.layers()[kf1.layers[k]];
+				const auto& layer2 = kf2.layers.size() < k ? scarlet_quad.layers()[kf2.layers[k]] : layer1;
+				if (layer1.attributes & SCARLET_2) {
 					continue;
 				}
-				const auto& tex = scarlet_textures[layer.texid];
+				const auto& tex = scarlet_textures[layer1.texid];
 				const auto texdim = glm::vec2{tex.width, tex.height};
 
 				for (int j = 0; j < 4; ++j) {
+					const auto& _1 = layer1.dst[j];
+					const auto& _2 = layer2.dst[j];
+					auto interpolated_pos = interpolated(_1, _2, interpolation);
 					vertices.storage().emplace_back(vertex{
-						layer.texid,
-						layer.src[j] * texdim,
-						glm::vec3{layer.dst[j], depth},
-						layer.fog[j]
+						layer1.texid,
+						layer1.src[j] * texdim,
+						//glm::vec3{layer1.dst[j], depth},
+						glm::vec3(interpolated_pos, depth),
+						layer1.fog[j]
 					});
 				}
 
@@ -252,8 +270,12 @@ int main(int argc, char* argv[]) try {
 			glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex), (void*)offsetof(vertex, fog));
 
 			indices.bind().setData(gl::buffer::Usage::STATIC_DRAW).drawElements(gl::Mode::TRIANGLES);
+
+			if (step++ == tl.frames) {
+				step = 0;
+				(++time) %= track.keyframes.size();
+			}
 		}
-		(++timestep) %= longest_track_size;
 
 		window.swapbuffer();
 	}
