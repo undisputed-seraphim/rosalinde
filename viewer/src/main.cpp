@@ -1,6 +1,7 @@
 #include "camera.hpp"
 #include "shader.hpp"
 #include "state.hpp"
+#include "engine/Window.hpp"
 
 #include <SDL3/SDL.h>
 #include <algorithm>
@@ -88,11 +89,6 @@ int main(int argc, char* argv[]) try {
 	}
 	std::cout << cpkpath << std::endl;
 
-	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
-		printf("Error: SDL_Init(): %s\n", SDL_GetError());
-		return -1;
-	}
-
 	const CPK cpk(cpkpath);
 
 	std::vector<char> buffer;
@@ -111,26 +107,15 @@ int main(int argc, char* argv[]) try {
 		return 0;
 	}
 
-	static constexpr int W = 1920, H = 1080;
+	const auto sdl = uvw::Init_SDL();
 
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
-	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-	SDL_Window* window = SDL_CreateWindow("Rosalinde", W, H, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
-	if (window == nullptr) {
-		printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
-		return -1;
-	}
-	SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-	SDL_GLContext gl_context = SDL_GL_CreateContext(window);
+	static constexpr int W = 1920, H = 1080;
+	uvw::Window window("Rosalinde", W, H);
 
 	if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
 		throw std::runtime_error("Failed to initialize GLAD");
 	}
+
 	if (debug) {
 		glEnable(GL_DEBUG_OUTPUT);
 		glDebugMessageCallback(&message_callback, NULL);
@@ -140,10 +125,6 @@ int main(int argc, char* argv[]) try {
 	printf("  Vendor: %s\n", glGetString(GL_VENDOR));
 	printf("Renderer: %s\n", glGetString(GL_RENDERER));
 	printf(" Shading: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
-
-	SDL_GL_MakeCurrent(window, gl_context);
-	SDL_GL_SetSwapInterval(1); // Enable vsync
-	SDL_ShowWindow(window);
 
 	cpk.extract(*cpk.by_name("Chara/Scarlet_F00.ftx"), buffer);
 	auto scarlet_textures = FTX::parse(buffer);
@@ -190,8 +171,6 @@ int main(int argc, char* argv[]) try {
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
 	Camera cam;
-	bool mouseDown = false;
-
 	const auto& shader = GetKeyframeShader().Use();
 
 	bool done = false;
@@ -201,22 +180,20 @@ int main(int argc, char* argv[]) try {
 			// ImGui_ImplSDL3_ProcessEvent(&event);
 			if (event.type == SDL_EVENT_QUIT)
 				done = true;
-			if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
+			if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == window.id())
 				done = true;
 			if (event.type == SDL_EVENT_MOUSE_WHEEL) {
 				cam.zoom(event.wheel.y);
 			}
 			if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-				mouseDown = true;
+				cam.enter();
 			}
 			if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
-				mouseDown = false;
+				cam.exit();
 			}
-			if (mouseDown && SDL_EVENT_MOUSE_MOTION) {
-				cam.move(event.motion.xrel, event.motion.yrel);
-			}
+			cam.move(event.motion.xrel, event.motion.yrel);
 		}
-		if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) {
+		if (window.flags() & SDL_WINDOW_MINIMIZED) {
 			SDL_Delay(10);
 			continue;
 		}
@@ -281,13 +258,8 @@ int main(int argc, char* argv[]) try {
 		}
 		(++timestep) %= longest_track_size;
 
-		SDL_GL_SwapWindow(window);
+		window.swapbuffer();
 	}
-
-	// Cleanup
-	SDL_GL_DestroyContext(gl_context);
-	SDL_DestroyWindow(window);
-	SDL_Quit();
 } catch (const std::exception& e) {
 	std::cout << e.what() << std::endl;
 	return 1;
