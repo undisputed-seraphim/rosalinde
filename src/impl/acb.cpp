@@ -4,8 +4,17 @@
 #include <iostream>
 #include <istream>
 
-static void parse(const UTF& utf_table, std::istream& is) {
-	for (const auto& entry : utf_table) {
+static void parseCue(const UTF& utf) {
+
+}
+
+static void parse(const UTF& utf, std::istream& is) {
+	auto cues = utf.find("CueTable");
+	auto waveforms = utf.find("WaveformTable");
+	auto synths = utf.find("SynthTable");
+
+
+	for (const auto& entry : utf) {
 		if (!entry.name.ends_with("Table")) {
 			continue;
 		}
