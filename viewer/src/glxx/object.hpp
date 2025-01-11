@@ -1,30 +1,23 @@
 #pragma once
 
-#include <glad/glad.h>
-#include <span>
-
 namespace gl {
 
-class OpenGLObject {
+class object {
 protected:
-	GLuint _handle;
+	unsigned _handle;
 
-	OpenGLObject() noexcept
-		: _handle(0) {}
+	object() noexcept;
 
 public:
-	OpenGLObject(const OpenGLObject&) = delete;
-	OpenGLObject(OpenGLObject&& o) noexcept
-		: _handle(o._handle) {
-		o._handle = 0;
-	}
-	virtual ~OpenGLObject() noexcept {}
+	object(const object&) = delete;
+	object(object&& o) noexcept;
+	virtual ~object() noexcept {}
 
-	virtual explicit operator GLuint() const noexcept { return _handle; }
-	virtual explicit operator bool() const noexcept { return _handle != 0; }
+	virtual explicit operator unsigned() const noexcept;
+	virtual explicit operator bool() const noexcept;
 
-	OpenGLObject& operator=(const OpenGLObject& other) = delete;
-	OpenGLObject& operator=(OpenGLObject&& other) = default;
+	object& operator=(const object& other) = delete;
+	object& operator=(object&& other) = default;
 };
 
 } // namespace gl

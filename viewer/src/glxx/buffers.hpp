@@ -3,6 +3,7 @@
 #include <cassert>
 #include <glad/glad.h>
 #include <span>
+#include <type_traits>
 #include <vector>
 
 namespace gl {
@@ -57,31 +58,39 @@ enum Access {
 
 } // namespace buffer
 
-template <buffer::Type BufType, typename V>
-class Buffer {
+template <typename T>
+concept standard_layout = std::is_standard_layout_v<T>;
+
+template <
+	buffer::Type BufType,
+	standard_layout V,
+	typename Allocator = std::allocator<V>,
+	typename Storage = std::vector<V, Allocator>>
+class basic_buffer {
 public:
-	using ValueT = V;
-	using storage_type = std::vector<ValueT>;
+	using value_type = V;
+	using allocator_type = Allocator;
+	using storage_type = Storage;
 	using size_type = storage_type::size_type;
 
 	static constexpr buffer::Type BufferType = BufType;
 
 private:
 	GLuint _hnd = 0;
-	std::vector<ValueT> _storage;
+	storage_type _storage;
 
-	Buffer(GLuint handle)
+	basic_buffer(GLuint handle)
 		: _hnd(handle) {}
 
 public:
-	Buffer() { glGenBuffers(1, &_hnd); }
-	Buffer(const Buffer&) = delete;
-	Buffer(Buffer&& other) noexcept
+	basic_buffer() { glGenBuffers(1, &_hnd); }
+	basic_buffer(const basic_buffer&) = delete;
+	basic_buffer(basic_buffer&& other) noexcept
 		: _hnd(other._hnd) {
 		other._hnd = 0;
 		std::swap(_storage, other._storage);
 	}
-	~Buffer() noexcept { glDeleteBuffers(1, &_hnd); }
+	~basic_buffer() noexcept { glDeleteBuffers(1, &_hnd); }
 
 	GLuint release() {
 		const GLuint handle = _hnd;
@@ -89,54 +98,54 @@ public:
 		return handle;
 	}
 
-	std::vector<ValueT>& storage() noexcept { return _storage; }
-	const std::vector<ValueT>& storage() const noexcept { return _storage; }
+	storage_type& storage() noexcept { return _storage; }
+	const storage_type& storage() const noexcept { return _storage; }
 
 	// OpenGL functions
 
-	Buffer& bind() noexcept {
+	basic_buffer& bind() noexcept {
 		glBindBuffer(BufferType, _hnd);
 		return *this;
 	}
-	const Buffer& bind() const noexcept {
+	const basic_buffer& bind() const noexcept {
 		glBindBuffer(BufferType, _hnd);
 		return *this;
 	}
-	Buffer& unbind() noexcept {
+	basic_buffer& unbind() noexcept {
 		glBindBuffer(BufferType, 0);
 		return *this;
 	}
-	const Buffer& unbind() const noexcept {
+	const basic_buffer& unbind() const noexcept {
 		glBindBuffer(BufferType, 0);
 		return *this;
 	}
 
-	ValueT* mapRange(GLintptr offset, GLsizeiptr length, GLbitfield access) const noexcept {
+	value_type* mapRange(GLintptr offset, GLsizeiptr length, GLbitfield access) const noexcept {
 		return glMapBufferRange(BufferType, offset, length, access);
 	}
 
 	bool unmap() const noexcept { return glUnmapBuffer(BufferType) == GL_TRUE; }
 
-	const Buffer& setData(buffer::Usage u) const noexcept {
+	const basic_buffer& setData(buffer::Usage u) const noexcept {
 		if (!_storage.empty()) {
-			glBufferData(BufferType, sizeof(ValueT) * _storage.size(), _storage.data(), u);
+			glBufferData(BufferType, sizeof(value_type) * _storage.size(), _storage.data(), u);
 		}
 		return *this;
 	}
 
-	Buffer& setData(buffer::Usage u, std::span<const ValueT> data) noexcept {
+	basic_buffer& setData(buffer::Usage u, std::span<const value_type> data) noexcept {
 		_storage.assign(data.begin(), data.end());
-		glBufferData(BufferType, sizeof(ValueT) * _storage.size(), _storage.data(), u);
+		glBufferData(BufferType, sizeof(value_type) * _storage.size(), _storage.data(), u);
 		return *this;
 	}
 
-	const Buffer& setData(buffer::Usage u, std::span<const ValueT> data) const noexcept {
-		glBufferData(BufferType, sizeof(ValueT) * data.size(), data.data(), u);
+	const basic_buffer& setData(buffer::Usage u, std::span<const value_type> data) const noexcept {
+		glBufferData(BufferType, sizeof(value_type) * data.size(), data.data(), u);
 		return *this;
 	}
 
-	const Buffer& setSubData(GLintptr offset, std::span<const ValueT> data) const noexcept {
-		glBufferSubData(BufferType, offset, sizeof(ValueT) * data.size(), data.data());
+	const basic_buffer& setSubData(GLintptr offset, std::span<const value_type> data) const noexcept {
+		glBufferSubData(BufferType, offset, sizeof(value_type) * data.size(), data.data());
 		return *this;
 	}
 
@@ -146,8 +155,8 @@ public:
 		return sz;
 	}
 
-	const Buffer& drawArray(GLint first = 0, Mode m = Mode::TRIANGLES) const noexcept {
-		const uint64_t count = gl_size() / sizeof(ValueT);
+	const basic_buffer& drawArray(GLint first = 0, Mode m = Mode::TRIANGLES) const noexcept {
+		const uint64_t count = gl_size() / sizeof(value_type);
 		glDrawArrays(m, first, count);
 		return *this;
 	}
@@ -156,19 +165,19 @@ public:
 	template <
 		buffer::Type BufType = BufferType,
 		std::enable_if_t<BufType == buffer::Type::ELEMENT_ARRAY_BUFFER, bool> = true>
-	const Buffer& drawElements(Mode m = Mode::TRIANGLES) const noexcept {
+	const basic_buffer& drawElements(Mode m = Mode::TRIANGLES) const noexcept {
 		constexpr GLenum type = []() {
-			if constexpr (std::is_same_v<ValueT, std::uint8_t>) {
+			if constexpr (std::is_same_v<value_type, std::uint8_t>) {
 				return GL_UNSIGNED_BYTE;
-			} else if constexpr (std::is_same_v<ValueT, std::uint16_t>) {
+			} else if constexpr (std::is_same_v<value_type, std::uint16_t>) {
 				return GL_UNSIGNED_SHORT;
-			} else if constexpr (std::is_same_v<ValueT, std::uint32_t>) {
+			} else if constexpr (std::is_same_v<value_type, std::uint32_t>) {
 				return GL_UNSIGNED_INT;
 			} else {
 				static_assert(false, "drawElements can only be used with uchar, ushort, or uint.");
 			}
 		}();
-		const uint64_t count = gl_size() / sizeof(ValueT);
+		const uint64_t count = gl_size() / sizeof(value_type);
 		glDrawElements(m, count, type, 0);
 		return *this;
 	}
@@ -176,8 +185,8 @@ public:
 	explicit operator GLuint() const noexcept { return _hnd; }
 	explicit operator bool() const noexcept { return (_hnd != 0) && (glIsBuffer(_hnd)); }
 
-	Buffer& operator=(const Buffer& other) = delete;
-	Buffer& operator=(Buffer&& other) noexcept {
+	basic_buffer& operator=(const basic_buffer& other) = delete;
+	basic_buffer& operator=(basic_buffer&& other) noexcept {
 		_hnd = other._hnd;
 		other._hnd = 0;
 		std::swap(_storage, other._storage);
@@ -185,12 +194,10 @@ public:
 };
 
 template <typename ValueT>
-using ArrayBuffer = Buffer<gl::buffer::ARRAY_BUFFER, ValueT>;
-using fArrayBuffer = ArrayBuffer<float>;
-using iArrayBuffer = ArrayBuffer<int>;
+using ArrayBuffer = basic_buffer<gl::buffer::ARRAY_BUFFER, ValueT>;
 
 template <typename ValueT>
-using ElementBuffer = Buffer<gl::buffer::ELEMENT_ARRAY_BUFFER, ValueT>;
+using ElementBuffer = basic_buffer<gl::buffer::ELEMENT_ARRAY_BUFFER, ValueT>;
 using ucElementBuffer = ElementBuffer<std::uint8_t>;
 using usElementBuffer = ElementBuffer<std::uint16_t>;
 using uiElementBuffer = ElementBuffer<std::uint32_t>;

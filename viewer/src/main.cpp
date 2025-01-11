@@ -142,13 +142,6 @@ int main(int argc, char* argv[]) try {
 	const auto& IDLE = *std::next(scarlet_quad.animationsets().begin(), index);
 	std::cout << IDLE.first << std::endl;
 
-	gl::uiElementBuffer indices;
-	unsigned int VBO;
-	glGenBuffers(1, &VBO);
-	unsigned int VAO;
-	glGenVertexArrays(1, &VAO);
-	glBindVertexArray(VAO);
-
 	enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
 
 	static constexpr unsigned SCARLET_1 = 0x4000 + 0x1000;
@@ -166,7 +159,12 @@ int main(int argc, char* argv[]) try {
 		uint32_t fog;
 	};
 #pragma pack(pop)
-	std::vector<vertex> vertices;
+	gl::ArrayBuffer<vertex> vertices;
+	gl::uiElementBuffer indices;
+
+	unsigned int VAO;
+	glGenVertexArrays(1, &VAO);
+	glBindVertexArray(VAO);
 
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
@@ -213,7 +211,7 @@ int main(int argc, char* argv[]) try {
 				continue;
 			}
 			longest_track_size = std::max(longest_track_size, (int)track.keyframes.size());
-			vertices.clear();
+			vertices.storage().clear();
 			indices.storage().clear();
 
 			const float zrate = 1.0 / (kf.layers.size() + 1);
@@ -228,7 +226,7 @@ int main(int argc, char* argv[]) try {
 				const auto texdim = glm::vec2{tex.width, tex.height};
 
 				for (int j = 0; j < 4; ++j) {
-					vertices.emplace_back(vertex{
+					vertices.storage().emplace_back(vertex{
 						layer.texid,
 						layer.src[j] * texdim,
 						glm::vec3{layer.dst[j], depth},
@@ -243,8 +241,7 @@ int main(int argc, char* argv[]) try {
 
 			shader.SetUniform("u_mvp", proj * cam.lookAt() * tl.matrix);
 			shader.SetUniform("u_tex", 0);
-			glBindBuffer(GL_ARRAY_BUFFER, VBO);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * vertices.size(), vertices.data(), GL_STATIC_DRAW);
+			vertices.bind().setData(gl::buffer::Usage::STATIC_DRAW);
 			glEnableVertexAttribArray(0);
 			glVertexAttribPointer(0, 1, GL_SHORT, GL_FALSE, sizeof(vertex), (void*)offsetof(vertex, texid));
 			glEnableVertexAttribArray(1);

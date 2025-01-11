@@ -58,13 +58,13 @@ enum Severity {
 static std::string_view gl_debug_severity_str(GLenum severity) {
 	switch (severity) {
 	case GL_DEBUG_SEVERITY_HIGH:
-		return "ERROR";
+		return "FATAL";
 	case GL_DEBUG_SEVERITY_MEDIUM:
-		return "WARN ";
+		return "ERROR";
 	case GL_DEBUG_SEVERITY_LOW:
-		return "INFO ";
+		return "WARN ";
 	case GL_DEBUG_SEVERITY_NOTIFICATION:
-		return "DEBUG";
+		return "INFO ";
 	}
 	std::unreachable();
 }
