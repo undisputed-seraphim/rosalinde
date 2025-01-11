@@ -131,6 +131,9 @@ void CPK::unpack(std::istream&& is) {
 	auto utf_table = UTF(std::move(_buffer));
 	// auto utf_table = UTF(io::isubstream(is, size));
 
+	// Not really necessary but we can have this value
+	//const int numfiles = utf_table.find("Files")->cast_at<int>(0).value_or(-1);
+
 	if (auto iter = utf_table.find("TocOffset"); iter != utf_table.end() && iter->valid) {
 		const auto offset = iter->cast_at<uint64_t>(0).value();
 		is.seekg(offset, std::ios::beg);
