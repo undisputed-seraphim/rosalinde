@@ -1,5 +1,6 @@
 #include "Window.hpp"
 
+#include <array>
 #include <glad/glad.h>
 #include <stdexcept>
 
@@ -48,6 +49,11 @@ SDL_Window* Window::get() const noexcept { return _window.get(); }
 SDL_WindowID Window::id() const noexcept { return SDL_GetWindowID(_window.get()); }
 SDL_WindowFlags Window::flags() const noexcept { return SDL_GetWindowFlags(_window.get()); }
 
+void Window::clear() const noexcept {
+	constexpr auto clear_color = std::array<float, 4>{0.45f, 0.55f, 0.60f, 1.0f};
+	glClearColor(clear_color[0], clear_color[1], clear_color[2], clear_color[3]);
+	glClear(GL_COLOR_BUFFER_BIT);
+}
 bool Window::swapbuffer() const noexcept { return SDL_GL_SwapWindow(_window.get()); }
 
 } // namespace uvw

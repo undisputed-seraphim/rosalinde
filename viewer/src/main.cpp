@@ -1,7 +1,7 @@
 #include "camera.hpp"
+#include "engine/Window.hpp"
 #include "shader.hpp"
 #include "state.hpp"
-#include "engine/Window.hpp"
 
 #include <SDL3/SDL.h>
 #include <algorithm>
@@ -173,7 +173,7 @@ int main(int argc, char* argv[]) try {
 
 	bool done = false;
 	while (!done) {
-		SDL_Event event;
+		SDL_Event event{};
 		while (SDL_PollEvent(&event)) {
 			// ImGui_ImplSDL3_ProcessEvent(&event);
 			if (event.type == SDL_EVENT_QUIT)
@@ -189,7 +189,9 @@ int main(int argc, char* argv[]) try {
 			if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
 				cam.exit();
 			}
-			cam.move(event.motion.xrel, event.motion.yrel);
+			if (event.type == SDL_EVENT_MOUSE_MOTION) {
+				cam.move(event.motion.xrel, event.motion.yrel);
+			}
 		}
 		if (window.flags() & SDL_WINDOW_MINIMIZED) {
 			SDL_Delay(10);
@@ -200,6 +202,7 @@ int main(int argc, char* argv[]) try {
 		glViewport(0, 0, W, H);
 		glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
 		glClear(GL_COLOR_BUFFER_BIT);
+		// window.clear();
 
 		SDL_Delay(50); // Slow down animation
 
@@ -226,12 +229,8 @@ int main(int argc, char* argv[]) try {
 				const auto texdim = glm::vec2{tex.width, tex.height};
 
 				for (int j = 0; j < 4; ++j) {
-					vertices.storage().emplace_back(vertex{
-						layer.texid,
-						layer.src[j] * texdim,
-						glm::vec3{layer.dst[j], depth},
-						layer.fog[j]
-					});
+					vertices.storage().emplace_back(
+						vertex{layer.texid, layer.src[j] * texdim, glm::vec3{layer.dst[j], depth}, layer.fog[j]});
 				}
 
 				depth -= zrate;

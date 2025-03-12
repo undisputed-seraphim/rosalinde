@@ -11,11 +11,12 @@ public:
 	Window(const char* name, int width = 1920, int height = 1080);
 	~Window() noexcept;
 
-    SDL_Window* get() const noexcept;
-    SDL_WindowFlags flags() const noexcept;
-    SDL_WindowID id() const noexcept;
+	SDL_Window* get() const noexcept;
+	SDL_WindowFlags flags() const noexcept;
+	SDL_WindowID id() const noexcept;
 
-    bool swapbuffer() const noexcept;
+	void clear() const noexcept;
+	bool swapbuffer() const noexcept;
 
 private:
 	std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> _window;
