@@ -231,7 +231,7 @@ UTF::UTF(std::vector<char> bytes) {
 	if (::strncmp(bytes.data(), _utf, sizeof(_utf)) != 0) {
 		return;
 	}
-	parse(std::ispanstream(bytes));
+	parse(std::ispanstream(std::span(bytes)));
 	/*
 	auto iss = std::ispanstream(bytes, std::ios::binary);
 	if (is_ciphered_utf(iss)) {
