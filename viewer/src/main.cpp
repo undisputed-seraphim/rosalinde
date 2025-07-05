@@ -137,8 +137,6 @@ int main(int argc, char* argv[]) try {
 	glBindTexture(GL_TEXTURE_2D_ARRAY, tex);
 	glActiveTexture(GL_TEXTURE0);
 
-	int timestep = 0;
-
 	const auto& IDLE = *std::next(scarlet_quad.animationsets().begin(), index);
 	std::cout << IDLE.first << std::endl;
 
@@ -171,27 +169,20 @@ int main(int argc, char* argv[]) try {
 	Camera cam;
 	const auto& shader = GetKeyframeShader().Use();
 
+	int timestep = 0;
 	bool done = false;
 	while (!done) {
 		SDL_Event event{};
 		while (SDL_PollEvent(&event)) {
 			// ImGui_ImplSDL3_ProcessEvent(&event);
-			if (event.type == SDL_EVENT_QUIT)
+			if (event.type == SDL_EVENT_QUIT) {
 				done = true;
-			if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == window.id())
+			}
+			if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == window.id()) {
 				done = true;
-			if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-				cam.zoom(event.wheel.y);
 			}
-			if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-				cam.enter();
-			}
-			if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
-				cam.exit();
-			}
-			if (event.type == SDL_EVENT_MOUSE_MOTION) {
-				cam.move(event.motion.xrel, event.motion.yrel);
-			}
+
+			cam.handleInput(event);
 		}
 		if (window.flags() & SDL_WINDOW_MINIMIZED) {
 			SDL_Delay(10);
