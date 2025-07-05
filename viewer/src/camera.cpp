@@ -9,14 +9,27 @@ Camera::Camera()
 	, _zoom(1)
 	, _move(false) {}
 
+void Camera::handleInput(const SDL_Event& event) {
+	if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+		zoom(event.wheel.y);
+	}
+	if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+		_move = true;
+	}
+	if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+		_move = false;
+	}
+	if (event.type == SDL_EVENT_MOUSE_MOTION) {
+		move(event.motion.xrel, event.motion.yrel);
+	}
+}
+
 void Camera::move(float x, float y) {
 	if (!_move)
 		return;
 	_pos -= glm::vec3{x, y, 0.0};
 }
 void Camera::zoom(float y) { _zoom += (y / 10.0); }
-void Camera::enter() noexcept { _move = true; }
-void Camera::exit() noexcept { _move = false; }
 
 glm::mat4 Camera::lookAt() const {
 	return glm::scale(glm::lookAt(_pos, _pos + _front, _up), glm::vec3{_zoom, _zoom, 1});

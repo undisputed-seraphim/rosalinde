@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <SDL3/SDL.h>
 
 class Camera {
 	glm::vec3 _pos;
@@ -9,14 +10,13 @@ class Camera {
 	float _zoom;
 	bool _move;
 
-public:
-	Camera();
-
 	void move(float xrel, float yrel);
 	void zoom(float y);
 
-	void enter() noexcept;
-	void exit() noexcept;
+public:
+	Camera();
+
+	void handleInput(const SDL_Event&);
 
 	glm::mat4 lookAt() const;
 	explicit operator glm::mat4() const;
