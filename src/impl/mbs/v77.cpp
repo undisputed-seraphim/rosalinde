@@ -56,6 +56,10 @@ static glm::mat4 s7_matrix(const section_7& s7, const bool flipx, const bool fli
 	m = glm::scale(m, glm::vec3{s7.scale.x * x, s7.scale.y * y, 1.0});
 	m = glm::translate(m, glm::vec3{s7.move.x * x, s7.move.y * y, s7.move.z});
 	m *= glm::eulerAngleXYZ(s7.rotate.x, s7.rotate.y, s7.rotate.z);
+	// NOTE: Normally the right order for this is scale-rotate-translate,
+	// however accessories seem to be wrongly placed.
+	// So scale-translate-rotate appears to get us closest to the right image.
+	// I think there is some parent-child transform hierarchy that's currently missing.
 	return m;
 }
 
