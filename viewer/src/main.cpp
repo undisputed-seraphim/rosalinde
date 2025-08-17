@@ -213,7 +213,7 @@ int main(int argc, char* argv[]) try {
 			unsigned i = 0;
 			for (const auto layerid : kf.layers) {
 				const auto& layer = scarlet_quad.layers()[layerid];
-				if (layer.attributes & SCARLET_2) {
+				if (layer.attributes & SCARLET_1) {
 					continue;
 				}
 				const auto& tex = scarlet_textures[layer.texid];

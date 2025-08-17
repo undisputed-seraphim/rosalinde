@@ -15,7 +15,7 @@ find_package(glm CONFIG 1.0.0 REQUIRED)
 find_package(ZLIB 1.3.1 REQUIRED)
 find_package(Boost CONFIG 1.81 REQUIRED COMPONENTS system program_options)
 find_package(SDL3 3.2 REQUIRED)
-find_package(EnTT 3.14 REQUIRED)
+find_package(EnTT 3.15 REQUIRED)
 find_package(OpenGL REQUIRED)
 
 message(STATUS "glm version ${glm_VERSION}")
@@ -44,3 +44,5 @@ add_executable(rosalinde "tools/extractor.cpp")
 target_link_libraries(rosalinde PRIVATE eltolinde Boost::program_options)
 
 add_subdirectory(viewer)
+
+add_subdirectory(cpk_experiment)
