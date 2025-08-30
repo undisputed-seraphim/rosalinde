@@ -85,10 +85,10 @@ v77 v77::read(std::istream& is) {
 }
 
 std::ostream& operator<<(std::ostream& os, const v77& v) {
-	v.print_to_file();
+	//v.print_to_file();
 	return os;
 }
-
+/*
 using namespace std::literals;
 
 void v77::print_to_file() const {
@@ -183,5 +183,6 @@ void v77::print_to_file() const {
 		ofs << std::format(fmtsb, s._unk0, s._unk1, s._unk2, s._unk3, s._unk4, s._unk5, s._pad);
 	}
 }
+*/
 
 } // namespace mbs

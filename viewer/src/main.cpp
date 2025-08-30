@@ -65,6 +65,38 @@ GLuint generate_array_texture(const std::vector<FTX::Entry>& textures) {
 	return id;
 }
 
+enum s4flag : uint8_t {
+	SKIP = 0x02,
+	NOTEX = 0x04,
+};
+
+enum s8flag : uint32_t {
+	// clang-format off
+	FLIPX = 0x01,   // 0b ----'----'----'---1
+	FLIPY = 0x02,   // 0b ----'----'----'--1-
+	JUMP = 0x04,    // 0b ----'----'----'-1-- // Something to do with the loops?
+	//? = 0x20,     // 0b ----'----'--1-'---- // Most s8 seem to have this, but doesn't seem to mean anything
+	//? = 0x80,     // 0b ----'----'1---'---- // doesn't mean anything
+	HITBOX = 0x400, // 0b ----'-1--'----'----
+	LAST = 0x800,	// 0b ----'1---'----'---- // Means ignore this frame apparently
+	//? = 0x2000,   // 0b --1-'----'----'---- // Ignore next?
+	// clang-format on
+};
+
+static glm::mat4 s7_matrix(const mbs::section_7& s7, const bool flipx, const bool flipy) {
+	const int8_t x = flipx ? -1 : 1;
+	const int8_t y = flipy ? -1 : 1;
+	glm::mat4 m{1.0};
+	m = glm::scale(m, glm::vec3{s7.scale.x * x, s7.scale.y * y, 1.0});
+	m = glm::translate(m, glm::vec3{s7.move.x * x, s7.move.y * y, s7.move.z});
+	m *= glm::eulerAngleXYZ(s7.rotate.x, s7.rotate.y, s7.rotate.z);
+	// NOTE: Normally the right order for this is scale-rotate-translate,
+	// however accessories seem to be wrongly placed.
+	// So scale-translate-rotate appears to get us closest to the right image.
+	// I think there is some parent-child transform hierarchy that's currently missing.
+	return m;
+}
+
 int main(int argc, char* argv[]) try {
 	fs::path cpkpath;
 	bool debug = false;
@@ -98,11 +130,11 @@ int main(int argc, char* argv[]) try {
 		std::cout << "MBS: " << mbs->path() << '\n';
 		return MBS(std::ispanstream(buffer, std::ios::binary));
 	}();
-	const auto scarlet_quad = scarlet_mbs.extract();
+	const auto& scarlet_v77 = scarlet_mbs.get();
 	if (list) {
 		int i = 0;
-		for (const auto& [name, anims] : scarlet_quad.animationsets()) {
-			std::cout << i++ << ": " << name << '\n';
+		for (const auto& s9 : scarlet_v77.s9) {
+			std::cout << i++ << ": " << s9.name << '\n';
 		}
 		return 0;
 	}
@@ -137,8 +169,8 @@ int main(int argc, char* argv[]) try {
 	glBindTexture(GL_TEXTURE_2D_ARRAY, tex);
 	glActiveTexture(GL_TEXTURE0);
 
-	const auto& IDLE = *std::next(scarlet_quad.animationsets().begin(), index);
-	std::cout << IDLE.first << std::endl;
+	const auto& s9 = scarlet_v77.s9[index];
+	std::cout << s9.name << std::endl;
 
 	enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
 
@@ -169,9 +201,8 @@ int main(int argc, char* argv[]) try {
 	Camera cam;
 	const auto& shader = GetKeyframeShader().Use();
 
-	int timestep = 0;
-	bool done = false;
-	while (!done) {
+	uint32_t timestep = 0;
+	for (bool done = false; !done; ) {
 		SDL_Event event{};
 		while (SDL_PollEvent(&event)) {
 			// ImGui_ImplSDL3_ProcessEvent(&event);
@@ -195,41 +226,52 @@ int main(int argc, char* argv[]) try {
 		glClear(GL_COLOR_BUFFER_BIT);
 		// window.clear();
 
-		SDL_Delay(50); // Slow down animation
+		SDL_Delay(100); // Slow down animation
 
-		int longest_track_size = 0;
-		for (const auto& track : IDLE.second) {
-			const auto& tl = track.keyframes[timestep % track.keyframes.size()];
-			const auto& kf = scarlet_quad.keyframes()[tl.keyframe_id];
-			if (kf.layers.empty()) {
+		for (uint16_t i = 0; i < s9.sa_set_no; ++i) { // For each track
+			const auto& sa = scarlet_v77.sa[s9.sa_set_id + i];
+			const auto& s8 = scarlet_v77.s8[sa.s8_id + (timestep % (sa.s8_no))];
+			const auto& s7 = scarlet_v77.s7[s8.s7_id]; // Matrix
+			const auto& s6 = scarlet_v77.s6[s8.s6_id]; // Keyframe
+			//const auto& s5 = scarlet_v77.s5[s6.s5_id]; // Hitbox
+			//const auto& s3 = scarlet_v77.s3[s5.s3_id]; // Hitbox Matrix
+
+			if (s6.s4_no == 0) {
 				continue;
 			}
-			longest_track_size = std::max(longest_track_size, (int)track.keyframes.size());
+
 			vertices.storage().clear();
 			indices.storage().clear();
 
-			const float zrate = 1.0 / (kf.layers.size() + 1);
+			// Draw each layer
+			const float zrate = 1.0f / (s6.s4_no + 1);
 			float depth = 1.0;
-			unsigned i = 0;
-			for (const auto layerid : kf.layers) {
-				const auto& layer = scarlet_quad.layers()[layerid];
-				if (layer.attributes & SCARLET_2) {
+			uint32_t l = 0;
+			for (uint32_t j = 0; j < s6.s4_no; ++j) { // For each layer
+				const auto& s4 = scarlet_v77.s4[s6.s4_id + j];
+				if (s4.attributes & SCARLET_2) {
 					continue;
 				}
-				const auto& tex = scarlet_textures[layer.texid];
+
+				const auto& tex = scarlet_textures[s4.tex_id];
 				const auto texdim = glm::vec2{tex.width, tex.height};
-
-				for (int j = 0; j < 4; ++j) {
+				for (int k = 0; k < 4; ++k) {
+					const auto& dst = scarlet_v77.s2[s4.s2_id].values[k];
+					const auto& src = scarlet_v77.s1[s4.s1_id].values[k];
+					const auto& fog = scarlet_v77.s0[s4.s0_id].colors[k];
 					vertices.storage().emplace_back(
-						vertex{layer.texid, layer.src[j] * texdim, glm::vec3{layer.dst[j], depth}, layer.fog[j]});
+						vertex{s4.tex_id, src * texdim, glm::vec3{dst, depth}, fog});
 				}
-
 				depth -= zrate;
-				indices.storage().insert(indices.storage().end(), {i + 0, i + 1, i + 3, i + 1, i + 2, i + 3});
-				i += 4;
+				indices.storage().insert(indices.storage().end(), {l + 0, l + 1, l + 3, l + 1, l + 2, l + 3});
+				l += 4;
 			}
 
-			shader.SetUniform("u_mvp", proj * cam.lookAt() * tl.matrix);
+			const bool flipx = s8flag::FLIPX & s8.flags;
+			const bool flipy = s8flag::FLIPY & s8.flags;
+			const auto s7m = s7_matrix(s7, flipx, flipy);
+
+			shader.SetUniform("u_mvp", proj * cam.lookAt() * s7m);
 			shader.SetUniform("u_tex", 0);
 			vertices.bind().setData(gl::buffer::Usage::STATIC_DRAW);
 			glEnableVertexAttribArray(0);
@@ -243,7 +285,7 @@ int main(int argc, char* argv[]) try {
 
 			indices.bind().setData(gl::buffer::Usage::STATIC_DRAW).drawElements(gl::Mode::TRIANGLES);
 		}
-		(++timestep) %= longest_track_size;
+		++timestep;
 
 		window.swapbuffer();
 	}

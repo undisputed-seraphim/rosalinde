@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../mbs.hpp"
+//#include "../mbs.hpp"
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_float3.hpp>
@@ -157,9 +157,7 @@ struct v77 {
 	static v77 read(std::istream&);
 	friend std::ostream& operator<<(std::ostream&, const v77&);
 
-	Quad to_quad() const;
-
-	void print_to_file() const;
+	//void print_to_file() const;
 };
 
 } // namespace mbs

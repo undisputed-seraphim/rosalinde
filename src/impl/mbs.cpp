@@ -39,33 +39,26 @@ struct mbs_header {
 };
 #pragma pack(pop)
 
-struct MBS::data_t : public std::variant<mbs::v77, std::monostate> {
-	~data_t() noexcept {}
-};
-
 MBS::MBS(std::istream& is)
 	: MBS(std::move(is)) {}
 
 MBS::MBS(std::istream&& is)
 	: _filename(2 * 16, char(0))
-	, _dataptr(read(is)) {}
+	, data(read(is)) {}
 
 MBS::MBS(MBS&&) noexcept = default;
 
-MBS::~MBS() noexcept { _dataptr.reset(); }
+MBS::~MBS() noexcept {}
 
-Quad MBS::extract() const {
-	auto makequad_v77 = [](const mbs::v77& v77) -> Quad { v77.print_to_file(); return v77.to_quad(); };
-	auto monostate = [](const std::monostate&) -> Quad { return Quad{}; };
-	return std::visit(overloads{makequad_v77, monostate}, *_dataptr);
+const mbs::v77& MBS::get() const {
+	return data;
 }
 
-std::unique_ptr<MBS::data_t> MBS::read(std::istream& is) {
+mbs::v77 MBS::read(std::istream& is) {
 	is.seekg(0, std::ios::beg);
 	const mbs_header h = read_value<mbs_header>(is);
 	if (std::string_view(h.magic, sizeof(h.magic)) != mbs_header::FMBS) {
-		std::cout << "Not an FMBS file." << std::endl;
-		return std::make_unique<MBS::data_t>(std::monostate{});
+		throw std::exception("Not an FMBS file.");
 	}
 
 	is.seekg(0x80, std::ios::beg);
@@ -74,7 +67,7 @@ std::unique_ptr<MBS::data_t> MBS::read(std::istream& is) {
 
 	switch (h.version) {
 	case 0x77: {
-		return std::make_unique<data_t>(mbs::v77::read(is));
+		return mbs::v77::read(is);
 	}
 	case 0x66:
 	case 0x6b:
@@ -86,5 +79,5 @@ std::unique_ptr<MBS::data_t> MBS::read(std::istream& is) {
 		std::cout << "Unsupported FMBS version " << (uint16_t)h.version << std::endl;
 	}
 	}
-	return std::make_unique<MBS::data_t>(std::monostate{});
+	throw std::exception("Unsupported FMBS version.");
 }

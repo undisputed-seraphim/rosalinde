@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) try {
 			} else if (extract_file.ends_with(".mbs")) {
 				MBS mbs(iss);
 				std::cout << mbs.filename() << std::endl;
-				auto q = mbs.extract();
+				//auto q = mbs.extract();
 			}
 		} else {
 			std::cout << extract_file << " not found.\n";
