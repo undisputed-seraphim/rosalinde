@@ -114,7 +114,7 @@ void layla_decompress(const header& h, const std::span<const char>& in, std::spa
 
 	auto all_n_bits = [](auto value, char n) -> bool { return value == (1 << n) - 1; };
 
-	uint32_t data_size = h.decompress_size;
+	const uint32_t data_size = h.decompress_size;
 	uint32_t data_written = 0;
 	while (data_written < data_size) {
 		if (read_n(1) == 0) {
@@ -126,7 +126,7 @@ void layla_decompress(const header& h, const std::span<const char>& in, std::spa
 			uint32_t ref_count = 3;		  // previous bytes referenced. 3 minimum
 			constexpr uint8_t vle_n_bits[]{2, 3, 5, 8};
 			for (int i = 0, n_bits = vle_n_bits[0];; i++, i = std::min(i, 3), n_bits = vle_n_bits[i]) {
-				uint16_t vle_length = read_n(n_bits);
+				const uint16_t vle_length = read_n(n_bits);
 				ref_count += vle_length;
 				if (!all_n_bits(vle_length, n_bits)) {
 					break;
