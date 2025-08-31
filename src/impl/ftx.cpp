@@ -1,7 +1,7 @@
 #include "ftx.hpp"
 #include "utils.hpp"
 
-#include <detex-0.1.2alpha2/detex.h>
+#include <detex.h>
 
 #include <array>
 #include <spanstream>
