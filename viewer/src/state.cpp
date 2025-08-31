@@ -3,8 +3,10 @@
 #include <glad/glad.h>
 #include <spanstream>
 
+using Job = State::Job;
+
 // clang-format off
-const std::unordered_map<std::string, State::Job> State::Chara = {
+static const std::unordered_map<std::string, Job> Characters = {
 	{"Fighter", Job{{"Chara/Fighter_M.mbs"}, {"Chara/Fighter_M00.ftx"},                                { {"Lex", 0}, {"Colm", 0}, {"Generic", 0} }}},
 	{"Vanguard", Job{{"Chara/Fighter_HG_M.mbs"}, {"Chara/Fighter_HG_M00.ftx"},                         { {"Lex", 0}, {"Colm", 0}, {"Generic", 0} }}},
 	{"Soldier_F",  Job{{"Chara/Soldier_F.mbs"}, {"Chara/Soldier_F00.ftx"},                             { {"Chloe", 0}, {"Generic", 0} }}},
@@ -55,8 +57,8 @@ const std::unordered_map<std::string, State::Job> State::Chara = {
 	{"GryphonMaster", Job{{"Chara/GriffonKnight_HG_F.mbs"}, {"Chara/GriffonKnight_HG_F00.ftx"},        { {"Fran", 0}, {"Celeste", 0}, {"Generic", 0} }}},
 	{"Lord", Job{{"Chara/Lord_M.mbs"}, {"Chara/Lord_M00.ftx"},                                         { {"Alain", 0} }}},
 	{"HighLord", Job{{"Chara/Lord_HG_M.mbs"}, {"Chara/Lord_HG_M00.ftx"},                               { {"Alain", 0} }}},
-	{"Crusader", Job{{"Chara/Virginia_F.mbs"}, {"Chara/Virginia_F00.ftx"},                             { {"Virginia", 0}, {"Ilenia", 0} }}},
-	{"Valkyria", Job{{"Chara/Virginia_F.mbs"}, {"Chara/Virginia_F00.ftx"},                             { {"Virginia", 0}, {"Ilenia", 0} }}},
+	{"Crusader", Job{{"Chara/Virginia_F.mbs"}, {"Chara/Virginia_F00.ftx"},                             { {"Virginia", 0x1 + 0x2000 + 0x1000 + 0x10000}, {"Ilenia", 0x2 + 0x2000 + 0x1000 + 0x10000 + 0x20000} }}},
+	{"Valkyria", Job{{"Chara/Virginia_F.mbs"}, {"Chara/Virginia_F00.ftx"},                             { {"Virginia", 0x1 + 0x4000 + 0x1000 + 0x10000}, {"Ilenia", 0x2 + 0x4000 + 0x1000 + 0x10000 + 0x20000} }}},
 	{"Paladin", Job{{"Chara/WhiteKnight_HG_M.mbs"}, {"Chara/WhiteKnight_HG_M00.ftx"},                  { {"Josef", 0} }}},
 	{"Prince", Job{{"Chara/Prince_M.mbs"}, {"Chara/Prince_M00.ftx"},                                   { {"Gilbert", 0} }}},
 	{"Dreadnought", Job{{"Chara/Armoria_HG_F.mbs"}, {"Chara/Armoria_HG_F00.ftx"},                      { {"Amalia", 0} }}},
@@ -64,8 +66,8 @@ const std::unordered_map<std::string, State::Job> State::Chara = {
 	{"ElvenFencer_M", Job{{"Chara/ElfFencer_M.mbs"}, {"Chara/ElfFencer_M00.ftx"},                      { {"Ithilion", 0}, {"Generic", 0} }}},
 	{"ElvenArcher_F", Job{{"Chara/ElfArcher_F.mbs"}, {"Chara/ElfArcher_F00.ftx"},                      { {"Ridiel", 0}, {"Galadmir", 0}, {"Generic", 0} }}},
 	{"ElvenArcher_M", Job{{"Chara/ElfArcher_M.mbs"}, {"Chara/ElfArcher_M00.ftx"},                      { {"Lhinalagos", 0}, {"Generic", 0} }}},
-	{"ElvenAugur", Job{{"Chara/Eltlinde_F.mbs", "Chara/Eltlinde_F00.mbs"}, {"Chara/Eltlinde_F00.ftx"}, { {"Rosalinde", 0} } }},
-	{"ElvenSibyl", Job{{"Chara/Eltlinde_F.mbs", "Chara/Eltlinde_F10.mbs"}, {"Chara/Eltlinde_F10.ftx"}, { {"Eltolinde", 0} } }},
+	{"ElvenSibyl", Job{{"Chara/Eltlinde_F.mbs", "Chara/Eltlinde_F00.mbs"}, {"Chara/Eltlinde_F00.ftx"}, { {"Eltolinde", 0x2 + 0x4000 + 0x8000 + 0x10000} } }},
+	{"ElvenAugur", Job{{"Chara/Eltlinde_F.mbs", "Chara/Eltlinde_F10.mbs"}, {"Chara/Eltlinde_F10.ftx"}, { {"Rosalinde", 0x1 + 0x4000 +          0x20000} } }},
 	{"Werewolf", Job{{"Chara/WereWolf_M.mbs"}, {"Chara/WereWolf_M00.ftx"},                             { {"Govil", 0}, {"Generic", 0} }}},
 	{"Werebear", Job{{"Chara/WereBear_M.mbs"}, {"Chara/WereBear_M00.ftx"},                             { {"Dinah", 0}, {"Generic", 0} }}},
 	{"Werefox",  Job{{"Chara/WereFox_F.mbs"}, {"Chara/WereFox_F00.ftx"},                               { {"Bertrans", 0}, {"Generic", 0} }}},
@@ -76,15 +78,15 @@ const std::unordered_map<std::string, State::Job> State::Chara = {
 	{"Featherbow",    Job{{"Chara/FeatherBow_F.mbs"}, {"Chara/FeatherBow_F00.ftx"},                    { {"Raenys", 0}, {"Generic", 0} }}},
 	{"Featherstaff",  Job{{"Chara/FeatherRod_M.mbs"}, {"Chara/FeatherRod_M00.ftx"},                    { {"Sanatio", 0}, {"Generic", 0} }}},
 	{"Feathershield", Job{{"Chara/FeatherShield_M.mbs"}, {"Chara/FeatherShield_M00.ftx"},              { {"Fodoquia", 0}, {"Generic", 0} }}},
-	{"Priestess",     Job{{"Chara/Scarlet_F.mbs"}, {"Chara/Scarlet_F00.ftx"},                          { {"Scarlett", 0x4000 + 0x1000} }}},
-	{"HighPriestess", Job{{"Chara/Scarlet_F.mbs"}, {"Chara/Scarlet_F00.ftx"},                          { {"Scarlett", 0x2000 + 0x800} }}},
+	{"Priestess",     Job{{"Chara/Scarlet_F.mbs"}, {"Chara/Scarlet_F00.ftx"},                          { {"Scarlett", 0x800  + 0x2000 + 0x54010000} }}},
+	{"HighPriestess", Job{{"Chara/Scarlet_F.mbs"}, {"Chara/Scarlet_F00.ftx"},                          { {"Scarlett", 0x1000 + 0x4000 + 0x54010000} }}},
 	{"DarkLord", Job{{"Chara/BlackPrince_HG_M.mbs"}, {"Chara/BlackPrince_HG_M00.ftx"},                 { {"Galerius", 0} }}},
 	{"Overlord", Job{{"Chara/BlackPrince_M.mbs"}, {"Chara/BlackPrince_M00.ftx"},                       { {"Galerius", 0} }}},
 	{"Necromancer", Job{{"Chara/Necromancer_M.mbs"}, {"Chara/Necromancer_M00.ftx"},                    { {"Baltro", 0} }}},
-	{"DarkMarquess_Sword", Job{{"Chara/DarkMarquess_S_M.mbs"}, {"Chara/DarkMarquess_S_M00.ftx"},       { {"Nigel", 0}, {"Holonius", 0} }}},
-	{"DarkMarquess_Axe",   Job{{"Chara/DarkMarquess_A_F.mbs"}, {"Chara/DarkMarquess_A_F00.ftx"},       { {"Berengaria", 0}, {"Theodora", 0} }}},
-	{"DarkMarquess_Lance", Job{{"Chara/DarkMarquess_L_M.mbs"}, {"Chara/DarkMarquess_L_M00.ftx"},       { {"Elgor", 0}, {"Belisarios", 0} }}},
-	{"DarkMarquess_Rod",   Job{{"Chara/DarkMarquess_R_F.mbs"}, {"Chara/DarkMarquess_R_F00.ftx"},       { {"Alcina", 0}, {"Narcesse", 0} }}},
+	{"DarkMarquess_Sword", Job{{"Chara/DarkMarquess_S_M.mbs"}, {"Chara/DarkMarquess_S_M00.ftx"},       { {"Nigel", 0x1}, {"Holonius", 0x2} }}},
+	{"DarkMarquess_Axe",   Job{{"Chara/DarkMarquess_A_F.mbs"}, {"Chara/DarkMarquess_A_F00.ftx"},       { {"Berengaria", 0x1 + 0x10000}, {"Theodora", 0x2} }}},
+	{"DarkMarquess_Lance", Job{{"Chara/DarkMarquess_L_M.mbs"}, {"Chara/DarkMarquess_L_M00.ftx"},       { {"Elgor", 0x1}, {"Belisarios", 0x2} }}},
+	{"DarkMarquess_Rod",   Job{{"Chara/DarkMarquess_R_F.mbs"}, {"Chara/DarkMarquess_R_F00.ftx"},       { {"Alcina", 0x1}, {"Narcesse", 0x2} }}},
 };
 // clang-format on
 
@@ -118,38 +120,37 @@ static GLuint make_texture_array(std::vector<FTX::Entry> textures) {
 
 State::State(const std::string& path)
 	: _cpk(path) {
-	glGenFramebuffers(1, &_tgt_fb);
-	glBindFramebuffer(GL_FRAMEBUFFER, _tgt_fb);
+	//glGenFramebuffers(1, &_tgt_fb);
+	//glBindFramebuffer(GL_FRAMEBUFFER, _tgt_fb);
 }
 
-State::~State() noexcept { glDeleteFramebuffers(1, &_tgt_fb); }
+State::~State() noexcept { /*glDeleteFramebuffers(1, &_tgt_fb);*/ }
 
-void State::LoadSprite(const std::string& classname) {
-	const auto iter = Chara.find(classname);
-	if (iter == Chara.end()) {
-		return;
+State::Sprite State::FetchSprite(const std::string& classname, const std::string& charaname) {
+	const auto iter = Characters.find(classname);
+	if (iter == Characters.end()) {
+		throw std::runtime_error("MBS for character class " + classname + " was not found.");
 	}
-	std::vector<char> buffer;
-	for (const auto& mbs : iter->second.mbs) {
-		auto entry = _cpk.by_name(mbs);
-		if (entry == _cpk.end()) {
-			continue;
-		}
-		_cpk.extract(*entry, buffer);
-		MBS mbs(std::ispanstream(buffer, std::ios::binary));
-		// TODO
-		std::cout << "MBS: " << entry->path() << '\n';
+
+	if (auto entry = _cpk.by_name(iter->second.mbs[0]); entry == _cpk.end()) {
+		throw std::runtime_error("MBS for character class " + classname + " was not found.");
+	} else {
+		_cpk.extract(*entry, _buffer);
 	}
-	std::vector<FTX::Entry> textures;
-	textures.reserve(iter->second.ftx.size());
+
+	Sprite sprite { MBS(std::ispanstream(_buffer, std::ios::binary)) };
+	sprite.flags = iter->second.variants.at(charaname);
 	for (const auto& ftx : iter->second.ftx) {
 		auto entry = _cpk.by_name(ftx);
 		if (entry == _cpk.end()) {
 			continue;
 		}
-		_cpk.extract(*entry, buffer);
-		auto txt = FTX::parse(buffer);
-		std::move(txt.begin(), txt.end(), std::back_inserter(textures));
+		_cpk.extract(*entry, _buffer);
+		auto txt = FTX::parse(_buffer);
+		std::move(txt.begin(), txt.end(), std::back_inserter(sprite.textures));
 	}
-	_texture = make_texture_array(std::move(textures));
+	sprite.glTexHandle = make_texture_array(sprite.textures);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, sprite.glTexHandle);
+	glActiveTexture(GL_TEXTURE0);
+	return sprite;
 }
