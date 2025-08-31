@@ -15,6 +15,7 @@ class Camera {
 
 public:
 	Camera();
+	Camera(float zoom);
 
 	void handleInput(const SDL_Event&);
 

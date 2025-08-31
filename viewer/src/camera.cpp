@@ -9,6 +9,8 @@ Camera::Camera()
 	, _zoom(1)
 	, _move(false) {}
 
+Camera::Camera(float zoom) : Camera() { _zoom = zoom; }
+
 void Camera::handleInput(const SDL_Event& event) {
 	if (event.type == SDL_EVENT_MOUSE_WHEEL) {
 		zoom(event.wheel.y);
