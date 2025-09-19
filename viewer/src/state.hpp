@@ -10,7 +10,7 @@
 class State {
 	CPK _cpk;
 	uint32_t _tgt_fb;
-	uint32_t _texture;
+	std::vector<char> _buffer;
 
 public:
 	State(const std::string& path);
@@ -22,7 +22,15 @@ public:
 		std::vector<std::string> mbs, ftx;					// mbs and ftx filenames. Most will have just one each
 		std::unordered_map<std::string, uint32_t> variants; // Flags for each variant of the character
 	};
-	static const std::unordered_map<std::string, Job> Chara;
 
-	void LoadSprite(const std::string& classname);
+	struct Sprite {
+		MBS mbs;
+		std::vector<FTX::Entry> textures;
+		uint32_t glTexHandle;
+		uint32_t flags;
+	};
+
+	Sprite FetchSprite(const std::string& classname, const std::string& charaname);
 };
+
+extern const std::unordered_map<std::string, State::Job> Characters;

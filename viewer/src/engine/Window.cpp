@@ -6,7 +6,7 @@
 
 namespace uvw {
 
-std::unique_ptr<char, void (*)(char*)> Init_SDL(int flags) {
+static std::unique_ptr<char, void (*)(char*)> Init_SDL(int flags) {
 	if (!SDL_Init(flags)) {
 		const auto err = std::string("Error: SDL_Init(): ") + SDL_GetError() + '\n';
 		throw std::runtime_error(err);
@@ -18,7 +18,8 @@ std::unique_ptr<char, void (*)(char*)> Init_SDL(int flags) {
 }
 
 Window::Window(const char* name, int width, int height)
-	: _window(SDL_CreateWindow(name, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN), SDL_DestroyWindow)
+	: _sdl(Init_SDL(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
+	, _window(SDL_CreateWindow(name, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN), SDL_DestroyWindow)
 	, _gl(nullptr, SDL_GL_DestroyContext) {
 	SDL_SetWindowPosition(_window.get(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
@@ -40,6 +41,9 @@ Window::Window(const char* name, int width, int height)
 	if (!_gl) {
 		const auto err = std::string("Error: SDL_GL_CreateContext(): ") + SDL_GetError() + '\n';
 		throw std::runtime_error(err);
+	}
+	if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
+		throw std::runtime_error("Failed to initialize GLAD");
 	}
 }
 

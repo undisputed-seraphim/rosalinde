@@ -2,15 +2,9 @@
 #include "mbs/sections.hpp"
 #include "utils.hpp"
 
-#include <algorithm>
-#include <array>
-#include <format>
 #include <iostream>
-#include <map>
-#include <memory>
-#include <utility>
+#include <spanstream>
 #include <variant>
-#include <vector>
 
 // Faulty struct, do not use
 struct v77_1 {
@@ -39,22 +33,23 @@ struct mbs_header {
 };
 #pragma pack(pop)
 
-MBS::MBS(std::istream& is)
-	: MBS(std::move(is)) {}
-
-MBS::MBS(std::istream&& is)
-	: _filename(2 * 16, char(0))
-	, data(read(is)) {}
+MBS::MBS() : _filename(32, '\0') {}
 
 MBS::MBS(MBS&&) noexcept = default;
 
 MBS::~MBS() noexcept {}
 
-const mbs::v77& MBS::get() const {
-	return data;
+MBS MBS::From(std::istream& is) {
+	MBS mbs;
+	mbs.parse(is);
+	return mbs;
+}
+MBS MBS::From(const std::vector<char>& buffer) {
+	auto iss = std::ispanstream(buffer);
+	return MBS::From(iss);
 }
 
-mbs::v77 MBS::read(std::istream& is) {
+void MBS::parse(std::istream& is) {
 	is.seekg(0, std::ios::beg);
 	const mbs_header h = read_value<mbs_header>(is);
 	if (std::string_view(h.magic, sizeof(h.magic)) != mbs_header::FMBS) {
@@ -67,7 +62,8 @@ mbs::v77 MBS::read(std::istream& is) {
 
 	switch (h.version) {
 	case 0x77: {
-		return mbs::v77::read(is);
+		is >> data;
+		return;
 	}
 	case 0x66:
 	case 0x6b:
@@ -80,4 +76,8 @@ mbs::v77 MBS::read(std::istream& is) {
 	}
 	}
 	throw std::exception("Unsupported FMBS version.");
+}
+
+const mbs::v77& MBS::get() const {
+	return data;
 }

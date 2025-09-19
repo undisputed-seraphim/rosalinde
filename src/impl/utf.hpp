@@ -30,7 +30,7 @@ public:
 			std::string,
 			data_t,
 			std::monostate>;
-		enum class type {
+		enum class type : uint8_t {
 			UINT8 = 0,
 			INT8 = 1,
 			UINT16 = 2,

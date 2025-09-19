@@ -154,10 +154,8 @@ struct v77 {
 	std::vector<section_a> sa;
 	std::vector<section_b> sb;
 
-	static v77 read(std::istream&);
+	friend std::istream& operator>>(std::istream&, v77&);
 	friend std::ostream& operator<<(std::ostream&, const v77&);
-
-	//void print_to_file() const;
 };
 
 } // namespace mbs
