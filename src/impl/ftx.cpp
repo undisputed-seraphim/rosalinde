@@ -199,6 +199,7 @@ void deswizzle(Entry& entry) {
 	switch (entry.swizzle) {
 	case Swizzle::TEGRA_X1:
 		tegra_x1_deswizzle(entry.width, entry.height, entry.rgba, buffer);
+		break;
 	case Swizzle::NONE:
 	default:
 		// no-op
@@ -225,6 +226,7 @@ void tegra_x1_deswizzle(
 		std::array{ 0x10000,  0x7e12,  0x81ed},
 		std::array{ 0x40000,  0xfe12, 0x301ed},
 		std::array{0x100000, 0x1fe12, 0xe01ed},
+		//               b0 = 1 + b1     + b2
 	};
 	// clang-format on
 
@@ -263,12 +265,13 @@ void tegra_x1_deswizzle(
 	const uint32_t len_blk = len_pix >> 6;
 	const uint32_t w = (width >> 2);
 	const uint32_t h = (height >> 2);
-	for (const auto bit : bits) {
-		if (len_blk <= bit[0]) {
+	printf("len_pix %u, len_blk %u, w%u, h %u\n", len_pix, len_blk, w, h);
+	for (const auto [b0, b1, b2] : bits) {
+		if (len_blk <= b0) {
 			uint32_t pos = 0;
-			for (int i = 0; i < bit[0] && pos < len_pix; ++i) {
-				const auto x = swizzle_bitmask(i, bit[1]);
-				const auto y = swizzle_bitmask(i, bit[2]);
+			for (uint32_t i = 0; i < b0 && pos < len_pix; ++i) {
+				const auto x = swizzle_bitmask(i, b1);
+				const auto y = swizzle_bitmask(i, b2);
 				if (x >= w || y >= h) {
 					break;
 				}

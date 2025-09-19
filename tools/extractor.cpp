@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) try {
 					std::cout << l << '\n';
 				}
 			} else if (extract_file.ends_with(".mbs")) {
-				MBS mbs(iss);
+				const MBS mbs = MBS::From(iss);
 				std::cout << mbs.filename() << std::endl;
 				//auto q = mbs.extract();
 			}

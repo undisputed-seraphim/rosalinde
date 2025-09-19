@@ -46,7 +46,7 @@ std::vector<T> read_block(const lookup_entry& e, std::istream& is) {
 	return entries;
 }
 
-v77 v77::read(std::istream& is) {
+std::istream& operator>>(std::istream& is, v77& v) {
 	auto table = table_v77; // Make a copy
 	for (auto& [c, cs, p, rl, h, o, ds] : table) {
 		if (c == 0 || p == 0) {
@@ -69,34 +69,35 @@ v77 v77::read(std::istream& is) {
 	}
 	// Do NOT sort or change the order of table entries!
 
-	return v77{
-		read_block<section_0>(table[0x0], is),
-		read_block<section_1>(table[0x1], is),
-		read_block<section_2>(table[0x2], is),
-		read_block<section_3>(table[0x3], is),
-		read_block<section_4>(table[0x4], is),
-		read_block<section_5>(table[0x5], is),
-		read_block<section_6>(table[0x6], is),
-		read_block<section_7>(table[0x7], is),
-		read_block<section_8>(table[0x8], is),
-		read_block<section_9>(table[0x9], is),
-		read_block<section_a>(table[0xa], is),
-		read_block<section_b>(table[0xb], is)};
+	v.s0 = read_block<section_0>(table[0x0], is);
+	v.s1 = read_block<section_1>(table[0x1], is);
+	v.s2 = read_block<section_2>(table[0x2], is);
+	v.s3 = read_block<section_3>(table[0x3], is);
+	v.s4 = read_block<section_4>(table[0x4], is);
+	v.s5 = read_block<section_5>(table[0x5], is);
+	v.s6 = read_block<section_6>(table[0x6], is);
+	v.s7 = read_block<section_7>(table[0x7], is);
+	v.s8 = read_block<section_8>(table[0x8], is);
+	v.s9 = read_block<section_9>(table[0x9], is);
+	v.sa = read_block<section_a>(table[0xa], is);
+	v.sb = read_block<section_b>(table[0xb], is);
+	return is;
 }
 
 std::ostream& operator<<(std::ostream& os, const v77& v) {
-	//v.print_to_file();
+	// TODO
+	//print_to_file(v);
 	return os;
 }
-/*
+
 using namespace std::literals;
 
-void v77::print_to_file() const {
+void print_to_stream(const v77& v) {
 	auto ofs = std::ofstream("section_4.csv");
 	ofs << "unk0,flags,tex_id,attributes\n";
 	constexpr auto fmts4 = "{},{},{},{}\n"sv;
 	constexpr auto fmts4_hex = "{:#x},{:#x},{:#x},{:#x}\n"sv;
-	for (const auto& s : s4) {
+	for (const auto& s : v.s4) {
 		ofs << std::format(fmts4, s._unk0, s.flags, s.tex_id, s.attributes);
 	}
 
@@ -104,7 +105,7 @@ void v77::print_to_file() const {
 	ofs << "s3_id,unk0,unk1,flags\n";
 	constexpr auto fmts5 = "{},{},{},{}\n"sv;
 	constexpr auto fmts5_hex = "{:#x},{:#x},{:#x},{:#x}\n"sv;
-	for (const auto& s : s5) {
+	for (const auto& s : v.s5) {
 		ofs << std::format(fmts5, s.s3_id, s._unk0, s._unk1, s.flags);
 	}
 
@@ -112,7 +113,7 @@ void v77::print_to_file() const {
 	ofs << "s4_id,s5_id,s4_no,s5_no,flags,_pad0\n";
 	constexpr auto fmts6 = "{},{},{},{},{},{}\n"sv;
 	constexpr auto fmts6_hex = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
-	for (const auto& s : s6) {
+	for (const auto& s : v.s6) {
 		ofs << std::format(fmts6, s.s4_id, s.s5_id, s.s4_no, s.s5_no, s.flags, s._pad0);
 	}
 
@@ -126,7 +127,7 @@ void v77::print_to_file() const {
 	constexpr auto fmts8_hex =
 		"{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
 	constexpr auto fmts8flag = "{},{},{},{},{},{},{},{}";
-	for (const auto& s : s8) {
+	for (const auto& s : v.s8) {
 		const auto flagstr = std::format(fmts8flag,
 			(s.flags & 0x01 ? 1 : 0),
 			(s.flags & 0x02 ? 1 : 0),
@@ -161,7 +162,7 @@ void v77::print_to_file() const {
 	ofs << "name,sa_set_id,sa_set_no,sa_set_main,sa_sb_set_id,sa_sb_set_no,_0_1\n";
 	constexpr auto fmts9 = "{},{},{},{},{},{},{}\n"sv;
 	constexpr auto fmts9_hex = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
-	for (const auto& s : s9) {
+	for (const auto& s : v.s9) {
 		ofs << std::format(
 			fmts9, s.name, s.sa_set_id, s.sa_set_no, s.sa_set_main, s.sa_sb_set_id, s.sa_sb_set_no, s.disabled);
 	}
@@ -170,7 +171,7 @@ void v77::print_to_file() const {
 	ofs << "s8_id,s8_no,s8_sum,s8_sumonce,unk0,sb_id,sb_no,s8_st,unk1,unk2\n";
 	constexpr auto fmtsa = "{},{},{},{},{},{},{},{},{},{}\n"sv;
 	constexpr auto fmtsa_hex = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
-	for (const auto& s : sa) {
+	for (const auto& s : v.sa) {
 		ofs << std::format(
 			fmtsa, s.s8_id, s.s8_no, s.s8_sum, s.s8_sum_once, s._unk0, s.sb_id, s.sb_no, s.s8_st, s.track_id, s._pad);
 	}
@@ -179,10 +180,10 @@ void v77::print_to_file() const {
 	ofs << "col0,col1,col2,col3,col4,col5,pad\n";
 	constexpr auto fmtsb = "{},{},{},{},{},{},{}\n"sv;
 	constexpr auto fmtsb_hex = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
-	for (const auto& s : sb) {
+	for (const auto& s : v.sb) {
 		ofs << std::format(fmtsb, s._unk0, s._unk1, s._unk2, s._unk3, s._unk4, s._unk5, s._pad);
 	}
 }
-*/
+
 
 } // namespace mbs

@@ -10,7 +10,6 @@
 #include <eltolinde.hpp>
 #include <filesystem>
 #include <format>
-#include <glad/glad.h>
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
 #include <glxx/buffers.hpp>
@@ -40,31 +39,6 @@ void enable_depth(GLenum depthFunc = 0) {
 	glEnable(GL_DEPTH_TEST);
 }
 
-GLuint generate_array_texture(const std::vector<FTX::Entry>& textures) {
-	float max_x = 0, max_y = 0;
-	for (const auto& t : textures) {
-		max_x = std::max(max_x, float(t.width));
-		max_y = std::max(max_y, float(t.height));
-	}
-	GLuint id;
-	glGenTextures(1, &id);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, id);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_ALWAYS);
-
-	glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, max_x, max_y, textures.size());
-	for (int i = 0; i < textures.size(); ++i) {
-		const auto& t = textures[i];
-		glTexSubImage3D(
-			GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, t.width, t.height, 1, GL_RGBA, GL_UNSIGNED_BYTE, t.rgba.data());
-	}
-	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
-	return id;
-}
-
 enum s4flag : uint8_t {
 	SKIP = 0x02,
 	NOTEX = 0x04,
@@ -78,7 +52,7 @@ enum s8flag : uint32_t {
 	//? = 0x20,     // 0b ----'----'--1-'---- // Most s8 seem to have this, but doesn't seem to mean anything
 	//? = 0x80,     // 0b ----'----'1---'---- // doesn't mean anything
 	HITBOX = 0x400, // 0b ----'-1--'----'----
-	LAST = 0x800,	// 0b ----'1---'----'---- // Means ignore this frame apparently
+	LAST = 0x800,	// 0b ----'1---'----'---- // Last frame / Loop to beginning
 	//? = 0x2000,   // 0b --1-'----'----'---- // Ignore next?
 	// clang-format on
 };
@@ -97,16 +71,27 @@ static glm::mat4 s7_matrix(const mbs::section_7& s7, const bool flipx, const boo
 	return m;
 }
 
+void print_animation_list(const mbs::v77& v77) {
+	int i = 0;
+	for (const auto& s9 : v77.s9) {
+		std::cout << s9.name << '\n';
+	}
+}
+
 int main(int argc, char* argv[]) try {
 	fs::path cpkpath;
 	bool debug = false;
 	bool list = false;
 	int index = 0;
+	std::string classname, charaname;
 	po::options_description desc;
 	desc.add_options()("help,h", "Print this help message")(
 		"cpk", po::value<fs::path>(&cpkpath)->required(), "Path to Unicorn.cpk")(
+		"class", po::value<std::string>(&classname), "Classname")(
+		"chara", po::value<std::string>(&charaname), "Character name")(
 		"dbg,d", po::value<bool>(&debug), "Debug messages in OpenGL")(
-		"index,i", po::value<int>(&index), "Multipurpose index")("list,l", po::bool_switch(&list), "List animations.");
+		"index,i", po::value<int>(&index), "Multipurpose index")(
+		"list,l", po::bool_switch(&list), "List animations.");
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	try {
@@ -119,34 +104,9 @@ int main(int argc, char* argv[]) try {
 		std::cout << desc << '\n';
 		throw;
 	}
-	std::cout << cpkpath << std::endl;
-
-	const CPK cpk(cpkpath);
-
-	std::vector<char> buffer;
-	const auto scarlet_mbs = [&cpk, &buffer]() {
-		auto mbs = cpk.by_name("Chara/Scarlet_F.mbs");
-		cpk.extract(*mbs, buffer);
-		std::cout << "MBS: " << mbs->path() << '\n';
-		return MBS(std::ispanstream(buffer, std::ios::binary));
-	}();
-	const auto& scarlet_v77 = scarlet_mbs.get();
-	if (list) {
-		int i = 0;
-		for (const auto& s9 : scarlet_v77.s9) {
-			std::cout << i++ << ": " << s9.name << '\n';
-		}
-		return 0;
-	}
-
-	const auto sdl = uvw::Init_SDL();
 
 	static constexpr int W = 1920, H = 1080;
-	uvw::Window window("Rosalinde", W, H);
-
-	if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
-		throw std::runtime_error("Failed to initialize GLAD");
-	}
+	const uvw::Window window("Rosalinde", W, H);
 
 	if (debug) {
 		glEnable(GL_DEBUG_OUTPUT);
@@ -158,24 +118,22 @@ int main(int argc, char* argv[]) try {
 	printf("Renderer: %s\n", glGetString(GL_RENDERER));
 	printf(" Shading: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
-	cpk.extract(*cpk.by_name("Chara/Scarlet_F00.ftx"), buffer);
-	auto scarlet_textures = FTX::parse(buffer);
-	for (auto& texture : scarlet_textures) {
-		FTX::decompress(texture);
-		FTX::deswizzle(texture);
-		std::cout << texture.name << " : " << texture.width << " x " << texture.height << '\n';
+	if (classname.empty()) { classname = "HighPriestess"; }
+	if (charaname.empty()) { charaname = "Scarlett"; }
+
+	State state(cpkpath.string());
+	const auto sprite = state.FetchSprite(classname, charaname);
+
+	const auto& scarlet_v77 = sprite.mbs.get();
+	if (list) {
+		print_animation_list(scarlet_v77);
+		return 0;
 	}
-	GLuint tex = generate_array_texture(scarlet_textures);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, tex);
-	glActiveTexture(GL_TEXTURE0);
 
 	const auto& s9 = scarlet_v77.s9[index];
 	std::cout << s9.name << std::endl;
 
 	enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
-
-	static constexpr unsigned SCARLET_1 = 0x4000 + 0x1000;
-	static constexpr unsigned SCARLET_2 = 0x2000 + 0x800;
 
 	////////////////
 
@@ -198,7 +156,7 @@ int main(int argc, char* argv[]) try {
 
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
-	Camera cam;
+	Camera cam(2.5);
 	const auto& shader = GetKeyframeShader().Use();
 
 	uint32_t timestep = 0;
@@ -226,7 +184,7 @@ int main(int argc, char* argv[]) try {
 		glClear(GL_COLOR_BUFFER_BIT);
 		// window.clear();
 
-		SDL_Delay(100); // Slow down animation
+		SDL_Delay(40); // Slow down animation
 
 		for (uint16_t i = 0; i < s9.sa_set_no; ++i) { // For each track
 			const auto& sa = scarlet_v77.sa[s9.sa_set_id + i];
@@ -236,7 +194,11 @@ int main(int argc, char* argv[]) try {
 			//const auto& s5 = scarlet_v77.s5[s6.s5_id]; // Hitbox
 			//const auto& s3 = scarlet_v77.s3[s5.s3_id]; // Hitbox Matrix
 
-			if (s6.s4_no == 0) {
+			if (s8.flags & s8flag::HITBOX) { // Don't care about hitbox for now
+				continue;
+			}
+
+			if (s6.s4_no == 0) { // Ignore if frame does not have any content in it
 				continue;
 			}
 
@@ -249,11 +211,11 @@ int main(int argc, char* argv[]) try {
 			uint32_t l = 0;
 			for (uint32_t j = 0; j < s6.s4_no; ++j) { // For each layer
 				const auto& s4 = scarlet_v77.s4[s6.s4_id + j];
-				if (s4.attributes & SCARLET_2) {
+				if ((s4.attributes & ~sprite.flags) != 0) {
 					continue;
 				}
 
-				const auto& tex = scarlet_textures[s4.tex_id];
+				const auto& tex = sprite.textures[s4.tex_id];
 				const auto texdim = glm::vec2{tex.width, tex.height};
 				for (int k = 0; k < 4; ++k) {
 					const auto& dst = scarlet_v77.s2[s4.s2_id].values[k];

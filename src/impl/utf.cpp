@@ -123,7 +123,7 @@ static std::string read_string(const uint32_t block_offset, std::istream& iss) {
 	return value;
 }
 
-static UTF::field::data_t read_data2(const uint32_t block_offset, std::istream& iss) {
+static UTF::field::data_t read_data(const uint32_t block_offset, std::istream& iss) {
 	uint32_t offset = read_value_swap_endian<uint32_t>(iss);
 	offset += block_offset;
 	uint32_t length = read_value_swap_endian<uint32_t>(iss);
@@ -181,7 +181,7 @@ UTF::field::value_t read_type(const chunk_header& header, UTF::field::type type_
 	case UTF::field::type::STRING:
 		return (read_string(header.string_offset, is));
 	case UTF::field::type::DATA_ARRAY:
-		return (read_data2(header.data_offset, is));
+		return (read_data(header.data_offset, is));
 	default:
 		return (std::monostate{});
 	}
@@ -194,6 +194,16 @@ static bool is_ciphered_utf(std::istream& is) {
 	is.read(magic, sizeof(magic));
 	is.seekg(-sizeof(magic), std::ios::cur);
 	return 0 == ::strncmp(magic, ciphered_utf, sizeof(magic));
+}
+
+static bool decipher(std::vector<char>& bytes) {
+	if (::strncmp(bytes.data(), ciphered_utf, sizeof(ciphered_utf)) == 0) {
+		for (uint32_t i = 0, j = 0x655F; i < bytes.size(); i++, j *= 0x4115) {
+			bytes[i] ^= (j & 0xFF);
+		}
+		return true;
+	}
+	return false;
 }
 
 UTF::UTF() {}
@@ -222,11 +232,7 @@ UTF::UTF(std::vector<char> bytes) {
 		return;
 	}
 
-	if (::strncmp(bytes.data(), ciphered_utf, sizeof(ciphered_utf)) == 0) {
-		for (uint32_t i = 0, j = 0x655F; i < bytes.size(); i++, j *= 0x4115) {
-			bytes[i] ^= (j & 0xFF);
-		}
-	}
+	decipher(bytes);
 	constexpr const char _utf[] = {'@', 'U', 'T', 'F'};
 	if (::strncmp(bytes.data(), _utf, sizeof(_utf)) != 0) {
 		return;
