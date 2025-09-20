@@ -18,11 +18,6 @@ public:
 	State(State&&) noexcept = default;
 	~State() noexcept;
 
-	struct Job {
-		std::vector<std::string> mbs, ftx;					// mbs and ftx filenames. Most will have just one each
-		std::unordered_map<std::string, uint32_t> variants; // Flags for each variant of the character
-	};
-
 	struct Sprite {
 		MBS mbs;
 		std::vector<FTX::Entry> textures;
@@ -30,7 +25,6 @@ public:
 		uint32_t flags;
 	};
 
-	Sprite FetchSprite(const std::string& classname, const std::string& charaname);
+	Sprite FetchCharacterSprite(const std::string& classname, const std::string& charaname);
+	Sprite FetchBackgroundSprite(const std::string& name);
 };
-
-extern const std::unordered_map<std::string, State::Job> Characters;
