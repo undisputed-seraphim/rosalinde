@@ -265,7 +265,7 @@ void tegra_x1_deswizzle(
 	const uint32_t len_blk = len_pix >> 6;
 	const uint32_t w = (width >> 2);
 	const uint32_t h = (height >> 2);
-	printf("len_pix %u, len_blk %u, w%u, h %u\n", len_pix, len_blk, w, h);
+	//printf("len_pix %u, len_blk %u, w%u, h %u\n", len_pix, len_blk, w, h);
 	for (const auto [b0, b1, b2] : bits) {
 		if (len_blk <= b0) {
 			uint32_t pos = 0;
