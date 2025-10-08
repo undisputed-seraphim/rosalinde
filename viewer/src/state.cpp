@@ -32,10 +32,10 @@ static GLuint make_texture_array(std::vector<FTX::Entry> textures) {
 	return id;
 }
 
-State::State(const std::string& path)
-	: _cpk(path) {
-	//glGenFramebuffers(1, &_tgt_fb);
-	//glBindFramebuffer(GL_FRAMEBUFFER, _tgt_fb);
+State::State(std::filesystem::path path)
+	: _cpkt(TopLevelCpk(path).getTableOfContents()) {
+	// glGenFramebuffers(1, &_tgt_fb);
+	// glBindFramebuffer(GL_FRAMEBUFFER, _tgt_fb);
 }
 
 State::~State() noexcept { /*glDeleteFramebuffers(1, &_tgt_fb);*/ }
@@ -46,24 +46,24 @@ State::Sprite State::FetchCharacterSprite(const std::string& classname, const st
 		throw std::runtime_error("Entry for character class " + classname + " was not found.");
 	}
 
-	if (auto entry = _cpk.by_name(iter->second.mbs[0]); entry == _cpk.end()) {
+	const auto& job = iter->second;
+	std::cout << job.mbs.dir << '\t' << job.mbs.path << '\n';
+	if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
 		throw std::runtime_error("MBS for character class " + classname + " was not found.");
 	} else {
-		_cpk.extract(*entry, _buffer);
+		_cpkt.extract(*entry, _buffer);
 	}
 
-	Sprite sprite { MBS::From(_buffer) };
+	Sprite sprite{MBS::From(_buffer)};
 	sprite.flags = iter->second.variants.at(charaname);
-	for (const auto& ftx : iter->second.ftx) {
-		auto entry = _cpk.by_name(ftx);
-		if (entry == _cpk.end()) {
-			continue;
-		}
-		_cpk.extract(*entry, _buffer);
+	if (auto entry = _cpkt.find_file(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
+		throw std::runtime_error("FTX for character class " + classname + " was not found.");
+	} else {
+		_cpkt.extract(*entry, _buffer);
 		auto txt = FTX::parse(_buffer);
 		std::move(txt.begin(), txt.end(), std::back_inserter(sprite.textures));
+		sprite.glTexHandle = make_texture_array(sprite.textures);
 	}
-	sprite.glTexHandle = make_texture_array(sprite.textures);
 	return sprite;
 }
 
@@ -73,22 +73,21 @@ State::Sprite State::FetchBackgroundSprite(const std::string& name) {
 		throw std::runtime_error("Entry for background" + name + " was not found.");
 	}
 
-	if (auto entry = _cpk.by_name(iter->second.mbs[0]); entry == _cpk.end()) {
+	const auto& job = iter->second;
+	if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
 		throw std::runtime_error("MBS for background" + name + " was not found.");
 	} else {
-		_cpk.extract(*entry, _buffer);
+		_cpkt.extract(*entry, _buffer);
 	}
 
-	Sprite sprite { MBS::From(_buffer) };
-	for (const auto& ftx : iter->second.ftx) {
-		auto entry = _cpk.by_name(ftx);
-		if (entry == _cpk.end()) {
-			continue;
-		}
-		_cpk.extract(*entry, _buffer);
+	Sprite sprite{MBS::From(_buffer)};
+	if (auto entry = _cpkt.find_file(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
+		throw std::runtime_error("FTX for background " + name + " was not found.");
+	} else {
+		_cpkt.extract(*entry, _buffer);
 		auto txt = FTX::parse(_buffer);
 		std::move(txt.begin(), txt.end(), std::back_inserter(sprite.textures));
+		sprite.glTexHandle = make_texture_array(sprite.textures);
 	}
-	sprite.glTexHandle = make_texture_array(sprite.textures);
 	return sprite;
 }

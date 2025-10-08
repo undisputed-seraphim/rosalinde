@@ -68,51 +68,23 @@ bool extract(const Entry& e, std::istream& is, std::vector<char>& buffer) {
 	return bool(is.seekg(e.offset, std::ios::beg).read(buffer.data(), e.size));
 }
 
-void generate_table() {
-	static const std::vector<std::string> tables = {
-		"CueId",
-		"ReferenceIndex",
-		"AisacControlMap",
-		"Length",
-		"NumAisacControlMaps",
-		"NumRelatedWaveforms",
-		"CueName",
-		"CueIndex",
-		"NumTracks",
-		"TrackIndex",
-		"CommandIndex",
-		"LocalAisacs",
-		"GlobalAisacStartIndex",
-		"GlobalAisacNumRefs",
-		"ParameterPallet",
-		"ActionTrackStartIndex",
-		"NumActionTracks",
-		"Type",
-		"ControlWorkArea1"};
-}
-
 void parse(const UTF& utf_table) {
-	for (const auto& entry : utf_table) {
-		if (!entry.name.ends_with("Table")) {
+	for (const auto& [name, field] : utf_table) {
+		if (!name.ends_with("Table")) {
 			continue;
 		}
-		if (entry.type_ != UTF::field::type::DATA_ARRAY) {
+		if (field.type_ != UTF::field::type::DATA) {
 			continue;
 		}
-		auto data = entry.cast_at<std::vector<char>>(0).value_or(std::vector<char>{});
+		auto data = field.cast_at<std::vector<char>>(0).value_or(std::vector<char>{});
+		/*
 		const UTF subtable(data);
 		if (!subtable.empty()) {
-			std::cout << "-----> Reading sub table " << entry.name << " with " << entry.values.size() << " entries:\n";
-			UTF::dump(subtable);
-			std::cout << std::endl;
+			std::cout << "-----> Reading sub table " << name << " with " << field.values.size() << " entries:\n";
+			std::cout << subtable << std::endl;
 		}
+		*/
 	}
-}
-
-AFS2::AFS2(std::istream&& acb, std::istream&& awb)
-	: _awb_entries(parse(std::move(awb))) {
-	const auto table = UTF(acb);
-	parse(table);
 }
 
 } // namespace AFS2

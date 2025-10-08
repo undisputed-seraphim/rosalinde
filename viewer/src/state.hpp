@@ -1,19 +1,19 @@
 #pragma once
 
 #include <eltolinde.hpp>
+#include <filesystem>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "shader.hpp"
 
 class State {
-	CPK _cpk;
+	CPKTable _cpkt;
 	uint32_t _tgt_fb;
 	std::vector<char> _buffer;
 
 public:
-	State(const std::string& path);
+	State(std::filesystem::path);
 	State(const State&) = delete;
 	State(State&&) noexcept = default;
 	~State() noexcept;

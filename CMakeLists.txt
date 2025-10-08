@@ -13,11 +13,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(Boost_USE_STATIC_LIBS ON)
 find_package(glm CONFIG 1.0.0 REQUIRED)
 find_package(ZLIB 1.3.1 REQUIRED)
-find_package(Boost CONFIG 1.81 REQUIRED COMPONENTS system program_options)
+find_package(Boost CONFIG 1.88 REQUIRED COMPONENTS system program_options iostreams)
 find_package(SDL3 3.2 REQUIRED)
 find_package(EnTT 3.14 REQUIRED)
 find_package(OpenGL REQUIRED)
 
+message(STATUS "Boost version ${Boost_VERSION}")
 message(STATUS "glm version ${glm_VERSION}")
 message(STATUS "SDL version ${SDL3_VERSION}")
 message(STATUS "EnTT version ${EnTT_VERSION}")
@@ -26,7 +27,7 @@ add_subdirectory(thirdparty)
 
 file(GLOB_RECURSE lib_src "src/*.*")
 add_library(eltolinde STATIC ${lib_src})
-target_link_libraries(eltolinde PUBLIC Boost::boost Boost::program_options glm::glm ZLIB::ZLIB detex)
+target_link_libraries(eltolinde PUBLIC Boost::boost Boost::iostreams glm::glm ZLIB::ZLIB detex)
 target_compile_definitions(eltolinde PUBLIC
     "GLM_FORCE_AVX2=1"
     "GLM_FORCE_SWIZZLE=1"

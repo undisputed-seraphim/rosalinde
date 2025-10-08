@@ -124,7 +124,7 @@ int main(int argc, char* argv[]) try {
 	if (classname.empty()) { classname = "HighPriestess"; }
 	if (charaname.empty()) { charaname = "Scarlett"; }
 
-	State state(cpkpath.string());
+	State state(cpkpath);
 	const auto sprite = state.FetchCharacterSprite(classname, charaname);
 	const auto bg = state.FetchBackgroundSprite("BGBtVillage_a");
 	if (list) {
