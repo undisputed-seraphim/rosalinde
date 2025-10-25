@@ -105,6 +105,8 @@ public:
 
 	static bool decipher(std::vector<char>&);
 
+	static UTF data_as_subtable(std::istream& is, const UTF::field::data_t& data);
+
 protected:
 	storage_type _fields;
 };

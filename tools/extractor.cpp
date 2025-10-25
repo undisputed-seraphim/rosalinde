@@ -48,6 +48,7 @@ int main(int argc, char* argv[]) try {
 	}
 
 	fs::path file_path(path_str);
+	file_path = fs::absolute(file_path);
 	if (!fs::exists(file_path) || !fs::is_regular_file(file_path)) {
 		std::cout << "File at " << file_path << " does not exist." << std::endl;
 		return 1;
@@ -60,6 +61,7 @@ int main(int argc, char* argv[]) try {
 		}
 		return 0;
 	}
+	std::cout << cpktable << std::endl;
 
 	const auto [dir, name] = decompose_path(extract_file);
 	std::cout << dir << ' ' << name << '\n';
@@ -71,20 +73,15 @@ int main(int argc, char* argv[]) try {
 		if (extract_file.ends_with(".acb")) {
 			UTF utf;
 			iss >> utf;
-			// std::cout << utf << std::endl;
+			std::cout << '\n' << utf << std::endl;
 
-			std::cout << std::endl;
 			if (auto acf = utf.find_col("CueNameTable"); acf != utf.end()) {
+				std::cout << "Has CueNameTable!\n";
 				if (auto data = acf->second.cast_at<UTF::field::data_t>(0)) {
-					const auto [offset, size] = data.value();
-					std::vector<char> buffer2(size, '\0');
-					iss.seekg(offset, std::ios::beg).read(buffer2.data(), size);
-					UTF utf2;
-					std::ispanstream(buffer2, std::ios::binary) >> utf2;
+					auto utf2 = UTF::data_as_subtable(iss, data.value());
 					std::cout << utf2;
 				}
 			}
-
 		} else if (extract_file.ends_with(".ftx")) {
 			const auto textures = FTX::parse(iss);
 			for (const auto& entry : textures) {
@@ -112,5 +109,8 @@ int main(int argc, char* argv[]) try {
 	return 0;
 } catch (const std::exception& e) {
 	std::cerr << e.what() << std::endl;
+	return 1;
+} catch (...) {
+	std::cerr << "Unknown exception caught." << std::endl;
 	return 1;
 }
