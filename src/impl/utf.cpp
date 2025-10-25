@@ -189,6 +189,16 @@ bool UTF::decipher(std::vector<char>& bytes) {
 	return false;
 }
 
+UTF UTF::data_as_subtable(std::istream& is, const UTF::field::data_t& data) {
+	is.seekg(data.offset, std::ios::beg);
+	UTF utf;
+	is >> utf;
+	if (const auto size = static_cast<uint64_t>(is.tellg()) - data.offset; size != data.size) {
+		std::cout << "Warning: subtable size mismatch: expected " << data.size << ", got " << size << '\n';
+	}	
+	return utf;
+}
+
 UTF::UTF() {}
 
 UTF::const_iterator UTF::begin() const { return _fields.begin(); }
@@ -251,12 +261,17 @@ std::istream& UTF::operator>>(std::istream& is) {
 
 struct visitor {
 	std::ostream& os;
-	void operator()(const auto& v) { os << v; }
-	void operator()(const UTF::field::data_t& v) { os << "(data of length " << v.size << ")"; }
-	void operator()(const std::monostate& v) { os << "(invalid variant!)"; }
+	template <std::floating_point F>
+	void operator()(const F& v) const { os << std::fixed << static_cast<float>(v); }
+	void operator()(const int8_t& v) const { os << static_cast<int>(v); }
+	void operator()(const uint8_t& v) const { os << static_cast<unsigned>(v); }
+	void operator()(const UTF::field::data_t& v) const { os << "(data of length " << v.size << ")"; }
+	void operator()(const std::monostate& v) const { os << "(invalid variant!)"; }
+	void operator()(auto&& v) const { os << v; }
 };
 
 std::ostream& UTF::operator<<(std::ostream& os) const {
+	visitor v{os};
 	for (const auto& [name, field] : _fields) {
 		if (field.values.empty() || !field.valid) {
 			os << name << " is empty...\n";
@@ -265,7 +280,7 @@ std::ostream& UTF::operator<<(std::ostream& os) const {
 		os << name << " has " << field.values.size() << " value(s): ";
 		int i = 0;
 		for (const auto& value : field.values) {
-			std::visit(visitor{os}, value);
+			std::visit(v, value);
 			os << ' ';
 			if (++i > 10)
 				break;

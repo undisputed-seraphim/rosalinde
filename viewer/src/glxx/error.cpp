@@ -83,44 +83,29 @@ void message_callback(
 			  << std::string_view(message, length) << std::endl;
 }
 
+#include <map>
+static const std::map<std::int32_t, std::string> glErrorStr = {
+	{GL_INVALID_ENUM, "GL_INVALID_ENUM"},
+	{GL_INVALID_VALUE, "GL_INVALID_VALUE"},
+	{GL_INVALID_OPERATION, "GL_INVALID_OPERATION"},
+	{GL_STACK_OVERFLOW, "GL_STACK_OVERFLOW"},
+	{GL_STACK_UNDERFLOW, "GL_STACK_UNDERFLOW"},
+	{GL_OUT_OF_MEMORY, "GL_OUT_OF_MEMORY"},
+	{GL_INVALID_FRAMEBUFFER_OPERATION, "GL_INVALID_FRAMEBUFFER_OPERATION"},
+	{GL_CONTEXT_LOST, "GL_CONTEXT_LOST"},
+	{GL_TABLE_TOO_LARGE, "GL_TABLE_TOO_LARGE"},
+	{GL_NO_ERROR, "GL_NO_ERROR"},
+};
+
 void check_or_throw() {
-	std::string_view str;
 	const GLenum error = glGetError();
-	switch (error) {
-	case GL_INVALID_ENUM:
-		str = "INVALID_ENUM";
-		break;
-	case GL_INVALID_VALUE:
-		str = "INVALID_VALUE";
-		break;
-	case GL_INVALID_OPERATION:
-		str = "INVALID_OPERATION";
-		break;
-	case GL_STACK_OVERFLOW:
-		str = "STACK_OVERFLOW";
-		break;
-	case GL_STACK_UNDERFLOW:
-		str = "STACK_UNDERFLOW";
-		break;
-	case GL_OUT_OF_MEMORY:
-		str = "OUT_OF_MEMORY";
-		break;
-	case GL_INVALID_FRAMEBUFFER_OPERATION:
-		str = "INVALID_FRAMEBUFFER_OPERATION";
-		break;
-	case GL_CONTEXT_LOST:
-		str = "CONTEXT_LOST";
-		break;
-	case GL_TABLE_TOO_LARGE:
-		str = "TABLE_TOO_LARGE";
-		break;
-	case GL_NO_ERROR:
-	default:
-		str = "NO_ERROR";
-		break;
+	if (error == GL_NO_ERROR) {
+	    std::cout << "No error." << std::endl;
 	}
-	if (error != GL_NO_ERROR) {
-		throw std::runtime_error(std::string(str) + '\t' + std::to_string(std::stacktrace::current()));
+	auto iter = glErrorStr.find(error);
+	auto st = std::to_string(std::stacktrace::current());
+	if (iter == std::end(glErrorStr)) {
+		throw std::runtime_error("Unknown OpenGL error " + std::to_string(error) + '\t' + std::move(st));
 	}
-    std::cout << "No error." << std::endl;
+	throw std::runtime_error(iter->second + '\t' + std::move(st));
 }
