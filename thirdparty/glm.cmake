@@ -6,7 +6,7 @@ endif()
 include(FetchContent)
 
 FetchContent_Declare(glm
-    URL "${CMAKE_CURRENT_SOURCE_DIR}/glm-1.0.1-light.tar.xz"
-    URL_HASH MD5=00324ba06260860c834e80f5e429f8b2
+    URL "${CMAKE_CURRENT_SOURCE_DIR}/glm-1.0.2.tar.xz"
+    URL_HASH MD5=a26d7649311af93caf17d1aee615ace5
 )
 FetchContent_MakeAvailable(glm)
