@@ -1,6 +1,6 @@
 #include "sections.hpp"
-#include "../../utils.hpp"
 #include <array>
+#include <criware/utils.hpp>
 #include <format>
 #include <fstream>
 #include <ostream>
@@ -86,7 +86,7 @@ std::istream& operator>>(std::istream& is, v77& v) {
 
 std::ostream& operator<<(std::ostream& os, const v77& v) {
 	// TODO
-	//print_to_file(v);
+	// print_to_file(v);
 	return os;
 }
 
@@ -128,7 +128,8 @@ void print_to_stream(const v77& v) {
 		"{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
 	constexpr auto fmts8flag = "{},{},{},{},{},{},{},{}";
 	for (const auto& s : v.s8) {
-		const auto flagstr = std::format(fmts8flag,
+		const auto flagstr = std::format(
+			fmts8flag,
 			(s.flags & 0x01 ? 1 : 0),
 			(s.flags & 0x02 ? 1 : 0),
 			(s.flags & 0x04 ? 1 : 0),
@@ -136,8 +137,7 @@ void print_to_stream(const v77& v) {
 			(s.flags & 0x80 ? 1 : 0),
 			(s.flags & 0x400 ? 1 : 0),
 			(s.flags & 0x800 ? 1 : 0),
-			(s.flags & 0x2000 ? 1 : 0)
-		);
+			(s.flags & 0x2000 ? 1 : 0));
 		ofs << std::format(
 			fmts8,
 			s.s6_id,
@@ -184,6 +184,5 @@ void print_to_stream(const v77& v) {
 		ofs << std::format(fmtsb, s._unk0, s._unk1, s._unk2, s._unk3, s._unk4, s._unk5, s._pad);
 	}
 }
-
 
 } // namespace mbs

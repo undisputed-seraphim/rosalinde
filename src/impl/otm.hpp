@@ -10,5 +10,5 @@
 
 class OTM {
 public:
-    OTM(std::istream&);
+	OTM(std::istream&);
 };

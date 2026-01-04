@@ -1,5 +1,5 @@
-#include "utf.hpp"
-#include "utils.hpp"
+#include <criware/utf.hpp>
+#include <criware/utils.hpp>
 
 #include <iostream>
 #include <spanstream>
@@ -195,7 +195,7 @@ UTF UTF::data_as_subtable(std::istream& is, const UTF::field::data_t& data) {
 	is >> utf;
 	if (const auto size = static_cast<uint64_t>(is.tellg()) - data.offset; size != data.size) {
 		std::cout << "Warning: subtable size mismatch: expected " << data.size << ", got " << size << '\n';
-	}	
+	}
 	return utf;
 }
 
@@ -262,7 +262,9 @@ std::istream& UTF::operator>>(std::istream& is) {
 struct visitor {
 	std::ostream& os;
 	template <std::floating_point F>
-	void operator()(const F& v) const { os << std::fixed << static_cast<float>(v); }
+	void operator()(const F& v) const {
+		os << std::fixed << static_cast<float>(v);
+	}
 	void operator()(const int8_t& v) const { os << static_cast<int>(v); }
 	void operator()(const uint8_t& v) const { os << static_cast<unsigned>(v); }
 	void operator()(const UTF::field::data_t& v) const { os << "(data of length " << v.size << ")"; }

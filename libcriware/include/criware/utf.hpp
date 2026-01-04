@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <iosfwd>
 #include <map>
 #include <optional>

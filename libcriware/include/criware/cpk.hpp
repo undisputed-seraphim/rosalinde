@@ -1,11 +1,12 @@
 #pragma once
 
+#include <array>
 #include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include "utf.hpp"
+#include <criware/utf.hpp>
 
 struct CPKTraits {
 	static constexpr std::array<std::string_view, 6> Fields =

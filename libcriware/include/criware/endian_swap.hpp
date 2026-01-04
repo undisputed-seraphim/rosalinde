@@ -7,22 +7,17 @@ namespace swap_endian_detail {
 
 template <typename T, unsigned int B>
 struct swap_endian_impl {
-	inline T operator () (T t) {
-		throw std::out_of_range("Unsupported endian swapping size.");
-	}
+	inline T operator()(T t) { throw std::out_of_range("Unsupported endian swapping size."); }
 };
 
 template <typename T>
 struct swap_endian_impl<T, 1> {
-	inline T operator () (T t) {
-		return t;
-	}
+	inline T operator()(T t) { return t; }
 };
-
 
 template <typename T>
 struct swap_endian_impl<T, 2> {
-	inline T operator () (T t) {
+	inline T operator()(T t) {
 		uint16_t u16 = *reinterpret_cast<uint16_t*>(&t);
 #ifdef _MSC_VER
 		u16 = _byteswap_ushort(u16);
@@ -33,10 +28,9 @@ struct swap_endian_impl<T, 2> {
 	}
 };
 
-
 template <typename T>
 struct swap_endian_impl<T, 4> {
-	inline T operator () (T t) {
+	inline T operator()(T t) {
 		uint32_t u32 = *reinterpret_cast<uint32_t*>(&t);
 #ifdef _MSC_VER
 		u32 = _byteswap_ulong(u32);
@@ -47,10 +41,9 @@ struct swap_endian_impl<T, 4> {
 	}
 };
 
-
 template <typename T>
 struct swap_endian_impl<T, 8> {
-	inline T operator () (T t) {
+	inline T operator()(T t) {
 		uint64_t u64 = *reinterpret_cast<uint64_t*>(&t);
 #ifdef _MSC_VER
 		u64 = _byteswap_uint64(u64);

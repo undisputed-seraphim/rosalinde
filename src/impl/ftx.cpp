@@ -1,5 +1,5 @@
 #include "ftx.hpp"
-#include "utils.hpp"
+#include <criware/utils.hpp>
 
 #include <detex.h>
 
@@ -49,6 +49,11 @@ struct tex_header {
 #pragma pack(pop)
 
 namespace FTX {
+
+template <unsigned int Num>
+std::istream& discard_bytes(std::istream& i) {
+	return i.seekg(Num, std::ios::cur);
+}
 
 std::vector<Entry> parse(std::istream& is) { return parse(std::move(is)); }
 std::vector<Entry> parse(std::istream&& is) {
@@ -265,7 +270,7 @@ void tegra_x1_deswizzle(
 	const uint32_t len_blk = len_pix >> 6;
 	const uint32_t w = (width >> 2);
 	const uint32_t h = (height >> 2);
-	//printf("len_pix %u, len_blk %u, w%u, h %u\n", len_pix, len_blk, w, h);
+	// printf("len_pix %u, len_blk %u, w%u, h %u\n", len_pix, len_blk, w, h);
 	for (const auto [b0, b1, b2] : bits) {
 		if (len_blk <= b0) {
 			uint32_t pos = 0;
