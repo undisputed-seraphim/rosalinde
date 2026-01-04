@@ -1,6 +1,7 @@
 #pragma once
 
-#include "utf.hpp"
+#include <array>
+#include <criware/utf.hpp>
 
 struct ACBTraits {
 	static constexpr std::array<std::string_view, 3> Fields = {"CueTable", "WaveformTable", "SynthTable"};

@@ -1,6 +1,6 @@
 #include "afs2.hpp"
-#include "../utils.hpp"
-#include "utf.hpp"
+#include <criware/cpk.hpp>
+#include <criware/utils.hpp>
 
 #include <cstring>
 #include <iostream>

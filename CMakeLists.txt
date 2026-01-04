@@ -25,9 +25,11 @@ message(STATUS "EnTT version ${EnTT_VERSION}")
 
 add_subdirectory(thirdparty)
 
+add_subdirectory(libcriware)
+
 file(GLOB_RECURSE lib_src "src/*.*")
 add_library(eltolinde STATIC ${lib_src})
-target_link_libraries(eltolinde PUBLIC Boost::boost Boost::iostreams glm::glm ZLIB::ZLIB detex)
+target_link_libraries(eltolinde PUBLIC Boost::boost Boost::iostreams glm::glm ZLIB::ZLIB detex criware)
 target_compile_definitions(eltolinde PUBLIC
     "GLM_FORCE_AVX2=1"
     "GLM_FORCE_SWIZZLE=1"

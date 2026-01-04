@@ -1,13 +1,13 @@
-#include "cpk.hpp"
-#include "endian_swap.hpp"
-#include "streams.hpp"
-#include "utf.hpp"
-#include "utils.hpp"
+#include <criware/cpk.hpp>
+#include <criware/endian_swap.hpp>
+#include <criware/utf.hpp>
+#include <criware/utils.hpp>
 
 #include <algorithm>
 #include <array>
 #include <fstream>
 #include <span>
+#include <spanstream>
 #include <stdexcept>
 
 constexpr uint32_t CPK_magic = 0x204B5043; // "CPK " reversed endian

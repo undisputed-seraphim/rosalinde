@@ -1,6 +1,6 @@
 #include "mbs.hpp"
 #include "mbs/sections.hpp"
-#include "utils.hpp"
+#include <criware/utils.hpp>
 
 #include <iostream>
 #include <spanstream>
@@ -33,7 +33,8 @@ struct mbs_header {
 };
 #pragma pack(pop)
 
-MBS::MBS() : _filename(32, '\0') {}
+MBS::MBS()
+	: _filename(32, '\0') {}
 
 MBS::MBS(MBS&&) noexcept = default;
 
@@ -78,6 +79,4 @@ void MBS::parse(std::istream& is) {
 	throw std::exception("Unsupported FMBS version.");
 }
 
-const mbs::v77& MBS::get() const {
-	return data;
-}
+const mbs::v77& MBS::get() const { return data; }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <criware/cpk.hpp>
 #include <eltolinde.hpp>
 #include <filesystem>
 #include <string>

@@ -31,9 +31,7 @@ struct AFS2Traits {
 		"ActionTrackStartIndex",
 		"NumActionTracks",
 		"Type",
-		"ControlWorkArea1"
-	};
+		"ControlWorkArea1"};
 };
-
 
 } // namespace AFS2

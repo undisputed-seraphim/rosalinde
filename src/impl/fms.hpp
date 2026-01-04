@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utils.hpp"
+#include <criware/utils.hpp>
 #include <iostream>
 #include <string_view>
 #include <vector>
