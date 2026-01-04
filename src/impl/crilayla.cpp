@@ -105,27 +105,31 @@ unsigned int layla_compress(uint8_t* dest, uint32_t* const destLen, const uint8_
 
 void layla_decompress(const header& h, const std::span<const char>& in, std::span<char> out) {
 	uint32_t bit_pos = 0;
-	auto read_n = [&](char nbits) -> uint16_t {
+	auto read_n = [&](uint8_t nbits) -> uint16_t {
 		uint16_t ans = 0;
-		while (bit_pos / 8 < h.compressed_size && nbits--)
-			ans <<= 1, ans |= ((in[bit_pos / 8] >> (7 - bit_pos % 8 /* LE */)) & 1), bit_pos++;
+		while (bit_pos / 8 < h.compressed_size && nbits--) {
+			ans <<= 1;
+			ans |= ((in[bit_pos / 8] >> (7 - bit_pos % 8 /* LE */)) & 1);
+			bit_pos++;
+		}
 		return ans;
 	};
 
-	auto all_n_bits = [](auto value, char n) -> bool { return value == (1 << n) - 1; };
+	auto all_n_bits = [](uint16_t value, uint8_t n) -> bool { return value == (1 << n) - 1; };
 
 	const uint32_t data_size = h.decompress_size;
-	uint32_t data_written = 0;
-	while (data_written < data_size) {
+	for (uint32_t data_written = 0; data_written < data_size; ) {
 		if (read_n(1) == 0) {
 			uint8_t byte = read_n(8); // verbatim byte. into the back.
 			out[data_size - 1 - data_written] = byte;
 			data_written++;
 		} else {
 			auto offset = read_n(13) + 3; // backwards from the *back* of the output stream
+
 			uint32_t ref_count = 3;		  // previous bytes referenced. 3 minimum
 			constexpr uint8_t vle_n_bits[]{2, 3, 5, 8};
-			for (int i = 0, n_bits = vle_n_bits[0];; i++, i = std::min(i, 3), n_bits = vle_n_bits[i]) {
+			for (uint16_t i = 0;; i = std::min(++i, (uint16_t)3)) {
+				const uint8_t n_bits = vle_n_bits[i];
 				const uint16_t vle_length = read_n(n_bits);
 				ref_count += vle_length;
 				if (!all_n_bits(vle_length, n_bits)) {
@@ -133,7 +137,7 @@ void layla_decompress(const header& h, const std::span<const char>& in, std::spa
 				}
 			}
 			// fill in the referenced bytes from the *back* of the output buffer
-			offset = data_size - 1 - data_written + offset;
+			offset += data_size - 1 - data_written;
 			while (ref_count--) {
 				out[data_size - 1 - data_written] = out[offset--];
 				data_written++;
