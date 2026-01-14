@@ -3,8 +3,108 @@
 #include <array>
 #include <criware/utf.hpp>
 
+struct TopLevelAcbTraits {
+	static constexpr auto OtherFields = std::to_array<std::string_view>(
+		{"AcbGuid",
+		 "AcbVolume",
+		 "AcfMd5Hash",
+		 "AcfReferenceTable",
+		 "ActionTrackTable",
+		 "AisacControlNameTable",
+		 "AisacNameTable",
+		 "AisacTable",
+		 "AutoModulationTable",
+		 "AwbFile",
+		 "BeatSyncInfoTable",
+		 "BlockSequenceTable",
+		 "BlockTable",
+		 "CategoryExtension",
+		 "CharacterEncodingType",
+		 "CueLimitWorkTable",
+		 "CueNameTable",
+		 "CuePriorityType",
+		 "CueTable",
+		 "EventTable",
+		 "FileIdentifier",
+		 "GlobalAisacReferenceTable",
+		 "GraphTable",
+		 "InstrumentPluginParameterTable",
+		 "InstrumentPluginTrackTable",
+		 "LipsMorphTable",
+		 "MIDITrackTable",
+		 "Name",
+		 "NumCueLimit",
+		 "NumCueLimitListWorks",
+		 "NumCueLimitNodeWorks",
+		 "OutsideLinkTable",
+		 "PaddingArea",
+		 "ParameterAction",
+		 "ParameterActionCondition",
+		 "ProjectKey",
+		 "R0",
+		 "R1",
+		 "R10",
+		 "R11",
+		 "R12",
+		 "R13",
+		 "R14",
+		 "R15",
+		 "R16",
+		 "R17",
+		 "R18",
+		 "R19",
+		 "R2",
+		 "R20",
+		 "R21",
+		 "R22",
+		 "R23",
+		 "R24",
+		 "R25",
+		 "R26",
+		 "R27",
+		 "R28",
+		 "R29",
+		 "R3",
+		 "R30",
+		 "R31",
+		 "R4",
+		 "R5",
+		 "R6",
+		 "R7",
+		 "R8",
+		 "R9",
+		 "SeqCommandTable",
+		 "SeqParameterPalletTable",
+		 "SequenceTable",
+		 "Size",
+		 "SoundGeneratorTable",
+		 "SoundInstruments",
+		 "SoundProgramBankCommandTable",
+		 "SoundProgramBankKey",
+		 "StopAction",
+		 "StreamAwbAfs2Header",
+		 "StreamAwbHash",
+		 "StreamAwbTocWork",
+		 "StreamAwbTocWorkOld",
+		 "StreamAwbTocWork_Old",
+		 "StringValueTable",
+		 "SynthCommandTable",
+		 "SynthParameterPalletTable",
+		 "SynthTable",
+		 "Target",
+		 "TrackCommandTable",
+		 "TrackEventTable",
+		 "TrackParameterPalletTable",
+		 "TrackTable",
+		 "Type",
+		 "Version",
+		 "VersionString",
+		 "WaveformExtensionDataTable",
+		 "WaveformTable"});
+};
+
 struct ACBTraits {
-	static constexpr std::array<std::string_view, 3> Fields = {"CueTable", "WaveformTable", "SynthTable"};
+	static constexpr auto Fields = std::to_array<std::string_view>({"CueTable", "WaveformTable", "SynthTable"});
 	using Entry = std::tuple<uint64_t, uint64_t, uint64_t>;
 };
 
@@ -15,104 +115,52 @@ public:
 
 	using Base::operator<<;
 	using Base::operator>>;
+	using Base::entry_tuple;
+	using Base::Fields;
+	using Base::NumFields;
+
+private:
+	struct CueRecord {
+		uint32_t cue_id;
+		uint8_t reference_type;
+		uint8_t reference_index;
+
+		uint16_t waveform_index;
+		uint16_t waveform_id;
+		uint8_t encode_type;
+
+		static constexpr int cue_name_max_length = 256;
+		char cue_name[cue_name_max_length];
+	};
+
+	void initializeCueList();
 };
 
-struct TopLevelAcbTraits {
-	static constexpr std::array<std::string_view, 96> OtherFields = {
-		"AcbGuid",
-		"AcbVolume",
-		"AcfMd5Hash",
-		"AcfReferenceTable",
-		"ActionTrackTable",
-		"AisacControlNameTable",
-		"AisacNameTable",
-		"AisacTable",
-		"AutoModulationTable",
-		"AwbFile",
-		"BeatSyncInfoTable",
-		"BlockSequenceTable",
-		"BlockTable",
-		"CategoryExtension",
-		"CharacterEncodingType",
-		"CueLimitWorkTable",
-		"CueNameTable",
-		"CuePriorityType",
-		"CueTable",
-		"EventTable",
-		"FileIdentifier",
-		"GlobalAisacReferenceTable",
-		"GraphTable",
-		"InstrumentPluginParameterTable",
-		"InstrumentPluginTrackTable",
-		"LipsMorphTable",
-		"MIDITrackTable",
-		"Name",
-		"NumCueLimit",
-		"NumCueLimitListWorks",
-		"NumCueLimitNodeWorks",
-		"OutsideLinkTable",
-		"PaddingArea",
-		"ParameterAction",
-		"ParameterActionCondition",
-		"ProjectKey",
-		"R0",
-		"R1",
-		"R10",
-		"R11",
-		"R12",
-		"R13",
-		"R14",
-		"R15",
-		"R16",
-		"R17",
-		"R18",
-		"R19",
-		"R2",
-		"R20",
-		"R21",
-		"R22",
-		"R23",
-		"R24",
-		"R25",
-		"R26",
-		"R27",
-		"R28",
-		"R29",
-		"R3",
-		"R30",
-		"R31",
-		"R4",
-		"R5",
-		"R6",
-		"R7",
-		"R8",
-		"R9",
-		"SeqCommandTable",
-		"SeqParameterPalletTable",
-		"SequenceTable",
-		"Size",
-		"SoundGeneratorTable",
-		"SoundInstruments",
-		"SoundProgramBankCommandTable",
-		"SoundProgramBankKey",
-		"StopAction",
-		"StreamAwbAfs2Header",
-		"StreamAwbHash",
-		"StreamAwbTocWork",
-		"StreamAwbTocWorkOld",
-		"StreamAwbTocWork_Old",
-		"StringValueTable",
-		"SynthCommandTable",
-		"SynthParameterPalletTable",
-		"SynthTable",
-		"Target",
-		"TrackCommandTable",
-		"TrackEventTable",
-		"TrackParameterPalletTable",
-		"TrackTable",
-		"Type",
-		"Version",
-		"VersionString",
-		"WaveformExtensionDataTable",
-		"WaveformTable"};
+struct CueNameTableTraits {
+	static constexpr auto Fields = std::to_array<std::string_view>({"CueIndex", "CueName"});
+	using Entry = std::tuple<unsigned, std::string>;
+};
+
+struct CueTableTraits {
+	static constexpr auto Fields = std::to_array<std::string_view>(
+		{"AisacControlMap", "CueId", "Length", "NumAisacControlMaps", "NumRelatedWaveforms", "ReferenceIndex"});
+	using Entry = std::tuple<std::string, uint8_t, uint32_t, uint8_t, uint8_t, uint8_t>;
+};
+
+struct SynthTableTraits {
+	static constexpr auto Fields =
+		std::to_array<std::string_view>({"CommandIndex", "ControlWorkArea1", "ControlWorkArea2", "ReferenceItems"});
+	using Entry = std::tuple<uint16_t, uint8_t, uint8_t, std::string>;
+};
+
+struct TrackTableTraits {
+	static constexpr auto Fields =
+		std::to_array<std::string_view>({"CommandIndex", "EventIndex", "GlobalAisacNumRefs", "GlobalAisacStartIndex"});
+	using Entry = std::tuple<uint16_t, uint8_t, uint16_t, uint16_t>;
+};
+
+struct WaveformTableTraits {
+	static constexpr auto Fields = std::to_array<std::string_view>(
+		{"EncodeType", "ExtensionData", "LoopFlag", "MemoryAwbId", "NumSamples", "StreamAwbId", "Streaming"});
+	using Entry = std::tuple<uint16_t, uint16_t, uint8_t, uint16_t, uint32_t, uint8_t, uint8_t>;
 };
