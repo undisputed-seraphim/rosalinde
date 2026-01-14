@@ -83,6 +83,34 @@ int main(int argc, char* argv[]) try {
 					std::cout << utf2;
 				}
 			}
+			if (auto acf = utf.find_col("CueTable"); acf != utf.end()) {
+				std::cout << "Has CueTable!\n";
+				if (auto data = acf->second.cast_at<UTF::field::data_t>(0)) {
+					auto utf2 = UTF::data_as_subtable(iss, data.value());
+					std::cout << utf2;
+				}
+			}
+			if (auto acf = utf.find_col("SynthTable"); acf != utf.end()) {
+				std::cout << "Has SynthTable!\n";
+				if (auto data = acf->second.cast_at<UTF::field::data_t>(0)) {
+					auto utf2 = UTF::data_as_subtable(iss, data.value());
+					std::cout << utf2;
+				}
+			}
+			if (auto acf = utf.find_col("TrackTable"); acf != utf.end()) {
+				std::cout << "Has TrackTable!\n";
+				if (auto data = acf->second.cast_at<UTF::field::data_t>(0)) {
+					auto utf2 = UTF::data_as_subtable(iss, data.value());
+					std::cout << utf2;
+				}
+			}
+			if (auto acf = utf.find_col("WaveformTable"); acf != utf.end()) {
+				std::cout << "Has WaveformTable!\n";
+				if (auto data = acf->second.cast_at<UTF::field::data_t>(0)) {
+					auto utf2 = UTF::data_as_subtable(iss, data.value());
+					std::cout << utf2;
+				}
+			}
 		} else if (extract_file.ends_with(".ftx")) {
 			const auto textures = FTX::parse(iss);
 			for (const auto& entry : textures) {
