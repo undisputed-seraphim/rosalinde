@@ -1,7 +1,7 @@
 #pragma once
 
-#include <functional>
 #include <SDL3/SDL.h>
+#include <functional>
 #include <memory>
 
 namespace uvw {
@@ -20,7 +20,7 @@ public:
 	bool swapbuffer() const noexcept;
 
 private:
-	std::unique_ptr<char, void(*)(char*)> _sdl;
+	std::unique_ptr<char, void (*)(char*)> _sdl;
 	std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> _window;
 	std::unique_ptr<SDL_GLContextState, decltype(&SDL_GL_DestroyContext)> _gl;
 	long long _tick;

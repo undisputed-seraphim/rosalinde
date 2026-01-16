@@ -156,6 +156,24 @@ struct v77 {
 
 	friend std::istream& operator>>(std::istream&, v77&);
 	friend std::ostream& operator<<(std::ostream&, const v77&);
+
+	enum s4flag : uint8_t {
+		SKIP = 0x02,
+		NOTEX = 0x04,
+	};
+
+	enum s8flag : uint32_t {
+		// clang-format off
+		FLIPX = 0x01,   // 0b ----'----'----'---1
+		FLIPY = 0x02,   // 0b ----'----'----'--1-
+		JUMP = 0x04,    // 0b ----'----'----'-1-- // Something to do with the loops?
+		//? = 0x20,     // 0b ----'----'--1-'---- // Most s8 seem to have this, but doesn't seem to mean anything
+		//? = 0x80,     // 0b ----'----'1---'---- // doesn't mean anything
+		HITBOX = 0x400, // 0b ----'-1--'----'----
+		LAST = 0x800,	// 0b ----'1---'----'---- // Means ignore this frame apparently
+		//? = 0x2000,   // 0b --1-'----'----'---- // Ignore next?
+		// clang-format on
+	};
 };
 
 } // namespace mbs

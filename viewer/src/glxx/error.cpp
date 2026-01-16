@@ -100,7 +100,7 @@ static const std::map<std::int32_t, std::string> glErrorStr = {
 void check_or_throw() {
 	const GLenum error = glGetError();
 	if (error == GL_NO_ERROR) {
-	    std::cout << "No error." << std::endl;
+		std::cout << "No error." << std::endl;
 	}
 	auto iter = glErrorStr.find(error);
 	auto st = std::to_string(std::stacktrace::current());

@@ -59,7 +59,7 @@ public:
 		}
 		_w = width;
 		_h = height;
-		const auto *const ptr = data.empty() ? NULL : data.data();
+		const auto* const ptr = data.empty() ? NULL : data.data();
 		glTexImage2D(TextureType, 0, Format, _w, _h, 0, Format, ValueType, ptr);
 		return *this;
 	}
