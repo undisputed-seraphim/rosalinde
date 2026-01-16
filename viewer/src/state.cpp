@@ -40,7 +40,7 @@ State::State(std::filesystem::path path)
 
 State::~State() noexcept { /*glDeleteFramebuffers(1, &_tgt_fb);*/ }
 
-State::Sprite State::FetchCharacterSprite(const std::string& classname, const std::string& charaname) {
+void State::loadSprite(const std::string& classname, const std::string& charaname, uint32_t trackid) {
 	const auto iter = Characters.find(classname);
 	if (iter == Characters.end()) {
 		throw std::runtime_error("Entry for character class " + classname + " was not found.");
@@ -54,40 +54,23 @@ State::Sprite State::FetchCharacterSprite(const std::string& classname, const st
 		_cpkt.extract(*entry, _buffer);
 	}
 
-	Sprite sprite{MBS::From(_buffer)};
-	sprite.flags = iter->second.variants.at(charaname);
+	auto mbs = MBS::From(_buffer);
+	auto ftx = std::vector<FTX::Entry>();
+	auto flags = iter->second.variants.at(charaname);
 	if (auto entry = _cpkt.find_file(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
 		throw std::runtime_error("FTX for character class " + classname + " was not found.");
 	} else {
 		_cpkt.extract(*entry, _buffer);
 		auto txt = FTX::parse(_buffer);
-		std::move(txt.begin(), txt.end(), std::back_inserter(sprite.textures));
-		sprite.glTexHandle = make_texture_array(sprite.textures);
+		std::move(txt.begin(), txt.end(), std::back_inserter(ftx));
 	}
-	return sprite;
+	_sprites.emplace_back(Sprite(std::move(mbs), std::move(ftx), flags, trackid));
 }
 
-State::Sprite State::FetchBackgroundSprite(const std::string& name) {
-	const auto iter = BattleBGs.find(name);
-	if (iter == BattleBGs.end()) {
-		throw std::runtime_error("Entry for background" + name + " was not found.");
-	}
+void State::handleEvent(const SDL_Event& event) {}
 
-	const auto& job = iter->second;
-	if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
-		throw std::runtime_error("MBS for background" + name + " was not found.");
-	} else {
-		_cpkt.extract(*entry, _buffer);
+void State::render(Camera& cam, const glm::mat4& projection) {
+	for (auto& sprite : _sprites) {
+		sprite.render(cam, projection);
 	}
-
-	Sprite sprite{MBS::From(_buffer)};
-	if (auto entry = _cpkt.find_file(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
-		throw std::runtime_error("FTX for background " + name + " was not found.");
-	} else {
-		_cpkt.extract(*entry, _buffer);
-		auto txt = FTX::parse(_buffer);
-		std::move(txt.begin(), txt.end(), std::back_inserter(sprite.textures));
-		sprite.glTexHandle = make_texture_array(sprite.textures);
-	}
-	return sprite;
 }

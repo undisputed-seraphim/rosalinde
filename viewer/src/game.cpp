@@ -13,15 +13,15 @@ bool Game::handle_inputs() {
 			done = true;
 		}
 		if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-			//cam.zoom(event.wheel.y);
+			// cam.zoom(event.wheel.y);
 		}
 		if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-			//cam.enter();
+			// cam.enter();
 		}
 		if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
-			//cam.exit();
+			// cam.exit();
 		}
-		//cam.move(event.motion.xrel, event.motion.yrel);
+		// cam.move(event.motion.xrel, event.motion.yrel);
 	}
 	return done;
 }

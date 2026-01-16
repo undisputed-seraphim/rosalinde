@@ -1,8 +1,8 @@
 #pragma once
 
 #include <glm/glm.hpp>
-#include <string_view>
 #include <span>
+#include <string_view>
 
 class Shader {
 public:
@@ -29,7 +29,7 @@ public:
 	void SetUniform(const char* name, float x, float y, float z, float w) const;
 	void SetUniform(const char* name, const glm::vec4& value) const;
 	void SetUniform(const char* name, const glm::mat4& matrix) const;
-	
+
 	void SetUniform(const char* name, std::span<const float> values) const;
 	void SetUniform(const char* name, std::span<const glm::vec2> values) const;
 	void SetUniform(const char* name, std::span<const glm::vec3> values) const;

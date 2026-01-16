@@ -1,7 +1,7 @@
 #include "tables.hpp"
 
 // clang-format off
-static const std::unordered_map<std::string, Job> Characters = {
+static const std::map<std::string, Job, std::less<>> Characters = {
 	{"Fighter", Job{{"Chara", "Fighter_M.mbs"}, {"Chara", "Fighter_M00.ftx"},                                { {"Lex", 0}, {"Colm", 0}, {"Generic", 0} }}},
 	{"Vanguard", Job{{"Chara", "Fighter_HG_M.mbs"}, {"Chara", "Fighter_HG_M00.ftx"},                         { {"Lex", 0}, {"Colm", 0}, {"Generic", 0} }}},
 	{"Soldier_F",  Job{{"Chara", "Soldier_F.mbs"}, {"Chara", "Soldier_F00.ftx"},                             { {"Chloe", 0}, {"Generic", 0} }}},
@@ -84,7 +84,7 @@ static const std::unordered_map<std::string, Job> Characters = {
 	{"DarkMarquess_Rod",   Job{{"Chara", "DarkMarquess_R_F.mbs"}, {"Chara", "DarkMarquess_R_F00.ftx"},       { {"Alcina", 0x1 + 0x10000}, {"Narcesse", 0x2} }}},
 };
 
-static const std::unordered_map<std::string, Job> BattleBGs = {
+static const std::map<std::string, Job, std::less<>> BattleBGs = {
 	{"BGBtAbandonedPort_B", Job{{"BattleBG", "BGBtAbandonedPort_B.mbs"}, {"BattleBG", "BGBtAbandonedPort_B.ftx"}, {}}},
 	{"BGBtAirRock_01", Job{{"BattleBG", "BGBtAirRock_01.mbs"}, {"BattleBG", "BGBtAirRock_01.ftx"}, {}}},
 	{"BGBtAirRock_B_01", Job{{"BattleBG", "BGBtAirRock_B_01.mbs"}, {"BattleBG", "BGBtAirRock_B_01.ftx"}, {}}},

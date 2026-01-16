@@ -4,9 +4,9 @@
 
 class Game final : public uvw::BaseGame {
 public:
-    bool handle_inputs() override;
+	bool handle_inputs() override;
 
-    void render() override;
+	void render() override;
 
-    void update(unsigned) override;
+	void update(unsigned) override;
 };

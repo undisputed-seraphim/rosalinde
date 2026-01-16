@@ -1,7 +1,7 @@
 #pragma once
 
-#include <glm/glm.hpp>
 #include <SDL3/SDL.h>
+#include <glm/glm.hpp>
 
 class Camera {
 	glm::vec3 _pos;

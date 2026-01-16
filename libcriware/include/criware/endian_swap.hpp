@@ -58,8 +58,7 @@ struct swap_endian_impl<T, 8> {
 
 // Call this function.
 template <typename T>
+requires std::is_fundamental_v<T>
 inline T swap_endian(T t) {
-	static_assert(CHAR_BIT == 8, "Byte is not 8 bits on this platform.");
-	static_assert(std::is_fundamental_v<T>, "Type is not a primitive.");
 	return swap_endian_detail::swap_endian_impl<T, sizeof(T)>()(t);
 }
