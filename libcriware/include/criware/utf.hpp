@@ -113,7 +113,7 @@ protected:
 template <typename C>
 concept UTFTableTraits = requires {
 	{ C::Fields } -> std::same_as<const std::array<std::string_view, std::size(C::Fields)>&>;
-	requires (C::Fields.size() >= 1);
+	requires(C::Fields.size() >= 1);
 
 	typename C::Entry;
 };
