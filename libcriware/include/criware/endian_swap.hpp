@@ -58,7 +58,7 @@ struct swap_endian_impl<T, 8> {
 
 // Call this function.
 template <typename T>
-requires std::is_fundamental_v<T>
+	requires std::is_fundamental_v<T>
 inline T swap_endian(T t) {
 	return swap_endian_detail::swap_endian_impl<T, sizeof(T)>()(t);
 }
