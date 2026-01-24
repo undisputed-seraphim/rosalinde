@@ -14,14 +14,16 @@ set(Boost_USE_STATIC_LIBS ON)
 find_package(glm CONFIG 1.0.0 REQUIRED)
 find_package(ZLIB 1.3.1 REQUIRED)
 find_package(Boost CONFIG 1.88 REQUIRED COMPONENTS system program_options iostreams)
-find_package(SDL3 3.2 REQUIRED)
+find_package(SDL3 3.4 REQUIRED)
 find_package(EnTT 3.14 REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(Catch2 3.12 REQUIRED)
 
 message(STATUS "Boost version ${Boost_VERSION}")
 message(STATUS "glm version ${glm_VERSION}")
 message(STATUS "SDL version ${SDL3_VERSION}")
 message(STATUS "EnTT version ${EnTT_VERSION}")
+message(STATUS "Catch version ${Catch2_VERSION}")
 
 add_subdirectory(thirdparty)
 

@@ -1,20 +1,31 @@
 #pragma once
 
-#include <ios>
+#include <istream>
 #include <streambuf>
 
-class substreambuf : public std::streambuf {
+template <typename CharT, typename Traits = std::char_traits<CharT>>
+class basic_substreambuf : public std::basic_streambuf<CharT, Traits> {
 public:
-	using base_type = std::streambuf;
-	using base_type::char_type;
-	using base_type::int_type;
-	using base_type::off_type;
-	using base_type::pos_type;
+	using char_type = CharT;
+	using traits_type = Traits;
+	using int_type = traits_type::int_type;
+	using pos_type = traits_type::pos_type;
+	using off_type = traits_type::off_type;
 
 protected:
+	using base_type = std::basic_streambuf<CharT>;
+
 	base_type* _underlying;
-	pos_type _start, _end, _current;
+	pos_type _start;
+	pos_type _end;
+	pos_type _current;
 	char_type _buffer;
+
+	using base_type::egptr;
+	using base_type::gbump;
+	using base_type::gptr;
+	using base_type::setg;
+	using base_type::setp;
 
 	int_type underflow() override {
 		if (!_underlying) {
@@ -55,7 +66,7 @@ protected:
 				std::streamsize avail = egptr() - gptr();
 				std::streamsize to_copy = std::min(avail, count);
 				std::copy(gptr(), gptr() + to_copy, s);
-				this->gbump(static_cast<int>(to_copy));
+				gbump(static_cast<int>(to_copy));
 				s += to_copy;
 				count -= to_copy;
 				total_read += to_copy;
@@ -135,7 +146,7 @@ protected:
 	int sync() override { return _underlying ? _underlying->pubsync() : -1; }
 
 public:
-	substreambuf(base_type* underlying, pos_type start, pos_type end) noexcept
+	basic_substreambuf(base_type* underlying, pos_type start, pos_type end) noexcept
 		: _underlying(underlying)
 		, _start(start)
 		, _end(end)
@@ -144,9 +155,12 @@ public:
 		this->setg(nullptr, nullptr, nullptr);
 	}
 
-	substreambuf(const substreambuf&) = delete;
+	basic_substreambuf()
+		: basic_substreambuf(nullptr, 0, 0) {}
 
-	substreambuf(substreambuf&& other) noexcept
+	basic_substreambuf(const basic_substreambuf&) = delete;
+
+	basic_substreambuf(basic_substreambuf&& other) noexcept
 		: _underlying(other._underlying)
 		, _start(other._start)
 		, _end(other._end)
@@ -154,4 +168,56 @@ public:
 		, _buffer(other._buffer) {
 		other._underlying = nullptr;
 	}
+
+	basic_substreambuf& operator=(basic_substreambuf&&) noexcept = default;
+};
+
+using substreambuf = basic_substreambuf<char>;
+//using wsubstreambuf = basic_substreambuf<wchar_t>;
+
+class utf_streambuf final : public std::streambuf {
+public:
+	using base_type = std::streambuf;
+	using char_type = base_type::char_type;
+	using traits_type = base_type::traits_type;
+	using int_type = traits_type::int_type;
+	using pos_type = traits_type::pos_type;
+	using off_type = traits_type::off_type;
+
+protected:
+	static constexpr uint32_t j0 = 0x655F;
+	static constexpr uint32_t t = 0x4115;
+
+	base_type* _underlying;
+	uint32_t _j;
+
+	char decrypt(int_type c) noexcept {
+		c ^= (_j & 0xFF);
+		_j *= t;
+		return static_cast<char>(c);
+	}
+
+	int_type* decrypt(int_type* cs, size_t s) noexcept {
+		for (; s > 0; --s) {
+			cs[s] = decrypt(cs[s]);
+		}
+		return cs;
+	}
+
+	int_type underflow() override {
+		if (!_underlying) {
+			return traits_type::eof();
+		}
+		int_type ch = _underlying->sbumpc();
+		if (traits_type::eq_int_type(ch, traits_type::eof())) {
+			return traits_type::eof();
+		}
+		return (ch ^ (_j & 0xFF));
+	}
+
+public:
+	utf_streambuf(base_type* underlying)
+		: _underlying(nullptr), _j(0) {}
+
+	utf_streambuf(const utf_streambuf&) = delete;
 };
