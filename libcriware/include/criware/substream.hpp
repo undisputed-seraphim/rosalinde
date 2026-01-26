@@ -173,7 +173,7 @@ public:
 };
 
 using substreambuf = basic_substreambuf<char>;
-//using wsubstreambuf = basic_substreambuf<wchar_t>;
+// using wsubstreambuf = basic_substreambuf<wchar_t>;
 
 class utf_streambuf final : public std::streambuf {
 public:
@@ -190,6 +190,7 @@ protected:
 
 	base_type* _underlying;
 	uint32_t _j;
+	char_type _buffer[4096];
 
 	char decrypt(int_type c) noexcept {
 		c ^= (_j & 0xFF);
@@ -208,16 +209,26 @@ protected:
 		if (!_underlying) {
 			return traits_type::eof();
 		}
-		int_type ch = _underlying->sbumpc();
-		if (traits_type::eq_int_type(ch, traits_type::eof())) {
+		std::streamsize n = _underlying->sgetn(_buffer, sizeof(_buffer));
+		if (n <= 0) {
 			return traits_type::eof();
 		}
-		return (ch ^ (_j & 0xFF));
+
+		for (size_t i = 0; i < static_cast<size_t>(n); ++i) {
+			uint32_t c = static_cast<uint32_t>(_buffer[i]);
+			c ^= (_j & 0xFF);
+			_buffer[i] = static_cast<char_type>(c);
+			_j *= t;
+		}
+
+		setg(_buffer, _buffer, _buffer + n);
+		return traits_type::to_int_type(*gptr());
 	}
 
 public:
 	utf_streambuf(base_type* underlying)
-		: _underlying(nullptr), _j(0) {}
+		: _underlying(nullptr)
+		, _j(j0) {}
 
 	utf_streambuf(const utf_streambuf&) = delete;
 };

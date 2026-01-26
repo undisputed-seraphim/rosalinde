@@ -2,6 +2,7 @@
 #include <criware/endian_swap.hpp>
 #include <criware/utf.hpp>
 #include <criware/utils.hpp>
+#include <criware/substream.hpp>
 
 #include <algorithm>
 #include <array>
