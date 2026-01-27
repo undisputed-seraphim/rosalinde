@@ -102,7 +102,8 @@ UTF::field::value_t read_type(const chunk_header& header, UTF::field::type type_
 bool UTF::decipher(std::vector<char>& bytes) {
 	constexpr const char ciphered_utf[] = {0x1F, 0x9E, 0xF3, 0xF5};
 	if (::strncmp(bytes.data(), ciphered_utf, sizeof(ciphered_utf)) == 0) {
-		for (uint32_t i = 0, j = 0x655F; i < bytes.size(); i++, j *= 0x4115) {
+		uint32_t j = 0x655F;
+		for (uint32_t i = 0; i < bytes.size(); i++, j *= 0x4115) {
 			bytes[i] ^= (j & 0xFF);
 		}
 		return true;
@@ -139,7 +140,9 @@ static bool validate_header(const chunk_header& h) noexcept {
 
 // Currently this can only handle deciphered streams.
 std::istream& UTF::operator>>(std::istream& is) {
-	const uint64_t offset = is.tellg();
+	// uint64_t offset = is.tellg();
+	const uint64_t offset = 0;
+
 	chunk_header hdr;
 	is >> hdr;
 

@@ -56,7 +56,8 @@ int main(int argc, char* argv[]) try {
 		return 1;
 	}
 	std::cout << "Reading file at " << file_path << std::endl;
-	auto cpktable = TopLevelCpk(path_str).getTableOfContents();
+	//auto cpktable = TopLevelCpk(path_str).getTableOfContents();
+	auto cpktable = doit(path_str);
 	if (list) {
 		for (const auto& [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] : cpktable) {
 			std::cout << ID << ": " << DirName << " / " << FileName << "\t" << ExtractSize << '\n';

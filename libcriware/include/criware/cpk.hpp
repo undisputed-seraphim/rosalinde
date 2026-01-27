@@ -64,3 +64,5 @@ private:
 	std::filesystem::path _path;
 	mutable std::vector<char> _buffer = {};
 };
+
+CPKTable doit(const std::filesystem::path path);

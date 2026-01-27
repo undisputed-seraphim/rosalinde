@@ -1,8 +1,8 @@
 #include <criware/cpk.hpp>
 #include <criware/endian_swap.hpp>
+#include <criware/substream.hpp>
 #include <criware/utf.hpp>
 #include <criware/utils.hpp>
-#include <criware/substream.hpp>
 
 #include <algorithm>
 #include <array>
@@ -59,6 +59,36 @@ CPKTable TopLevelCpk::getTableOfContents() const {
 	UTF::decipher(_buffer);
 	auto table = CPKTable(_path, TocOffset);
 	std::ispanstream(_buffer) >> table;
+	return table;
+}
+
+CPKTable doit(const std::filesystem::path path) {
+	using TCPK = UTFTable<TopLevelCPKTraits>;
+	TCPK tcpk;
+
+	{
+		auto ifs = std::ifstream(path, std::ios::binary);
+		const auto size = read_header(ifs, CPK_magic);
+
+		auto ssbuf = substreambuf(ifs.rdbuf(), ifs.tellg(), size);
+		auto usbuf = utf_streambuf(&ssbuf);
+
+		auto is = std::istream(&usbuf);
+		is >> tcpk;
+	}
+	const auto& [TocOffset] = tcpk.at(0);
+	CPKTable table(path, TocOffset);
+	{
+		auto ifs = std::ifstream(path, std::ios::binary);
+		ifs.seekg(TocOffset, std::ios::beg);
+		const auto size = read_header(ifs, TOC_magic);
+
+		auto ssbuf = substreambuf(ifs.rdbuf(), ifs.tellg(), size);
+		auto usbuf = utf_streambuf(&ssbuf);
+
+		auto is = std::istream(&usbuf);
+		is >> table;
+	}
 	return table;
 }
 
