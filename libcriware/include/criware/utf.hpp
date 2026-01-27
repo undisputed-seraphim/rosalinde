@@ -128,6 +128,7 @@ public:
 	static constexpr auto NumFields = std::size(Fields);
 	using entry_tuple = Traits::Entry;
 	using UTF::UTF;
+	using UTF::field;
 
 	size_t size() const noexcept { return this->find_col(Fields[0])->second.values.size(); }
 
@@ -139,10 +140,10 @@ public:
 	class iterator {
 	private:
 		friend UTFTable;
-		const UTFTable* utf;
+		const UTFTable& utf;
 		size_t i;
 
-		iterator(const UTFTable* utf_, size_t i_)
+		iterator(const UTFTable& utf_, size_t i_)
 			: utf(utf_)
 			, i(i_) {}
 		iterator(const iterator&) = delete;
@@ -150,8 +151,8 @@ public:
 	public:
 		iterator(iterator&&) = default;
 
-		entry_tuple operator*() const noexcept { return utf->at(i); }
-		entry_tuple operator->() const noexcept { return utf->at(i); }
+		entry_tuple operator*() const noexcept { return utf.at(i); }
+		entry_tuple operator->() const noexcept { return utf.at(i); }
 
 		iterator& operator++() noexcept {
 			++i;
@@ -168,10 +169,10 @@ public:
 		std::strong_ordering operator<=>(const iterator& other) const noexcept { return i <=> other.i; }
 	};
 	using const_iterator = const iterator;
-	const_iterator begin() const { return iterator(this, 0); }
-	const_iterator end() const { return iterator(this, this->size()); }
-	const_iterator cbegin() const { return iterator(this, 0); }
-	const_iterator cend() const { return iterator(this, this->size()); }
+	const_iterator begin() const { return iterator(*this, 0); }
+	const_iterator end() const { return iterator(*this, this->size()); }
+	const_iterator cbegin() const { return iterator(*this, 0); }
+	const_iterator cend() const { return iterator(*this, this->size()); }
 
 	using UTF::operator<<;
 	using UTF::operator>>;

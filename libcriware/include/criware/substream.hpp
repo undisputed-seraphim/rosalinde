@@ -51,7 +51,7 @@ protected:
 		}
 
 		_buffer = traits_type::to_char_type(ch);
-		this->setg(&_buffer, &_buffer, &_buffer + 1);
+		setg(&_buffer, &_buffer, &_buffer + 1);
 
 		return ch;
 	}
@@ -146,10 +146,11 @@ protected:
 	int sync() override { return _underlying ? _underlying->pubsync() : -1; }
 
 public:
-	basic_substreambuf(base_type* underlying, pos_type start, pos_type end) noexcept
-		: _underlying(underlying)
+	basic_substreambuf(base_type* underlying, pos_type start, off_type size) noexcept
+		: base_type()
+		, _underlying(underlying)
 		, _start(start)
-		, _end(end)
+		, _end(start + size)
 		, _current(start) {
 		_ASSERT(_underlying);
 		this->setg(nullptr, nullptr, nullptr);
@@ -192,19 +193,6 @@ protected:
 	uint32_t _j;
 	char_type _buffer[4096];
 
-	char decrypt(int_type c) noexcept {
-		c ^= (_j & 0xFF);
-		_j *= t;
-		return static_cast<char>(c);
-	}
-
-	int_type* decrypt(int_type* cs, size_t s) noexcept {
-		for (; s > 0; --s) {
-			cs[s] = decrypt(cs[s]);
-		}
-		return cs;
-	}
-
 	int_type underflow() override {
 		if (!_underlying) {
 			return traits_type::eof();
@@ -225,10 +213,29 @@ protected:
 		return traits_type::to_int_type(*gptr());
 	}
 
+	pos_type seekoff(
+		off_type off,
+		std::ios_base::seekdir dir,
+		std::ios_base::openmode which = std::ios_base::in | std::ios_base::out) override {
+		return _underlying->pubseekoff(off, dir, which);
+	}
+
+	pos_type seekpos(pos_type pos, std::ios_base::openmode which = std::ios_base::in | std::ios_base::out) override {
+		// TODO not actually correct
+		// cipher needs to be adjusted
+		return _underlying->pubseekpos(pos, which);
+	}
+
+	int sync() override { return _underlying ? _underlying->pubsync() : -1; }
+
 public:
 	utf_streambuf(base_type* underlying)
-		: _underlying(nullptr)
-		, _j(j0) {}
+		: base_type()
+		, _underlying(underlying)
+		, _j(j0) {
+		memset(_buffer, 0, sizeof(_buffer));
+		setg(_buffer, _buffer, _buffer);
+	}
 
 	utf_streambuf(const utf_streambuf&) = delete;
 };
