@@ -223,32 +223,22 @@ void tegra_x1_deswizzle(
 	}
 	// clang-format off
 	static constexpr auto bits = std::array{
-		std::array{    0x40,    0x32,     0xd},
-		std::array{   0x100,    0xd2,    0x2d},
-		std::array{   0x400,   0x392,    0x6d},
-		std::array{  0x1000,   0xf12,    0xed},
-		std::array{  0x4000,  0x3e12,   0x1ed},
-		std::array{ 0x10000,  0x7e12,  0x81ed},
-		std::array{ 0x40000,  0xfe12, 0x301ed},
-		std::array{0x100000, 0x1fe12, 0xe01ed},
-		//               b0 = 1 + b1     + b2
+		std::pair{   0x32,     0xd},
+		std::pair{   0xd2,    0x2d},
+		std::pair{  0x392,    0x6d},
+		std::pair{  0xf12,    0xed},
+		std::pair{ 0x3e12,   0x1ed},
+		std::pair{ 0x7e12,  0x81ed},
+		std::pair{ 0xfe12, 0x301ed},
+		std::pair{0x1fe12, 0xe01ed},
 	};
 	// clang-format on
 
 	auto swizzle_bitmask = [](uint32_t i, uint32_t mask) -> uint32_t {
 		uint32_t bit = 0;
-		uint32_t sll = 0;
-		while (true) {
-			if (mask < 1)
-				break;
-			if (i < 1)
-				break;
-			auto bi = i & 1;
-			auto bm = mask & 1;
-			i >>= 1;
-			mask >>= 1;
-			if (bm) {
-				bit |= (bi << sll);
+		for (uint32_t sll = 0; (mask > 0) && (i > 0); i >>= 1, mask >>= 1) {
+			if (mask & 1) {
+				bit |= ((i & 1) << sll);
 				sll++;
 			}
 		}
@@ -271,7 +261,8 @@ void tegra_x1_deswizzle(
 	const uint32_t w = (width >> 2);
 	const uint32_t h = (height >> 2);
 	// printf("len_pix %u, len_blk %u, w%u, h %u\n", len_pix, len_blk, w, h);
-	for (const auto [b0, b1, b2] : bits) {
+	for (const auto [b1, b2] : bits) {
+		const int b0 = 1 + b1 + b2;
 		if (len_blk <= b0) {
 			uint32_t pos = 0;
 			for (uint32_t i = 0; i < b0 && pos < len_pix; ++i) {
