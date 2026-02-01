@@ -111,7 +111,6 @@ int main(int argc, char* argv[]) try {
 
 	// Our state
 	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
-	Camera cam(2.5);
 
 	for (bool done = false; !done;) {
 		SDL_Event event{};
@@ -124,7 +123,7 @@ int main(int argc, char* argv[]) try {
 				done = true;
 			}
 
-			cam.handleInput(event);
+			state.handleEvent(event);
 		}
 		if (window.flags() & SDL_WINDOW_MINIMIZED) {
 			SDL_Delay(10);
@@ -137,9 +136,7 @@ int main(int argc, char* argv[]) try {
 		glClear(GL_COLOR_BUFFER_BIT);
 		// window.clear();
 
-		//SDL_Delay(40); // Slow down animation
-
-		state.render(cam, proj);
+		state.render(proj);
 
 		window.swapbuffer();
 	}

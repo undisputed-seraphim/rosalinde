@@ -141,6 +141,4 @@ void Sprite::render(Camera& cam, const glm::mat4& projection) {
 	}
 }
 
-void Sprite::update(uint64_t delta) {
-
-}
+void Sprite::update(uint64_t delta) {}

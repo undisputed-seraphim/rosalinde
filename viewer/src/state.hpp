@@ -29,5 +29,5 @@ public:
 
 	void handleEvent(const SDL_Event&);
 
-	void render(Camera& cam, const glm::mat4& projection);
+	void render(const glm::mat4& projection);
 };
