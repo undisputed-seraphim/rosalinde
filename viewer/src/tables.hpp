@@ -1,7 +1,7 @@
 #pragma once
 
-#include <string>
 #include <map>
+#include <string>
 #include <vector>
 
 struct Job {
@@ -9,7 +9,7 @@ struct Job {
 		std::string dir;
 		std::string path;
 	};
-	dir_and_path mbs, ftx;								// mbs and ftx filenames. Most will have just one each
+	dir_and_path mbs, ftx;					  // mbs and ftx filenames. Most will have just one each
 	std::map<std::string, uint32_t> variants; // Flags for each variant of the character
 };
 
