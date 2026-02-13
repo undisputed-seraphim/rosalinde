@@ -41,4 +41,7 @@ public:
 	void play(uint32_t trackid);
 	void render(Camera&, const glm::mat4& projection);
 	void update(uint64_t);
+
+	Sprite& operator++() noexcept;
+	Sprite& operator--() noexcept;
 };

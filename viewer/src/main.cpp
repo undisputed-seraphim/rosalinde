@@ -94,17 +94,6 @@ int main(int argc, char* argv[]) try {
 
 	const auto proj = glm::ortho((-W) / 2.0f, W / 2.0f, H / 2.0f, (-H) / 2.0f);
 
-#pragma pack(push, 1)
-	struct vertex {
-		int16_t texid;
-		glm::vec2 uv;
-		glm::vec3 xyz;
-		uint32_t fog;
-	};
-#pragma pack(pop)
-	gl::ArrayBuffer<vertex> vertices;
-	gl::uiElementBuffer indices;
-
 	unsigned int VAO;
 	glGenVertexArrays(1, &VAO);
 	glBindVertexArray(VAO);

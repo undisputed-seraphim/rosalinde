@@ -61,6 +61,8 @@ void Sprite::play(uint32_t trackid) {
 	const auto& s9 = _mbs.get().s9[_trackidx];
 	_frames = std::vector<uint32_t>(s9.sa_set_no, 0);
 	_track = std::vector<uint32_t>(s9.sa_set_no, 0);
+
+	printf("%lu: %s\n", _trackidx, s9.name);
 }
 
 void Sprite::render(Camera& cam, const glm::mat4& projection) {
@@ -142,3 +144,22 @@ void Sprite::render(Camera& cam, const glm::mat4& projection) {
 }
 
 void Sprite::update(uint64_t delta) {}
+
+Sprite& Sprite::operator++() noexcept {
+	if (_trackidx == _mbs.get().s9.size() - 1) {
+		_trackidx = 0;
+	} else {
+		_trackidx++;
+	}
+	play(_trackidx);
+	return *this;
+}
+Sprite& Sprite::operator--() noexcept {
+	if (_trackidx == 0) {
+		_trackidx = _mbs.get().s9.size() - 1;
+	} else {
+		_trackidx--;
+	}
+	play(_trackidx);
+	return *this;
+}
