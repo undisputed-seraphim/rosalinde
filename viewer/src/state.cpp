@@ -40,7 +40,25 @@ void State::loadSprite(const std::string& classname, const std::string& charanam
 	_sprites.emplace_back(Sprite(std::move(mbs), std::move(ftx), flags, trackid));
 }
 
-void State::handleEvent(const SDL_Event& event) { _camera.handleInput(event); }
+void State::handleEvent(const SDL_Event& event) {
+	_camera.handleInput(event);
+
+	switch (event.type) {
+	case SDL_EVENT_KEY_DOWN: {
+		switch (event.key.key) {
+		case SDLK_DOWN: {
+			--_sprites[0];
+			break;
+		}
+		case SDLK_UP: {
+			++_sprites[0];
+			break;
+		}
+		}
+		break;
+	}
+	}
+}
 
 void State::render(const glm::mat4& projection) {
 	for (auto& sprite : _sprites) {
