@@ -12,7 +12,6 @@
 
 class State {
 	CPKTable _cpkt;
-	uint32_t _tgt_fb;
 	std::vector<char> _buffer;
 
 	Camera _camera;

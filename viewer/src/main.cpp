@@ -89,6 +89,7 @@ int main(int argc, char* argv[]) try {
 	state.loadSprite(classname, charaname, index);
 
 	enable_blend(glm::vec4(1.0, 1.0, 1.0, 1.0));
+	enable_depth(GL_ALWAYS);
 
 	////////////////
 
@@ -97,9 +98,6 @@ int main(int argc, char* argv[]) try {
 	unsigned int VAO;
 	glGenVertexArrays(1, &VAO);
 	glBindVertexArray(VAO);
-
-	// Our state
-	const auto clear_color = glm::vec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 	for (bool done = false; !done;) {
 		SDL_Event event{};
@@ -120,10 +118,7 @@ int main(int argc, char* argv[]) try {
 		}
 
 		// Rendering
-		glViewport(0, 0, W, H);
-		glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-		glClear(GL_COLOR_BUFFER_BIT);
-		// window.clear();
+		window.clear();
 
 		state.render(proj);
 

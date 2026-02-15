@@ -19,7 +19,9 @@ static std::unique_ptr<char, void (*)(char*)> Init_SDL(int flags) {
 
 Window::Window(const char* name, int width, int height)
 	: _sdl(Init_SDL(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
-	, _window(SDL_CreateWindow(name, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN), SDL_DestroyWindow)
+	, _window(
+		  SDL_CreateWindow(name, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY),
+		  SDL_DestroyWindow)
 	, _gl(nullptr, SDL_GL_DestroyContext) {
 	SDL_SetWindowPosition(_window.get(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
