@@ -15,18 +15,9 @@ public:
 
 class Engine final {
 public:
-	Engine(std::unique_ptr<BaseGame>&& game, const char* title, unsigned width = 1920, unsigned height = 1080)
-		: _game(std::move(game))
-		, _window(title, width, height) {}
+	Engine(std::unique_ptr<BaseGame>&& game, const char* title, unsigned width = 1920, unsigned height = 1080);
 
-	void run() {
-		unsigned dt = 0;
-		for (bool stop = false; !stop;) {
-			stop = _game->handle_inputs();
-			_game->update(dt);
-			_window.swapbuffer();
-		}
-	}
+	void run();
 
 private:
 	std::unique_ptr<BaseGame> _game;

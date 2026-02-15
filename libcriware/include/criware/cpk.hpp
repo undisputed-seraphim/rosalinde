@@ -16,6 +16,15 @@ struct CPKTraits {
 	static bool IsValidEntry(const Entry& e) noexcept;
 };
 
+struct CPKTraits2 {
+	std::string_view DirName;
+	std::string_view FileName;
+	uint64_t FileSize;
+	uint64_t ExtractSize;
+	uint64_t FileOffset;
+	uint64_t ID;
+};
+
 class CPKTable : public UTFTable<CPKTraits> {
 public:
 	using Base = UTFTable<CPKTraits>;

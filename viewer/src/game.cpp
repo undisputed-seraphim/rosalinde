@@ -4,24 +4,34 @@
 
 bool Game::handle_inputs() {
 	bool done = false;
-	SDL_Event event;
+	SDL_Event event{};
 	while (SDL_PollEvent(&event)) {
-		if (event.type == SDL_EVENT_QUIT) {
+		// ImGui_ImplSDL3_ProcessEvent(&event);
+		switch (event.type) {
+		case SDL_EVENT_QUIT:
+		case SDL_EVENT_WINDOW_CLOSE_REQUESTED: {
 			done = true;
+			break;
 		}
-		if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
-			done = true;
+		case SDL_EVENT_KEY_DOWN: {
+			switch (event.key.key) {
+			case SDLK_DOWN: {
+				--_sprites[0];
+				break;
+			}
+			case SDLK_UP: {
+				++_sprites[0];
+				break;
+			}
+			}
+			break;
 		}
-		if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-			// cam.zoom(event.wheel.y);
 		}
-		if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-			// cam.enter();
-		}
-		if (event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
-			// cam.exit();
-		}
-		// cam.move(event.motion.xrel, event.motion.yrel);
+		_camera.handleInput(event);
 	}
 	return done;
 }
+
+void Game::render() {}
+
+void Game::update(unsigned) {}
