@@ -1,8 +1,11 @@
-#include "sections.hpp"
-#include <criware/utils.hpp>
+#include "detail.hpp"
 
 #include <array>
+#include <cstdint>
 #include <fstream>
+#include <istream>
+#include <span>
+#include <vector>
 
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
@@ -10,86 +13,42 @@
 
 namespace mbs {
 
-struct lookup_entry {
-	int16_t c;			// offset location offset
-	int16_t c_size;		// offset value size
-	int16_t p;			// offset location offset 2
-	int16_t row_length; // row length
-	uint32_t h = 0;		// Num entries
-	uint32_t offset = 0;
-	uint32_t data_size = 0;
-};
-
 constexpr auto table_v77 = std::array{
-	lookup_entry{0x54, 4, 0xb0, 0x18},	// 1:s0
-	lookup_entry{0x58, 4, 0xb8, 0x30},	// 2:s1
-	lookup_entry{0x5c, 4, 0xc0, 0x30},	// 3:s2
-	lookup_entry{0x60, 4, 0xc8, 0x50},	// 4:s3 bg=0
-	lookup_entry{0x50, 4, 0xd0, 0x14},	// 0:s4
-	lookup_entry{0x64, 2, 0xd8, 0x8},	// 5:s5 bg=0
-	lookup_entry{0x6a, 2, 0xe0, 0x1c},	// 8:s6
-	lookup_entry{0x66, 2, 0xe8, 0x24},	// 6:s7
-	lookup_entry{0x68, 2, 0xf0, 0x20},	// 7:s8
-	lookup_entry{0x6c, 2, 0xf8, 0x30},	// 9:s9
-	lookup_entry{0x6e, 2, 0x100, 0x18},	// a:sa
-	lookup_entry{0x72, 2, 0x108, 0x14},	// b:sb
+	detail::lookup_entry{0x54, 4, 0xb0, 0x18}, // 0:s0  fog colors
+	detail::lookup_entry{0x58, 4, 0xb8, 0x30}, // 1:s1  texture UVs
+	detail::lookup_entry{0x5c, 4, 0xc0, 0x30}, // 2:s2  vertices
+	detail::lookup_entry{0x60, 4, 0xc8, 0x50}, // 3:s3  hitboxes
+	detail::lookup_entry{0x50, 4, 0xd0, 0x14}, // 4:s4  keyframe layers
+	detail::lookup_entry{0x64, 2, 0xd8, 0x08}, // 5:s5  hitbox entries
+	detail::lookup_entry{0x6a, 2, 0xe0, 0x1c}, // 6:s6  keyframes
+	detail::lookup_entry{0x66, 2, 0xe8, 0x24}, // 7:s7  transforms
+	detail::lookup_entry{0x68, 2, 0xf0, 0x20}, // 8:s8  animation frames
+	detail::lookup_entry{0x6c, 2, 0xf8, 0x30}, // 9:s9  tracks
+	detail::lookup_entry{0x6e, 2, 0x100, 0x18}, // a:sa  sequences
+	detail::lookup_entry{0x72, 2, 0x108, 0x14}, // b:sb  extras
 };
 
-template <typename T>
-std::vector<T> read_block(const lookup_entry& e, std::istream& is) {
-	if (e.c == 0 || e.p == 0) {
-		return {};
-	}
-	std::vector<T> entries;
-	entries.reserve(e.h);
-	is.seekg(e.offset, std::ios::beg);
-	for (uint32_t i = 0; i < e.h; ++i) {
-		entries.push_back(read_value<T>(is));
-	}
-	return entries;
+void parse_v77(std::span<const uint8_t> data, v77& v) {
+	auto tbl = table_v77;
+	byte_reader r(data);
+	detail::resolve_table(r, tbl);
+	detail::populate_sections(r, v, tbl);
 }
 
+// Convenience — drains the entire stream, delegates to the span path.
 std::istream& operator>>(std::istream& is, v77& v) {
-	auto table = table_v77; // Make a copy
-	for (auto& [c, cs, p, rl, h, o, ds] : table) {
-		if (c == 0 || p == 0) {
-			continue;
-		}
-		is.seekg(c, std::ios::beg);
-		switch (cs) {
-		case 2: {
-			h = read_value<uint16_t>(is);
-			break;
-		}
-		case 4: {
-			h = read_value<uint32_t>(is);
-			break;
-		}
-		}
-		is.seekg(p, std::ios::beg);
-		o = read_value<uint32_t>(is);
-		ds = h * rl;
-	}
-	// Do NOT sort or change the order of table entries!
-
-	v.s0 = read_block<section_0>(table[0x0], is);
-	v.s1 = read_block<section_1>(table[0x1], is);
-	v.s2 = read_block<section_2>(table[0x2], is);
-	v.s3 = read_block<section_3>(table[0x3], is);
-	v.s4 = read_block<section_4>(table[0x4], is);
-	v.s5 = read_block<section_5>(table[0x5], is);
-	v.s6 = read_block<section_6>(table[0x6], is);
-	v.s7 = read_block<section_7>(table[0x7], is);
-	v.s8 = read_block<section_8>(table[0x8], is);
-	v.s9 = read_block<section_9>(table[0x9], is);
-	v.sa = read_block<section_a>(table[0xa], is);
-	v.sb = read_block<section_b>(table[0xb], is);
+	is.seekg(0, std::ios::end);
+	const auto size = is.tellg();
+	is.seekg(0, std::ios::beg);
+	std::vector<uint8_t> buffer(static_cast<size_t>(size));
+	is.read(reinterpret_cast<char*>(buffer.data()), size);
+	parse_v77(buffer, v);
 	return is;
 }
 
 std::ostream& operator<<(std::ostream& os, const v77& v) {
 	// TODO
-	// print_to_file(v);
+	//print_to_stream(v);
 	return os;
 }
 
@@ -201,46 +160,5 @@ glm::mat4 s7_matrix(const section_7& s7, const bool flipx, const bool flipy) {
 	// I think there is some parent-child transform hierarchy that's currently missing.
 	return m;
 }
-/*
-struct s8sa_loop {
-	int loop;
-	std::vector<section_8> times;
-
-	static std::vector<s8sa_loop> preprocess(const v77&);
-};
-
-std::vector<s8sa_loop> s8sa_loop::preprocess(const v77& v77) {
-	std::vector<s8sa_loop> s8sa_loops;
-	s8sa_loops.reserve(v77.sa.size());
-	for (const auto& a : v77.sa) {
-		const int sav = a.s8_id + a.s8_st;
-		auto& [loop, times] = s8sa_loops.emplace_back();
-		loop = -1;
-
-		std::unordered_map<int, int> line;
-		for (int j = 0, s8k = sav; s8k < v77.s8.size(); s8k = sav + j) {
-			const auto& s8v = v77.s8[s8k];
-			if (line.count(s8k) == 0) {
-				line[s8k] = line.size();
-				times.push_back(s8v);
-
-				if (s8v.flags & s8flag::JUMP) {
-					j = s8v.loop_s8_id;
-				} else {
-					if (s8v.flags & s8flag::LAST) {
-						break;
-					} else {
-						j++;
-					}
-				}
-			} else {
-				loop = line[s8k];
-				break;
-			}
-		}
-	}
-	return s8sa_loops;
-}
-*/
 
 } // namespace mbs

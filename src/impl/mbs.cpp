@@ -1,10 +1,12 @@
 #include "mbs.hpp"
-#include "mbs/sections.hpp"
+#include "byte_reader.hpp"
+#include "mbs/detail.hpp"
+
 #include <criware/utils.hpp>
 
+#include <cstring>
 #include <iostream>
 #include <spanstream>
-#include <variant>
 
 // Faulty struct, do not use
 struct v77_1 {
@@ -40,30 +42,59 @@ MBS::MBS(MBS&&) noexcept = default;
 
 MBS::~MBS() noexcept {}
 
-MBS MBS::From(std::istream& is) {
-	MBS mbs;
-	mbs.parse(is);
-	return mbs;
+// --- istream path (drains to vector, delegates to span) -------------------
+
+static std::vector<char> drain_stream(std::istream& is) {
+	is.seekg(0, std::ios::end);
+	const auto sz = static_cast<size_t>(is.tellg());
+	is.seekg(0, std::ios::beg);
+	std::vector<char> buf(sz);
+	is.read(buf.data(), static_cast<std::streamsize>(sz));
+	return buf;
 }
-MBS MBS::From(const std::vector<char>& buffer) {
-	auto iss = std::ispanstream(buffer);
-	return MBS::From(iss);
+
+MBS MBS::From(std::istream& is) { return MBS::From(drain_stream(is)); }
+
+MBS MBS::From(const std::vector<char>& buf) {
+	return MBS::From(std::span<const uint8_t>(
+		reinterpret_cast<const uint8_t*>(buf.data()), buf.size()));
 }
 
 void MBS::parse(std::istream& is) {
-	is.seekg(0, std::ios::beg);
-	const mbs_header h = read_value<mbs_header>(is);
-	if (std::string_view(h.magic, sizeof(h.magic)) != mbs_header::FMBS) {
+	auto buf = drain_stream(is);
+	parse(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()));
+}
+
+// --- span path (primary) --------------------------------------------------
+
+MBS MBS::From(std::span<const uint8_t> data) {
+	MBS mbs;
+	mbs.parse(data);
+	return mbs;
+}
+
+void MBS::parse(std::span<const uint8_t> data) {
+	byte_reader r(data);
+
+	const auto h = r.read<mbs_header>();
+	if (std::strncmp(h.magic, mbs_header::FMBS.data(), sizeof(h.magic)) != 0) {
 		throw std::exception("Not an FMBS file.");
 	}
 
-	is.seekg(0x80, std::ios::beg);
-	is.read(_filename.data(), _filename.size());
+	r.seek(0x80);
+	auto name_bytes = r.read_bytes(_filename.size());
+	_filename.assign(reinterpret_cast<const char*>(name_bytes.data()), _filename.size());
 	trim_string(_filename);
 
 	switch (h.version) {
+	case 0x76: {
+		_version = mbs::Version::v76;
+		mbs::parse_v76(data, this->data);
+		return;
+	}
 	case 0x77: {
-		is >> data;
+		_version = mbs::Version::v77;
+		mbs::parse_v77(data, this->data);
 		return;
 	}
 	case 0x66:
@@ -71,7 +102,6 @@ void MBS::parse(std::istream& is) {
 	case 0x6d:
 	case 0x6e:
 	case 0x72:
-	case 0x76:
 	default: {
 		std::cout << "Unsupported FMBS version " << (uint16_t)h.version << std::endl;
 	}
