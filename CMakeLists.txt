@@ -14,7 +14,17 @@ list(PREPEND CMAKE_PREFIX_PATH "$ENV{HOME}/.local")
 
 set(Boost_USE_STATIC_LIBS ON)
 
-add_subdirectory(thirdparty)
+include(thirdparty/detex.cmake)
+include(thirdparty/glm.cmake)
+
+if(BUILD_VIEWER)
+	include(thirdparty/SDL3.cmake)
+	include(thirdparty/entt.cmake)
+	include(thirdparty/glad.cmake)
+	find_package(SDL3 3.4 REQUIRED)
+	find_package(OpenGL REQUIRED)
+	find_package(EnTT 3.14 REQUIRED)
+endif()
 
 find_package(ZLIB 1.3.1 REQUIRED)
 find_package(Boost CONFIG 1.88 REQUIRED COMPONENTS system program_options iostreams)
@@ -26,9 +36,17 @@ message(STATUS "glm version ${glm_VERSION}")
 message(STATUS "Catch version ${Catch2_VERSION}")
 
 if(BUILD_VIEWER)
-	find_package(SDL3 3.4 REQUIRED)
-	find_package(OpenGL REQUIRED)
-	find_package(EnTT 3.14 REQUIRED)
+	message(STATUS "SDL version ${SDL3_VERSION}")
+	message(STATUS "EnTT version ${EnTT_VERSION}")
+endif()
+
+add_subdirectory(thirdparty)
+
+message(STATUS "Boost version ${Boost_VERSION}")
+message(STATUS "glm version ${glm_VERSION}")
+message(STATUS "Catch version ${Catch2_VERSION}")
+
+if(BUILD_VIEWER)
 	message(STATUS "SDL version ${SDL3_VERSION}")
 	message(STATUS "EnTT version ${EnTT_VERSION}")
 endif()

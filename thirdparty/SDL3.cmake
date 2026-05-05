@@ -6,7 +6,7 @@ endif()
 include(FetchContent)
 
 FetchContent_Declare(SDL3
-    URL "${CMAKE_CURRENT_SOURCE_DIR}/SDL-release-3.4.0.tar.xz"
+    URL "${CMAKE_CURRENT_LIST_DIR}/SDL-release-3.4.0.tar.xz"
     URL_HASH MD5=4906f6d72dee1614dbd7e52ab5809a40
     OVERRIDE_FIND_PACKAGE
 )

@@ -1,8 +1,8 @@
 #include "glxx/error.hpp"
 #include <iostream>
-#include <stacktrace>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 
 namespace {
 
@@ -103,9 +103,8 @@ void check_or_throw() {
 		std::cout << "No error." << std::endl;
 	}
 	auto iter = glErrorStr.find(error);
-	auto st = std::to_string(std::stacktrace::current());
 	if (iter == std::end(glErrorStr)) {
-		throw std::runtime_error("Unknown OpenGL error " + std::to_string(error) + '\t' + std::move(st));
+		throw std::runtime_error("Unknown OpenGL error " + std::to_string(error));
 	}
-	throw std::runtime_error(iter->second + '\t' + std::move(st));
+	throw std::runtime_error(iter->second);
 }
