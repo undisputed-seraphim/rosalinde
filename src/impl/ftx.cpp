@@ -4,6 +4,7 @@
 #include <detex.h>
 
 #include <array>
+#include <cstring>
 #include <spanstream>
 #include <vector>
 

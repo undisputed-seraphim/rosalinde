@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cassert>
+#include <cstring>
 #include <istream>
 #include <streambuf>
 
@@ -152,7 +154,7 @@ public:
 		, _start(start)
 		, _end(start + size)
 		, _current(start) {
-		_ASSERT(_underlying);
+		assert(_underlying);
 		this->setg(nullptr, nullptr, nullptr);
 	}
 

@@ -60,7 +60,7 @@ CPKTable::CPKTable(std::filesystem::path path, uint64_t offset)
 	: _path(std::move(path))
 	, _offset(offset) {}
 
-void CPKTable::extract(const row_view& entry, std::vector<char>& out) const {
+void CPKTable::extract(const row_type& entry, std::vector<char>& out) const {
 	auto [dir, file, fileSize, extractSize, fileOffset, id] = entry;
 	extract(dir, file, out);
 }

@@ -7,6 +7,7 @@
 #include <cstring>
 #include <iostream>
 #include <spanstream>
+#include <stdexcept>
 
 // Faulty struct, do not use
 struct v77_1 {
@@ -78,7 +79,7 @@ void MBS::parse(std::span<const uint8_t> data) {
 
 	const auto h = r.read<mbs_header>();
 	if (std::strncmp(h.magic, mbs_header::FMBS.data(), sizeof(h.magic)) != 0) {
-		throw std::exception("Not an FMBS file.");
+		throw std::runtime_error("Not an FMBS file.");
 	}
 
 	r.seek(0x80);
@@ -106,7 +107,7 @@ void MBS::parse(std::span<const uint8_t> data) {
 		std::cout << "Unsupported FMBS version " << (uint16_t)h.version << std::endl;
 	}
 	}
-	throw std::exception("Unsupported FMBS version.");
+	throw std::runtime_error("Unsupported FMBS version.");
 }
 
 const mbs::v77& MBS::get() const { return data; }

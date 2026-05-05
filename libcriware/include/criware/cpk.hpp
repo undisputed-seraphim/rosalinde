@@ -24,18 +24,18 @@ class CPKTable {
 public:
 	using table_type = table<CPKSchema>;
 	using iterator = table_type::row_iterator;
-	using row_view = row_view<CPKSchema>;
+	using row_type = table_type::row_type;
 
 	CPKTable(std::filesystem::path, uint64_t offset);
 
-	void extract(const row_view& entry, std::vector<char>& out) const;
+	void extract(const row_type& entry, std::vector<char>& out) const;
 	void extract(std::string_view dir, std::string_view name, std::vector<char>& out) const;
 	iterator find_file(std::string_view dir, std::string_view file) const;
 	size_t size() const noexcept { return _table.size(); }
 
 	iterator begin() const { return _table.begin(); }
 	iterator end() const { return _table.end(); }
-	row_view operator[](size_t i) const { return _table[i]; }
+	row_type operator[](size_t i) const { return _table[i]; }
 
 	template <size_t I> auto& column() { return _table.column<I>(); }
 	template <size_t I> const auto& column() const { return _table.column<I>(); }

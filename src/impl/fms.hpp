@@ -1,6 +1,7 @@
 #pragma once
 
 #include <criware/utils.hpp>
+#include <cstring>
 #include <iostream>
 #include <string_view>
 #include <vector>
