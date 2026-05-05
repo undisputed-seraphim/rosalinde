@@ -13,7 +13,7 @@ public:
 	static constexpr Specialization TextureType = EnumValue;
 
 	basic_texture() noexcept
-		: object() {
+		: object<basic_texture<Specialization, EnumValue>>() {
 		glGenTextures(1, &this->_handle);
 	}
 
@@ -46,10 +46,10 @@ template <texture3d TexType>
 class basic3d_texture : public basic_texture<texture3d, TexType> {
 private:
 public:
-	using basic3d_texture::TextureType;
+	using basic_texture<texture3d, TexType>::TextureType;
 
 	basic3d_texture() noexcept
-		: basic_texture() {}
+		: basic_texture<texture3d, TexType>() {}
 
 	~basic3d_texture() noexcept {}
 

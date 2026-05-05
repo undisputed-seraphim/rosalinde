@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstdint>
 #include <glad/glad.h>
 #include <span>
 #include <type_traits>
@@ -163,8 +164,8 @@ public:
 
 	// Only for Element Array Buffers
 	template <
-		buffer::Type BufType = BufferType,
-		std::enable_if_t<BufType == buffer::Type::ELEMENT_ARRAY_BUFFER, bool> = true>
+		buffer::Type BufT = BufferType,
+		std::enable_if_t<BufT == buffer::Type::ELEMENT_ARRAY_BUFFER, bool> = true>
 	const basic_buffer& drawElements(Mode m = Mode::TRIANGLES) const noexcept {
 		constexpr GLenum type = []() {
 			if constexpr (std::is_same_v<value_type, std::uint8_t>) {

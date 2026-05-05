@@ -246,16 +246,16 @@ void tegra_x1_deswizzle(
 		return bit;
 	};
 
-	result.resize(buffer.size());
 	const struct {
 		char magic[4];
 		uint32_t width;
 		uint32_t height;
 	} hdr{{'R', 'G', 'B', 'A'}, width, height};
 	constexpr uint32_t hdr_offset = sizeof(hdr);
+	constexpr uint32_t bpp = 4; // RBGA
+	result.resize(width * height * bpp + hdr_offset);
 	::memcpy(result.data(), (char*)&hdr, sizeof(hdr));
 
-	constexpr uint32_t bpp = 4; // RBGA
 	constexpr uint32_t row = 4 * bpp;
 	const uint32_t len_pix = buffer.size();
 	const uint32_t len_blk = len_pix >> 6;
