@@ -1,6 +1,7 @@
 #include <criware/utf.hpp>
 #include <criware/utils.hpp>
 
+#include <cstring>
 #include <iostream>
 
 #pragma pack(push, 1)
@@ -100,8 +101,8 @@ UTF::field::value_t read_type(const chunk_header& header, UTF::field::type type_
 }
 
 bool UTF::decipher(std::vector<char>& bytes) {
-	constexpr const char ciphered_utf[] = {0x1F, 0x9E, 0xF3, 0xF5};
-	if (::strncmp(bytes.data(), ciphered_utf, sizeof(ciphered_utf)) == 0) {
+	constexpr const unsigned char ciphered_utf[] = {0x1F, 0x9E, 0xF3, 0xF5};
+	if (::strncmp(bytes.data(), reinterpret_cast<const char*>(ciphered_utf), sizeof(ciphered_utf)) == 0) {
 		uint32_t j = 0x655F;
 		for (uint32_t i = 0; i < bytes.size(); i++, j *= 0x4115) {
 			bytes[i] ^= (j & 0xFF);

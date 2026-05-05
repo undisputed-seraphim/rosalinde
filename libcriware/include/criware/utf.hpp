@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
 #include <iosfwd>
 #include <map>
 #include <optional>
@@ -121,7 +124,7 @@ concept UTFTableTraits = requires {
 template <UTFTableTraits Traits>
 class UTFTable : protected UTF {
 	static_assert(std::size(Traits::Fields) > 0);
-	static_assert(sizeof(Traits::Entry) > 1);
+	static_assert(sizeof(typename Traits::Entry) > 1);
 
 public:
 	static constexpr auto Fields = Traits::Fields;
@@ -185,7 +188,7 @@ private:
 		if constexpr (I < std::tuple_size_v<std::remove_reference_t<entry_tuple>>) {
 			using T = std::decay_t<decltype(std::get<I>(tup))>;
 			if (auto iter = this->find_col(Fields[I]); iter != UTF::end()) {
-				if (auto optval = iter->second.cast_at<T>(i)) {
+				if (auto optval = iter->second.template cast_at<T>(i)) {
 					// TODO: Probably not a good idea to leave it unset.
 					// throw exception?
 					std::get<I>(tup) = optval.value();
@@ -292,13 +295,13 @@ public:
 
 	template <schema::fixed_string Name>
 	auto& column() {
-		constexpr size_t I = Schema::template index_of(Name);
+		constexpr size_t I = Schema::index_of(Name);
 		static_assert(I != static_cast<size_t>(-1), "Unknown column name");
 		return column<I>();
 	}
 	template <schema::fixed_string Name>
 	const auto& column() const {
-		constexpr size_t I = Schema::template index_of(Name);
+		constexpr size_t I = Schema::index_of(Name);
 		static_assert(I != static_cast<size_t>(-1), "Unknown column name");
 		return column<I>();
 	}

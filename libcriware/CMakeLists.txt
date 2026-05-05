@@ -3,6 +3,7 @@ add_library(criware STATIC ${criware_src})
 target_include_directories(criware PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 include(CTest)
+list(APPEND CMAKE_MODULE_PATH "${Catch2_DIR}")
 include(Catch)
 
 file(GLOB_RECURSE criware_src_test "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp")

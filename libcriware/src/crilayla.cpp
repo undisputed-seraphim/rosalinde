@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <span>
 #include <string_view>
