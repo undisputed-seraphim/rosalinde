@@ -197,3 +197,143 @@ private:
 		}
 	}
 };
+
+// ============================================================================
+// Compile-time column schema
+// ============================================================================
+
+#include <span>
+#include <utility>
+
+namespace schema {
+
+template <size_t N>
+struct fixed_string {
+	char data[N]{};
+	constexpr fixed_string() = default;
+	constexpr fixed_string(const char (&s)[N]) { std::copy_n(s, N, data); }
+	constexpr operator std::string_view() const noexcept { return {data, N - 1}; }
+	constexpr auto operator<=>(const fixed_string&) const = default;
+};
+
+template <fixed_string Name, typename T>
+struct column_def {
+	static constexpr auto name = Name;
+	using type = T;
+};
+
+template <typename... Cols>
+struct column_list {
+	static constexpr size_t count = sizeof...(Cols);
+	using storage = std::tuple<std::vector<typename Cols::type>...>;
+	static constexpr auto names = std::array<std::string_view, count>{
+		static_cast<std::string_view>(Cols::name)...};
+	template <size_t I> using column_type = typename std::tuple_element_t<I, std::tuple<Cols...>>::type;
+	static constexpr size_t index_of(std::string_view n) noexcept {
+		for (size_t i = 0; i < count; ++i) if (names[i] == n) return i;
+		return static_cast<size_t>(-1);
+	}
+};
+
+template <typename... Cols>
+constexpr auto make(Cols...) -> column_list<Cols...> { return {}; }
+
+template <fixed_string N, typename T>
+constexpr auto col() -> column_def<N, T> { return {}; }
+
+} // namespace schema
+
+// ============================================================================
+// row_view<Schema> — lightweight row proxy
+// ============================================================================
+
+template <typename Schema>
+struct row_view {
+	using storage_t = typename Schema::storage;
+	const storage_t* columns;
+	size_t index;
+	template <size_t I> auto get() const { return std::get<I>(*columns)[index]; }
+};
+
+template <typename S> struct std::tuple_size<row_view<S>> : std::integral_constant<size_t, S::count> {};
+template <size_t I, typename S> struct std::tuple_element<I, row_view<S>> { using type = typename S::template column_type<I>; };
+template <size_t I, typename S> auto get(const row_view<S>& rv) { return rv.template get<I>(); }
+
+// ============================================================================
+// table<Schema> — typed column-major table, parses via existing UTF
+// ============================================================================
+
+template <typename Schema>
+class table {
+public:
+	using storage_t = typename Schema::storage;
+	using row_type = row_view<Schema>;
+
+	row_type operator[](size_t i) const { return {&_columns, i}; }
+
+	class row_iterator {
+		const table* _tbl; size_t _row;
+	public:
+		using value_type = row_type;
+		using difference_type = std::ptrdiff_t;
+		row_iterator() noexcept : _tbl(nullptr), _row(0) {}
+		row_iterator(const table* t, size_t r) noexcept : _tbl(t), _row(r) {}
+		row_type operator*() const noexcept { return {&_tbl->_columns, _row}; }
+		row_iterator& operator++() noexcept { ++_row; return *this; }
+		row_iterator operator++(int) noexcept { auto c = *this; ++_row; return c; }
+		bool operator==(const row_iterator& o) const noexcept = default;
+	};
+
+	row_iterator begin() const { return {this, 0}; }
+	row_iterator end()   const { return {this, _num_rows}; }
+
+	template <size_t I> auto& column() { return std::get<I>(_columns); }
+	template <size_t I> const auto& column() const { return std::get<I>(_columns); }
+
+	template <schema::fixed_string Name>
+	auto& column() {
+		constexpr size_t I = Schema::template index_of(Name);
+		static_assert(I != static_cast<size_t>(-1), "Unknown column name");
+		return column<I>();
+	}
+	template <schema::fixed_string Name>
+	const auto& column() const {
+		constexpr size_t I = Schema::template index_of(Name);
+		static_assert(I != static_cast<size_t>(-1), "Unknown column name");
+		return column<I>();
+	}
+
+	static constexpr bool has_column(std::string_view name) noexcept { return Schema::index_of(name) != static_cast<size_t>(-1); }
+	static constexpr size_t column_index(std::string_view name) noexcept { return Schema::index_of(name); }
+
+	size_t size() const noexcept { return _num_rows; }
+	bool empty() const noexcept { return _num_rows == 0; }
+
+	friend std::istream& operator>>(std::istream& is, table& t) {
+		UTF utf; is >> utf;
+		auto first = utf.find_col(Schema::names[0]);
+		t._num_rows = (first != utf.end()) ? first->second.values.size() : 0;
+		t.populate(utf, std::make_index_sequence<Schema::count>{});
+		return is;
+	}
+
+private:
+	storage_t _columns{};
+	size_t _num_rows = 0;
+
+	template <size_t... Is>
+	void populate(const UTF& utf, std::index_sequence<Is...>) { ((populate_one<Is>(utf)), ...); }
+
+	template <size_t I>
+	void populate_one(const UTF& utf) {
+		using ST = typename Schema::template column_type<I>;
+		auto it = utf.find_col(Schema::names[I]);
+		if (it == utf.end()) return;
+		auto& vec = std::get<I>(_columns);
+		vec.reserve(it->second.values.size());
+		for (const auto& val : it->second.values)
+			std::visit([&](const auto& v) {
+				if constexpr (std::is_convertible_v<std::decay_t<decltype(v)>, ST>) vec.push_back(static_cast<ST>(v));
+			}, val);
+	}
+};

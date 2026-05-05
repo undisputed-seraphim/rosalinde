@@ -29,12 +29,14 @@ int main(int argc, char* argv[]) try {
 	std::string path_str;
 	std::string extract_file;
 	bool list = false;
+	bool cols = false;
 	po::options_description desc;
 	// clang-format off
 	desc.add_options()(
 		"cpk", po::value<std::string>(&path_str)->required(), "Path to Unicorn.cpk")(
 		"extract,e", po::value<std::string>(&extract_file), "Extract file")(
-		"list,l", po::bool_switch(&list), "List files");
+		"list,l", po::bool_switch(&list), "List files")(
+		"columns,c", po::bool_switch(&cols), "Show column info (demo)");
 	// clang-format on
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -57,15 +59,26 @@ int main(int argc, char* argv[]) try {
 	}
 	std::cout << "Reading file at " << file_path << std::endl;
 	//auto cpktable = TopLevelCpk(path_str).getTableOfContents();
-	auto cpktable = doit(path_str);
+	auto cpktable = TopLevelCpk(path_str).getTableOfContents();
 	if (list) {
 		for (const auto& [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] : cpktable) {
 			std::cout << ID << ": " << DirName << " / " << FileName << "\t" << ExtractSize << '\n';
 		}
 		return 0;
 	}
-	std::cout << cpktable << std::endl;
-
+	if (cols) {
+		std::cout << cpktable.size() << " rows\n";
+		// Column-oriented: iterate a single column by compile-time name
+		auto& names = cpktable.column<"FileName">();
+		std::cout << "Column[FileName] first 3:";
+		for (size_t i = 0; i < 3 && i < names.size(); ++i)
+			std::cout << " " << names[i];
+		std::cout << "\n";
+		// Runtime lookup utilities
+		std::cout << "has_column(\"ExtractSize\"): " << cpktable.has_column("ExtractSize") << "\n";
+		std::cout << "column_index(\"ID\"): " << cpktable.column_index("ID") << "\n";
+		return 0;
+	}
 	const auto [dir, name] = decompose_path(extract_file);
 	std::cout << dir << ' ' << name << '\n';
 
