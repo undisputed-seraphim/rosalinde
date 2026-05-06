@@ -1,47 +1,77 @@
 #pragma once
 
-#include <glad/glad.h>
+#include <eltolinde.hpp>
 #include <glm/glm.hpp>
+#include <impl/mbs/sections.hpp>
+
+#include <cstdint>
+#include <string>
 #include <vector>
 
-#include <eltolinde.hpp>
-
-#include "camera.hpp"
-#include "glxx/buffers.hpp"
-
-class Sprite {
-private:
 #pragma pack(push, 1)
-	struct vertex {
-		int16_t texid;
-		glm::vec2 uv;
-		glm::vec3 xyz;
-		uint32_t color;
-	};
+struct SpriteVertex {
+	int16_t texid;
+	glm::vec2 uv;
+	glm::vec3 xyz;
+	uint32_t color;
+};
 #pragma pack(pop)
-	gl::ArrayBuffer<vertex> _vertices;
-	gl::uiElementBuffer _indices;
 
-	MBS _mbs;
-	std::vector<FTX::Entry> _textures;
+struct CachedKeyframe {
+	struct Layer {
+		uint16_t tex_id;
+		uint16_t _pad;
+		glm::vec2 uv[4];
+		glm::vec2 xy[4];
+		uint32_t color[4];
+		uint32_t attributes;
+	};
+	std::vector<Layer> layers;
+	glm::vec4 bounds;
+};
 
-	uint32_t _glTexHandle;
-	uint32_t _flags;
+struct SpriteData {
+	std::vector<FTX::Entry> textures;
+	mbs::v77 v77;
 
-	uint32_t _trackidx;
+	struct FrameRun {
+		uint32_t s8_start;
+		uint32_t s8_count;
+	};
+	struct Track {
+		std::string name;
+		std::vector<FrameRun> runs;
+	};
+	std::vector<Track> tracks;
+	std::vector<CachedKeyframe> keyframes;
 
-	std::vector<uint32_t> _frames;
-	std::vector<uint32_t> _track;
+	static SpriteData load(std::span<const uint8_t> mbs_raw, std::vector<FTX::Entry> textures);
 
-public:
-	Sprite(MBS, std::vector<FTX::Entry>, uint32_t flags, uint32_t trackid);
-	Sprite(const Sprite&) = delete;
-	Sprite(Sprite&&) noexcept = default;
+	const Track* find_track(const std::string& name) const;
 
-	void play(uint32_t trackid);
-	void render(Camera&, const glm::mat4& projection);
-	void update(uint64_t);
+private:
+	void preprocess();
+};
 
-	Sprite& operator++() noexcept;
-	Sprite& operator--() noexcept;
+struct SpriteInstance {
+	const SpriteData* data = nullptr;
+	uint32_t track_idx = 0;
+	uint32_t variant_flags = 0;
+
+	float _accum = 0.0f;
+	std::vector<uint32_t> ticks;
+	std::vector<uint32_t> offsets;
+	uint32_t _frame_counter = 0;
+
+	void play(uint32_t track_id);
+	void play(const std::string& name);
+	void update(float dt_seconds);
+	void next_track();
+	void prev_track();
+
+	void build_vertices(uint32_t sa_idx, std::vector<SpriteVertex>& verts, std::vector<uint32_t>& indices) const;
+
+	glm::mat4 transform_for_sa(uint32_t sa_idx, bool* out_flipx = nullptr, bool* out_flipy = nullptr) const;
+	uint32_t sa_count() const;
+	uint32_t frame_counter() const;
 };

@@ -36,8 +36,7 @@ Scene::Scene(std::filesystem::path cpkpath,
 	bool debug)
 	: _cpkt(TopLevelCpk(cpkpath).getTableOfContents())
 	, _camera(2.5)
-	, _projection(1.0)
-	, _vao(0) {
+	, _projection(1.0) {
 
 	if (debug) {
 		glEnable(GL_DEBUG_OUTPUT);
@@ -55,17 +54,6 @@ Scene::Scene(std::filesystem::path cpkpath,
 	static constexpr int W = 1920, H = 1080;
 	_projection = glm::ortho((-W) / 2.0f, W / 2.0f, H / 2.0f, (-H) / 2.0f);
 
-	glGenVertexArrays(1, &_vao);
-	glBindVertexArray(_vao);
-
-	loadSprite(classname, charaname, trackid);
-}
-
-Scene::~Scene() noexcept {
-	glDeleteVertexArrays(1, &_vao);
-}
-
-void Scene::loadSprite(const std::string& classname, const std::string& charaname, uint32_t trackid) {
 	const auto iter = Characters.find(classname);
 	if (iter == Characters.end()) {
 		throw std::runtime_error("Entry for character class " + classname + " was not found.");
@@ -74,25 +62,37 @@ void Scene::loadSprite(const std::string& classname, const std::string& charanam
 	const auto& job = iter->second;
 	std::cout << job.mbs.dir << '\t' << job.mbs.path << '\n';
 
-	std::vector<char> buffer;
+	std::vector<char> buf;
 	if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
 		throw std::runtime_error("MBS for character class " + classname + " was not found.");
 	} else {
-		_cpkt.extract(*entry, buffer);
+		_cpkt.extract(*entry, buf);
 	}
 
-	auto mbs = MBS::From(buffer);
-	auto ftx = std::vector<FTX::Entry>();
 	auto flags = iter->second.variants.at(charaname);
+	std::vector<FTX::Entry> ftx_entries;
 	if (auto entry = _cpkt.find_file(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
 		throw std::runtime_error("FTX for character class " + classname + " was not found.");
 	} else {
-		_cpkt.extract(*entry, buffer);
-		auto txt = FTX::parse(buffer);
-		std::move(txt.begin(), txt.end(), std::back_inserter(ftx));
+		_cpkt.extract(*entry, buf);
+		auto txt = FTX::parse(buf);
+		std::move(txt.begin(), txt.end(), std::back_inserter(ftx_entries));
 	}
-	_sprites.emplace_back(Sprite(std::move(mbs), std::move(ftx), flags, trackid));
+
+	for (auto& t : ftx_entries) {
+		FTX::decompress(t);
+		FTX::deswizzle(t);
+	}
+
+	_data = SpriteData::load(
+		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()),
+		std::move(ftx_entries));
+
+	_renderer.upload_textures(_data);
+	_instance = SpriteInstance{&_data, trackid, flags};
 }
+
+Scene::~Scene() noexcept {}
 
 bool Scene::handle_inputs() {
 	SDL_Event event{};
@@ -108,8 +108,8 @@ bool Scene::handle_inputs() {
 		switch (event.type) {
 		case SDL_EVENT_KEY_DOWN: {
 			switch (event.key.key) {
-			case SDLK_DOWN: --_sprites[0]; break;
-			case SDLK_UP:   ++_sprites[0]; break;
+			case SDLK_DOWN: _instance.prev_track(); break;
+			case SDLK_UP:   _instance.next_track(); break;
 			}
 			break;
 		}
@@ -119,13 +119,9 @@ bool Scene::handle_inputs() {
 }
 
 void Scene::render() {
-	for (auto& sprite : _sprites) {
-		sprite.render(_camera, _projection);
-	}
+	_renderer.draw(_instance, _projection, _camera);
 }
 
-void Scene::update(unsigned dt) {
-	for (auto& sprite : _sprites) {
-		sprite.update(dt);
-	}
+void Scene::update(float dt) {
+	_instance.update(dt);
 }

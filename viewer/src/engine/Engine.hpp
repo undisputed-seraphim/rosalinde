@@ -1,6 +1,5 @@
 #pragma once
 
-#include <functional>
 #include <memory>
 
 #include "engine/Window.hpp"
@@ -12,17 +11,18 @@ public:
 	virtual ~BaseGame() = default;
 	virtual bool handle_inputs() = 0;
 	virtual void render() = 0;
-	virtual void update(unsigned dt) = 0;
+	virtual void update(float dt) = 0;
 };
 
 class Engine final {
 public:
-	Engine(const char* title, unsigned width = 1920, unsigned height = 1080);
+	Engine(std::unique_ptr<BaseGame>&& game, const char* title, unsigned width = 1920, unsigned height = 1080);
 
-	void run(std::function<std::unique_ptr<BaseGame>()> factory);
+	void run();
 
 private:
 	Window _window;
+	std::unique_ptr<BaseGame> _game;
 };
 
 } // namespace uvw
