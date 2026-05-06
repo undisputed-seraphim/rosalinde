@@ -2,17 +2,17 @@
 
 namespace uvw {
 
-Engine::Engine(std::unique_ptr<BaseGame>&& game, const char* title, unsigned width, unsigned height)
-	: _game(std::move(game))
-	, _window(title, width, height) {}
+Engine::Engine(const char* title, unsigned width, unsigned height)
+	: _window(title, width, height) {}
 
-void Engine::run() {
+void Engine::run(std::function<std::unique_ptr<BaseGame>()> factory) {
+	auto game = factory();
 	unsigned dt = 0;
 	for (bool stop = false; !stop;) {
-		stop = _game->handle_inputs();
-		_game->update(dt);
+		stop = game->handle_inputs();
+		game->update(dt);
 		_window.clear();
-		_game->render();
+		game->render();
 		_window.swapbuffer();
 	}
 }

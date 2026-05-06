@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 
 #include "engine/Window.hpp"
@@ -16,13 +17,12 @@ public:
 
 class Engine final {
 public:
-	Engine(std::unique_ptr<BaseGame>&& game, const char* title, unsigned width = 1920, unsigned height = 1080);
+	Engine(const char* title, unsigned width = 1920, unsigned height = 1080);
 
-	void run();
+	void run(std::function<std::unique_ptr<BaseGame>()> factory);
 
 private:
 	Window _window;
-	std::unique_ptr<BaseGame> _game;
 };
 
 } // namespace uvw
