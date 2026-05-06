@@ -2,7 +2,6 @@
 
 #include <cstring>
 #include <fstream>
-#include <spanstream>
 #include <stdexcept>
 
 // crilayla.cpp
@@ -34,8 +33,8 @@ TopLevelCpk::TopLevelCpk(std::filesystem::path path)
 	_buffer.resize(size);
 	ifs.read(_buffer.data(), static_cast<std::streamsize>(size));
 	UTF::decipher(_buffer);
-	auto iss = std::ispanstream(_buffer);
-	iss >> _table;
+	_table = table<TopLevelCPKSchema>::parse(
+		std::span(reinterpret_cast<const uint8_t*>(_buffer.data()), _buffer.size()));
 }
 
 CPKTable TopLevelCpk::getTableOfContents() const {
@@ -47,7 +46,8 @@ CPKTable TopLevelCpk::getTableOfContents() const {
 	ifs.read(_buffer.data(), static_cast<std::streamsize>(size));
 	UTF::decipher(_buffer);
 	CPKTable table(_path, TocOffset);
-	std::ispanstream(_buffer) >> table;
+	table.parse_toc(std::span(
+		reinterpret_cast<const uint8_t*>(_buffer.data()), _buffer.size()));
 	return table;
 }
 
@@ -58,6 +58,10 @@ CPKTable TopLevelCpk::getTableOfContents() const {
 CPKTable::CPKTable(std::filesystem::path path, uint64_t offset)
 	: _path(std::move(path))
 	, _offset(offset) {}
+
+void CPKTable::parse_toc(std::span<const uint8_t> data) {
+	_table = table_type::parse(data);
+}
 
 void CPKTable::extract(const row_type& entry, std::vector<char>& out) const {
 	extract(get<"DirName">(entry), get<"FileName">(entry), out);

@@ -27,6 +27,8 @@ public:
 
 	CPKTable(std::filesystem::path, uint64_t offset);
 
+	void parse_toc(std::span<const uint8_t> data);
+
 	void extract(const row_type& entry, std::vector<char>& out) const;
 	void extract(std::string_view dir, std::string_view name, std::vector<char>& out) const;
 	iterator find_file(std::string_view dir, std::string_view file) const;
