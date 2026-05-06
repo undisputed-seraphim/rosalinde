@@ -1,7 +1,11 @@
-#include <istream>
-
 #include <criware/acb.hpp>
-#include <criware/substream.hpp>
+
+#include <cassert>
+#include <cstring>
+#include <istream>
+#include <span>
+#include <stdexcept>
+#include <vector>
 
 using CueTableSchema = decltype(schema::make(
 	schema::col<"AisacControlMap", std::string>(),
@@ -32,28 +36,27 @@ using SynthTable = table<SynthTableSchema>;
 ACB::ACB() {}
 
 std::istream& operator>>(std::istream& is, ACB& acb) {
-	is >> acb._table;
+	auto pos = is.tellg();
+	is.seekg(0, std::ios::end);
+	auto sz = static_cast<size_t>(is.tellg() - pos);
+	is.seekg(pos, std::ios::beg);
+	std::vector<uint8_t> buf(sz);
+	is.read(reinterpret_cast<char*>(buf.data()), static_cast<std::streamsize>(sz));
+	auto data = std::span<const uint8_t>(buf);
+
+	acb._table = table<ACBSchema>::parse(data);
 
 	auto& cue = acb._table.column<"CueTable">();
 	auto& wave = acb._table.column<"WaveformTable">();
 	auto& synth = acb._table.column<"SynthTable">();
 
-	CueTable cueTable;
-	auto ssbuf = substreambuf(is.rdbuf(), cue[0].offset, cue[0].size);
-	std::istream(&ssbuf) >> cueTable;
-
-	WaveformTable waveformTable;
-	ssbuf = substreambuf(is.rdbuf(), wave[0].offset, wave[0].size);
-	std::istream(&ssbuf) >> waveformTable;
-
-	SynthTable synthTable;
-	ssbuf = substreambuf(is.rdbuf(), synth[0].offset, synth[0].size);
-	std::istream(&ssbuf) >> synthTable;
+	CueTable cueTable = CueTable::parse(data.subspan(cue[0].offset, cue[0].size));
+	WaveformTable waveformTable = WaveformTable::parse(data.subspan(wave[0].offset, wave[0].size));
+	SynthTable synthTable = SynthTable::parse(data.subspan(synth[0].offset, synth[0].size));
 
 	for (uint32_t i = 0; i < cueTable.size(); ++i) {
 		const auto& [acm, cueid, length, nracm, nrrelwavf, refidx] = cueTable[i];
 
-		// TODO
 		int refType = 0;
 
 		UTF::field::data_t refItem;

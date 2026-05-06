@@ -17,7 +17,7 @@ struct byte_reader {
 
 	template <typename T>
 	T read() noexcept {
-		T val{};
+		T val;
 		assert(cur + sizeof(T) <= data + size);
 		std::memcpy(&val, cur, sizeof(T));
 		cur += sizeof(T);
