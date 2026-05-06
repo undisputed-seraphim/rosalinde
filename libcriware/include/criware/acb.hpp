@@ -1,9 +1,12 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
+#include <criware/afs2.hpp>
 #include <criware/utf.hpp>
 
 namespace criware {
@@ -59,14 +62,23 @@ public:
 
 	const ACBCue* find_cue(uint32_t cue_id) const;
 	const ACBTrack* find_track(uint32_t track_index) const;
+	const ACBWaveform* find_waveform(uint16_t waveform_id) const;
 
 	uint32_t format_version() const { return _format_version; }
+
+	bool extract_waveform(uint16_t waveform_id, std::vector<char>& out) const;
+	std::span<const uint8_t> waveform_span(uint16_t waveform_id) const;
+	const AFS2* internal_awb() const;
 
 private:
 	std::vector<ACBCue> _cues;
 	std::vector<ACBTrack> _tracks;
 	std::vector<ACBWaveform> _waveforms;
 	uint32_t _format_version = 0;
+
+	std::span<const uint8_t> _raw_data;
+	UTF::field::data_t _awb_file{};
+	mutable std::optional<AFS2> _internal_awb_cache;
 };
 
 } // namespace criware
