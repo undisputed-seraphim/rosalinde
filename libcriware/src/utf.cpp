@@ -53,10 +53,12 @@ UTF UTF::parse(std::span<const uint8_t> data) {
 	}
 
 	const uint32_t table_size = read_be<uint32_t>(r);
-	const uint32_t rows_offset = read_be<uint32_t>(r) + 8;
+	const uint16_t unk1 = read_be<uint16_t>(r);
+	const uint32_t rows_offset = read_be<uint16_t>(r) + 8;
 	const uint32_t string_offset = read_be<uint32_t>(r) + 8;
 	const uint32_t data_offset = read_be<uint32_t>(r) + 8;
 	(void)table_size;
+	(void)unk1;
 	read_be<uint32_t>(r); // table_name
 	const uint16_t num_columns = read_be<uint16_t>(r);
 	read_be<uint16_t>(r); // row_length
