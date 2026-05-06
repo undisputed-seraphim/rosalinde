@@ -7,6 +7,7 @@
 #include <map>
 #include <optional>
 #include <ranges>
+#include <span>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -86,6 +87,7 @@ public:
 	UTF();
 	UTF(const UTF&) = delete;
 	UTF(UTF&&) = default;
+	UTF& operator=(UTF&&) = default;
 
 	using storage_type = std::map<std::string, field, std::less<>>;
 	using size_type = storage_type::size_type;
@@ -105,6 +107,8 @@ public:
 	std::ostream& operator<<(std::ostream& os) const;
 	friend std::istream& operator>>(std::istream&, UTF&);
 	friend std::ostream& operator<<(std::ostream&, const UTF&);
+
+	static UTF parse(std::span<const uint8_t> data);
 
 	static bool decipher(std::vector<char>&);
 
