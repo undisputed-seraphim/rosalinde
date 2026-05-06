@@ -282,5 +282,9 @@ private:
 				if constexpr (std::is_convertible_v<T, ST>)
 					vec.push_back(static_cast<ST>(std::move(v)));
 			}, val);
+		if (!vec.empty() && vec.size() < _num_rows) {
+			auto default_val = vec[0];
+			vec.resize(_num_rows, default_val);
+		}
 	}
 };
