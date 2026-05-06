@@ -24,23 +24,22 @@ static uint64_t read_header(std::istream& i, uint32_t magic) {
 }
 
 // ============================================================================
-// TopLevelCpk (uses proven UTFTable)
+// TopLevelCpk
 // ============================================================================
 
 TopLevelCpk::TopLevelCpk(std::filesystem::path path)
-	: Base()
-	, _path(std::move(path)) {
+	: _path(std::move(path)) {
 	auto ifs = std::ifstream(_path, std::ios::binary);
 	const uint64_t size = read_header(ifs, CPK_magic);
 	_buffer.resize(size);
 	ifs.read(_buffer.data(), static_cast<std::streamsize>(size));
 	UTF::decipher(_buffer);
 	auto iss = std::ispanstream(_buffer);
-	Base::operator>>(iss);
+	iss >> _table;
 }
 
 CPKTable TopLevelCpk::getTableOfContents() const {
-	const auto& [TocOffset] = this->at(0);
+	const auto [TocOffset] = _table[0];
 	auto ifs = std::ifstream(_path, std::ios::binary);
 	ifs.seekg(static_cast<std::streamoff>(TocOffset), std::ios::beg);
 	const uint64_t size = read_header(ifs, TOC_magic);
