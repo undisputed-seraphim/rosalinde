@@ -103,21 +103,13 @@ struct TopLevelAcbTraits {
 		 "WaveformTable"});
 };
 
-struct ACBTraits {
-	static constexpr auto Fields = std::to_array<std::string_view>({"CueTable", "WaveformTable", "SynthTable"});
-	using Entry = std::tuple<UTF::field::data_t, UTF::field::data_t, UTF::field::data_t>;
-};
+using ACBSchema = decltype(schema::make(
+	schema::col<"CueTable", UTF::field::data_t>(),
+	schema::col<"WaveformTable", UTF::field::data_t>(),
+	schema::col<"SynthTable", UTF::field::data_t>()));
 
-class ACB : public UTFTable<ACBTraits> {
+class ACB {
 public:
-	using Base = UTFTable<ACBTraits>;
-
-	using Base::operator<<;
-	using Base::operator>>;
-	using Base::entry_tuple;
-	using Base::Fields;
-	using Base::NumFields;
-
 	ACB();
 	ACB(const ACB&) = delete;
 
@@ -136,6 +128,7 @@ private:
 		static constexpr int cue_name_max_length = 256;
 		char cue_name[cue_name_max_length];
 	};
+	table<ACBSchema> _table;
 	std::vector<CueRecord> _cueTable;
 };
 

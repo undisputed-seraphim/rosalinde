@@ -3,47 +3,55 @@
 #include <criware/acb.hpp>
 #include <criware/substream.hpp>
 
-struct CueTableTraits {
-	static constexpr auto Fields = std::to_array<std::string_view>(
-		{"AisacControlMap", "CueId", "Length", "NumAisacControlMaps", "NumRelatedWaveforms", "ReferenceIndex"});
-	using Entry = std::tuple<std::string, uint8_t, uint32_t, uint8_t, uint8_t, uint8_t>;
-};
-using CueTable = UTFTable<CueTableTraits>;
+using CueTableSchema = decltype(schema::make(
+	schema::col<"AisacControlMap", std::string>(),
+	schema::col<"CueId", uint8_t>(),
+	schema::col<"Length", uint32_t>(),
+	schema::col<"NumAisacControlMaps", uint8_t>(),
+	schema::col<"NumRelatedWaveforms", uint8_t>(),
+	schema::col<"ReferenceIndex", uint8_t>()));
+using CueTable = table<CueTableSchema>;
 
-struct WaveformTableTraits {
-	static constexpr auto Fields = std::to_array<std::string_view>(
-		{"EncodeType", "ExtensionData", "LoopFlag", "MemoryAwbId", "NumSamples", "StreamAwbId", "Streaming"});
-	using Entry = std::tuple<uint16_t, uint16_t, uint8_t, uint16_t, uint32_t, uint8_t, uint8_t>;
-};
-using WaveformTable = UTFTable<WaveformTableTraits>;
+using WaveformTableSchema = decltype(schema::make(
+	schema::col<"EncodeType", uint16_t>(),
+	schema::col<"ExtensionData", uint16_t>(),
+	schema::col<"LoopFlag", uint8_t>(),
+	schema::col<"MemoryAwbId", uint16_t>(),
+	schema::col<"NumSamples", uint32_t>(),
+	schema::col<"StreamAwbId", uint8_t>(),
+	schema::col<"Streaming", uint8_t>()));
+using WaveformTable = table<WaveformTableSchema>;
 
-struct SynthTableTraits {
-	static constexpr auto Fields =
-		std::to_array<std::string_view>({"CommandIndex", "ControlWorkArea1", "ControlWorkArea2", "ReferenceItems"});
-	using Entry = std::tuple<uint16_t, uint8_t, uint8_t, UTF::field::data_t>;
-};
-using SynthTable = UTFTable<SynthTableTraits>;
+using SynthTableSchema = decltype(schema::make(
+	schema::col<"CommandIndex", uint16_t>(),
+	schema::col<"ControlWorkArea1", uint8_t>(),
+	schema::col<"ControlWorkArea2", uint8_t>(),
+	schema::col<"ReferenceItems", UTF::field::data_t>()));
+using SynthTable = table<SynthTableSchema>;
 
-ACB::ACB()
-	: UTFTable<ACBTraits>() {}
+ACB::ACB() {}
 
 std::istream& operator>>(std::istream& is, ACB& acb) {
-	auto it = acb.begin();
+	is >> acb._table;
+
+	auto& cue = acb._table.column<"CueTable">();
+	auto& wave = acb._table.column<"WaveformTable">();
+	auto& synth = acb._table.column<"SynthTable">();
 
 	CueTable cueTable;
-	auto ssbuf = substreambuf(is.rdbuf(), std::get<0>(*it).offset, std::get<0>(*it).size);
+	auto ssbuf = substreambuf(is.rdbuf(), cue[0].offset, cue[0].size);
 	std::istream(&ssbuf) >> cueTable;
 
 	WaveformTable waveformTable;
-	ssbuf = substreambuf(is.rdbuf(), std::get<1>(*it).offset, std::get<1>(*it).size);
+	ssbuf = substreambuf(is.rdbuf(), wave[0].offset, wave[0].size);
 	std::istream(&ssbuf) >> waveformTable;
 
 	SynthTable synthTable;
-	ssbuf = substreambuf(is.rdbuf(), std::get<2>(*it).offset, std::get<2>(*it).size);
+	ssbuf = substreambuf(is.rdbuf(), synth[0].offset, synth[0].size);
 	std::istream(&ssbuf) >> synthTable;
 
 	for (uint32_t i = 0; i < cueTable.size(); ++i) {
-		auto [acm, cueid, length, nracm, nrrelwavf, refidx] = cueTable.at(i);
+		auto [acm, cueid, length, nracm, nrrelwavf, refidx] = cueTable[i];
 
 		// TODO
 		int refType = 0;
@@ -51,14 +59,14 @@ std::istream& operator>>(std::istream& is, ACB& acb) {
 		UTF::field::data_t refItem;
 		switch (refType) {
 		case 2: {
-			auto [cmdIdx, ctrlWrkA1, ctrlWrkA2, refItems] = synthTable.at(refidx);
+			auto [cmdIdx, ctrlWrkA1, ctrlWrkA2, refItems] = synthTable[refidx];
 			refItem = refItems;
 			break;
 		}
 		case 3:
 		case 8: {
 			if (i == 0) {
-				auto [cmdIdx, ctrlWrkA1, ctrlWrkA2, refItems] = synthTable.at(0);
+				auto [cmdIdx, ctrlWrkA1, ctrlWrkA2, refItems] = synthTable[0];
 				refItem = refItems;
 
 			} else {
