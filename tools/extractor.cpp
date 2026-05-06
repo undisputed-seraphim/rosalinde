@@ -1,13 +1,21 @@
 #include <boost/program_options.hpp>
+#include <criware/byte_reader.hpp>
 #include <criware/cpk.hpp>
 #include <criware/utf.hpp>
+#include <eltolinde.hpp>
+#include <impl/mbs/csv_dump.hpp>
+#include <impl/mbs/detail.hpp>
+#include <impl/mbs/sections.hpp>
 
+#include <array>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <span>
 #include <string_view>
+#include <vector>
 
 namespace fs = std::filesystem;
 namespace po = boost::program_options;
@@ -35,6 +43,8 @@ struct Args {
 	bool list = false;
 	std::string extract_file;
 	std::string dump_file;
+	std::string mbs_dump;
+	std::string mbs_out = "mbs_dump";
 	bool help = false;
 };
 
@@ -154,7 +164,11 @@ int main(int argc, char* argv[]) try {
 		"extract,e", po::value<std::string>(&args.extract_file),
 		"Extract file (DirName/FileName)")(
 		"dump,d", po::value<std::string>(&args.dump_file),
-		"Dump @UTF column layout of a file");
+		"Dump @UTF column layout of a file")(
+		"mbs-dump", po::value<std::string>(&args.mbs_dump),
+		"Dump MBS sections to CSV (DirName/FileName of .mbs in CPK)")(
+		"mbs-out", po::value<std::string>(&args.mbs_out),
+		"Output directory for MBS CSV dump (default: mbs_dump)");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -189,6 +203,38 @@ int main(int argc, char* argv[]) try {
 
 	if (!args.dump_file.empty()) {
 		dump_columns(table, args.dump_file);
+		return 0;
+	}
+
+	if (!args.mbs_dump.empty()) {
+		auto [dir, name] = split_path(args.mbs_dump);
+		auto data = extract_entry(table, dir, name);
+		auto bytes = std::span<const uint8_t>(
+			reinterpret_cast<const uint8_t*>(data.data()), data.size());
+
+		byte_reader r(bytes);
+		const auto h = r.read<mbs::file_header>();
+		if (std::strncmp(h.magic, "FMBS", 4) != 0) {
+			throw std::runtime_error("Not an FMBS file.");
+		}
+
+		mbs::v77 v;
+		switch (h.version) {
+		case 0x76:
+			mbs::parse_v76(bytes, v);
+			break;
+		case 0x77:
+			mbs::parse_v77(bytes, v);
+			break;
+		default:
+			throw std::runtime_error("Unsupported FMBS version.");
+		}
+
+		fs::path outdir = fs::path(args.mbs_out) / name;
+		mbs::dump_csv(v, outdir);
+		std::cout << "Dumped " << dir << "/" << name
+				  << " (v" << std::hex << h.version << std::dec
+				  << ", " << v.s9.size() << " tracks) -> " << outdir << "/\n";
 		return 0;
 	}
 
