@@ -74,4 +74,6 @@ target_link_libraries(rosalinde PRIVATE eltolinde Boost::program_options)
 
 if(BUILD_VIEWER)
 	add_subdirectory(viewer)
+	add_executable(acbplay "tools/acbplay.cpp")
+	target_link_libraries(acbplay PRIVATE criware Boost::program_options SDL3::SDL3)
 endif()

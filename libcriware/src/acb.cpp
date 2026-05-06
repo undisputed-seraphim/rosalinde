@@ -90,6 +90,10 @@ ACB ACB::parse(std::span<const uint8_t> data) {
 
 	auto& version = root.column<"Version">();
 	acb._format_version = version.size() > 0 ? version[0] : 0;
+	acb._raw_data = data;
+
+	auto& awbCol  = root.column<"AwbFile">();
+	if (!awbCol.empty()) acb._awb_file = awbCol[0];
 
 	auto& cueCol  = root.column<"CueTable">();
 	auto& cnCol   = root.column<"CueNameTable">();
@@ -227,6 +231,54 @@ const ACBTrack* ACB::find_track(uint32_t track_index) const {
 	for (auto& t : _tracks)
 		if (t.track_index == track_index) return &t;
 	return nullptr;
+}
+
+const ACBWaveform* ACB::find_waveform(uint16_t waveform_id) const {
+	for (auto& w : _waveforms)
+		if (w.waveform_id == waveform_id) return &w;
+	return nullptr;
+}
+
+const AFS2* ACB::internal_awb() const {
+	if (_internal_awb_cache) return &*_internal_awb_cache;
+	if (_raw_data.empty() || _awb_file.size == 0) return nullptr;
+
+	_internal_awb_cache = AFS2::parse(
+		_raw_data.subspan(_awb_file.offset, _awb_file.size), _awb_file.offset);
+	return &*_internal_awb_cache;
+}
+
+bool ACB::extract_waveform(uint16_t waveform_id, std::vector<char>& out) const {
+	auto* wf = find_waveform(waveform_id);
+	if (!wf) return false;
+
+	if (wf->streaming) {
+		// external AWB — would need .awb file on disk
+		return false;
+	}
+
+	auto* awb = internal_awb();
+	if (!awb) return false;
+
+	auto* entry = awb->find(wf->waveform_id);
+	if (!entry) return false;
+
+	out.resize(static_cast<size_t>(entry->size));
+	std::memcpy(out.data(), &_raw_data[entry->aligned], static_cast<size_t>(entry->size));
+	return true;
+}
+
+std::span<const uint8_t> ACB::waveform_span(uint16_t waveform_id) const {
+	auto* wf = find_waveform(waveform_id);
+	if (!wf || wf->streaming) return {};
+
+	auto* awb = internal_awb();
+	if (!awb) return {};
+
+	auto* entry = awb->find(wf->waveform_id);
+	if (!entry) return {};
+
+	return _raw_data.subspan(entry->aligned, entry->size);
 }
 
 } // namespace criware
