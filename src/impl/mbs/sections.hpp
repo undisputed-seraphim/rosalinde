@@ -1,6 +1,5 @@
 #pragma once
 
-// #include "../mbs.hpp"
 #include <cstdint>
 #include <glm/ext/vector_float2.hpp>
 #include <glm/ext/vector_float3.hpp>
@@ -13,6 +12,19 @@ namespace mbs {
 
 static_assert(sizeof(glm::vec2) == sizeof(float) * 2);
 static_assert(sizeof(glm::vec3) == sizeof(float) * 3);
+
+struct file_header {
+	char magic[4];
+	uint32_t file_size;
+	uint32_t header_size;
+	uint32_t _pad0;
+	uint16_t _unk0;
+	uint16_t _unk1;
+	uint16_t version;
+	uint16_t _unk2;
+	uint32_t _unk3;
+	uint32_t _pad1;
+};
 
 // Fragment RGBA
 struct section_0 {

@@ -36,9 +36,8 @@ int main(int argc, char* argv[]) try {
 		throw;
 	}
 
-	uvw::Engine("Rosalinde").run([&] {
-		return std::make_unique<Scene>(cpkpath, classname, charaname, index, debug);
-	});
+	uvw::Engine(std::make_unique<Scene>(cpkpath, classname, charaname, index, debug),
+		"Rosalinde").run();
 } catch (const std::exception& e) {
 	std::cout << e.what() << std::endl;
 	return 1;

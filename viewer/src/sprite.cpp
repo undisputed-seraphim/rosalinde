@@ -1,165 +1,206 @@
 #include "sprite.hpp"
-#include "shader.hpp"
 
-#include <glm/ext.hpp>
+#include <criware/byte_reader.hpp>
+#include <impl/mbs/detail.hpp>
 
-static GLuint make_texture_array(std::vector<FTX::Entry> textures) {
-	unsigned int max_x = 0, max_y = 0;
-	for (auto& t : textures) {
-		FTX::decompress(t);
-		FTX::deswizzle(t);
-		max_x = std::max(max_x, t.width);
-		max_y = std::max(max_y, t.height);
-		std::cout << t.name << '\t' << t.width << 'x' << t.height << '\n';
+#include <cstring>
+#include <span>
+#include <stdexcept>
+
+namespace mbs {
+	glm::mat4 s7_matrix(const section_7& s7, bool flipx, bool flipy);
+}
+
+SpriteData SpriteData::load(std::span<const uint8_t> data, std::vector<FTX::Entry> textures) {
+	SpriteData sd;
+	sd.textures = std::move(textures);
+
+	byte_reader r(data);
+	const auto h = r.read<mbs::file_header>();
+	if (std::strncmp(h.magic, "FMBS", 4) != 0) {
+		throw std::runtime_error("Not an FMBS file.");
 	}
-	GLuint id;
-	glGenTextures(1, &id);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, id);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_ALWAYS);
 
-	glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, max_x, max_y, textures.size());
-	for (int i = 0; i < textures.size(); ++i) {
-		const auto& t = textures[i];
-		glTexSubImage3D(
-			GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, t.width, t.height, 1, GL_RGBA, GL_UNSIGNED_BYTE, t.rgba.data());
+	switch (h.version) {
+	case 0x76:
+		mbs::parse_v76(data, sd.v77);
+		break;
+	case 0x77:
+		mbs::parse_v77(data, sd.v77);
+		break;
+	default:
+		throw std::runtime_error("Unsupported FMBS version.");
 	}
-	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
-	return id;
+
+	sd.preprocess();
+	return sd;
 }
 
-static glm::mat4 s7_matrix(const mbs::section_7& s7, const bool flipx, const bool flipy) {
-	const int8_t x = flipx ? -1 : 1;
-	const int8_t y = flipy ? -1 : 1;
-	glm::mat4 m{1.0};
-	m = glm::scale(m, glm::vec3{s7.scale.x * x, s7.scale.y * y, 1.0});
-	m = glm::translate(m, glm::vec3{s7.move.x * x, s7.move.y * y, s7.move.z});
-	m *= glm::eulerAngleXYZ(s7.rotate.x, s7.rotate.y, s7.rotate.z);
-	// NOTE: Normally the right order for this is scale-rotate-translate,
-	// however accessories seem to be wrongly placed.
-	// So scale-translate-rotate appears to get us closest to the right image.
-	// I think there is some parent-child transform hierarchy that's currently missing.
-	return m;
-}
+void SpriteData::preprocess() {
+	keyframes.resize(v77.s6.size());
+	for (uint32_t s6_id = 0; s6_id < v77.s6.size(); ++s6_id) {
+		const auto& s6 = v77.s6[s6_id];
+		auto& ck = keyframes[s6_id];
+		ck.bounds = {s6.left, s6.top, s6.right, s6.bottom};
 
-Sprite::Sprite(MBS mbs, std::vector<FTX::Entry> textures, uint32_t flags, uint32_t trackid)
-	: _mbs(std::move(mbs))
-	, _textures(std::move(textures))
-	, _glTexHandle(0)
-	, _flags(flags)
-	, _trackidx(trackid) {
-	_glTexHandle = make_texture_array(_textures);
-	play(_trackidx);
-}
-
-void Sprite::play(uint32_t trackid) {
-	_trackidx = trackid;
-
-	const auto& s9 = _mbs.get().s9[_trackidx];
-	_frames = std::vector<uint32_t>(s9.sa_set_no, 0);
-	_track = std::vector<uint32_t>(s9.sa_set_no, 0);
-
-	printf("%lu: %s\n", _trackidx, s9.name);
-}
-
-void Sprite::render(Camera& cam, const glm::mat4& projection) {
-	const auto& shader = GetKeyframeShader().Use();
-	const auto& v77 = _mbs.get();
-	const auto& s9 = v77.s9[_trackidx];
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, _glTexHandle);
-
-	for (uint16_t i = 0; i < s9.sa_set_no; ++i) {
-		const auto& sa = v77.sa[s9.sa_set_id + i];
-		const auto& s8 = v77.s8[sa.s8_id + _track[i]];
-		const auto& s7 = v77.s7[s8.s7_id]; // Matrix
-		const auto& s6 = v77.s6[s8.s6_id]; // Keyframe
-		// const auto& s5 = v77.s5[s6.s5_id]; // Hitbox
-		// const auto& s3 = v77.s3[s5.s3_id]; // Hitbox Matrix
-
-		if (s8.flags & mbs::v77::s8flag::HITBOX) { // Don't care about hitbox for now
-			continue;
-		}
-
-		if (s6.s4_no == 0) { // Ignore if frame does not have any content in it
-			continue;
-		}
-
-		if (_frames[i] == 0) {
-			_frames[i] = v77.s8[sa.s8_id + _track[i]].frames;
-			if (++_track[i] == sa.s8_no) {
-				_track[i] = 0;
-			}
-		}
-		_frames[i]--;
-
-		_vertices.storage().clear();
-		_indices.storage().clear();
-
-		// Draw each layer
-		const float zrate = 1.0f / (s6.s4_no + 1);
-		float depth = 1.0;
-		uint32_t l = 0;
-		for (uint32_t j = 0; j < s6.s4_no; ++j) { // For each layer
+		ck.layers.reserve(s6.s4_no);
+		for (uint32_t j = 0; j < s6.s4_no; ++j) {
 			const auto& s4 = v77.s4[s6.s4_id + j];
-			if ((s4.attributes & ~_flags) != 0) {
-				continue;
-			}
+			if (s4.tex_id >= textures.size()) continue;
 
-			const auto& tex = _textures[s4.tex_id];
+			const auto& tex = textures[s4.tex_id];
 			const auto texdim = glm::vec2{tex.width, tex.height};
+
+			CachedKeyframe::Layer layer;
+			layer.tex_id = s4.tex_id;
+			layer.attributes = s4.attributes;
 			for (int k = 0; k < 4; ++k) {
-				const auto& dst = v77.s2[s4.s2_id].values[k];
-				const auto& src = v77.s1[s4.s1_id].values[k];
-				const auto& fog = v77.s0[s4.s0_id].colors[k];
-				_vertices.storage().emplace_back(vertex{s4.tex_id, src * texdim, glm::vec3{dst, depth}, fog});
+				layer.uv[k] = v77.s1[s4.s1_id].values[k] * texdim;
+				layer.xy[k] = v77.s2[s4.s2_id].values[k];
+				layer.color[k] = v77.s0[s4.s0_id].colors[k];
 			}
-			depth -= zrate;
-			_indices.storage().insert(_indices.storage().end(), {l + 0, l + 1, l + 3, l + 1, l + 2, l + 3});
-			l += 4;
+			ck.layers.push_back(layer);
 		}
+	}
 
-		const bool flipx = mbs::v77::s8flag::FLIPX & s8.flags;
-		const bool flipy = mbs::v77::s8flag::FLIPY & s8.flags;
-		const auto s7m = s7_matrix(s7, flipx, flipy);
-
-		shader.SetUniform("u_mvp", projection * cam.lookAt() * s7m);
-		shader.SetUniform("u_tex", 0);
-		_vertices.bind().setData(gl::buffer::Usage::STATIC_DRAW);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 1, GL_SHORT, GL_FALSE, sizeof(vertex), (void*)offsetof(vertex, texid));
-		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)offsetof(vertex, uv));
-		glEnableVertexAttribArray(2);
-		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)offsetof(vertex, xyz));
-		glEnableVertexAttribArray(3);
-		glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex), (void*)offsetof(vertex, color));
-
-		_indices.bind().setData(gl::buffer::Usage::STATIC_DRAW).drawElements(gl::Mode::TRIANGLES);
+	tracks.resize(v77.s9.size());
+	for (uint32_t s9_id = 0; s9_id < v77.s9.size(); ++s9_id) {
+		const auto& s9 = v77.s9[s9_id];
+		auto& track = tracks[s9_id];
+		track.name = s9.name;
+		track.name = track.name.c_str();
+		track.runs.reserve(s9.sa_set_no);
+		for (uint32_t i = 0; i < s9.sa_set_no; ++i) {
+			const auto& sa = v77.sa[s9.sa_set_id + i];
+			track.runs.push_back({sa.s8_id, sa.s8_no});
+		}
 	}
 }
 
-void Sprite::update(uint64_t delta) {}
-
-Sprite& Sprite::operator++() noexcept {
-	if (_trackidx == _mbs.get().s9.size() - 1) {
-		_trackidx = 0;
-	} else {
-		_trackidx++;
+const SpriteData::Track* SpriteData::find_track(const std::string& name) const {
+	for (const auto& t : tracks) {
+		if (t.name == name) return &t;
 	}
-	play(_trackidx);
-	return *this;
+	return nullptr;
 }
-Sprite& Sprite::operator--() noexcept {
-	if (_trackidx == 0) {
-		_trackidx = _mbs.get().s9.size() - 1;
-	} else {
-		_trackidx--;
+
+void SpriteInstance::play(uint32_t track_id) {
+	track_idx = track_id;
+	const auto& track = data->tracks[track_idx];
+	ticks.assign(track.runs.size(), 0);
+	offsets.assign(track.runs.size(), 0);
+	_accum = 0.0f;
+
+	for (uint32_t i = 0; i < track.runs.size(); ++i) {
+		const auto& run = track.runs[i];
+		if (run.s8_count > 0 && run.s8_start < data->v77.s8.size()) {
+			ticks[i] = data->v77.s8[run.s8_start].frames;
+		}
 	}
-	play(_trackidx);
-	return *this;
+	_frame_counter++;
+	fprintf(stdout, "%u: %s\n", track_id, track.name.c_str());
+}
+
+void SpriteInstance::play(const std::string& name) {
+	for (uint32_t i = 0; i < data->tracks.size(); ++i) {
+		if (data->tracks[i].name == name) {
+			play(i);
+			return;
+		}
+	}
+}
+
+void SpriteInstance::update(float dt_seconds) {
+	constexpr float kTicksPerSecond = 60.0f;
+	_accum += dt_seconds * kTicksPerSecond;
+
+	bool advanced = false;
+	const auto& track = data->tracks[track_idx];
+
+	while (_accum >= 1.0f) {
+		_accum -= 1.0f;
+		for (uint32_t i = 0; i < track.runs.size(); ++i) {
+			const auto& run = track.runs[i];
+			if (run.s8_count == 0) continue;
+			if (--ticks[i] == 0) {
+				advanced = true;
+				if (++offsets[i] >= run.s8_count) offsets[i] = 0;
+				ticks[i] = data->v77.s8[run.s8_start + offsets[i]].frames;
+			}
+		}
+	}
+
+	if (advanced) _frame_counter++;
+}
+
+void SpriteInstance::next_track() {
+	if (data->tracks.empty()) return;
+	play((track_idx + 1) % data->tracks.size());
+}
+
+void SpriteInstance::prev_track() {
+	if (data->tracks.empty()) return;
+	play(track_idx == 0 ? data->tracks.size() - 1 : track_idx - 1);
+}
+
+void SpriteInstance::build_vertices(
+	uint32_t sa_idx, std::vector<SpriteVertex>& verts, std::vector<uint32_t>& indices) const {
+	verts.clear();
+	indices.clear();
+
+	const auto& track = data->tracks[track_idx];
+	if (sa_idx >= track.runs.size()) return;
+
+	const auto& run = track.runs[sa_idx];
+	if (run.s8_count == 0) return;
+
+	const auto& s8 = data->v77.s8[run.s8_start + offsets[sa_idx]];
+	if (s8.flags & (mbs::v77::s8flag::HITBOX | mbs::v77::s8flag::LAST)) return;
+
+	const auto& ck = data->keyframes[s8.s6_id];
+	if (ck.layers.empty()) return;
+
+	uint32_t visible = 0;
+	for (const auto& layer : ck.layers) {
+		if ((layer.attributes & ~variant_flags) == 0) visible++;
+	}
+	if (visible == 0) return;
+
+	const float zrate = 1.0f / (visible + 1.0f);
+	float depth = 1.0f;
+	uint32_t base = 0;
+
+	for (const auto& layer : ck.layers) {
+		if ((layer.attributes & ~variant_flags) != 0) continue;
+
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[0], {layer.xy[0], depth}, layer.color[0]});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[1], {layer.xy[1], depth}, layer.color[1]});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[2], {layer.xy[2], depth}, layer.color[2]});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[3], {layer.xy[3], depth}, layer.color[3]});
+
+		indices.insert(indices.end(), {base, base + 1, base + 3, base + 1, base + 2, base + 3});
+		depth -= zrate;
+		base += 4;
+	}
+}
+
+glm::mat4 SpriteInstance::transform_for_sa(uint32_t sa_idx, bool* out_flipx, bool* out_flipy) const {
+	const auto& track = data->tracks[track_idx];
+	const auto& run = track.runs[sa_idx];
+	const auto& s8 = data->v77.s8[run.s8_start + offsets[sa_idx]];
+
+	bool flipx = s8.flags & mbs::v77::s8flag::FLIPX;
+	bool flipy = s8.flags & mbs::v77::s8flag::FLIPY;
+	if (out_flipx) *out_flipx = flipx;
+	if (out_flipy) *out_flipy = flipy;
+
+	return mbs::s7_matrix(data->v77.s7[s8.s7_id], flipx, flipy);
+}
+
+uint32_t SpriteInstance::sa_count() const {
+	return static_cast<uint32_t>(data->tracks[track_idx].runs.size());
+}
+
+uint32_t SpriteInstance::frame_counter() const {
+	return _frame_counter;
 }
