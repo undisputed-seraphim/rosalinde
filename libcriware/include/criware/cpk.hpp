@@ -41,6 +41,15 @@ public:
 	template <schema::fixed_string Name> auto& column() { return _table.column<Name>(); }
 	template <schema::fixed_string Name> const auto& column() const { return _table.column<Name>(); }
 
+	template <schema::fixed_string... Names>
+	auto rows() const { return _table.rows<Names...>(); }
+
+	template <schema::fixed_string... Names>
+	auto rows() { return _table.rows<Names...>(); }
+
+	template <schema::fixed_string... Names>
+	size_t row_count() const noexcept { return _table.row_count<Names...>(); }
+
 	static constexpr bool has_column(std::string_view name) noexcept { return table_type::has_column(name); }
 	static constexpr size_t column_index(std::string_view name) noexcept { return table_type::column_index(name); }
 
