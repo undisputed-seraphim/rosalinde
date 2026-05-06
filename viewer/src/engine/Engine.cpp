@@ -11,6 +11,8 @@ void Engine::run() {
 	for (bool stop = false; !stop;) {
 		stop = _game->handle_inputs();
 		_game->update(dt);
+		_window.clear();
+		_game->render();
 		_window.swapbuffer();
 	}
 }

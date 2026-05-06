@@ -8,6 +8,7 @@ namespace uvw {
 
 class BaseGame {
 public:
+	virtual ~BaseGame() = default;
 	virtual bool handle_inputs() = 0;
 	virtual void render() = 0;
 	virtual void update(unsigned dt) = 0;
@@ -20,8 +21,8 @@ public:
 	void run();
 
 private:
-	std::unique_ptr<BaseGame> _game;
 	Window _window;
+	std::unique_ptr<BaseGame> _game;
 };
 
 } // namespace uvw
