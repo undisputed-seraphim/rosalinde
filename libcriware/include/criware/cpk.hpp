@@ -55,8 +55,6 @@ public:
 	static constexpr bool has_column(std::string_view name) noexcept { return table_type::has_column(name); }
 	static constexpr size_t column_index(std::string_view name) noexcept { return table_type::column_index(name); }
 
-	friend std::istream& operator>>(std::istream& is, CPKTable& t) { return is >> t._table; }
-
 private:
 	table<CPKSchema> _table;
 	std::filesystem::path _path;

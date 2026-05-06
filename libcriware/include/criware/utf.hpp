@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <istream>
 #include <map>
 #include <optional>
+#include <ostream>
 #include <ranges>
 #include <span>
 #include <string>
@@ -103,16 +103,12 @@ public:
 	const_iterator find_col(std::string_view name) const;
 	bool empty() const noexcept;
 
-	std::istream& operator>>(std::istream& is);
 	std::ostream& operator<<(std::ostream& os) const;
-	friend std::istream& operator>>(std::istream&, UTF&);
 	friend std::ostream& operator<<(std::ostream&, const UTF&);
 
 	static UTF parse(std::span<const uint8_t> data);
 
 	static bool decipher(std::vector<char>&);
-
-	static UTF data_as_subtable(std::istream& is, const UTF::field::data_t& data);
 
 protected:
 	storage_type _fields;
@@ -261,19 +257,8 @@ public:
 		table t;
 		auto first = utf.find_col(Schema::names[0]);
 		t._num_rows = (first != utf.end()) ? first->second.values.size() : 0;
-		t.populate(utf, std::make_index_sequence<Schema::count>{});
+		t.populate(std::move(utf), std::make_index_sequence<Schema::count>{});
 		return t;
-	}
-
-	friend std::istream& operator>>(std::istream& is, table& t) {
-		auto pos = is.tellg();
-		is.seekg(0, std::ios::end);
-		auto sz = static_cast<size_t>(is.tellg() - pos);
-		is.seekg(pos, std::ios::beg);
-		std::vector<uint8_t> buf(sz);
-		is.read(reinterpret_cast<char*>(buf.data()), static_cast<std::streamsize>(sz));
-		t = parse(buf);
-		return is;
 	}
 
 private:
@@ -281,18 +266,21 @@ private:
 	size_t _num_rows = 0;
 
 	template <size_t... Is>
-	void populate(const UTF& utf, std::index_sequence<Is...>) { ((populate_one<Is>(utf)), ...); }
+	void populate(UTF&& utf, std::index_sequence<Is...>) { ((populate_one<Is>(utf)), ...); }
 
 	template <size_t I>
-	void populate_one(const UTF& utf) {
+	void populate_one(UTF& utf) {
 		using ST = typename Schema::template column_type<I>;
 		auto it = utf.find_col(Schema::names[I]);
 		if (it == utf.end()) return;
+		auto& field = const_cast<UTF::field&>(it->second);
 		auto& vec = std::get<I>(_columns);
-		vec.reserve(it->second.values.size());
-		for (const auto& val : it->second.values)
-			std::visit([&](const auto& v) {
-				if constexpr (std::is_convertible_v<std::decay_t<decltype(v)>, ST>) vec.push_back(static_cast<ST>(v));
+		vec.reserve(field.values.size());
+		for (auto& val : field.values)
+			std::visit([&](auto&& v) {
+				using T = std::decay_t<decltype(v)>;
+				if constexpr (std::is_convertible_v<T, ST>)
+					vec.push_back(static_cast<ST>(std::move(v)));
 			}, val);
 	}
 };

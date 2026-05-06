@@ -24,16 +24,6 @@ bool UTF::decipher(std::vector<char>& bytes) {
 	return false;
 }
 
-UTF UTF::data_as_subtable(std::istream& is, const UTF::field::data_t& data) {
-	is.seekg(data.offset, std::ios::beg);
-	UTF utf;
-	is >> utf;
-	if (const auto size = static_cast<uint64_t>(is.tellg()) - data.offset; size != data.size) {
-		std::cout << "Warning: subtable size mismatch: expected " << data.size << ", got " << size << '\n';
-	}
-	return utf;
-}
-
 UTF::field::field() = default;
 UTF::field::field(type t, bool valid_)
 	: type_(t)
@@ -189,19 +179,6 @@ bool UTF::contains_col(std::string_view name) const { return _fields.contains(na
 UTF::const_iterator UTF::find_col(std::string_view name) const { return _fields.find(name); }
 bool UTF::empty() const noexcept { return _fields.empty(); }
 
-std::istream& UTF::operator>>(std::istream& is) {
-	auto pos = is.tellg();
-	is.seekg(0, std::ios::end);
-	auto sz = static_cast<size_t>(is.tellg() - pos);
-	is.seekg(pos, std::ios::beg);
-
-	std::vector<uint8_t> buf(sz);
-	is.read(reinterpret_cast<char*>(buf.data()), static_cast<std::streamsize>(sz));
-
-	*this = parse(buf);
-	return is;
-}
-
 struct visitor {
 	std::ostream& os;
 	template <std::floating_point F>
@@ -235,5 +212,4 @@ std::ostream& UTF::operator<<(std::ostream& os) const {
 	return os;
 }
 
-std::istream& operator>>(std::istream& is, UTF& utf) { return utf.operator>>(is); }
 std::ostream& operator<<(std::ostream& os, const UTF& utf) { return utf.operator<<(os); }
