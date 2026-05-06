@@ -1,104 +1,15 @@
 #include <criware/utf.hpp>
 #include <criware/byte_reader.hpp>
-#include <criware/utils.hpp>
+#include <criware/endian_swap.hpp>
 
 #include <cstring>
 #include <iostream>
 
-#pragma pack(push, 1)
-struct chunk_header {
-	char magic[4];
-	uint32_t table_size;
-	uint32_t rows_offset;
-	uint32_t string_offset;
-	uint32_t data_offset;
-	uint32_t table_name;
-	uint16_t num_columns;
-	uint16_t row_length;
-	uint32_t num_rows;
-
-	std::istream& operator>>(std::istream& i);
-	friend std::istream& operator>>(std::istream&, chunk_header&);
-};
-#pragma pack(pop)
-
-static std::string read_string(const uint32_t block_offset, std::istream& iss) {
-	const uint32_t offset = read_value_swap_endian<uint32_t>(iss) + block_offset;
-	const size_t tell = iss.tellg();
-	iss.seekg(offset, std::ios::beg);
-	std::string value;
-	std::getline(iss, value, char(0)).seekg(tell, std::ios::beg);
-	return value;
-}
-
-static UTF::field::data_t read_data(const uint32_t block_offset, std::istream& iss) {
-	const uint32_t offset = read_value_swap_endian<uint32_t>(iss) + block_offset;
-	const uint32_t length = read_value_swap_endian<uint32_t>(iss);
-	return {offset, length};
-}
-
-UTF::field::field() = default;
-UTF::field::field(type t, bool valid_)
-	: type_(t)
-	, valid(valid_) {}
-
-std::istream& chunk_header::operator>>(std::istream& i) {
-	i.read(magic, sizeof(magic));
-	table_size = read_value_swap_endian<decltype(table_size)>(i);
-	rows_offset = read_value_swap_endian<decltype(rows_offset)>(i);
-	string_offset = read_value_swap_endian<decltype(string_offset)>(i);
-	data_offset = read_value_swap_endian<decltype(data_offset)>(i);
-	table_name = read_value_swap_endian<decltype(table_name)>(i);
-	num_columns = read_value_swap_endian<decltype(num_columns)>(i);
-	row_length = read_value_swap_endian<decltype(row_length)>(i);
-	num_rows = read_value_swap_endian<decltype(num_rows)>(i);
-	return i;
-}
-
-std::istream& operator>>(std::istream& i, chunk_header& chunk) { return chunk.operator>>(i); }
-
-void UTF::field::push_back(UTF::field::value_t&& value) {
-	const auto ftype = static_cast<type>(value.index());
-	if (type_ == type::INVALID) {
-		type_ = ftype;
-	} else if (type_ != ftype) {
-		throw std::runtime_error("Mismatched field type!");
-	}
-	values.push_back(std::move(value));
-	valid = true;
-}
-
-const UTF::field::value_t& UTF::field::at(size_t i) const { return values.at(i); }
-
-UTF::field::value_t read_type(const chunk_header& header, UTF::field::type type_, std::istream& is) {
-	switch (type_) {
-	case UTF::field::type::UINT8:
-		return (read_value_swap_endian<uint8_t>(is));
-	case UTF::field::type::INT8:
-		return (read_value_swap_endian<int8_t>(is));
-	case UTF::field::type::UINT16:
-		return (read_value_swap_endian<uint16_t>(is));
-	case UTF::field::type::INT16:
-		return (read_value_swap_endian<int16_t>(is));
-	case UTF::field::type::UINT32:
-		return (read_value_swap_endian<uint32_t>(is));
-	case UTF::field::type::INT32:
-		return (read_value_swap_endian<int32_t>(is));
-	case UTF::field::type::UINT64:
-		return (read_value_swap_endian<uint64_t>(is));
-	case UTF::field::type::INT64:
-		return (read_value_swap_endian<int64_t>(is));
-	case UTF::field::type::FLOAT:
-		return (read_value_swap_endian<float>(is));
-	case UTF::field::type::DOUBLE:
-		return (read_value_swap_endian<double>(is));
-	case UTF::field::type::STRING:
-		return (read_string(header.string_offset, is));
-	case UTF::field::type::DATA:
-		return (read_data(header.data_offset, is));
-	default:
-		return (std::monostate{});
-	}
+template <typename T>
+static T read_be(byte_reader& r) {
+	T val = r.read<T>();
+	if constexpr (sizeof(T) == 1) return val;
+	return swap_endian(val);
 }
 
 bool UTF::decipher(std::vector<char>& bytes) {
@@ -123,12 +34,23 @@ UTF UTF::data_as_subtable(std::istream& is, const UTF::field::data_t& data) {
 	return utf;
 }
 
-template <typename T>
-static T read_be(byte_reader& r) {
-	T val = r.read<T>();
-	if constexpr (sizeof(T) == 1) return val;
-	return swap_endian(val);
+UTF::field::field() = default;
+UTF::field::field(type t, bool valid_)
+	: type_(t)
+	, valid(valid_) {}
+
+void UTF::field::push_back(UTF::field::value_t&& value) {
+	const auto ftype = static_cast<type>(value.index());
+	if (type_ == type::INVALID) {
+		type_ = ftype;
+	} else if (type_ != ftype) {
+		throw std::runtime_error("Mismatched field type!");
+	}
+	values.push_back(std::move(value));
+	valid = true;
 }
+
+const UTF::field::value_t& UTF::field::at(size_t i) const { return values.at(i); }
 
 UTF UTF::parse(std::span<const uint8_t> data) {
 	byte_reader r(data);
@@ -266,11 +188,6 @@ UTF::size_type UTF::num_cols() const noexcept { return _fields.size(); }
 bool UTF::contains_col(std::string_view name) const { return _fields.contains(name); }
 UTF::const_iterator UTF::find_col(std::string_view name) const { return _fields.find(name); }
 bool UTF::empty() const noexcept { return _fields.empty(); }
-
-static bool validate_header(const chunk_header& h) noexcept {
-	constexpr const char _utf[] = {'@', 'U', 'T', 'F'};
-	return 0 == ::strncmp(h.magic, _utf, sizeof(_utf));
-}
 
 std::istream& UTF::operator>>(std::istream& is) {
 	auto pos = is.tellg();
