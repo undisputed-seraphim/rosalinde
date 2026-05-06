@@ -6,6 +6,7 @@
 #include <iosfwd>
 #include <map>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -262,6 +263,13 @@ template <typename S> struct std::tuple_size<row_view<S>> : std::integral_consta
 template <size_t I, typename S> struct std::tuple_element<I, row_view<S>> { using type = typename S::template column_type<I>; };
 template <size_t I, typename S> auto get(const row_view<S>& rv) { return rv.template get<I>(); }
 
+template <schema::fixed_string Name, typename S>
+decltype(auto) get(const row_view<S>& rv) {
+	static_assert(S::index_of(Name) != static_cast<size_t>(-1), "Unknown column name");
+	constexpr size_t I = S::index_of(Name);
+	return rv.template get<I>();
+}
+
 // ============================================================================
 // table<Schema> — typed column-major table, parses via existing UTF
 // ============================================================================
@@ -304,6 +312,26 @@ public:
 		constexpr size_t I = Schema::index_of(Name);
 		static_assert(I != static_cast<size_t>(-1), "Unknown column name");
 		return column<I>();
+	}
+
+	template <schema::fixed_string... Names>
+	auto rows() const {
+		return std::views::zip(column<Names>()...);
+	}
+
+	template <schema::fixed_string... Names>
+	size_t row_count() const noexcept {
+		return (std::min)({column<Names>().size()...});
+	}
+
+	template <schema::fixed_string... Names>
+	auto rows() {
+		return std::views::zip(column<Names>()...);
+	}
+
+	template <schema::fixed_string... Names>
+	size_t row_count() noexcept {
+		return (std::min)({column<Names>().size()...});
 	}
 
 	static constexpr bool has_column(std::string_view name) noexcept { return Schema::index_of(name) != static_cast<size_t>(-1); }
