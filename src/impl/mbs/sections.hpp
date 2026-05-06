@@ -167,7 +167,6 @@ struct v77 {
 	std::vector<section_b> sb;
 
 	friend std::istream& operator>>(std::istream&, v77&);
-	friend std::ostream& operator<<(std::ostream&, const v77&);
 
 	enum s4flag : uint8_t {
 		SKIP = 0x02,
