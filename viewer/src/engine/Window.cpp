@@ -12,7 +12,7 @@ static std::unique_ptr<char, void (*)(char*)> Init_SDL(int flags) {
 		throw std::runtime_error(err);
 	}
 	return std::unique_ptr<char, void (*)(char*)>(new char[0], [](char* ptr) {
-		delete ptr;
+		delete[] ptr;
 		SDL_Quit();
 	});
 }
