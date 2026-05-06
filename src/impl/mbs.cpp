@@ -1,5 +1,5 @@
 #include "mbs.hpp"
-#include "byte_reader.hpp"
+#include <criware/byte_reader.hpp>
 #include "mbs/detail.hpp"
 
 #include <criware/utils.hpp>

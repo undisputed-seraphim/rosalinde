@@ -1,7 +1,7 @@
 #pragma once
 
 #include "sections.hpp"
-#include "../byte_reader.hpp"
+#include <criware/byte_reader.hpp>
 
 #include <array>
 #include <cstdint>

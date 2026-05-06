@@ -1,4 +1,5 @@
 #include <criware/utf.hpp>
+#include <criware/byte_reader.hpp>
 #include <criware/utils.hpp>
 
 #include <cstring>
@@ -122,6 +123,138 @@ UTF UTF::data_as_subtable(std::istream& is, const UTF::field::data_t& data) {
 	return utf;
 }
 
+template <typename T>
+static T read_be(byte_reader& r) {
+	T val = r.read<T>();
+	if constexpr (sizeof(T) == 1) return val;
+	return swap_endian(val);
+}
+
+UTF UTF::parse(std::span<const uint8_t> data) {
+	byte_reader r(data);
+
+	char magic[4];
+	std::memcpy(magic, r.cur, 4);
+	r.skip(4);
+	if (::strncmp(magic, "@UTF", 4) != 0) {
+		return {};
+	}
+
+	const uint32_t table_size = read_be<uint32_t>(r);
+	const uint32_t rows_offset = read_be<uint32_t>(r) + 8;
+	const uint32_t string_offset = read_be<uint32_t>(r) + 8;
+	const uint32_t data_offset = read_be<uint32_t>(r) + 8;
+	(void)table_size;
+	read_be<uint32_t>(r); // table_name
+	const uint16_t num_columns = read_be<uint16_t>(r);
+	read_be<uint16_t>(r); // row_length
+	const uint32_t num_rows = read_be<uint32_t>(r);
+
+	struct col_info {
+		std::string name;
+		field f;
+	};
+	std::vector<col_info> cols;
+	cols.reserve(num_columns);
+
+	for (uint16_t c = 0; c < num_columns; ++c) {
+		const uint8_t flags = r.read<uint8_t>();
+		std::string fname;
+		if (flags & 0x10) {
+			const uint32_t name_idx = read_be<uint32_t>(r);
+			size_t saved = r.tell();
+			r.seek(string_offset + name_idx);
+			const uint8_t* start = r.cur;
+			while (*r.cur != 0) r.skip(1);
+			fname = std::string(reinterpret_cast<const char*>(start), r.cur - start);
+			r.skip(1); // null
+			r.seek(saved);
+		}
+		const auto ftype = static_cast<field::type>(flags & 0xF);
+		const bool has_default = (flags & 0x20);
+		const bool is_valid = (flags & 0x40);
+
+		field f(ftype, is_valid);
+		if (has_default) {
+			switch (ftype) {
+			case field::type::UINT8: f.push_back(r.read<uint8_t>()); break;
+			case field::type::INT8: f.push_back(r.read<int8_t>()); break;
+			case field::type::UINT16: f.push_back(read_be<uint16_t>(r)); break;
+			case field::type::INT16: f.push_back(read_be<int16_t>(r)); break;
+			case field::type::UINT32: f.push_back(read_be<uint32_t>(r)); break;
+			case field::type::INT32: f.push_back(read_be<int32_t>(r)); break;
+			case field::type::UINT64: f.push_back(read_be<uint64_t>(r)); break;
+			case field::type::INT64: f.push_back(read_be<int64_t>(r)); break;
+			case field::type::FLOAT: f.push_back(read_be<float>(r)); break;
+			case field::type::DOUBLE: f.push_back(read_be<double>(r)); break;
+			case field::type::STRING: {
+				uint32_t idx = read_be<uint32_t>(r);
+				size_t saved = r.tell();
+				r.seek(string_offset + idx);
+				const uint8_t* start = r.cur;
+				while (*r.cur != 0) r.skip(1);
+				f.push_back(std::string(reinterpret_cast<const char*>(start), r.cur - start));
+				r.skip(1);
+				r.seek(saved);
+				break;
+			}
+			case field::type::DATA: {
+				uint32_t off = read_be<uint32_t>(r);
+				uint32_t len = read_be<uint32_t>(r);
+				f.push_back(field::data_t{data_offset + off, len});
+				break;
+			}
+			default: break;
+			}
+			f.has_default = true;
+		}
+		cols.push_back({std::move(fname), std::move(f)});
+	}
+
+	r.seek(rows_offset);
+	for (uint32_t i = 0; i < num_rows; ++i) {
+		for (auto& [_, f] : cols) {
+			if (f.has_default || !f.valid) continue;
+			switch (f.type_) {
+			case field::type::UINT8: f.push_back(r.read<uint8_t>()); break;
+			case field::type::INT8: f.push_back(r.read<int8_t>()); break;
+			case field::type::UINT16: f.push_back(read_be<uint16_t>(r)); break;
+			case field::type::INT16: f.push_back(read_be<int16_t>(r)); break;
+			case field::type::UINT32: f.push_back(read_be<uint32_t>(r)); break;
+			case field::type::INT32: f.push_back(read_be<int32_t>(r)); break;
+			case field::type::UINT64: f.push_back(read_be<uint64_t>(r)); break;
+			case field::type::INT64: f.push_back(read_be<int64_t>(r)); break;
+			case field::type::FLOAT: f.push_back(read_be<float>(r)); break;
+			case field::type::DOUBLE: f.push_back(read_be<double>(r)); break;
+			case field::type::STRING: {
+				uint32_t idx = read_be<uint32_t>(r);
+				size_t saved = r.tell();
+				r.seek(string_offset + idx);
+				const uint8_t* start = r.cur;
+				while (*r.cur != 0) r.skip(1);
+				f.push_back(std::string(reinterpret_cast<const char*>(start), r.cur - start));
+				r.skip(1);
+				r.seek(saved);
+				break;
+			}
+			case field::type::DATA: {
+				uint32_t off = read_be<uint32_t>(r);
+				uint32_t len = read_be<uint32_t>(r);
+				f.push_back(field::data_t{data_offset + off, len});
+				break;
+			}
+			default: f.push_back(std::monostate{}); break;
+			}
+		}
+	}
+
+	UTF utf;
+	for (auto& [name, f] : cols) {
+		utf._fields.emplace(std::move(name), std::move(f));
+	}
+	return utf;
+}
+
 UTF::UTF() {}
 
 UTF::const_iterator UTF::begin() const { return _fields.begin(); }
@@ -139,48 +272,16 @@ static bool validate_header(const chunk_header& h) noexcept {
 	return 0 == ::strncmp(h.magic, _utf, sizeof(_utf));
 }
 
-// Currently this can only handle deciphered streams.
 std::istream& UTF::operator>>(std::istream& is) {
-	// uint64_t offset = is.tellg();
-	const uint64_t offset = 0;
+	auto pos = is.tellg();
+	is.seekg(0, std::ios::end);
+	auto sz = static_cast<size_t>(is.tellg() - pos);
+	is.seekg(pos, std::ios::beg);
 
-	chunk_header hdr;
-	is >> hdr;
+	std::vector<uint8_t> buf(sz);
+	is.read(reinterpret_cast<char*>(buf.data()), static_cast<std::streamsize>(sz));
 
-	if (!validate_header(hdr)) {
-		printf("Invalid header, returning early.\n");
-		return is;
-	}
-
-	hdr.rows_offset += 8 + offset;
-	hdr.data_offset += 8 + offset;
-	hdr.string_offset += 8 + offset;
-
-	std::vector<std::pair<std::string, field>> temp;
-	for (uint32_t i = 0; i < hdr.num_columns; ++i) {
-		const uint8_t flags = read_value<uint8_t>(is);
-		std::string fname = (flags & 0x10) ? read_string(hdr.string_offset, is) : "";
-		const auto ftype = static_cast<UTF::field::type>(flags & 0xF);
-		const bool has_default = ((flags & 0x20) != 0);
-		const bool is_valid = ((flags & 0x40) != 0);
-		UTF::field f(ftype, is_valid);
-		if (has_default) {
-			f.push_back(read_type(hdr, f.type_, is));
-			f.has_default = true;
-		}
-		temp.push_back({std::move(fname), std::move(f)});
-	}
-	for (uint32_t i = 0; i < hdr.num_rows; i++) {
-		for (auto& [_, field] : temp) {
-			if (!field.has_default && field.valid) {
-				field.push_back(read_type(hdr, field.type_, is));
-			}
-		}
-	}
-	for (auto&& [name, field] : temp) {
-		this->_fields.emplace(std::move(name), std::move(field));
-	}
-
+	*this = parse(buf);
 	return is;
 }
 
