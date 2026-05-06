@@ -1,5 +1,6 @@
 #include <boost/program_options.hpp>
 #include <criware/cpk.hpp>
+#include <criware/utf.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -33,6 +34,7 @@ struct Args {
 	std::string cpk_path;
 	bool list = false;
 	std::string extract_file;
+	std::string dump_file;
 	bool help = false;
 };
 
@@ -98,6 +100,46 @@ void print_list(const std::vector<Entry>& entries) {
 	std::cout << entries.size() << " files\n";
 }
 
+void dump_columns(const CPKTable& table, std::string_view file_path) {
+	auto [dir, name] = split_path(file_path);
+	auto data = extract_entry(table, dir, name);
+	UTF::decipher(data);
+	auto utf = UTF::parse(std::span(reinterpret_cast<const uint8_t*>(data.data()), data.size()));
+
+	std::cout << "File: " << dir << "/" << name << "\n";
+	std::cout << "Columns: " << utf.num_cols() << "\n";
+	for (const auto& [col_name, field] : utf) {
+		const char* type_str = "???";
+		switch (field.type_) {
+		case UTF::field::type::UINT8:  type_str = "u8"; break;
+		case UTF::field::type::INT8:   type_str = "s8"; break;
+		case UTF::field::type::UINT16: type_str = "u16"; break;
+		case UTF::field::type::INT16:  type_str = "s16"; break;
+		case UTF::field::type::UINT32: type_str = "u32"; break;
+		case UTF::field::type::INT32:  type_str = "s32"; break;
+		case UTF::field::type::UINT64: type_str = "u64"; break;
+		case UTF::field::type::INT64:  type_str = "s64"; break;
+		case UTF::field::type::FLOAT:  type_str = "f32"; break;
+		case UTF::field::type::DOUBLE: type_str = "f64"; break;
+		case UTF::field::type::STRING: type_str = "str"; break;
+		case UTF::field::type::DATA:   type_str = "data"; break;
+		default: break;
+		}
+		std::cout << "  " << col_name << " (" << type_str << ") x" << field.values.size();
+		if (field.has_default) std::cout << " [default]";
+		if (!field.valid) std::cout << " [invalid]";
+		if (field.type_ == UTF::field::type::STRING && field.values.size() > 0) {
+			auto s = field.cast_at<std::string>(0);
+			if (s) std::cout << " = \"" << *s << "\"";
+		}
+		if (field.type_ == UTF::field::type::DATA && field.values.size() > 0) {
+			auto d = field.cast_at<UTF::field::data_t>(0);
+			if (d) std::cout << " offset=" << d->offset << " size=" << d->size;
+		}
+		std::cout << "\n";
+	}
+}
+
 // ============================================================================
 // CLI
 // ============================================================================
@@ -110,7 +152,9 @@ int main(int argc, char* argv[]) try {
 		"Path to CPK archive")(
 		"list,l", po::bool_switch(&args.list), "List files with sizes")(
 		"extract,e", po::value<std::string>(&args.extract_file),
-		"Extract file (DirName/FileName)");
+		"Extract file (DirName/FileName)")(
+		"dump,d", po::value<std::string>(&args.dump_file),
+		"Dump @UTF column layout of a file");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -140,6 +184,11 @@ int main(int argc, char* argv[]) try {
 		write_file(out_path, data);
 		std::cout << "Extracted " << dir << "/" << name
 				  << " (" << data.size() << " bytes) -> " << out_path << "\n";
+		return 0;
+	}
+
+	if (!args.dump_file.empty()) {
+		dump_columns(table, args.dump_file);
 		return 0;
 	}
 

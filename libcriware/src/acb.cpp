@@ -1,86 +1,232 @@
 #include <criware/acb.hpp>
+#include <criware/byte_reader.hpp>
+#include <criware/endian_swap.hpp>
 
 #include <cassert>
-#include <cstring>
-#include <istream>
 #include <span>
 #include <stdexcept>
-#include <vector>
+
+namespace criware {
+namespace {
+
+using RootSchema = decltype(schema::make(
+	schema::col<"Version", uint32_t>(),
+	schema::col<"CueTable", UTF::field::data_t>(),
+	schema::col<"CueNameTable", UTF::field::data_t>(),
+	schema::col<"WaveformTable", UTF::field::data_t>(),
+	schema::col<"SynthTable", UTF::field::data_t>(),
+	schema::col<"TrackTable", UTF::field::data_t>(),
+	schema::col<"SequenceTable", UTF::field::data_t>(),
+	schema::col<"AwbFile", UTF::field::data_t>(),
+	schema::col<"StreamAwbAfs2Header", UTF::field::data_t>()));
 
 using CueTableSchema = decltype(schema::make(
-	schema::col<"AisacControlMap", std::string>(),
-	schema::col<"CueId", uint8_t>(),
-	schema::col<"Length", uint32_t>(),
-	schema::col<"NumAisacControlMaps", uint8_t>(),
-	schema::col<"NumRelatedWaveforms", uint8_t>(),
-	schema::col<"ReferenceIndex", uint8_t>()));
-using CueTable = table<CueTableSchema>;
+	schema::col<"CueId", uint32_t>(),
+	schema::col<"ReferenceType", uint8_t>(),
+	schema::col<"ReferenceIndex", uint16_t>()));
 
 using WaveformTableSchema = decltype(schema::make(
-	schema::col<"EncodeType", uint16_t>(),
-	schema::col<"ExtensionData", uint16_t>(),
+	schema::col<"EncodeType", uint8_t>(),
+	schema::col<"Streaming", uint8_t>(),
 	schema::col<"LoopFlag", uint8_t>(),
-	schema::col<"MemoryAwbId", uint16_t>(),
+	schema::col<"NumChannels", uint8_t>(),
+	schema::col<"SamplingRate", uint32_t>(),
 	schema::col<"NumSamples", uint32_t>(),
-	schema::col<"StreamAwbId", uint8_t>(),
-	schema::col<"Streaming", uint8_t>()));
-using WaveformTable = table<WaveformTableSchema>;
+	schema::col<"MemoryAwbId", uint16_t>(),
+	schema::col<"StreamAwbId", uint16_t>()));
 
 using SynthTableSchema = decltype(schema::make(
-	schema::col<"CommandIndex", uint16_t>(),
-	schema::col<"ControlWorkArea1", uint8_t>(),
-	schema::col<"ControlWorkArea2", uint8_t>(),
-	schema::col<"ReferenceItems", UTF::field::data_t>()));
-using SynthTable = table<SynthTableSchema>;
+	schema::col<"ReferenceItems", UTF::field::data_t>(),
+	schema::col<"Type", uint8_t>()));
 
-ACB::ACB() {}
+using TrackTableSchema = decltype(schema::make(
+	schema::col<"Scope", uint8_t>(),
+	schema::col<"TargetType", uint8_t>(),
+	schema::col<"TargetId", uint32_t>()));
 
-std::istream& operator>>(std::istream& is, ACB& acb) {
-	auto pos = is.tellg();
-	is.seekg(0, std::ios::end);
-	auto sz = static_cast<size_t>(is.tellg() - pos);
-	is.seekg(pos, std::ios::beg);
-	std::vector<uint8_t> buf(sz);
-	is.read(reinterpret_cast<char*>(buf.data()), static_cast<std::streamsize>(sz));
-	auto data = std::span<const uint8_t>(buf);
+using CueNameTableSchema = decltype(schema::make(
+	schema::col<"CueIndex", uint16_t>(),
+	schema::col<"CueName", std::string>()));
 
-	acb._table = table<ACBSchema>::parse(data);
+static uint16_t read_be16(const uint8_t* p) {
+	uint16_t val;
+	std::memcpy(&val, p, 2);
+	return swap_endian(val);
+}
 
-	auto& cue = acb._table.column<"CueTable">();
-	auto& wave = acb._table.column<"WaveformTable">();
-	auto& synth = acb._table.column<"SynthTable">();
+static ACBWaveform build_waveform(const row_view<WaveformTableSchema>& row) {
+	ACBWaveform w;
+	w.encode_type   = get<"EncodeType">(row);
+	w.streaming     = get<"Streaming">(row);
+	w.loop_flag     = get<"LoopFlag">(row);
+	w.num_channels  = get<"NumChannels">(row);
+	w.sampling_rate = get<"SamplingRate">(row);
+	w.num_samples   = get<"NumSamples">(row);
+	w.memory_awb_id = get<"MemoryAwbId">(row);
+	w.stream_awb_id = get<"StreamAwbId">(row);
+	w.waveform_id   = w.streaming ? w.stream_awb_id : w.memory_awb_id;
+	return w;
+}
 
-	CueTable cueTable = CueTable::parse(data.subspan(cue[0].offset, cue[0].size));
-	WaveformTable waveformTable = WaveformTable::parse(data.subspan(wave[0].offset, wave[0].size));
-	SynthTable synthTable = SynthTable::parse(data.subspan(synth[0].offset, synth[0].size));
+static void resolve_waveform(ACBCue& cue, const ACBWaveform& w) {
+	cue.waveform_id = w.waveform_id;
+	cue.encode_type = w.encode_type;
+	cue.streaming = w.streaming;
+	cue.waveform_identified = true;
+}
 
-	for (uint32_t i = 0; i < cueTable.size(); ++i) {
-		const auto& [acm, cueid, length, nracm, nrrelwavf, refidx] = cueTable[i];
+static void resolve_waveform(ACBTrack& track, const ACBWaveform& w) {
+	track.waveform_id = w.waveform_id;
+	track.encode_type = w.encode_type;
+	track.streaming = w.streaming;
+	track.waveform_identified = true;
+}
 
-		int refType = 0;
+} // anonymous namespace
 
-		UTF::field::data_t refItem;
-		switch (refType) {
-		case 2: {
-			const auto& [cmdIdx, ctrlWrkA1, ctrlWrkA2, refItems] = synthTable[refidx];
-			refItem = refItems;
-			break;
-		}
-		case 3:
-		case 8: {
-			if (i == 0) {
-				const auto& [cmdIdx, ctrlWrkA1, ctrlWrkA2, refItems] = synthTable[0];
-				refItem = refItems;
+ACB ACB::parse(std::span<const uint8_t> data) {
+	ACB acb;
+	auto root = table<RootSchema>::parse(data);
 
-			} else {
+	auto& version = root.column<"Version">();
+	acb._format_version = version.size() > 0 ? version[0] : 0;
+
+	auto& cueCol  = root.column<"CueTable">();
+	auto& cnCol   = root.column<"CueNameTable">();
+	auto& wvCol   = root.column<"WaveformTable">();
+	auto& stCol   = root.column<"SynthTable">();
+	auto& tkCol   = root.column<"TrackTable">();
+
+	auto sub = [&](const std::vector<UTF::field::data_t>& refs) -> std::span<const uint8_t> {
+		if (refs.empty()) return {};
+		return data.subspan(refs[0].offset, refs[0].size);
+	};
+
+	auto cueSub = sub(cueCol);
+	auto wvSub  = sub(wvCol);
+	auto stSub  = sub(stCol);
+	auto tkSub  = sub(tkCol);
+	auto cnSub  = sub(cnCol);
+
+	if (cueSub.empty() || wvSub.empty() || stSub.empty())
+		return acb;
+
+	uint64_t stBase = stCol[0].offset;
+
+	auto cueTable = table<CueTableSchema>::parse(cueSub);
+	auto waveformTable = table<WaveformTableSchema>::parse(wvSub);
+	auto synthTable = table<SynthTableSchema>::parse(stSub);
+
+	auto& cue_ids   = cueTable.column<"CueId">();
+	auto& cue_rt    = cueTable.column<"ReferenceType">();
+	auto& cue_ri    = cueTable.column<"ReferenceIndex">();
+	bool rt_default = (cue_rt.size() == 1 && cue_ids.size() > 1);
+
+	for (size_t i = 0; i < waveformTable.size(); ++i)
+		acb._waveforms.push_back(build_waveform(waveformTable[i]));
+
+	uint64_t ref_offset = 0;
+	uint32_t ref_size = 0;
+	uint32_t ref_correction = 0;
+
+	for (size_t i = 0; i < cue_ids.size(); ++i) {
+		ACBCue cue;
+		cue.cue_id          = cue_ids[i];
+		cue.reference_type  = rt_default ? cue_rt[0] : cue_rt[i];
+		cue.reference_index = cue_ri[i];
+
+		uint16_t waveform_index = 0;
+		bool has_waveform = false;
+
+		if (cue.reference_index < synthTable.size()) {
+			auto synth_row = synthTable[cue.reference_index];
+			auto& ref_items = get<"ReferenceItems">(synth_row);
+
+			switch (cue.reference_type) {
+			case 2:
+				ref_offset = ref_items.offset;
+				ref_size = ref_items.size;
+				ref_correction = ref_size + 2;
+				break;
+			case 3:
+			case 8:
+				if (i == 0) {
+					ref_offset = ref_items.offset;
+					ref_size = ref_items.size;
+					ref_correction = ref_size - 2;
+				} else {
+					ref_correction += 4;
+				}
+				break;
+			default:
+				break;
 			}
-			break;
+
+			if (ref_size > 0 && ref_offset + ref_correction + 2 <= data.size()) {
+				waveform_index = read_be16(data.data() + stBase + ref_offset + ref_correction);
+				cue.waveform_index = waveform_index;
+				has_waveform = true;
+			}
 		}
-		default: {
-			throw std::runtime_error("Unsupported ReferenceType");
-		}
+
+		if (has_waveform && waveform_index < acb._waveforms.size())
+			resolve_waveform(cue, acb._waveforms[waveform_index]);
+
+		acb._cues.push_back(std::move(cue));
+	}
+
+	if (!tkSub.empty() && !stSub.empty()) {
+		auto trackTable = table<TrackTableSchema>::parse(tkSub);
+
+		for (size_t i = 0; i < trackTable.size(); ++i) {
+			ACBTrack track;
+			track.track_index = static_cast<uint32_t>(i);
+			track.synth_index = track.track_index;
+
+			uint16_t waveform_index = 0;
+			bool has_waveform = false;
+
+			if (track.synth_index < synthTable.size()) {
+				auto synth_row = synthTable[track.synth_index];
+				auto& ref_items = get<"ReferenceItems">(synth_row);
+
+			if (ref_items.size > 0 && ref_items.offset + ref_items.size - 2 + 2 <= data.size()) {
+				waveform_index = read_be16(data.data() + stBase + ref_items.offset + ref_items.size - 2);
+				track.waveform_index = waveform_index;
+					has_waveform = true;
+				}
+			}
+
+			if (has_waveform && waveform_index < acb._waveforms.size())
+				resolve_waveform(track, acb._waveforms[waveform_index]);
+
+			acb._tracks.push_back(std::move(track));
 		}
 	}
 
-	return is;
+	if (!cnSub.empty()) {
+		auto cueNameTable = table<CueNameTableSchema>::parse(cnSub);
+		for (size_t i = 0; i < cueNameTable.size(); ++i) {
+			auto row = cueNameTable[i];
+			uint16_t cue_idx = get<"CueIndex">(row);
+			if (cue_idx < acb._cues.size())
+				acb._cues[cue_idx].cue_name = get<"CueName">(row);
+		}
+	}
+
+	return acb;
 }
+
+const ACBCue* ACB::find_cue(uint32_t cue_id) const {
+	for (auto& c : _cues)
+		if (c.cue_id == cue_id) return &c;
+	return nullptr;
+}
+
+const ACBTrack* ACB::find_track(uint32_t track_index) const {
+	for (auto& t : _tracks)
+		if (t.track_index == track_index) return &t;
+	return nullptr;
+}
+
+} // namespace criware

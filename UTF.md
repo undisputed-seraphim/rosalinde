@@ -9,11 +9,12 @@ subtable uses this format.
 ```
 ┌────────────────────╥────────────────────────────────────────────┐
 │  chunk_header       │                                          │
-│  (40 bytes)        ║  column_defs  │  row_data  │  pools      │
+│  (32 bytes)        ║  column_defs  │  row_data  │  pools      │
 │                     │                                              │
 │  magic     4B      │                                              │
 │  table_size 4B     │                                              │
-│  rows_offset 4B ───┼──────────────┐                               │
+│  unk1       2B     │                                              │
+│  rows_offset 2B ───┼──────────────┐                               │
 │  string_offset 4B ─┼──────────────┼───────────────────┐           │
 │  data_offset 4B ───┼──────────────┼───────────────────┼───────┐   │
 │  table_name 4B     │                                              │
