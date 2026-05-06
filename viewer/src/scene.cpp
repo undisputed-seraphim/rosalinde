@@ -33,10 +33,12 @@ Scene::Scene(std::filesystem::path cpkpath,
 	const std::string& classname,
 	const std::string& charaname,
 	uint32_t trackid,
-	bool debug)
+	bool debug,
+	std::string screenshot_path)
 	: _cpkt(TopLevelCpk(cpkpath).getTableOfContents())
 	, _camera(2.5)
-	, _projection(1.0) {
+	, _projection(1.0)
+	, _screenshot_path(std::move(screenshot_path)) {
 
 	if (debug) {
 		glEnable(GL_DEBUG_OUTPUT);
@@ -97,7 +99,7 @@ Scene::~Scene() noexcept {}
 
 bool Scene::handle_inputs() {
 	SDL_Event event{};
-	bool done = false;
+	bool done = _done;
 	while (SDL_PollEvent(&event)) {
 		if (event.type == SDL_EVENT_QUIT) {
 			done = true;
@@ -121,6 +123,26 @@ bool Scene::handle_inputs() {
 
 void Scene::render() {
 	_renderer.draw(_instance, _projection, _camera);
+
+	if (!_screenshot_path.empty() && !_captured) {
+		static constexpr int W = 1920, H = 1080;
+		std::vector<uint8_t> pixels(W * H * 4);
+		glReadPixels(0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+
+		FILE* f = fopen(_screenshot_path.c_str(), "wb");
+		if (f) {
+			fprintf(f, "P6\n%d %d\n255\n", W, H);
+			for (int y = H - 1; y >= 0; --y) {
+				for (int x = 0; x < W; ++x) {
+					unsigned i = (y * W + x) * 4;
+					fwrite(&pixels[i], 1, 3, f);
+				}
+			}
+			fclose(f);
+		}
+		_captured = true;
+		_done = true;
+	}
 }
 
 void Scene::update(float dt) {

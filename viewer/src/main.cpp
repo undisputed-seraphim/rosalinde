@@ -11,6 +11,7 @@ namespace po = ::boost::program_options;
 
 int main(int argc, char* argv[]) try {
 	fs::path cpkpath;
+	std::string screenshot_path;
 	bool debug = false;
 	int index = 0;
 	std::string classname = "HighPriestess";
@@ -22,7 +23,8 @@ int main(int argc, char* argv[]) try {
 		("class", po::value<std::string>(&classname), "Classname")
 		("chara", po::value<std::string>(&charaname), "Character name")
 		("dbg,d", po::value<bool>(&debug), "Debug messages in OpenGL")
-		("index,i", po::value<int>(&index), "Multipurpose index");
+		("index,i", po::value<int>(&index), "Multipurpose index")
+		("screenshot", po::value<std::string>(&screenshot_path), "Take screenshot and exit, saving to given path");
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	try {
@@ -37,7 +39,7 @@ int main(int argc, char* argv[]) try {
 	}
 
 	uvw::Engine("Rosalinde").run([&] {
-		return std::make_unique<Scene>(cpkpath, classname, charaname, index, debug);
+		return std::make_unique<Scene>(cpkpath, classname, charaname, index, debug, std::move(screenshot_path));
 	});
 } catch (const std::exception& e) {
 	std::cout << e.what() << std::endl;
