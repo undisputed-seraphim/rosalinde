@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <iosfwd>
+#include <istream>
 #include <map>
 #include <optional>
 #include <ranges>
@@ -256,11 +256,23 @@ public:
 	size_t size() const noexcept { return _num_rows; }
 	bool empty() const noexcept { return _num_rows == 0; }
 
-	friend std::istream& operator>>(std::istream& is, table& t) {
-		UTF utf; is >> utf;
+	static table parse(std::span<const uint8_t> data) {
+		auto utf = UTF::parse(data);
+		table t;
 		auto first = utf.find_col(Schema::names[0]);
 		t._num_rows = (first != utf.end()) ? first->second.values.size() : 0;
 		t.populate(utf, std::make_index_sequence<Schema::count>{});
+		return t;
+	}
+
+	friend std::istream& operator>>(std::istream& is, table& t) {
+		auto pos = is.tellg();
+		is.seekg(0, std::ios::end);
+		auto sz = static_cast<size_t>(is.tellg() - pos);
+		is.seekg(pos, std::ios::beg);
+		std::vector<uint8_t> buf(sz);
+		is.read(reinterpret_cast<char*>(buf.data()), static_cast<std::streamsize>(sz));
+		t = parse(buf);
 		return is;
 	}
 
