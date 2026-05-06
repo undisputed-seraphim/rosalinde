@@ -1,6 +1,7 @@
 #include "glxx/error.hpp"
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -100,7 +101,7 @@ static const std::map<std::int32_t, std::string> glErrorStr = {
 void check_or_throw() {
 	const GLenum error = glGetError();
 	if (error == GL_NO_ERROR) {
-		std::cout << "No error." << std::endl;
+		return;
 	}
 	auto iter = glErrorStr.find(error);
 	if (iter == std::end(glErrorStr)) {
