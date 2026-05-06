@@ -58,19 +58,17 @@ private:
 // TopLevelCpk
 // ============================================================================
 
-struct TopLevelCPKTraits {
-	static constexpr std::array<std::string_view, 1> Fields = {"TocOffset"};
-	using Entry = std::tuple<uint64_t>;
-};
+using TopLevelCPKSchema = decltype(schema::make(
+	schema::col<"TocOffset", uint64_t>()));
 
-class TopLevelCpk : private UTFTable<TopLevelCPKTraits> {
-	using Base = UTFTable<TopLevelCPKTraits>;
+class TopLevelCpk {
 public:
 	TopLevelCpk(std::filesystem::path);
 	TopLevelCpk(const TopLevelCpk&) = delete;
 	TopLevelCpk(TopLevelCpk&&) = default;
 	CPKTable getTableOfContents() const;
 private:
+	table<TopLevelCPKSchema> _table;
 	std::filesystem::path _path;
 	mutable std::vector<char> _buffer = {};
 };
