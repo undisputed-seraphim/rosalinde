@@ -60,14 +60,14 @@ CPKTable::CPKTable(std::filesystem::path path, uint64_t offset)
 	, _offset(offset) {}
 
 void CPKTable::extract(const row_type& entry, std::vector<char>& out) const {
-	auto [dir, file, fileSize, extractSize, fileOffset, id] = entry;
+	const auto& [dir, file, fileSize, extractSize, fileOffset, id] = entry;
 	extract(dir, file, out);
 }
 
 void CPKTable::extract(std::string_view dir, std::string_view file, std::vector<char>& out) const {
 	auto it = find_file(dir, file);
 	if (it == end()) return;
-	auto [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] = *it;
+	const auto& [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] = *it;
 
 	_buffer.resize(static_cast<size_t>(FileSize));
 	std::ifstream(_path, std::ios::binary)
@@ -84,7 +84,7 @@ void CPKTable::extract(std::string_view dir, std::string_view file, std::vector<
 CPKTable::iterator CPKTable::find_file(std::string_view dir, std::string_view file) const {
 	auto it = begin();
 	for (; it != end(); ++it) {
-		auto [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] = *it;
+		const auto& [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] = *it;
 		if (dir == DirName && file == FileName)
 			break;
 	}

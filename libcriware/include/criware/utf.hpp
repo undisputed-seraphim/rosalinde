@@ -168,12 +168,12 @@ struct row_view {
 	using storage_t = typename Schema::storage;
 	const storage_t* columns;
 	size_t index;
-	template <size_t I> auto get() const { return std::get<I>(*columns)[index]; }
+	template <size_t I> const auto& get() const { return std::get<I>(*columns)[index]; }
 };
 
 template <typename S> struct std::tuple_size<row_view<S>> : std::integral_constant<size_t, S::count> {};
 template <size_t I, typename S> struct std::tuple_element<I, row_view<S>> { using type = typename S::template column_type<I>; };
-template <size_t I, typename S> auto get(const row_view<S>& rv) { return rv.template get<I>(); }
+template <size_t I, typename S> decltype(auto) get(const row_view<S>& rv) { return rv.template get<I>(); }
 
 template <schema::fixed_string Name, typename S>
 decltype(auto) get(const row_view<S>& rv) {

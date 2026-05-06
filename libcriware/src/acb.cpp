@@ -51,7 +51,7 @@ std::istream& operator>>(std::istream& is, ACB& acb) {
 	std::istream(&ssbuf) >> synthTable;
 
 	for (uint32_t i = 0; i < cueTable.size(); ++i) {
-		auto [acm, cueid, length, nracm, nrrelwavf, refidx] = cueTable[i];
+		const auto& [acm, cueid, length, nracm, nrrelwavf, refidx] = cueTable[i];
 
 		// TODO
 		int refType = 0;
@@ -59,14 +59,14 @@ std::istream& operator>>(std::istream& is, ACB& acb) {
 		UTF::field::data_t refItem;
 		switch (refType) {
 		case 2: {
-			auto [cmdIdx, ctrlWrkA1, ctrlWrkA2, refItems] = synthTable[refidx];
+			const auto& [cmdIdx, ctrlWrkA1, ctrlWrkA2, refItems] = synthTable[refidx];
 			refItem = refItems;
 			break;
 		}
 		case 3:
 		case 8: {
 			if (i == 0) {
-				auto [cmdIdx, ctrlWrkA1, ctrlWrkA2, refItems] = synthTable[0];
+				const auto& [cmdIdx, ctrlWrkA1, ctrlWrkA2, refItems] = synthTable[0];
 				refItem = refItems;
 
 			} else {
