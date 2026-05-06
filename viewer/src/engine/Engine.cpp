@@ -4,11 +4,11 @@
 
 namespace uvw {
 
-Engine::Engine(std::unique_ptr<BaseGame>&& game, const char* title, unsigned width, unsigned height)
-	: _game(std::move(game))
-	, _window(title, width, height) {}
+Engine::Engine(const char* title, unsigned width, unsigned height)
+	: _window(title, width, height) {}
 
-void Engine::run() {
+void Engine::run(std::function<std::unique_ptr<BaseGame>()> factory) {
+	auto game = factory();
 	uint64_t last = SDL_GetTicks();
 	for (bool stop = false; !stop;) {
 		uint64_t now = SDL_GetTicks();
@@ -16,12 +16,12 @@ void Engine::run() {
 		last = now;
 		if (dt > 0.25f) dt = 0.25f;
 
-		stop = _game->handle_inputs();
-		_game->update(dt);
+		stop = game->handle_inputs();
+		game->update(dt);
 
 		if (!(_window.flags() & SDL_WINDOW_MINIMIZED)) {
 			_window.clear();
-			_game->render();
+			game->render();
 			_window.swapbuffer();
 		} else {
 			SDL_Delay(10);
