@@ -51,7 +51,8 @@ CPKTable open_cpk(const std::string& path) {
 std::vector<Entry> list_entries(const CPKTable& table) {
 	std::vector<Entry> entries;
 	entries.reserve(table.size());
-	for (const auto& [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] : table) {
+	for (const auto& [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] :
+		 table.rows<"DirName", "FileName", "FileSize", "ExtractSize", "FileOffset", "ID">()) {
 		entries.emplace_back(
 			DirName, FileName, FileSize, ExtractSize, FileOffset, ID);
 	}
