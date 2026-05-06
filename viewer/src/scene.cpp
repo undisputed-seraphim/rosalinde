@@ -62,11 +62,11 @@ Scene::Scene(std::filesystem::path cpkpath,
 	const auto& job = iter->second;
 	std::cout << job.mbs.dir << '\t' << job.mbs.path << '\n';
 
-	std::vector<char> buf;
+	std::vector<char> mbs_buf, buf;
 	if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
 		throw std::runtime_error("MBS for character class " + classname + " was not found.");
 	} else {
-		_cpkt.extract(*entry, buf);
+		_cpkt.extract(*entry, mbs_buf);
 	}
 
 	auto flags = iter->second.variants.at(charaname);
@@ -85,11 +85,12 @@ Scene::Scene(std::filesystem::path cpkpath,
 	}
 
 	_data = SpriteData::load(
-		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()),
+		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(mbs_buf.data()), mbs_buf.size()),
 		std::move(ftx_entries));
 
 	_renderer.upload_textures(_data);
 	_instance = SpriteInstance{&_data, trackid, flags};
+	_instance.play(trackid);
 }
 
 Scene::~Scene() noexcept {}
