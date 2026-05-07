@@ -40,3 +40,14 @@ glm::mat4 Camera::lookAt() const {
 	return glm::scale(glm::lookAt(_pos, _pos + _front, _up), glm::vec3{_zoom, _zoom, 1});
 }
 Camera::operator glm::mat4() const { return lookAt(); }
+
+void Camera::fit_bounds(const glm::vec4& bounds) {
+	static constexpr int W = 1920, H = 1080;
+	float cx = (bounds.x + bounds.z) / 2.0f;
+	float cy = (bounds.y + bounds.w) / 2.0f;
+	float bw = bounds.z - bounds.x;
+	float bh = bounds.w - bounds.y;
+	if (bw <= 0.0f || bh <= 0.0f) return;
+	_zoom = std::min((float)W / bw, (float)H / bh);
+	_pos = {cx, cy, 0.0f};
+}

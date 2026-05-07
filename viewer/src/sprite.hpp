@@ -37,10 +37,13 @@ struct SpriteData {
 	struct FrameRun {
 		uint32_t s8_start;
 		uint32_t s8_count;
+		uint8_t s8_st;
+		uint32_t loop_start;
 	};
 	struct Track {
 		std::string name;
 		std::vector<FrameRun> runs;
+		glm::vec4 bounds;
 	};
 	std::vector<Track> tracks;
 	std::vector<CachedKeyframe> keyframes;
@@ -74,4 +77,5 @@ struct SpriteInstance {
 	glm::mat4 transform_for_sa(uint32_t sa_idx, bool* out_flipx = nullptr, bool* out_flipy = nullptr) const;
 	uint32_t sa_count() const;
 	uint32_t frame_counter() const;
+	glm::vec4 track_bounds() const;
 };

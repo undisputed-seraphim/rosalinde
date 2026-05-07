@@ -111,8 +111,8 @@ bool Scene::handle_inputs() {
 		switch (event.type) {
 		case SDL_EVENT_KEY_DOWN: {
 			switch (event.key.key) {
-			case SDLK_DOWN: _instance.prev_track(); break;
-			case SDLK_UP:   _instance.next_track(); break;
+			case SDLK_DOWN: _instance.prev_track(); _camera.fit_bounds(_instance.track_bounds()); break;
+			case SDLK_UP:   _instance.next_track(); _camera.fit_bounds(_instance.track_bounds()); break;
 			}
 			break;
 		}

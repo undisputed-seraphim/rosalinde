@@ -21,4 +21,5 @@ public:
 
 	glm::mat4 lookAt() const;
 	explicit operator glm::mat4() const;
+	void fit_bounds(const glm::vec4& bounds);
 };
