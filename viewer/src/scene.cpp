@@ -34,7 +34,8 @@ Scene::Scene(std::filesystem::path cpkpath,
 	const std::string& charaname,
 	uint32_t trackid,
 	bool debug,
-	std::string screenshot_path)
+	std::string screenshot_path,
+	std::string bg_name)
 	: _cpkt(TopLevelCpk(cpkpath).getTableOfContents())
 	, _camera(2.5)
 	, _projection(1.0)
@@ -94,6 +95,41 @@ Scene::Scene(std::filesystem::path cpkpath,
 	_instance = SpriteInstance{&_data, trackid, flags};
 	_instance.play(trackid);
 	_camera.fit_bounds(_instance.track_bounds());
+
+	if (!bg_name.empty()) {
+		const auto bg_iter = BattleBGs.find(bg_name);
+		if (bg_iter == BattleBGs.end()) {
+			throw std::runtime_error("Battle BG " + bg_name + " was not found.");
+		}
+		const auto& bg = bg_iter->second;
+
+		std::vector<char> bg_mbs_buf, bg_ftx_buf;
+		if (auto entry = _cpkt.find_file(bg.mbs.dir, bg.mbs.path); entry == _cpkt.end()) {
+			throw std::runtime_error("MBS for BG " + bg_name + " was not found.");
+		} else {
+			_cpkt.extract(*entry, bg_mbs_buf);
+		}
+		if (auto entry = _cpkt.find_file(bg.ftx.dir, bg.ftx.path); entry == _cpkt.end()) {
+			throw std::runtime_error("FTX for BG " + bg_name + " was not found.");
+		} else {
+			_cpkt.extract(*entry, bg_ftx_buf);
+		}
+		auto bg_txt = FTX::parse(bg_ftx_buf);
+		std::vector<FTX::Entry> bg_ftx_entries;
+		std::move(bg_txt.begin(), bg_txt.end(), std::back_inserter(bg_ftx_entries));
+		for (auto& t : bg_ftx_entries) {
+			FTX::decompress(t);
+			FTX::deswizzle(t);
+		}
+
+		_bg_data = SpriteData::load(
+			std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(bg_mbs_buf.data()), bg_mbs_buf.size()),
+			std::move(bg_ftx_entries));
+		_bg_renderer.upload_textures(_bg_data);
+		_bg_instance = SpriteInstance{&_bg_data, 0, 0};
+		_bg_instance.play(0);
+		_has_bg = true;
+	}
 }
 
 Scene::~Scene() noexcept {}
@@ -111,9 +147,17 @@ bool Scene::handle_inputs() {
 		_camera.handleInput(event);
 		switch (event.type) {
 		case SDL_EVENT_KEY_DOWN: {
-			switch (event.key.key) {
-			case SDLK_DOWN: _instance.prev_track(); _camera.fit_bounds(_instance.track_bounds()); break;
-			case SDLK_UP:   _instance.next_track(); _camera.fit_bounds(_instance.track_bounds()); break;
+			const bool shift = event.key.mod & SDL_KMOD_SHIFT;
+			if (shift && _has_bg) {
+				switch (event.key.key) {
+				case SDLK_DOWN: _bg_instance.prev_track(); break;
+				case SDLK_UP:   _bg_instance.next_track(); break;
+				}
+			} else {
+				switch (event.key.key) {
+				case SDLK_DOWN: _instance.prev_track(); _camera.fit_bounds(_instance.track_bounds()); break;
+				case SDLK_UP:   _instance.next_track(); _camera.fit_bounds(_instance.track_bounds()); break;
+				}
 			}
 			break;
 		}
@@ -123,6 +167,7 @@ bool Scene::handle_inputs() {
 }
 
 void Scene::render() {
+	if (_has_bg) _bg_renderer.draw(_bg_instance, _projection, _camera);
 	_renderer.draw(_instance, _projection, _camera);
 
 	if (!_screenshot_path.empty() && !_captured) {
@@ -147,5 +192,6 @@ void Scene::render() {
 }
 
 void Scene::update(float dt) {
+	if (_has_bg) _bg_instance.update(dt);
 	_instance.update(dt);
 }

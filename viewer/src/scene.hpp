@@ -14,7 +14,8 @@ class Scene final : public uvw::BaseGame {
 public:
 	Scene(std::filesystem::path cpkpath, const std::string& classname,
 		const std::string& charaname, uint32_t trackid, bool debug,
-		std::string screenshot_path = {});
+		std::string screenshot_path = {},
+		std::string bg_name = {});
 
 	~Scene() noexcept;
 
@@ -30,6 +31,11 @@ private:
 	SpriteData _data;
 	SpriteInstance _instance;
 	SpriteRenderer _renderer;
+
+	SpriteData _bg_data;
+	SpriteInstance _bg_instance;
+	SpriteRenderer _bg_renderer;
+	bool _has_bg = false;
 
 	std::string _screenshot_path;
 	bool _done = false;
