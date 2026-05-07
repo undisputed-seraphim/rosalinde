@@ -115,6 +115,18 @@ const SpriteData::Track* SpriteData::find_track(const std::string& name) const {
 }
 
 void SpriteInstance::play(uint32_t track_id) {
+	if (data && track_idx < data->tracks.size() && track_idx != track_id) {
+		uint32_t n = sa_count();
+		_transition_src_s7.resize(n);
+		for (uint32_t i = 0; i < n; ++i) {
+			const auto& run = data->tracks[track_idx].runs[i];
+			if (run.s8_count == 0) continue;
+			const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
+			_transition_src_s7[i] = data->v77.s7[s8.s7_id];
+		}
+		_transition_t = 0.0f;
+	}
+
 	track_idx = track_id;
 	const auto& track = data->tracks[track_idx];
 	ticks.assign(track.runs.size(), 0);
@@ -144,7 +156,13 @@ void SpriteInstance::play(const std::string& name) {
 
 void SpriteInstance::update(float dt_seconds) {
 	constexpr float kTicksPerSecond = 60.0f;
+	constexpr float kTransitionDuration = 0.15f;
 	_accum += dt_seconds * kTicksPerSecond;
+
+	if (_transition_t < 1.0f) {
+		_transition_t += dt_seconds / kTransitionDuration;
+		if (_transition_t > 1.0f) _transition_t = 1.0f;
+	}
 
 	bool advanced = false;
 	const auto& track = data->tracks[track_idx];
@@ -238,6 +256,13 @@ glm::mat4 SpriteInstance::transform_for_sa(uint32_t sa_idx, bool* out_flipx, boo
 	if (out_flipy) *out_flipy = flipy;
 
 	const auto& curr_s7 = data->v77.s7[s8.s7_id];
+
+	if (_transition_t < 1.0f && !_transition_src_s7.empty()) {
+		uint32_t src_idx = sa_idx < _transition_src_s7.size() ? sa_idx : (_transition_src_s7.size() - 1);
+		float t = glm::smoothstep(0.0f, 1.0f, _transition_t);
+		return s7_matrix_interp(_transition_src_s7[src_idx], curr_s7, t, flipx, flipy);
+	}
+
 	if (s8.s7_interpolation == 0 || prev_offsets[sa_idx] == UINT32_MAX) {
 		return mbs::s7_matrix(curr_s7, flipx, flipy);
 	}

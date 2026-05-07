@@ -67,6 +67,9 @@ struct SpriteInstance {
 	std::vector<uint32_t> prev_offsets;
 	uint32_t _frame_counter = 0;
 
+	std::vector<mbs::section_7> _transition_src_s7;
+	float _transition_t = 1.0f;
+
 	void play(uint32_t track_id);
 	void play(const std::string& name);
 	void update(float dt_seconds);
