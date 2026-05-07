@@ -14,6 +14,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -256,47 +257,52 @@ int main(int argc, char* argv[]) try {
 			file.header[4], file.header[5], file.header[6], file.header[7]);
 		std::printf("Functions: %zu\n", file.functions.size());
 
+		bool is_large = data.size() > 65536;
+		constexpr size_t kMaxLines = 64;
+
+		std::map<uint32_t, size_t> callsys_counts;
+
 		for (size_t fi = 0; fi < file.functions.size(); ++fi) {
 			const auto& fn = file.functions[fi];
 			std::printf("\n  [%zu] %s (%zu bytes)\n", fi, fn.name.c_str(), fn.bytecode.size());
 
+			if (is_large && fi > 0) {
+				continue;
+			}
+
 			size_t pc = 0;
-			while (pc < fn.bytecode.size()) {
+			size_t line = 0;
+			while (pc < fn.bytecode.size() && line < kMaxLines) {
 				uint8_t op = fn.bytecode[pc];
-				std::printf("    %04zx: %02x %-12s", pc, op, asb::bc_opcode_name(op));
-				pc++;
-				if (pc < fn.bytecode.size()) {
-					std::printf(" [");
-					size_t start = pc;
-					size_t extra = 0;
-					switch (op) {
-					case 0x00: case 0x01: case 0x04: case 0x05: case 0x06:
-					case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27:
-					case 0x28: case 0x29: case 0x2a: case 0x2b: case 0x2c: case 0x2d:
-					case 0x2e: case 0x2f: case 0x39: case 0x3f: case 0x41:
-					case 0x4a: case 0x4b: case 0x4c: case 0x50: case 0x52:
-					case 0x98: case 0x99: case 0xb0:
-						extra = 0; break;
-					case 0x08: case 0x09: case 0x0b: case 0x0c: case 0x0d:
-					case 0x0e: case 0x0f: case 0x10: case 0x11: case 0x12:
-					case 0x13: case 0x3a: case 0x3c: case 0x3d: case 0x3e:
-					case 0x40: case 0x42: case 0x44: case 0x60: case 0x61:
-					case 0x64: case 0x65: case 0x68: case 0x6a: case 0x78:
-						extra = (op == 0x65 || op == 0x60 || op == 0x61) ? 8 :
-								(op == 0x3a || op == 0x43) ? 8 : 4; break;
-					case 0x62: case 0x63: case 0x66: case 0x67: case 0x69:
-						extra = (op == 0x63) ? 4 : 2; break;
-					case 0x70: extra = 6; break;
-					default: extra = 0; break;
-					}
-					for (size_t i = 0; i < extra && pc + i < fn.bytecode.size(); ++i) {
-						if (i > 0) std::printf(" ");
-						std::printf("%02x", fn.bytecode[pc + i]);
-					}
-					pc += extra;
-					std::printf("]");
+				int sz = asb::bc_instr_size(op);
+				if (sz < 1) sz = 1;
+
+				std::printf("    %04zx: %02x %-14s", pc, op, asb::bc_opcode_name(op));
+
+				if (op == asb::BC_CALLSYS && pc + 5 < fn.bytecode.size()) {
+					uint8_t pop = fn.bytecode[pc + 1];
+					uint32_t fnid = fn.bytecode[pc + 2]
+						| (fn.bytecode[pc + 3] << 8)
+						| (fn.bytecode[pc + 4] << 16)
+						| (fn.bytecode[pc + 5] << 24);
+					std::printf(" #%u pop=%u", fnid, pop);
+					callsys_counts[fnid]++;
 				}
 				std::printf("\n");
+
+				if (pc + sz > fn.bytecode.size()) break;
+				pc += sz;
+				line++;
+			}
+			if (pc < fn.bytecode.size()) {
+				std::printf("    ... (%zu more bytes)\n", fn.bytecode.size() - pc);
+			}
+		}
+
+		if (!callsys_counts.empty()) {
+			std::printf("\nCALLSYS targets:\n");
+			for (auto [id, cnt] : callsys_counts) {
+				std::printf("  #%u: %zu calls\n", id, cnt);
 			}
 		}
 		return 0;
