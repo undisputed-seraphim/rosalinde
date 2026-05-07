@@ -93,6 +93,7 @@ Scene::Scene(std::filesystem::path cpkpath,
 	_renderer.upload_textures(_data);
 	_instance = SpriteInstance{&_data, trackid, flags};
 	_instance.play(trackid);
+	_camera.fit_bounds(_instance.track_bounds());
 }
 
 Scene::~Scene() noexcept {}
