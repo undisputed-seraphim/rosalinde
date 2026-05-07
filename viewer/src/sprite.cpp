@@ -69,10 +69,22 @@ void SpriteData::preprocess() {
 		auto& track = tracks[s9_id];
 		track.name = s9.name;
 		track.name = track.name.c_str();
+		track.bounds = {s9.left, s9.top, s9.right, s9.bottom};
 		track.runs.reserve(s9.sa_set_no);
 		for (uint32_t i = 0; i < s9.sa_set_no; ++i) {
 			const auto& sa = v77.sa[s9.sa_set_id + i];
-			track.runs.push_back({sa.s8_id, sa.s8_no});
+			uint32_t loop_start = 0;
+			if (sa.s8_sum_once > 0) {
+				uint32_t acc = 0;
+				for (uint32_t j = 0; j < sa.s8_no; ++j) {
+					acc += v77.s8[sa.s8_id + j].frames;
+					if (acc >= (uint32_t)sa.s8_sum_once) {
+						loop_start = j + 1;
+						break;
+					}
+				}
+			}
+			track.runs.push_back({sa.s8_id, sa.s8_no, sa.s8_st, loop_start});
 		}
 	}
 }
@@ -88,13 +100,14 @@ void SpriteInstance::play(uint32_t track_id) {
 	track_idx = track_id;
 	const auto& track = data->tracks[track_idx];
 	ticks.assign(track.runs.size(), 0);
-	offsets.assign(track.runs.size(), 0);
+	offsets.resize(track.runs.size());
 	_accum = 0.0f;
 
 	for (uint32_t i = 0; i < track.runs.size(); ++i) {
 		const auto& run = track.runs[i];
+		offsets[i] = run.s8_st;
 		if (run.s8_count > 0 && run.s8_start < data->v77.s8.size()) {
-			ticks[i] = data->v77.s8[run.s8_start].frames;
+			ticks[i] = data->v77.s8[run.s8_start + offsets[i]].frames;
 		}
 	}
 	_frame_counter++;
@@ -124,7 +137,13 @@ void SpriteInstance::update(float dt_seconds) {
 			if (run.s8_count == 0) continue;
 			if (--ticks[i] == 0) {
 				advanced = true;
-				if (++offsets[i] >= run.s8_count) offsets[i] = 0;
+				const auto& prev_s8 = data->v77.s8[run.s8_start + offsets[i]];
+				if (prev_s8.flags & mbs::v77::s8flag::JUMP) {
+					offsets[i] = (offsets[i] + prev_s8.loop_s8_id) % run.s8_count;
+				} else {
+					++offsets[i];
+					if (offsets[i] >= run.s8_count) offsets[i] = run.loop_start;
+				}
 				ticks[i] = data->v77.s8[run.s8_start + offsets[i]].frames;
 			}
 		}
@@ -203,4 +222,8 @@ uint32_t SpriteInstance::sa_count() const {
 
 uint32_t SpriteInstance::frame_counter() const {
 	return _frame_counter;
+}
+
+glm::vec4 SpriteInstance::track_bounds() const {
+	return data->tracks[track_idx].bounds;
 }
