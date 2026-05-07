@@ -50,7 +50,7 @@ struct section_2 {
 // Hitbox
 struct section_3 {
 	glm::vec2 hitbox[4];
-	glm::vec3 _xyz[4]; // [1, -0, 0 , -0, -1, 0 , -1, -0, 0 , -0, 1, 0]
+	glm::vec3 normals[4]; // unit vectors: X+, Y-, X-, Y+
 };
 
 // Keyframe Layer
@@ -120,7 +120,7 @@ struct section_9 {
 	float right;
 	float bottom;
 	char name[24];
-	uint16_t sa_set_id; // disabled if 0
+	uint16_t sa_set_id; // starting index into section_a
 	uint8_t sa_set_no;
 	uint8_t sa_set_main;
 	uint16_t sa_sb_set_id;
@@ -129,26 +129,26 @@ struct section_9 {
 };
 
 struct section_a {
-	uint16_t s8_id;		 // starting id
-	uint16_t s8_no;		 // number of subsequent entries
-	uint32_t s8_sum;	 // total number of frames
-	int32_t s8_sum_once; // either -1 or small number < 255/0xFF
-	int32_t _unk0;		 // either -1 or small number < 255/0xFF
+	uint16_t s8_id;		  // starting index into section_8
+	uint16_t s8_no;		  // number of section_8 entries
+	uint32_t s8_sum;	  // total tick sum of all frame durations
+	int32_t s8_sum_once;  // intro portion (ticks played once before loop). -1 = no intro
+	int32_t commit_ticks; // uninterruptible window (ticks). -1 = no commit window
 	uint16_t sb_id;
-	uint8_t sb_no; // 0 1 bool
-	uint8_t s8_st; // 0 1 bool // Means ignore or subtract one, or offset start by +1
+	uint8_t sb_no; // always 1 when sb_id > 0, else 0
+	uint8_t s8_st; // skip first frame: 0 = play [s8_id ..], 1 = play [s8_id+1 ..]
 	uint16_t track_id;
 	uint16_t _pad; // always 0
 };
 
 struct section_b {
-	uint32_t _unk0; // 3~75 (0x4b)
-	uint16_t _unk1; // 1~17 (0x11)
-	uint32_t _unk2; // all 0
-	uint16_t _unk3; // all 0
-	uint16_t _unk4; // 0~3
-	uint32_t _unk5; // all 0
-	uint16_t _pad;	// all 0
+	uint32_t speed_num; // per-frame speed numerator (3–75)
+	uint16_t speed_den; // per-frame speed denominator (1–17)
+	uint32_t _pad0;     // always 0
+	uint16_t _pad1;     // always 0
+	uint16_t oneshot;   // one-shot flag (0–3)
+	uint32_t _pad2;     // always 0
+	uint16_t _pad3;     // always 0
 };
 #pragma pack(pop)
 
@@ -175,14 +175,14 @@ struct v77 {
 
 	enum s8flag : uint32_t {
 		// clang-format off
-		FLIPX = 0x01,   // 0b ----'----'----'---1
-		FLIPY = 0x02,   // 0b ----'----'----'--1-
-		JUMP = 0x04,    // 0b ----'----'----'-1-- // Something to do with the loops?
-		//? = 0x20,     // 0b ----'----'--1-'---- // Most s8 seem to have this, but doesn't seem to mean anything
-		//? = 0x80,     // 0b ----'----'1---'---- // doesn't mean anything
-		HITBOX = 0x400, // 0b ----'-1--'----'----
-		LAST = 0x800,	// 0b ----'1---'----'---- // Means ignore this frame apparently
-		//? = 0x2000,   // 0b --1-'----'----'---- // Ignore next?
+		FLIPX  = 0x01,   // horizontal mirror
+		FLIPY  = 0x02,   // vertical mirror (rare)
+		JUMP   = 0x04,   // control-flow: next = current + loop_s8_id
+		ACTIVE = 0x20,   // frame is renderable (cleared on hitbox-only / transition frames)
+		POSE   = 0x80,   // non-idle body pose (GUARD, KNOCKBACK, DOWN, SIT)
+		HITBOX = 0x400,  // hitbox-only frame (no sprite layers)
+		LAST   = 0x800,  // end-of-sequence marker
+		//?    = 0x2000, // rarely set, purpose unclear (may be "no blend" / "hold")
 		// clang-format on
 	};
 };

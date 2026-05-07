@@ -69,7 +69,7 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 	{
 		auto ofs = open("section_3.csv");
 		ofs << "hb0_x,hb0_y,hb1_x,hb1_y,hb2_x,hb2_y,hb3_x,hb3_y,"
-			<< "xyz0_x,xyz0_y,xyz0_z,xyz1_x,xyz1_y,xyz1_z,xyz2_x,xyz2_y,xyz2_z,xyz3_x,xyz3_y,xyz3_z\n";
+			<< "n0_x,n0_y,n0_z,n1_x,n1_y,n1_z,n2_x,n2_y,n2_z,n3_x,n3_y,n3_z\n";
 		constexpr auto fmt = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n"sv;
 		for (const auto& s : v.s3) {
 			ofs << std::format(
@@ -78,10 +78,10 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 				s.hitbox[1].x, s.hitbox[1].y,
 				s.hitbox[2].x, s.hitbox[2].y,
 				s.hitbox[3].x, s.hitbox[3].y,
-				s._xyz[0].x, s._xyz[0].y, s._xyz[0].z,
-				s._xyz[1].x, s._xyz[1].y, s._xyz[1].z,
-				s._xyz[2].x, s._xyz[2].y, s._xyz[2].z,
-				s._xyz[3].x, s._xyz[3].y, s._xyz[3].z);
+				s.normals[0].x, s.normals[0].y, s.normals[0].z,
+				s.normals[1].x, s.normals[1].y, s.normals[1].z,
+				s.normals[2].x, s.normals[2].y, s.normals[2].z,
+				s.normals[3].x, s.normals[3].y, s.normals[3].z);
 		}
 	}
 
@@ -175,23 +175,23 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 
 	{
 		auto ofs = open("section_a.csv");
-		ofs << "s8_id,s8_no,s8_sum,s8_sum_once,_unk0,sb_id,sb_no,s8_st,track_id,_pad\n";
+		ofs << "s8_id,s8_no,s8_sum,s8_sum_once,commit_ticks,sb_id,sb_no,s8_st,track_id,_pad\n";
 		constexpr auto fmt = "{},{},{},{},{},{},{},{},{},{}\n"sv;
 		for (const auto& s : v.sa) {
 			ofs << std::format(
 				fmt,
-				s.s8_id, s.s8_no, s.s8_sum, s.s8_sum_once, s._unk0,
+				s.s8_id, s.s8_no, s.s8_sum, s.s8_sum_once, s.commit_ticks,
 				s.sb_id, s.sb_no, s.s8_st, s.track_id, s._pad);
 		}
 	}
 
 	{
 		auto ofs = open("section_b.csv");
-		ofs << "_unk0,_unk1,_unk2,_unk3,_unk4,_unk5,_pad\n";
+		ofs << "speed_num,speed_den,_pad0,_pad1,oneshot,_pad2,_pad3\n";
 		constexpr auto fmt = "{},{},{},{},{},{},{}\n"sv;
 		for (const auto& s : v.sb) {
 			ofs << std::format(
-				fmt, s._unk0, s._unk1, s._unk2, s._unk3, s._unk4, s._unk5, s._pad);
+				fmt, s.speed_num, s.speed_den, s._pad0, s._pad1, s.oneshot, s._pad2, s._pad3);
 		}
 	}
 }

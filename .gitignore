@@ -36,3 +36,5 @@
 .cache/
 Unicorn.CPK
 build-noasan/
+mbs_dump/
+*.swp
