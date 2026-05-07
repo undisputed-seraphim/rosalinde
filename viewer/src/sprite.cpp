@@ -139,7 +139,11 @@ void SpriteInstance::update(float dt_seconds) {
 				advanced = true;
 				const auto& prev_s8 = data->v77.s8[run.s8_start + offsets[i]];
 				if (prev_s8.flags & mbs::v77::s8flag::JUMP) {
-					offsets[i] = (offsets[i] + prev_s8.loop_s8_id) % run.s8_count;
+					if (prev_s8.loop_s8_id != 0) {
+						offsets[i] = (offsets[i] + prev_s8.loop_s8_id) % run.s8_count;
+					} else if (prev_s8.flags & mbs::v77::s8flag::LAST) {
+						offsets[i] = 0;
+					}
 				} else {
 					++offsets[i];
 					if (offsets[i] >= run.s8_count) offsets[i] = run.loop_start;
