@@ -3,12 +3,30 @@
 #include <criware/byte_reader.hpp>
 #include <impl/mbs/detail.hpp>
 
+#include <glm/ext.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtx/euler_angles.hpp>
+
 #include <cstring>
 #include <span>
 #include <stdexcept>
 
 namespace mbs {
 	glm::mat4 s7_matrix(const section_7& s7, bool flipx, bool flipy);
+}
+
+static glm::mat4 s7_matrix_interp(
+	const mbs::section_7& a, const mbs::section_7& b, float t, bool flipx, bool flipy) {
+	const int8_t x = flipx ? -1 : 1;
+	const int8_t y = flipy ? -1 : 1;
+	glm::vec3 move = glm::mix(a.move, b.move, t);
+	glm::vec3 rotate = glm::mix(a.rotate, b.rotate, t);
+	glm::vec2 scale = glm::mix(a.scale, b.scale, t);
+	glm::mat4 m{1.0};
+	m = glm::scale(m, glm::vec3{scale.x * x, scale.y * y, 1.0});
+	m = glm::translate(m, glm::vec3{move.x * x, move.y * y, move.z});
+	m *= glm::eulerAngleXYZ(rotate.x, rotate.y, rotate.z);
+	return m;
 }
 
 SpriteData SpriteData::load(std::span<const uint8_t> data, std::vector<FTX::Entry> textures) {
@@ -101,6 +119,7 @@ void SpriteInstance::play(uint32_t track_id) {
 	const auto& track = data->tracks[track_idx];
 	ticks.assign(track.runs.size(), 0);
 	offsets.resize(track.runs.size());
+	prev_offsets.assign(track.runs.size(), UINT32_MAX);
 	_accum = 0.0f;
 
 	for (uint32_t i = 0; i < track.runs.size(); ++i) {
@@ -138,6 +157,7 @@ void SpriteInstance::update(float dt_seconds) {
 			if (--ticks[i] == 0) {
 				advanced = true;
 				const auto& prev_s8 = data->v77.s8[run.s8_start + offsets[i]];
+				prev_offsets[i] = offsets[i];
 				if (prev_s8.flags & mbs::v77::s8flag::JUMP) {
 					if (prev_s8.loop_s8_id != 0) {
 						offsets[i] = (offsets[i] + prev_s8.loop_s8_id) % run.s8_count;
@@ -217,7 +237,15 @@ glm::mat4 SpriteInstance::transform_for_sa(uint32_t sa_idx, bool* out_flipx, boo
 	if (out_flipx) *out_flipx = flipx;
 	if (out_flipy) *out_flipy = flipy;
 
-	return mbs::s7_matrix(data->v77.s7[s8.s7_id], flipx, flipy);
+	const auto& curr_s7 = data->v77.s7[s8.s7_id];
+	if (s8.s7_interpolation == 0 || prev_offsets[sa_idx] == UINT32_MAX) {
+		return mbs::s7_matrix(curr_s7, flipx, flipy);
+	}
+
+	const auto& prev_s8 = data->v77.s8[run.s8_start + prev_offsets[sa_idx]];
+	const auto& prev_s7 = data->v77.s7[prev_s8.s7_id];
+	float t = 1.0f - (float)ticks[sa_idx] / (float)s8.frames;
+	return s7_matrix_interp(prev_s7, curr_s7, t, flipx, flipy);
 }
 
 uint32_t SpriteInstance::sa_count() const {

@@ -64,6 +64,7 @@ struct SpriteInstance {
 	float _accum = 0.0f;
 	std::vector<uint32_t> ticks;
 	std::vector<uint32_t> offsets;
+	std::vector<uint32_t> prev_offsets;
 	uint32_t _frame_counter = 0;
 
 	void play(uint32_t track_id);
