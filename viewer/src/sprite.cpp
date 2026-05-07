@@ -216,7 +216,8 @@ void SpriteInstance::build_vertices(
 	if (run.s8_count == 0) return;
 
 	const auto& s8 = data->v77.s8[run.s8_start + offsets[sa_idx]];
-	if (s8.flags & (mbs::v77::s8flag::HITBOX | mbs::v77::s8flag::LAST)) return;
+	if (s8.flags & mbs::v77::s8flag::HITBOX) return;
+	if ((s8.flags & mbs::v77::s8flag::LAST) && !(s8.flags & mbs::v77::s8flag::ACTIVE)) return;
 
 	const auto& ck = data->keyframes[s8.s6_id];
 	if (ck.layers.empty()) return;
