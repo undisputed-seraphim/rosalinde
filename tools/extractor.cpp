@@ -3,6 +3,7 @@
 #include <criware/cpk.hpp>
 #include <criware/utf.hpp>
 #include <eltolinde.hpp>
+#include <impl/asb.hpp>
 #include <impl/mbs/csv_dump.hpp>
 #include <impl/mbs/detail.hpp>
 #include <impl/mbs/sections.hpp>
@@ -45,6 +46,7 @@ struct Args {
 	std::string dump_file;
 	std::string mbs_dump;
 	std::string mbs_out = "mbs_dump";
+	std::string asb_dump;
 	bool help = false;
 };
 
@@ -168,7 +170,9 @@ int main(int argc, char* argv[]) try {
 		"mbs-dump", po::value<std::string>(&args.mbs_dump),
 		"Dump MBS sections to CSV (DirName/FileName of .mbs in CPK)")(
 		"mbs-out", po::value<std::string>(&args.mbs_out),
-		"Output directory for MBS CSV dump (default: mbs_dump)");
+		"Output directory for MBS CSV dump (default: mbs_dump)")(
+		"asb-dump", po::value<std::string>(&args.asb_dump),
+		"Dump ASB compiled script (DirName/FileName of .asb in CPK)");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -235,6 +239,66 @@ int main(int argc, char* argv[]) try {
 		std::cout << "Dumped " << dir << "/" << name
 				  << " (v" << std::hex << h.version << std::dec
 				  << ", " << v.s9.size() << " tracks) -> " << outdir << "/\n";
+		return 0;
+	}
+
+	if (!args.asb_dump.empty()) {
+		auto [dir, name] = split_path(args.asb_dump);
+		auto data = extract_entry(table, dir, name);
+		auto bytes = std::span<const uint8_t>(
+			reinterpret_cast<const uint8_t*>(data.data()), data.size());
+
+		auto file = asb::parse(bytes);
+
+		std::printf("=== %s ===\n", file.source_path.c_str());
+		std::printf("Header: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+			file.header[0], file.header[1], file.header[2], file.header[3],
+			file.header[4], file.header[5], file.header[6], file.header[7]);
+		std::printf("Functions: %zu\n", file.functions.size());
+
+		for (size_t fi = 0; fi < file.functions.size(); ++fi) {
+			const auto& fn = file.functions[fi];
+			std::printf("\n  [%zu] %s (%zu bytes)\n", fi, fn.name.c_str(), fn.bytecode.size());
+
+			size_t pc = 0;
+			while (pc < fn.bytecode.size()) {
+				uint8_t op = fn.bytecode[pc];
+				std::printf("    %04zx: %02x %-12s", pc, op, asb::bc_opcode_name(op));
+				pc++;
+				if (pc < fn.bytecode.size()) {
+					std::printf(" [");
+					size_t start = pc;
+					size_t extra = 0;
+					switch (op) {
+					case 0x00: case 0x01: case 0x04: case 0x05: case 0x06:
+					case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27:
+					case 0x28: case 0x29: case 0x2a: case 0x2b: case 0x2c: case 0x2d:
+					case 0x2e: case 0x2f: case 0x39: case 0x3f: case 0x41:
+					case 0x4a: case 0x4b: case 0x4c: case 0x50: case 0x52:
+					case 0x98: case 0x99: case 0xb0:
+						extra = 0; break;
+					case 0x08: case 0x09: case 0x0b: case 0x0c: case 0x0d:
+					case 0x0e: case 0x0f: case 0x10: case 0x11: case 0x12:
+					case 0x13: case 0x3a: case 0x3c: case 0x3d: case 0x3e:
+					case 0x40: case 0x42: case 0x44: case 0x60: case 0x61:
+					case 0x64: case 0x65: case 0x68: case 0x6a: case 0x78:
+						extra = (op == 0x65 || op == 0x60 || op == 0x61) ? 8 :
+								(op == 0x3a || op == 0x43) ? 8 : 4; break;
+					case 0x62: case 0x63: case 0x66: case 0x67: case 0x69:
+						extra = (op == 0x63) ? 4 : 2; break;
+					case 0x70: extra = 6; break;
+					default: extra = 0; break;
+					}
+					for (size_t i = 0; i < extra && pc + i < fn.bytecode.size(); ++i) {
+						if (i > 0) std::printf(" ");
+						std::printf("%02x", fn.bytecode[pc + i]);
+					}
+					pc += extra;
+					std::printf("]");
+				}
+				std::printf("\n");
+			}
+		}
 		return 0;
 	}
 

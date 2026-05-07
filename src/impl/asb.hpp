@@ -1,15 +1,78 @@
 #pragma once
 
-#include <iosfwd>
+#include <cstdint>
+#include <span>
+#include <string>
+#include <string_view>
+#include <vector>
 
-// This seems to be a compiled binary.
-// File names of the original source file is embedded within, extension .ascp.
-// Some of them contain a MAIN function.
+namespace asb {
 
-class ASB {
-public:
-	ASB(std::istream&);
-
-private:
-	void parse(std::istream&);
+constexpr const char* bc_names[] = {
+	"PopPtr",   "PshGPtr",  "PshC4",    "PshV4",    "PSF",     "SwapPtr",
+	"NOT",      "PshG4",    "LdGRdR4",  "CALL",     "RET",     "JMP",
+	"JZ",       "JNZ",      "JS",       "JNS",      "JP",      "JNP",
+	"TZ",       "TNZ",      "TS",       "TNS",      "TP",      "TNP",
+	"NEGi",     "NEGf",     "NEGd",     "INCi16",   "INCi8",   "DECi16",
+	"DECi8",    "INCi",     "DECi",     "INCf",     "DECf",    "INCd",
+	"DECd",     "IncVi",    "DecVi",    "BNOT",     "BAND",    "BOR",
+	"BXOR",     "BSLL",     "BSRL",     "BSRA",     "COPY",    "PshC8",
+	"PshVPtr",  "RDSPtr",   "CMPd",     "CMPu",     "CMPf",    "CMPi",
+	"CMPIi",    "CMPIf",    "CMPIu",    "JMPP",     "PopRPtr", "PshRPtr",
+	"STR",      "CALLSYS",  "CALLBND",  "SUSPEND",
+	"ALLOC",    "FREE",     "LOADOBJ",  "STOREOBJ",
+	"GETOBJ",   "REFCPY",   "CHKREF",   "GETOBJREF",
+	"GETREF",   "PshNull",  "ClrVPtr",  "OBJTYPE",
+	"TYPEID",   "SetV4",    "SetV8",    "ADDSi",
+	"CpyVtoV4", "CpyVtoV8", "CpyVtoR4", "CpyVtoR8",
+	"CpyVtoG4", "CpyRtoV4", "CpyRtoV8", "CpyGtoV4",
+	"WRTV1",    "WRTV2",    "WRTV4",    "WRTV8",
+	"RDR1",     "RDR2",     "RDR4",     "RDR8",
+	"LDG",      "LDV",      "PGA",      "CmpPtr",
+	"VAR",      "iTOf",     "fTOi",     "uTOf",
+	"fTOu",     "sbTOi",    "swTOi",    "ubTOi",
+	"uwTOi",    "dTOi",     "dTOu",     "dTOf",
+	"iTOd",     "uTOd",     "fTOd",     "ADDi",
+	"SUBi",     "MULi",     "DIVi",     "MODi",
+	"ADDf",     "SUBf",     "MULf",     "DIVf",
+	"MODf",     "ADDd",     "SUBd",     "MULd",
+	"DIVd",     "MODd",     "ADDIi",    "SUBIi",
+	"MULIi",    "ADDIf",    "SUBIf",    "MULIf",
+	"SetG4",    "ChkRefS",  "ChkNullV", "CALLINTF",
+	"iTOb",     "iTOw",     "SetV1",    "SetV2",
+	"Cast",     "i64TOi",   "uTOi64",   "iTOi64",
+	"fTOi64",   "dTOi64",   "fTOu64",   "dTOu64",
+	"i64TOf",   "u64TOf",   "i64TOd",   "u64TOd",
+	"NEGi64",   "INCi64",   "DECi64",   "BNOT64",
+	"ADDi64",   "SUBi64",   "MULi64",   "DIVi64",
+	"MODi64",   "BAND64",   "BOR64",    "BXOR64",
+	"BSLL64",   "BSRL64",   "BSRA64",   "CMPi64",
+	"CMPu64",   "ChkNullS", "ClrHi",    "JitEntry",
+	"CallPtr",  "FuncPtr",  "LoadThisR","PshV8",
+	"DIVu",     "MODu",     "DIVu64",   "MODu64",
+	"LoadRObjR","LoadVObjR","RefCpyV",  "JLowZ",
+	"JLowNZ",   "AllocMem", "SetListSize","PshListElmnt",
+	"SetListType","POWi",    "POWu",     "POWf",
+	"POWd",     "POWdi",    "POWi64",   "POWu64",
+	"Thiscall1",
 };
+
+inline const char* bc_opcode_name(uint8_t op) {
+	constexpr size_t count = sizeof(bc_names) / sizeof(bc_names[0]);
+	return op < count ? bc_names[op] : "???";
+}
+
+struct Function {
+	std::string name;
+	std::vector<uint8_t> bytecode;
+};
+
+struct File {
+	std::array<uint8_t, 8> header;
+	std::vector<Function> functions;
+	std::string source_path;
+};
+
+auto parse(std::span<const uint8_t> data) -> File;
+
+} // namespace asb

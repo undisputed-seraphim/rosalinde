@@ -77,3 +77,8 @@ if(BUILD_VIEWER)
 	add_executable(acbplay "tools/acbplay.cpp")
 	target_link_libraries(acbplay PRIVATE criware Boost::program_options SDL3::SDL3)
 endif()
+
+add_subdirectory(angelscript_2.38.0/angelscript/projects/cmake angelscript_build)
+add_executable(asb_dump "tools/asb_dump.cpp")
+target_link_libraries(asb_dump PRIVATE angelscript)
+target_include_directories(asb_dump PRIVATE angelscript_2.38.0/angelscript/include)
