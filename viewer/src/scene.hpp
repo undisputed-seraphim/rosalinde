@@ -8,6 +8,7 @@
 #include <criware/cpk.hpp>
 #include <filesystem>
 #include <glm/glm.hpp>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -21,6 +22,7 @@ struct SpriteLayer {
 	SpriteInstance instance;
 	SpriteRenderer renderer;
 	uint32_t default_flags = 0;
+	std::map<uint32_t, glm::vec4> layer_tints;
 };
 
 class Scene final : public uvw::BaseGame {

@@ -5,6 +5,7 @@
 #include <impl/mbs/sections.hpp>
 
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -79,7 +80,8 @@ struct SpriteInstance {
 	void next_track();
 	void prev_track();
 
-	void build_vertices(uint32_t sa_idx, std::vector<SpriteVertex>& verts, std::vector<uint32_t>& indices) const;
+	void build_vertices(uint32_t sa_idx, std::vector<SpriteVertex>& verts, std::vector<uint32_t>& indices,
+	const std::map<uint32_t, glm::vec4>* tints = nullptr) const;
 
 	glm::mat4 transform_for_sa(uint32_t sa_idx, bool* out_flipx = nullptr, bool* out_flipy = nullptr) const;
 	uint32_t sa_count() const;
