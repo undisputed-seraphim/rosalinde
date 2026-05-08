@@ -14,6 +14,7 @@
 
 struct SpriteLayer {
 	std::string name;
+	glm::vec2 position{0, 0};
 	SpriteData data;
 	SpriteInstance instance;
 	SpriteRenderer renderer;

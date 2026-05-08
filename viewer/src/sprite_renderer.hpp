@@ -15,7 +15,7 @@ public:
 	SpriteRenderer(const SpriteRenderer&) = delete;
 
 	void upload_textures(const SpriteData& data);
-	void draw(const SpriteInstance& inst, const glm::mat4& projection, const Camera& cam);
+	void draw(const SpriteInstance& inst, const glm::mat4& projection, const Camera& cam, const glm::vec2& offset = {});
 
 private:
 	GLuint _texture_array = 0;

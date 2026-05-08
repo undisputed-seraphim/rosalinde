@@ -1,6 +1,8 @@
 #include "sprite_renderer.hpp"
 #include "shader.hpp"
 
+#include <glm/ext.hpp>
+
 SpriteRenderer::SpriteRenderer() {
 	glGenVertexArrays(1, &_vao);
 	glBindVertexArray(_vao);
@@ -50,7 +52,7 @@ void SpriteRenderer::upload_textures(const SpriteData& data) {
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 }
 
-void SpriteRenderer::draw(const SpriteInstance& inst, const glm::mat4& projection, const Camera& cam) {
+void SpriteRenderer::draw(const SpriteInstance& inst, const glm::mat4& projection, const Camera& cam, const glm::vec2& offset) {
 	const auto& shader = GetKeyframeShader().Use();
 
 	glActiveTexture(GL_TEXTURE0);
@@ -58,10 +60,11 @@ void SpriteRenderer::draw(const SpriteInstance& inst, const glm::mat4& projectio
 	glBindVertexArray(_vao);
 	shader.SetUniform("u_tex", 0);
 
+	const glm::mat4 view_offset = cam.lookAt() * glm::translate(glm::mat4(1.0f), glm::vec3(offset, 0.0f));
 	uint32_t n = inst.sa_count();
 	for (uint32_t i = 0; i < n; ++i) {
 		auto s7m = inst.transform_for_sa(i);
-		shader.SetUniform("u_mvp", projection * cam.lookAt() * s7m);
+		shader.SetUniform("u_mvp", projection * view_offset * s7m);
 
 		inst.build_vertices(i, _verts, _indices);
 		if (_verts.empty()) continue;
