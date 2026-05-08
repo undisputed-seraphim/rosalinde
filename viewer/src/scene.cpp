@@ -7,6 +7,9 @@
 #include <glad/glad.h>
 #include <glm/ext.hpp>
 #include <glxx/error.hpp>
+#include <imgui.h>
+#include <imgui_impl_opengl3.h>
+#include <imgui_impl_sdl3.h>
 #include <spanstream>
 #include <stdexcept>
 
@@ -120,40 +123,44 @@ Scene::Scene(std::filesystem::path cpkpath,
 		_layers.push_back(load_layer(iter2->second, flags2, 0, classname2, charaname2));
 		_layers.back()->position = glm::vec2(300.0f, 0.0f);
 	}
+
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+	ImGui::StyleColorsDark();
+
+	ImGui_ImplSDL3_InitForOpenGL(SDL_GL_GetCurrentWindow(), SDL_GL_GetCurrentContext());
+	ImGui_ImplOpenGL3_Init("#version 320 es");
 }
 
-Scene::~Scene() noexcept {}
+Scene::~Scene() noexcept {
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplSDL3_Shutdown();
+	ImGui::DestroyContext();
+}
 
 bool Scene::handle_inputs() {
 	SDL_Event event{};
 	bool done = _done;
 	while (SDL_PollEvent(&event)) {
+		ImGui_ImplSDL3_ProcessEvent(&event);
+
 		if (event.type == SDL_EVENT_QUIT) {
 			done = true;
 		}
 		if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
 			done = true;
 		}
-		_camera.handleInput(event);
+
+		if (!ImGui::GetIO().WantCaptureMouse) {
+			_camera.handleInput(event);
+		}
+
+		if (ImGui::GetIO().WantCaptureKeyboard) continue;
+
 		switch (event.type) {
 		case SDL_EVENT_KEY_DOWN: {
 			if (_layers.empty()) break;
-
-			if (event.key.key == SDLK_LEFT || event.key.key == SDLK_RIGHT) {
-				auto& active = *_layers[_active_layer];
-				auto it = std::ranges::find(_class_names, active.class_name);
-				if (it == _class_names.end()) break;
-				int dir = (event.key.key == SDLK_RIGHT) ? 1 : -1;
-				size_t idx = (it - _class_names.begin() + _class_names.size() + dir) % _class_names.size();
-				const auto& new_job = Characters.at(_class_names[idx]);
-				auto var_it = new_job.variants.find(active.variant_name);
-				if (var_it == new_job.variants.end()) var_it = new_job.variants.begin();
-				float old_x = active.position.x;
-				_layers[_active_layer] = load_layer(new_job, var_it->second, 0, _class_names[idx], var_it->first);
-				_layers[_active_layer]->position.x = old_x;
-				_camera.fit_bounds(_layers[_active_layer]->instance.track_bounds());
-				break;
-			}
 
 			const bool shift = event.key.mod & SDL_KMOD_SHIFT;
 			if (shift && _layers.size() > 1) {
@@ -177,9 +184,81 @@ bool Scene::handle_inputs() {
 }
 
 void Scene::render() {
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplSDL3_NewFrame();
+	ImGui::NewFrame();
+
+	ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(320, 500), ImGuiCond_FirstUseEver);
+	if (ImGui::Begin("Characters")) {
+		static int side = 0;
+		ImGui::RadioButton("Left", &side, 0);
+		ImGui::SameLine();
+		ImGui::RadioButton("Right", &side, 1);
+		ImGui::SameLine();
+		if (_layers.size() > 1 && ImGui::Button("Swap")) {
+			std::swap(_layers[0]->position, _layers[1]->position);
+			std::swap(_layers[0], _layers[1]);
+		}
+
+		if (side < (int)_layers.size()) {
+			ImGui::Text("Active: %s", _layers[side]->name.c_str());
+		}
+		ImGui::Separator();
+
+		for (const auto& name : _class_names) {
+			bool selected = false;
+			if (side < (int)_layers.size()) {
+				selected = (_layers[side]->class_name == name);
+			}
+			if (ImGui::Selectable(name.c_str(), selected)) {
+				const auto& job = Characters.at(name);
+				auto var_it = job.variants.find(_layers[side]->variant_name);
+				if (var_it == job.variants.end()) var_it = job.variants.begin();
+				_layers[side] = load_layer(job, var_it->second, 0, name, var_it->first);
+				_layers[side]->position = side == 0 ? glm::vec2(-300.0f, 0.0f) : glm::vec2(300.0f, 0.0f);
+				if (side == 0) _camera.fit_bounds(_layers[side]->instance.track_bounds());
+			}
+		}
+	}
+	ImGui::End();
+
+	ImGui::SetNextWindowPos(ImVec2(10, 520), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(320, 500), ImGuiCond_FirstUseEver);
+	if (ImGui::Begin("Animations") && !_layers.empty()) {
+		static int anim_side = 0;
+		ImGui::RadioButton("Left##anim", &anim_side, 0);
+		ImGui::SameLine();
+		ImGui::RadioButton("Right##anim", &anim_side, 1);
+
+		auto& layer = _layers[anim_side < (int)_layers.size() ? anim_side : 0];
+		ImGui::Text("%s", layer->name.c_str());
+		ImGui::Separator();
+
+		char filter[64] = {};
+		ImGui::InputText("Filter", filter, sizeof(filter));
+		std::string f(filter);
+
+		for (uint32_t i = 0; i < layer->data.tracks.size(); ++i) {
+			const auto& track = layer->data.tracks[i];
+			if (track.name.empty()) continue;
+			if (!f.empty() && track.name.find(f) == std::string::npos) continue;
+
+			if (ImGui::Selectable(track.name.c_str(), layer->instance.track_idx == i)) {
+				layer->instance.play(i);
+				_camera.fit_bounds(layer->instance.track_bounds());
+			}
+		}
+	}
+	ImGui::End();
+
+	ImGui::Render();
+
 	for (auto& layer : _layers) {
 		layer->renderer.draw(layer->instance, _projection, _camera, layer->position);
 	}
+
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 	if (!_screenshot_path.empty() && !_captured) {
 		static constexpr int W = 1920, H = 1080;
