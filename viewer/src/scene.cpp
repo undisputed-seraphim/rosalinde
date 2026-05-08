@@ -172,8 +172,8 @@ bool Scene::handle_inputs() {
 			} else {
 				auto& inst = _layers[_active_layer]->instance;
 				switch (event.key.key) {
-				case SDLK_DOWN: inst.prev_track(); _camera.fit_bounds(inst.track_bounds()); break;
-				case SDLK_UP:   inst.next_track(); _camera.fit_bounds(inst.track_bounds()); break;
+			case SDLK_DOWN: inst.prev_track(); break;
+			case SDLK_UP:   inst.next_track(); break;
 				}
 			}
 			break;
@@ -215,9 +215,8 @@ void Scene::render() {
 				const auto& job = Characters.at(name);
 				auto var_it = job.variants.find(_layers[side]->variant_name);
 				if (var_it == job.variants.end()) var_it = job.variants.begin();
-				_layers[side] = load_layer(job, var_it->second, 0, name, var_it->first);
-				_layers[side]->position = side == 0 ? glm::vec2(-300.0f, 0.0f) : glm::vec2(300.0f, 0.0f);
-				if (side == 0) _camera.fit_bounds(_layers[side]->instance.track_bounds());
+		_layers[side] = load_layer(job, var_it->second, 0, name, var_it->first);
+			_layers[side]->position = side == 0 ? glm::vec2(-300.0f, 0.0f) : glm::vec2(300.0f, 0.0f);
 			}
 		}
 	}
@@ -244,9 +243,8 @@ void Scene::render() {
 			if (track.name.empty()) continue;
 			if (!f.empty() && track.name.find(f) == std::string::npos) continue;
 
-			if (ImGui::Selectable(track.name.c_str(), layer->instance.track_idx == i)) {
-				layer->instance.play(i);
-				_camera.fit_bounds(layer->instance.track_bounds());
+		if (ImGui::Selectable(track.name.c_str(), layer->instance.track_idx == i)) {
+			layer->instance.play(i);
 			}
 		}
 	}
