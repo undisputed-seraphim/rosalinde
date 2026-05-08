@@ -63,10 +63,11 @@ std::unique_ptr<SpriteLayer> Scene::load_layer(
 Scene::Scene(std::filesystem::path cpkpath,
 	const std::string& classname,
 	const std::string& charaname,
+	const std::string& classname2,
+	const std::string& charaname2,
 	uint32_t trackid,
 	bool debug,
-	std::string screenshot_path,
-	std::string bg_name)
+	std::string screenshot_path)
 	: _cpkt(TopLevelCpk(cpkpath).getTableOfContents())
 	, _camera(2.5)
 	, _projection(1.0)
@@ -100,13 +101,13 @@ Scene::Scene(std::filesystem::path cpkpath,
 	_layers.push_back(load_layer(job, flags, trackid));
 	_camera.fit_bounds(_layers.back()->instance.track_bounds());
 
-	if (!bg_name.empty()) {
-		const auto bg_iter = BattleBGs.find(bg_name);
-		if (bg_iter == BattleBGs.end()) {
-			throw std::runtime_error("Battle BG " + bg_name + " was not found.");
+	if (!classname2.empty()) {
+		const auto iter2 = Characters.find(classname2);
+		if (iter2 == Characters.end()) {
+			throw std::runtime_error("Entry for character class " + classname2 + " was not found.");
 		}
-		_layers.push_back(load_layer(bg_iter->second, 0, 0));
-		_has_bg = true;
+		auto flags2 = iter2->second.variants.at(charaname2);
+		_layers.push_back(load_layer(iter2->second, flags2, 0));
 	}
 }
 
@@ -126,7 +127,7 @@ bool Scene::handle_inputs() {
 		switch (event.type) {
 		case SDL_EVENT_KEY_DOWN: {
 			const bool shift = event.key.mod & SDL_KMOD_SHIFT;
-			if (shift && _has_bg) {
+			if (shift && _layers.size() > 1) {
 				auto& bg = _layers[1]->instance;
 				switch (event.key.key) {
 				case SDLK_DOWN: bg.prev_track(); break;
