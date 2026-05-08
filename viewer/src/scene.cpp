@@ -2,6 +2,7 @@
 #include "tables.hpp"
 
 #include <SDL3/SDL.h>
+#include <algorithm>
 #include <cstdio>
 #include <glad/glad.h>
 #include <glm/ext.hpp>
@@ -30,7 +31,8 @@ namespace {
 }
 
 std::unique_ptr<SpriteLayer> Scene::load_layer(
-	const Job& job, uint32_t variant_flags, uint32_t trackid) const {
+	const Job& job, uint32_t variant_flags, uint32_t trackid,
+	const std::string& class_name, const std::string& variant_name) const {
 
 	std::vector<char> mbs_buf, ftx_buf;
 	if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
@@ -51,6 +53,9 @@ std::unique_ptr<SpriteLayer> Scene::load_layer(
 	}
 
 	auto layer = std::make_unique<SpriteLayer>();
+	layer->name = class_name + ":" + variant_name;
+	layer->class_name = class_name;
+	layer->variant_name = variant_name;
 	layer->data = SpriteData::load(
 		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(mbs_buf.data()), mbs_buf.size()),
 		std::move(ftx_entries));
@@ -98,9 +103,13 @@ Scene::Scene(std::filesystem::path cpkpath,
 	auto flags = iter->second.variants.at(charaname);
 	std::cout << job.mbs.dir << '\t' << job.mbs.path << '\n';
 
-	_layers.push_back(load_layer(job, flags, trackid));
+	_layers.push_back(load_layer(job, flags, trackid, classname, charaname));
 	_layers.back()->position = glm::vec2(-300.0f, 0.0f);
 	_camera.fit_bounds(_layers.back()->instance.track_bounds());
+
+	for (const auto& [name, _] : Characters) {
+		_class_names.push_back(name);
+	}
 
 	if (!classname2.empty()) {
 		const auto iter2 = Characters.find(classname2);
@@ -108,7 +117,7 @@ Scene::Scene(std::filesystem::path cpkpath,
 			throw std::runtime_error("Entry for character class " + classname2 + " was not found.");
 		}
 		auto flags2 = iter2->second.variants.at(charaname2);
-		_layers.push_back(load_layer(iter2->second, flags2, 0));
+		_layers.push_back(load_layer(iter2->second, flags2, 0, classname2, charaname2));
 		_layers.back()->position = glm::vec2(300.0f, 0.0f);
 	}
 }
@@ -128,6 +137,24 @@ bool Scene::handle_inputs() {
 		_camera.handleInput(event);
 		switch (event.type) {
 		case SDL_EVENT_KEY_DOWN: {
+			if (_layers.empty()) break;
+
+			if (event.key.key == SDLK_LEFT || event.key.key == SDLK_RIGHT) {
+				auto& active = *_layers[_active_layer];
+				auto it = std::ranges::find(_class_names, active.class_name);
+				if (it == _class_names.end()) break;
+				int dir = (event.key.key == SDLK_RIGHT) ? 1 : -1;
+				size_t idx = (it - _class_names.begin() + _class_names.size() + dir) % _class_names.size();
+				const auto& new_job = Characters.at(_class_names[idx]);
+				auto var_it = new_job.variants.find(active.variant_name);
+				if (var_it == new_job.variants.end()) var_it = new_job.variants.begin();
+				float old_x = active.position.x;
+				_layers[_active_layer] = load_layer(new_job, var_it->second, 0, _class_names[idx], var_it->first);
+				_layers[_active_layer]->position.x = old_x;
+				_camera.fit_bounds(_layers[_active_layer]->instance.track_bounds());
+				break;
+			}
+
 			const bool shift = event.key.mod & SDL_KMOD_SHIFT;
 			if (shift && _layers.size() > 1) {
 				auto& bg = _layers[1]->instance;
@@ -135,7 +162,7 @@ bool Scene::handle_inputs() {
 				case SDLK_DOWN: bg.prev_track(); break;
 				case SDLK_UP:   bg.next_track(); break;
 				}
-			} else if (!_layers.empty()) {
+			} else {
 				auto& inst = _layers[_active_layer]->instance;
 				switch (event.key.key) {
 				case SDLK_DOWN: inst.prev_track(); _camera.fit_bounds(inst.track_bounds()); break;
