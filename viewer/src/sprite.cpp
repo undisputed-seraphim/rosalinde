@@ -81,6 +81,14 @@ void SpriteData::preprocess() {
 		}
 	}
 
+	for (const auto& s4 : v77.s4) {
+		attributes_mask |= s4.attributes;
+	}
+	for (uint32_t i = 0; i < 32; ++i) {
+		if (attributes_mask & (1u << i))
+			attribute_bits.push_back(1u << i);
+	}
+
 	tracks.resize(v77.s9.size());
 	for (uint32_t s9_id = 0; s9_id < v77.s9.size(); ++s9_id) {
 		const auto& s9 = v77.s9[s9_id];
