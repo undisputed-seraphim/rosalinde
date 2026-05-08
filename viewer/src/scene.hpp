@@ -22,9 +22,9 @@ struct SpriteLayer {
 class Scene final : public uvw::BaseGame {
 public:
 	Scene(std::filesystem::path cpkpath, const std::string& classname,
-		const std::string& charaname, uint32_t trackid, bool debug,
-		std::string screenshot_path = {},
-		std::string bg_name = {});
+		const std::string& charaname, const std::string& classname2,
+		const std::string& charaname2, uint32_t trackid, bool debug,
+		std::string screenshot_path = {});
 
 	~Scene() noexcept;
 
@@ -39,7 +39,6 @@ private:
 
 	std::vector<std::unique_ptr<SpriteLayer>> _layers;
 	size_t _active_layer = 0;
-	bool _has_bg = false;
 
 	std::string _screenshot_path;
 	bool _done = false;
