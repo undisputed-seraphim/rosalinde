@@ -14,6 +14,8 @@
 
 struct SpriteLayer {
 	std::string name;
+	std::string class_name;
+	std::string variant_name;
 	glm::vec2 position{0, 0};
 	SpriteData data;
 	SpriteInstance instance;
@@ -39,11 +41,13 @@ private:
 	glm::mat4 _projection;
 
 	std::vector<std::unique_ptr<SpriteLayer>> _layers;
+	std::vector<std::string> _class_names;
 	size_t _active_layer = 0;
 
 	std::string _screenshot_path;
 	bool _done = false;
 	bool _captured = false;
 
-	std::unique_ptr<SpriteLayer> load_layer(const struct Job& job, uint32_t variant_flags, uint32_t trackid) const;
+	std::unique_ptr<SpriteLayer> load_layer(const struct Job& job, uint32_t variant_flags, uint32_t trackid,
+		const std::string& class_name, const std::string& variant_name) const;
 };
