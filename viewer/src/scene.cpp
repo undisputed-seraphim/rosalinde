@@ -264,8 +264,10 @@ void Scene::render() {
 		ImGui::SameLine();
 		ImGui::Text(" 0x%08X", flags);
 		ImGui::SameLine();
-		if (ImGui::Button("Reset"))
+		if (ImGui::Button("Reset")) {
 			flags = layer->default_flags;
+			printf("%s: flags = 0x%08X\n", layer->name.c_str(), flags);
+		}
 
 		for (uint32_t bit : layer->data.attribute_bits) {
 			bool on = flags & bit;
