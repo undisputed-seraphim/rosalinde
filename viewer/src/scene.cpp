@@ -63,6 +63,8 @@ std::unique_ptr<SpriteLayer> Scene::load_layer(
 	layer->data = SpriteData::load(
 		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(mbs_buf.data()), mbs_buf.size()),
 		std::move(ftx_entries));
+	for (const auto& s4 : layer->data.v77.s4)
+		layer->layer_tints.try_emplace(s4.attributes, 1.0f, 1.0f, 1.0f, 1.0f);
 	layer->renderer.upload_textures(layer->data);
 	layer->instance = SpriteInstance{&layer->data, trackid, layer->default_flags};
 	layer->instance.play(trackid);
@@ -266,6 +268,8 @@ void Scene::render() {
 		ImGui::SameLine();
 		if (ImGui::Button("Reset")) {
 			flags = layer->default_flags;
+			for (auto& [_, tint] : layer->layer_tints)
+				tint = {1.0f, 1.0f, 1.0f, 1.0f};
 			fprintf(stdout, "%s: flags = 0x%08X\n", layer->name.c_str(), flags);
 			fflush(stdout);
 		}
@@ -281,10 +285,23 @@ void Scene::render() {
 	}
 	ImGui::End();
 
+	ImGui::SetNextWindowPos(ImVec2(1330, 10), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(580, 600), ImGuiCond_FirstUseEver);
+	if (ImGui::Begin("Layer Tints") && !_layers.empty()) {
+		auto& layer = _layers[_variant_side < (int)_layers.size() ? _variant_side : 0];
+		for (auto& [attrs, tint] : layer->layer_tints) {
+			char label[12];
+			snprintf(label, sizeof(label), "%08X", attrs);
+			ImGui::ColorEdit4(label, &tint[0],
+				ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_DisplayHex);
+		}
+	}
+	ImGui::End();
+
 	ImGui::Render();
 
 	for (auto& layer : _layers) {
-		layer->renderer.draw(layer->instance, _projection, _camera, layer->position);
+		layer->renderer.draw(layer->instance, _projection, _camera, layer->position, &layer->layer_tints);
 	}
 
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

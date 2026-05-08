@@ -213,7 +213,8 @@ void SpriteInstance::prev_track() {
 }
 
 void SpriteInstance::build_vertices(
-	uint32_t sa_idx, std::vector<SpriteVertex>& verts, std::vector<uint32_t>& indices) const {
+	uint32_t sa_idx, std::vector<SpriteVertex>& verts, std::vector<uint32_t>& indices,
+	const std::map<uint32_t, glm::vec4>* tints) const {
 	verts.clear();
 	indices.clear();
 
@@ -243,10 +244,27 @@ void SpriteInstance::build_vertices(
 	for (const auto& layer : ck.layers) {
 		if ((layer.attributes & ~variant_flags) != 0) continue;
 
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[0], {layer.xy[0], depth}, layer.color[0]});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[1], {layer.xy[1], depth}, layer.color[1]});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[2], {layer.xy[2], depth}, layer.color[2]});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[3], {layer.xy[3], depth}, layer.color[3]});
+		uint32_t c0 = layer.color[0], c1 = layer.color[1], c2 = layer.color[2], c3 = layer.color[3];
+		if (tints) {
+			auto it = tints->find(layer.attributes);
+			if (it != tints->end()) {
+				const auto& t = it->second;
+				auto mul = [](uint32_t c, const glm::vec4& t) {
+					uint32_t r = ((c >> 0) & 0xFF) * t.r;
+					uint32_t g = ((c >> 8) & 0xFF) * t.g;
+					uint32_t b = ((c >> 16) & 0xFF) * t.b;
+					uint32_t a = ((c >> 24) & 0xFF) * t.a;
+					return (a << 24) | (b << 16) | (g << 8) | r;
+				};
+				c0 = mul(c0, t); c1 = mul(c1, t);
+				c2 = mul(c2, t); c3 = mul(c3, t);
+			}
+		}
+
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[0], {layer.xy[0], depth}, c0});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[1], {layer.xy[1], depth}, c1});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[2], {layer.xy[2], depth}, c2});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[3], {layer.xy[3], depth}, c3});
 
 		indices.insert(indices.end(), {base, base + 1, base + 3, base + 1, base + 2, base + 3});
 		depth -= zrate;

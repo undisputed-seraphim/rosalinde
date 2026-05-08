@@ -52,7 +52,8 @@ void SpriteRenderer::upload_textures(const SpriteData& data) {
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 }
 
-void SpriteRenderer::draw(const SpriteInstance& inst, const glm::mat4& projection, const Camera& cam, const glm::vec2& offset) {
+void SpriteRenderer::draw(const SpriteInstance& inst, const glm::mat4& projection, const Camera& cam,
+	const glm::vec2& offset, const std::map<uint32_t, glm::vec4>* tints) {
 	const auto& shader = GetKeyframeShader().Use();
 
 	glActiveTexture(GL_TEXTURE0);
@@ -66,7 +67,7 @@ void SpriteRenderer::draw(const SpriteInstance& inst, const glm::mat4& projectio
 		auto s7m = inst.transform_for_sa(i);
 		shader.SetUniform("u_mvp", projection * view_offset * s7m);
 
-		inst.build_vertices(i, _verts, _indices);
+		inst.build_vertices(i, _verts, _indices, tints);
 		if (_verts.empty()) continue;
 
 		_vbo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_verts));
