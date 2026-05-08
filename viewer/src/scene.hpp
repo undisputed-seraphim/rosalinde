@@ -20,6 +20,7 @@ struct SpriteLayer {
 	SpriteData data;
 	SpriteInstance instance;
 	SpriteRenderer renderer;
+	uint32_t default_flags = 0;
 };
 
 class Scene final : public uvw::BaseGame {
@@ -47,7 +48,8 @@ private:
 	std::string _screenshot_path;
 	bool _done = false;
 	bool _captured = false;
+	int _variant_side = 0;
 
-	std::unique_ptr<SpriteLayer> load_layer(const struct Job& job, uint32_t variant_flags, uint32_t trackid,
+	std::unique_ptr<SpriteLayer> load_layer(const struct Job& job, uint32_t trackid,
 		const std::string& class_name, const std::string& variant_name) const;
 };

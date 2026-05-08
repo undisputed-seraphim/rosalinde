@@ -34,6 +34,9 @@ struct SpriteData {
 	std::vector<FTX::Entry> textures;
 	mbs::v77 v77;
 
+	uint32_t attributes_mask = 0;
+	std::vector<uint32_t> attribute_bits;
+
 	struct FrameRun {
 		uint32_t s8_start;
 		uint32_t s8_count;

@@ -34,7 +34,7 @@ namespace {
 }
 
 std::unique_ptr<SpriteLayer> Scene::load_layer(
-	const Job& job, uint32_t variant_flags, uint32_t trackid,
+	const Job& job, uint32_t trackid,
 	const std::string& class_name, const std::string& variant_name) const {
 
 	std::vector<char> mbs_buf, ftx_buf;
@@ -59,11 +59,12 @@ std::unique_ptr<SpriteLayer> Scene::load_layer(
 	layer->name = class_name + ":" + variant_name;
 	layer->class_name = class_name;
 	layer->variant_name = variant_name;
+	layer->default_flags = 0xFFFFFFFF;
 	layer->data = SpriteData::load(
 		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(mbs_buf.data()), mbs_buf.size()),
 		std::move(ftx_entries));
 	layer->renderer.upload_textures(layer->data);
-	layer->instance = SpriteInstance{&layer->data, trackid, variant_flags};
+	layer->instance = SpriteInstance{&layer->data, trackid, layer->default_flags};
 	layer->instance.play(trackid);
 	return layer;
 }
@@ -103,10 +104,10 @@ Scene::Scene(std::filesystem::path cpkpath,
 	}
 
 	const auto& job = iter->second;
-	auto flags = iter->second.variants.at(charaname);
+	(void)iter->second.variants.at(charaname);
 	std::cout << job.mbs.dir << '\t' << job.mbs.path << '\n';
 
-	_layers.push_back(load_layer(job, flags, trackid, classname, charaname));
+	_layers.push_back(load_layer(job, trackid, classname, charaname));
 	_layers.back()->position = glm::vec2(-300.0f, 0.0f);
 	_camera.fit_bounds(_layers.back()->instance.track_bounds());
 
@@ -119,8 +120,8 @@ Scene::Scene(std::filesystem::path cpkpath,
 		if (iter2 == Characters.end()) {
 			throw std::runtime_error("Entry for character class " + classname2 + " was not found.");
 		}
-		auto flags2 = iter2->second.variants.at(charaname2);
-		_layers.push_back(load_layer(iter2->second, flags2, 0, classname2, charaname2));
+		(void)iter2->second.variants.at(charaname2);
+		_layers.push_back(load_layer(iter2->second, 0, classname2, charaname2));
 		_layers.back()->position = glm::vec2(300.0f, 0.0f);
 	}
 
@@ -215,7 +216,7 @@ void Scene::render() {
 				const auto& job = Characters.at(name);
 				auto var_it = job.variants.find(_layers[side]->variant_name);
 				if (var_it == job.variants.end()) var_it = job.variants.begin();
-		_layers[side] = load_layer(job, var_it->second, 0, name, var_it->first);
+		_layers[side] = load_layer(job, 0, name, var_it->first);
 			_layers[side]->position = side == 0 ? glm::vec2(-300.0f, 0.0f) : glm::vec2(300.0f, 0.0f);
 			}
 		}
@@ -246,6 +247,33 @@ void Scene::render() {
 		if (ImGui::Selectable(track.name.c_str(), layer->instance.track_idx == i)) {
 			layer->instance.play(i);
 			}
+		}
+	}
+	ImGui::End();
+
+	ImGui::SetNextWindowPos(ImVec2(10, 960), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(1900, 100), ImGuiCond_FirstUseEver);
+	if (ImGui::Begin("Variant Flags") && !_layers.empty()) {
+		ImGui::RadioButton("Left##vflags", &_variant_side, 0);
+		ImGui::SameLine();
+		ImGui::RadioButton("Right##vflags", &_variant_side, 1);
+
+		auto& layer = _layers[_variant_side < (int)_layers.size() ? _variant_side : 0];
+		auto& flags = layer->instance.variant_flags;
+
+		ImGui::SameLine();
+		ImGui::Text(" 0x%08X", flags);
+		ImGui::SameLine();
+		if (ImGui::Button("Reset"))
+			flags = layer->default_flags;
+
+		for (uint32_t bit : layer->data.attribute_bits) {
+			bool on = flags & bit;
+			char label[12];
+			snprintf(label, sizeof(label), "0x%08X", bit);
+			ImGui::SameLine();
+			if (ImGui::Checkbox(label, &on))
+				flags ^= bit;
 		}
 	}
 	ImGui::End();
