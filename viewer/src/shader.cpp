@@ -1,7 +1,7 @@
 #include "shader.hpp"
 
 // clang-format off
-constexpr std::string_view kf_vert_src = "# version 320 es\n"
+constexpr std::string_view kf_vert_src = "#version 450\n"
 "in            uint  a_texid;\n"
 "in      highp vec2  a_uv;\n"
 "in      highp vec3  a_xyz;\n"
@@ -18,7 +18,7 @@ constexpr std::string_view kf_vert_src = "# version 320 es\n"
 "    gl_Position = u_mvp * vec4(a_xyz, 1.0);\n"
 "}";
 
-constexpr std::string_view kf_frag_src = "# version 320 es\n"
+constexpr std::string_view kf_frag_src = "#version 450\n"
 "in      highp vec4           v_fog;\n"
 "in      highp vec2           v_uv;\n"
 "flat in       uint           v_texid;\n"
