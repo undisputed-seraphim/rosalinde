@@ -29,6 +29,37 @@ namespace {
 	}
 }
 
+std::unique_ptr<SpriteLayer> Scene::load_layer(
+	const Job& job, uint32_t variant_flags, uint32_t trackid) const {
+
+	std::vector<char> mbs_buf, ftx_buf;
+	if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
+		throw std::runtime_error("MBS was not found: " + job.mbs.dir + "/" + job.mbs.path);
+	} else {
+		_cpkt.extract(*entry, mbs_buf);
+	}
+	if (auto entry = _cpkt.find_file(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
+		throw std::runtime_error("FTX was not found: " + job.ftx.dir + "/" + job.ftx.path);
+	} else {
+		_cpkt.extract(*entry, ftx_buf);
+	}
+
+	auto ftx_entries = FTX::parse(ftx_buf);
+	for (auto& t : ftx_entries) {
+		FTX::decompress(t);
+		FTX::deswizzle(t);
+	}
+
+	auto layer = std::make_unique<SpriteLayer>();
+	layer->data = SpriteData::load(
+		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(mbs_buf.data()), mbs_buf.size()),
+		std::move(ftx_entries));
+	layer->renderer.upload_textures(layer->data);
+	layer->instance = SpriteInstance{&layer->data, trackid, variant_flags};
+	layer->instance.play(trackid);
+	return layer;
+}
+
 Scene::Scene(std::filesystem::path cpkpath,
 	const std::string& classname,
 	const std::string& charaname,
@@ -63,71 +94,18 @@ Scene::Scene(std::filesystem::path cpkpath,
 	}
 
 	const auto& job = iter->second;
+	auto flags = iter->second.variants.at(charaname);
 	std::cout << job.mbs.dir << '\t' << job.mbs.path << '\n';
 
-	std::vector<char> mbs_buf, buf;
-	if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
-		throw std::runtime_error("MBS for character class " + classname + " was not found.");
-	} else {
-		_cpkt.extract(*entry, mbs_buf);
-	}
-
-	auto flags = iter->second.variants.at(charaname);
-	std::vector<FTX::Entry> ftx_entries;
-	if (auto entry = _cpkt.find_file(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
-		throw std::runtime_error("FTX for character class " + classname + " was not found.");
-	} else {
-		_cpkt.extract(*entry, buf);
-		auto txt = FTX::parse(buf);
-		std::move(txt.begin(), txt.end(), std::back_inserter(ftx_entries));
-	}
-
-	for (auto& t : ftx_entries) {
-		FTX::decompress(t);
-		FTX::deswizzle(t);
-	}
-
-	_data = SpriteData::load(
-		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(mbs_buf.data()), mbs_buf.size()),
-		std::move(ftx_entries));
-
-	_renderer.upload_textures(_data);
-	_instance = SpriteInstance{&_data, trackid, flags};
-	_instance.play(trackid);
-	_camera.fit_bounds(_instance.track_bounds());
+	_layers.push_back(load_layer(job, flags, trackid));
+	_camera.fit_bounds(_layers.back()->instance.track_bounds());
 
 	if (!bg_name.empty()) {
 		const auto bg_iter = BattleBGs.find(bg_name);
 		if (bg_iter == BattleBGs.end()) {
 			throw std::runtime_error("Battle BG " + bg_name + " was not found.");
 		}
-		const auto& bg = bg_iter->second;
-
-		std::vector<char> bg_mbs_buf, bg_ftx_buf;
-		if (auto entry = _cpkt.find_file(bg.mbs.dir, bg.mbs.path); entry == _cpkt.end()) {
-			throw std::runtime_error("MBS for BG " + bg_name + " was not found.");
-		} else {
-			_cpkt.extract(*entry, bg_mbs_buf);
-		}
-		if (auto entry = _cpkt.find_file(bg.ftx.dir, bg.ftx.path); entry == _cpkt.end()) {
-			throw std::runtime_error("FTX for BG " + bg_name + " was not found.");
-		} else {
-			_cpkt.extract(*entry, bg_ftx_buf);
-		}
-		auto bg_txt = FTX::parse(bg_ftx_buf);
-		std::vector<FTX::Entry> bg_ftx_entries;
-		std::move(bg_txt.begin(), bg_txt.end(), std::back_inserter(bg_ftx_entries));
-		for (auto& t : bg_ftx_entries) {
-			FTX::decompress(t);
-			FTX::deswizzle(t);
-		}
-
-		_bg_data = SpriteData::load(
-			std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(bg_mbs_buf.data()), bg_mbs_buf.size()),
-			std::move(bg_ftx_entries));
-		_bg_renderer.upload_textures(_bg_data);
-		_bg_instance = SpriteInstance{&_bg_data, 0, 0};
-		_bg_instance.play(0);
+		_layers.push_back(load_layer(bg_iter->second, 0, 0));
 		_has_bg = true;
 	}
 }
@@ -149,14 +127,16 @@ bool Scene::handle_inputs() {
 		case SDL_EVENT_KEY_DOWN: {
 			const bool shift = event.key.mod & SDL_KMOD_SHIFT;
 			if (shift && _has_bg) {
+				auto& bg = _layers[1]->instance;
 				switch (event.key.key) {
-				case SDLK_DOWN: _bg_instance.prev_track(); break;
-				case SDLK_UP:   _bg_instance.next_track(); break;
+				case SDLK_DOWN: bg.prev_track(); break;
+				case SDLK_UP:   bg.next_track(); break;
 				}
-			} else {
+			} else if (!_layers.empty()) {
+				auto& inst = _layers[_active_layer]->instance;
 				switch (event.key.key) {
-				case SDLK_DOWN: _instance.prev_track(); _camera.fit_bounds(_instance.track_bounds()); break;
-				case SDLK_UP:   _instance.next_track(); _camera.fit_bounds(_instance.track_bounds()); break;
+				case SDLK_DOWN: inst.prev_track(); _camera.fit_bounds(inst.track_bounds()); break;
+				case SDLK_UP:   inst.next_track(); _camera.fit_bounds(inst.track_bounds()); break;
 				}
 			}
 			break;
@@ -167,8 +147,9 @@ bool Scene::handle_inputs() {
 }
 
 void Scene::render() {
-	if (_has_bg) _bg_renderer.draw(_bg_instance, _projection, _camera);
-	_renderer.draw(_instance, _projection, _camera);
+	for (auto& layer : _layers) {
+		layer->renderer.draw(layer->instance, _projection, _camera);
+	}
 
 	if (!_screenshot_path.empty() && !_captured) {
 		static constexpr int W = 1920, H = 1080;
@@ -192,6 +173,7 @@ void Scene::render() {
 }
 
 void Scene::update(float dt) {
-	if (_has_bg) _bg_instance.update(dt);
-	_instance.update(dt);
+	for (auto& layer : _layers) {
+		layer->instance.update(dt);
+	}
 }
