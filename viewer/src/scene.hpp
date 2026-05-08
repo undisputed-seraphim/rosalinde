@@ -8,7 +8,16 @@
 #include <criware/cpk.hpp>
 #include <filesystem>
 #include <glm/glm.hpp>
+#include <memory>
 #include <string>
+#include <vector>
+
+struct SpriteLayer {
+	std::string name;
+	SpriteData data;
+	SpriteInstance instance;
+	SpriteRenderer renderer;
+};
 
 class Scene final : public uvw::BaseGame {
 public:
@@ -28,16 +37,13 @@ private:
 	Camera _camera;
 	glm::mat4 _projection;
 
-	SpriteData _data;
-	SpriteInstance _instance;
-	SpriteRenderer _renderer;
-
-	SpriteData _bg_data;
-	SpriteInstance _bg_instance;
-	SpriteRenderer _bg_renderer;
+	std::vector<std::unique_ptr<SpriteLayer>> _layers;
+	size_t _active_layer = 0;
 	bool _has_bg = false;
 
 	std::string _screenshot_path;
 	bool _done = false;
 	bool _captured = false;
+
+	std::unique_ptr<SpriteLayer> load_layer(const struct Job& job, uint32_t variant_flags, uint32_t trackid) const;
 };
