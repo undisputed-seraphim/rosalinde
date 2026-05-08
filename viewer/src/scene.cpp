@@ -99,6 +99,7 @@ Scene::Scene(std::filesystem::path cpkpath,
 	std::cout << job.mbs.dir << '\t' << job.mbs.path << '\n';
 
 	_layers.push_back(load_layer(job, flags, trackid));
+	_layers.back()->position = glm::vec2(-300.0f, 0.0f);
 	_camera.fit_bounds(_layers.back()->instance.track_bounds());
 
 	if (!classname2.empty()) {
@@ -108,6 +109,7 @@ Scene::Scene(std::filesystem::path cpkpath,
 		}
 		auto flags2 = iter2->second.variants.at(charaname2);
 		_layers.push_back(load_layer(iter2->second, flags2, 0));
+		_layers.back()->position = glm::vec2(300.0f, 0.0f);
 	}
 }
 
@@ -149,7 +151,7 @@ bool Scene::handle_inputs() {
 
 void Scene::render() {
 	for (auto& layer : _layers) {
-		layer->renderer.draw(layer->instance, _projection, _camera);
+		layer->renderer.draw(layer->instance, _projection, _camera, layer->position);
 	}
 
 	if (!_screenshot_path.empty() && !_captured) {
