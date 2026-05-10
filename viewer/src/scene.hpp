@@ -25,6 +25,21 @@ struct SpriteLayer {
 	std::map<uint32_t, glm::vec4> layer_tints;
 };
 
+struct BackgroundScene {
+	struct Element {
+		uint32_t track_idx;
+		bool is_far;
+		SpriteInstance instance;
+	};
+	SpriteData data;
+	SpriteRenderer renderer;
+	std::vector<Element> elements;
+
+	void load(const struct Job& job, CPKTable& cpkt);
+	void update(float dt);
+	glm::vec4 extent() const;
+};
+
 class Scene final : public uvw::BaseGame {
 public:
 	Scene(std::filesystem::path cpkpath, const std::string& classname,
@@ -46,6 +61,10 @@ private:
 	std::vector<std::unique_ptr<SpriteLayer>> _layers;
 	std::vector<std::string> _class_names;
 	size_t _active_layer = 0;
+
+	BackgroundScene _background;
+	glm::vec2 _left_pos{0, 0};
+	glm::vec2 _right_pos{0, 0};
 
 	std::string _screenshot_path;
 	bool _done = false;
