@@ -3,7 +3,8 @@
 ## Overview
 
 This document describes the v77 animation format sections based on CSV dumps from actual
-game data (Scarlet_F.mbs, v77, 333 tracks).
+game data: Scarlet_F.mbs (v77, 333 tracks — character sprite) and BGBtPlain_a.mbs
+(v77, 62 tracks — background scene).
 
 ## Field naming convention
 
@@ -109,7 +110,7 @@ sb_id(u16), sb_no(u8), s8_st(u8), track_id(u16), _pad(u16)`
 | `commit_ticks` | "Commit window": ticks during which this sequence cannot be interrupted. -1 = no commit window. Same as `s8_sum_once` on simple loops. Differs on attacks with section_b timing (MAGIC_A_3: 99 intro, 59 commit). The game must wait `commit_ticks` ticks before allowing a transition out |
 | `sb_id` | Index into `section_b` for per-sequence timing modifier (0 = no modifier) |
 | `sb_no` | Number of `section_b` entries consumed (always 1 when `sb_id` > 0) |
-| `s8_st` | "Skip first frame": 0 = play frames [s8_id .. s8_id+s8_no-1]. 1 = play frames [s8_id+1 .. s8_id+s8_no-1]. Set on sequences whose first frame reuses the generic body keyframe (s6_id=12 or equivalent) |
+| `s8_st` | **Character sprites:** "Skip first frame": 0 = play frames [s8_id .. s8_id+s8_no-1]. 1 = play frames [s8_id+1 .. s8_id+s8_no-1]. Set on sequences whose first frame reuses the generic body keyframe (s6_id=12 or equivalent). **Background scenes:** "Sub-sprite index" (0–9): identifies which sub-sprite within a composite landscape element this sequence animates. Each sub-sprite has its own frame loop and transforms but shares the same texture regions. See [Background Scenes](#background-scenes-vs-character-sprites). |
 | `track_id` | Index of this sequence within its parent track. Does NOT always increment consecutively — gaps indicate reserved/future slots |
 
 ### Two-phase playback model
@@ -156,13 +157,26 @@ MAGIC_A_END (track_id=0): s8_sum=171, s8_sum_once=27, commit_ticks=27,          
 MAGIC_A_2 and MAGIC_A_3 both have 18 tick intros. MAGIC_A_3 (the climax) has a 99-tick
 intro with a 59-tick commit window, and references section_b[2] for hitstop timing.
 
-### `s8_st` evidence
+### `s8_st` — dual semantics
+
+The `s8_st` field has different meanings depending on whether the MBS is a character
+sprite or a background scene.
+
+**Character sprites (s8_st ∈ {0,1}): "Skip first frame"**
 
 Every sequence with `s8_st=1` starts with a generic body keyframe (s6_id=12 or equivalent)
 that is shared across many animations. The flag tells the engine to skip this generic first
 frame and start from the animation-specific frames at offset +1.
 
 Sequences with `s8_st=0` start directly with animation-specific keyframes.
+
+**Background scenes (s8_st ∈ {0..9}): "Sub-sprite index"**
+
+For backgrounds, `s8_st` indexes sub-sprites that belong to the same parent track.
+A landscape element like a grass tuft (`kusa_01`) may have sub-sprites at s8_st=0,1,2,3,4
+— each a separate visual component animating at its own cadence within the same logical
+element. These sub-sprites are rendered together at the same depth layer but possibly
+out of phase for natural sway motion. See [Background Scenes](#background-scenes-vs-character-sprites) below.
 
 ---
 
@@ -270,6 +284,8 @@ the commit window or the per-frame tick duration.
 
 ## Animation Hierarchy
 
+### Character sprite data flow
+
 ```
 Section 9 (Track) — named animation  "IDLE", "MAGIC_A_3"
   ├── sa_set_id → Section A (sequence list)
@@ -284,6 +300,185 @@ Section 9 (Track) — named animation  "IDLE", "MAGIC_A_3"
   │
   └── sa_sb_set_id → Section B (track-level timing modifiers)
 ```
+
+### Background scene data flow
+
+```
+Section 9 (Track) — named element "kumo_01", "kusa_01"
+  ├── sa_set_id → Section A (sequence list)
+  │     ├── s8_st → sub-sprite index within this element (0..9)
+  │     ├── s8_id → Section 8 (frames)
+  │     │     ├── s6_id → Section 6 (keyframe)
+  │     │     │     └── s4_id → Section 4 (texture region + UV + vertex)
+  │     │     └── s7_id → Section 7 (world-space placement + fog depth)
+  │     │
+  │     └── s8_sum → loop duration (long atmospheric loops, no intro/commit)
+  │
+  └── Section B absent (no timing modifiers needed)
+```
+
+---
+
+---
+
+## Background Scenes vs. Character Sprites
+
+MBS files come in two distinct flavours with different data profiles, semantics, and
+rendering models. The evidence below is drawn from BGBtPlain_a.mbs (v77, 62 tracks)
+compared against Scarlet_F.mbs (v77, 333 tracks).
+
+### Structural comparison
+
+| Aspect | Character Sprite | Background Scene |
+|--------|-----------------|-------------------|
+| Track count | ~300+ (all combat/dialogue actions) | ~60 (individual scene elements) |
+| Track semantics | Animation names (IDLE, MAGIC_A_3, D_WALK) | Landscape element names in romaji (kumo, yama, oka, ki, kusa) |
+| Section 0 (fog) | 64 entries — single-character atmospheric ramp | 262 entries — full-scene atmospheric perspective |
+| Section 3 (hitboxes) | Present (per-attack collision data) | Absent — no collision |
+| Section 5 (hitbox entries) | Present | Absent — no collision |
+| Section 7 `fog` field | Per-frame limb/effect tint | Per-element depth marker (see below) |
+| Section A `s8_st` | 0 or 1 (skip-first-frame flag) | 0–9 (sub-sprite index within composite element) |
+| Section B (timing modifiers) | Present (hitstop, speed curves, one-shots) | Absent — no combat timing |
+| Section 8 frames/jump loops | Fast 6–72 frame cycles with JUMP back-references | Very long 50–300 frame atmospheric loops |
+| Section 4 layers | Thousands of per-pose body-part layer stacks | Hundreds of per-element texture region assignments |
+
+### Track naming: landscape element romaji
+
+Background track names identify individual 2D sprites composited into the scene. Each
+track has its own world-space bounds, texture regions, and animation loop:
+
+| Pattern | Meaning | Examples |
+|---------|---------|----------|
+| `kumo_` | Cloud | kumo_01, kumo_02 (drift left-right) |
+| `yama_` | Mountain | yama_01 (distant mountain) |
+| `oka_` | Hill | oka_01–04 (rolling hills at different depths) |
+| `mori_` | Forest | mori_01 (tree-line silhouette) |
+| `iwayama_` | Rocky cliff | iwayama_01–07 (cliffs with parallax) |
+| `gake_` | Cliff face | gake_01, gake_02 |
+| `sougen_` | Meadow/grassland | sougen_01–05 (wide grassy plains) |
+| `ki_` | Tree | ki_01, ki_02 (standalone trees swaying) |
+| `haikyo_` | Ruins | haikyo_01 |
+| `gareki_` | Debris | gareki_01, gareki_02 |
+| `eda_` | Branch | eda_01, eda_02 (overhanging branches) |
+| `iwa_` | Rock | iwa_01–06 (boulders and rock formations) |
+| `kareki_` | Dead tree | kareki_01 |
+| `koiwa_` | Small rock | koiwa_01, koiwa_02 (pebbles) |
+| `kusamiti_` | Grass path | kusamiti_01–07 (path-edge grass) |
+| `kusa_` | Grass tuft | kusa_01–10 (grass in multiple sway variants) |
+| `tobukusa_` | Flying grass | tobukusa_01 (particle grass blowing) |
+| `effect_` | VFX | effect_01–03 (ambient particles) |
+
+### Depth model: the Fog column in Section 7
+
+Section 7 transforms (`move_x, move_y, move_z, rotate_x, rotate_y, rotate_z, scale_x,
+scale_y, fog`) include a 32-bit `fog` field. This encodes depth via ARGB color:
+
+```
+fog = 0xAARRGGBB packed uint32
+
+alpha = (fog >> 24) & 0xFF
+```
+
+The alpha byte is a binary depth marker:
+
+| Fog alpha | Depth tier | Example elements |
+|-----------|-----------|------------------|
+| `0xFF` | **Far background** (heavy fog overlay) | kumo (clouds), yama (mountains), oka (distant hills) — tinted with atmospheric color |
+| `0xC0`–`0xDF` | **Mid-far** (moderate fog) | mori (forest), some iwayama (cliffs) — partial blending |
+| `0x80`–`0xBF` | **Near-mid** (light fog) | ki (trees), haikyo (ruins) — subtle tint |
+| `0x00` | **Foreground** (no fog, crisp) | kusa (grass tufts), kusamiti (grass paths), gake (cliffs), effects |
+
+The `fog` field also encodes the RGB tint applied at each depth. For example:
+
+```
+kumo_01:    fog=0xFFE1D7C5  →  warm beige, opaque fog
+yama_01:    fog=0xFFD9CABC  →  warm gray, opaque  
+oka_01:     fog=0xFFC0A098  →  red-brown tint, opaque
+mori_01:    fog=0x00C0A098  →  same tint, fully clear (no fog applied!)
+iwayama_01: fog=0x00E1D7C5  →  warm beige, clear
+effect_01:  fog=0xFFFFFFFF  →  opaque white (effects rendered above everything)
+```
+
+When fog alpha is `0x00`, the RGB tint is **not applied** — the sprite renders at its
+native color. When alpha is `0xFF`, the RGB tint is blended in as an atmospheric fog
+overlay. Intermediate alpha values provide proportional blending.
+
+### Compositing render order
+
+```
+1. FAR BACKGROUND  (fog α = 0xFF)
+   clouds → mountains → distant hills
+   
+2. MID BACKGROUND  (fog α = 0xC0..0xDF)
+   forests → far cliffs → midground rocks
+   
+3. NEAR MIDGROUND  (fog α = 0x80..0xBF)
+   trees → ruins → floating debris
+   
+4. MIDGROUND       (fog α = 0x01..0x7F)
+   meadows → boulders → dead trees
+   
+5. CHARACTER SPRITES rendered here
+   
+6. FOREGROUND      (fog α = 0x00)
+   grass tufts → grass paths → foreground cliffs → rocks
+   
+7. FOREGROUND OVERLAY (fog α = 0x00, last in z-order)
+   tall grass → overhanging branches
+   
+8. EFFECTS         (fog α = 0xFF with opaque white tint)
+   ambient VFX → particles → flying grass
+```
+
+The engine derives this order from the fog alpha byte: higher alpha = further back,
+lower alpha = further forward. Effects use alpha `0xFF` with a white/neutral tint to
+indicate they render on top of everything (special case).
+
+### Section 0 fog ramp table
+
+Background scenes have a much larger fog color table (262 entries vs 64 for characters).
+These entries form atmospheric perspective ramps — color gradients that describe how
+each terrain tone transitions from near to far:
+
+```
+Section 0 rows 140-149 (green atmospheric ramp, AAD9CA):
+  0x20 → 0x40 → 0x80 → 0xC0 → 0xFF  (increasing opacity)
+  Adds blue-green fog overlay to far terrain
+
+Section 0 rows 150-159 (earth atmospheric ramp, 97C8A8):
+  Same structure, warmer earth-tone palette
+```
+
+The fog ramp is indexed by the `s0s1s2_interp` field in section 8 to smoothly transition
+the tint as the camera moves or as time-of-day lighting changes.
+
+### Sub-sprite animation within elements
+
+A single named background element can contain multiple sub-sprites that animate
+independently. The `s8_st` field in section A indexes which sub-sprite a sequence
+belongs to:
+
+```
+kusa_01 (grass tuft): sa_set_id=55, sa_set_no=4
+  s8_st=0: root grass tuft, static
+  s8_st=2: second sway layer, out-of-phase animation
+  s8_st=3: third sway layer, different cadence
+  s8_st=4: fourth sway layer
+```
+
+Each sub-sprite has its own section 8 frame loop with different frame durations and
+JUMP targets, creating natural-looking sway where the same logical grass element has
+leaves moving at different speeds. The section 6 keyframes for sub-sprites reference
+the same section 4 layers (shared texture regions) but apply different section 7
+transforms (slightly offset positions and rotations).
+
+### Section B absence
+
+Background MBS files have **no timing modifiers** (section B is empty — `sb_id=0,
+sb_no=0` on all sequences). The two-phase playback model (`s8_sum_once`/`commit_ticks`)
+is unused: `s8_sum_once = -1` on all background sequences, meaning every sequence is
+a single-pass or full-loop with no intro phase. This reflects the fact that background
+animations run continuously without attack commit windows or hitstop effects.
 
 ---
 
