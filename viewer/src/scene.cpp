@@ -33,6 +33,65 @@ namespace {
 	}
 }
 
+void BackgroundScene::load(const Job& job, CPKTable& cpkt) {
+	std::vector<char> mbs_buf, ftx_buf;
+	if (auto entry = cpkt.find_file(job.mbs.dir, job.mbs.path); entry == cpkt.end()) {
+		throw std::runtime_error("BG MBS was not found: " + job.mbs.dir + "/" + job.mbs.path);
+	} else {
+		cpkt.extract(*entry, mbs_buf);
+	}
+	if (auto entry = cpkt.find_file(job.ftx.dir, job.ftx.path); entry == cpkt.end()) {
+		throw std::runtime_error("BG FTX was not found: " + job.ftx.dir + "/" + job.ftx.path);
+	} else {
+		cpkt.extract(*entry, ftx_buf);
+	}
+
+	auto ftx_entries = FTX::parse(ftx_buf);
+	for (auto& t : ftx_entries) {
+		FTX::decompress(t);
+		FTX::deswizzle(t);
+	}
+
+	data = SpriteData::load(
+		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(mbs_buf.data()), mbs_buf.size()),
+		std::move(ftx_entries));
+	renderer.upload_textures(data);
+
+	const auto& v77 = data.v77;
+	for (uint32_t i = 0; i < v77.s9.size(); ++i) {
+		const auto& s9 = v77.s9[i];
+		if (s9.disabled) continue;
+
+		const auto& sa = v77.sa[s9.sa_set_id];
+		if (sa.s8_no == 0) continue;
+		const auto& s8 = v77.s8[sa.s8_id + sa.s8_st];
+		const auto& s7 = v77.s7[s8.s7_id];
+		bool is_far = ((s7.fog >> 24) & 0xFF) == 0xFF;
+
+		auto& el = elements.emplace_back(i, is_far);
+		el.instance = SpriteInstance{&data, i, 0xFFFFFFFF};
+		el.instance.play(i);
+	}
+}
+
+void BackgroundScene::update(float dt) {
+	for (auto& el : elements) {
+		el.instance.update(dt);
+	}
+}
+
+glm::vec4 BackgroundScene::extent() const {
+	float l = INFINITY, t = INFINITY, r = -INFINITY, b = -INFINITY;
+	for (const auto& s9 : data.v77.s9) {
+		if (s9.disabled) continue;
+		l = std::min(l, s9.left);
+		t = std::min(t, s9.top);
+		r = std::max(r, s9.right);
+		b = std::max(b, s9.bottom);
+	}
+	return {l, t, r, b};
+}
+
 std::unique_ptr<SpriteLayer> Scene::load_layer(
 	const Job& job, uint32_t trackid,
 	const std::string& class_name, const std::string& variant_name) const {
@@ -100,6 +159,24 @@ Scene::Scene(std::filesystem::path cpkpath,
 	static constexpr int W = 1920, H = 1080;
 	_projection = glm::ortho((-W) / 2.0f, W / 2.0f, H / 2.0f, (-H) / 2.0f);
 
+	{
+		const auto bg_iter = BattleBGs.find("BGBtCathedral");
+		if (bg_iter == BattleBGs.end()) {
+			throw std::runtime_error("BGBtCathedral not found in BattleBGs table.");
+		}
+		std::cout << bg_iter->second.mbs.dir << '\t' << bg_iter->second.mbs.path << '\n';
+		_background.load(bg_iter->second, _cpkt);
+
+		auto ext = _background.extent();
+		_camera.fit_bounds(ext);
+
+		float w = ext.z - ext.x;
+		float ground = ext.w;
+		float cam_y = (ext.y + ext.w) / 2.0f;
+		_left_pos = glm::vec2(-w * 0.25f, ground - cam_y);
+		_right_pos = glm::vec2(w * 0.25f, ground - cam_y);
+	}
+
 	const auto iter = Characters.find(classname);
 	if (iter == Characters.end()) {
 		throw std::runtime_error("Entry for character class " + classname + " was not found.");
@@ -110,8 +187,7 @@ Scene::Scene(std::filesystem::path cpkpath,
 	std::cout << job.mbs.dir << '\t' << job.mbs.path << '\n';
 
 	_layers.push_back(load_layer(job, trackid, classname, charaname));
-	_layers.back()->position = glm::vec2(-300.0f, 0.0f);
-	_camera.fit_bounds(_layers.back()->instance.track_bounds());
+	_layers.back()->position = _left_pos;
 
 	for (const auto& [name, _] : Characters) {
 		_class_names.push_back(name);
@@ -124,7 +200,7 @@ Scene::Scene(std::filesystem::path cpkpath,
 		}
 		(void)iter2->second.variants.at(charaname2);
 		_layers.push_back(load_layer(iter2->second, 0, classname2, charaname2));
-		_layers.back()->position = glm::vec2(300.0f, 0.0f);
+		_layers.back()->position = _right_pos;
 	}
 
 	IMGUI_CHECKVERSION();
@@ -219,7 +295,7 @@ void Scene::render() {
 				auto var_it = job.variants.find(_layers[side]->variant_name);
 				if (var_it == job.variants.end()) var_it = job.variants.begin();
 		_layers[side] = load_layer(job, 0, name, var_it->first);
-			_layers[side]->position = side == 0 ? glm::vec2(-300.0f, 0.0f) : glm::vec2(300.0f, 0.0f);
+			_layers[side]->position = side == 0 ? _left_pos : _right_pos;
 			}
 		}
 	}
@@ -300,8 +376,18 @@ void Scene::render() {
 
 	ImGui::Render();
 
+	for (auto& el : _background.elements) {
+		if (!el.is_far) continue;
+		_background.renderer.draw(el.instance, _projection, _camera, {0.0f, 0.0f});
+	}
+
 	for (auto& layer : _layers) {
 		layer->renderer.draw(layer->instance, _projection, _camera, layer->position, &layer->layer_tints);
+	}
+
+	for (auto& el : _background.elements) {
+		if (el.is_far) continue;
+		_background.renderer.draw(el.instance, _projection, _camera, {0.0f, 0.0f});
 	}
 
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -328,6 +414,7 @@ void Scene::render() {
 }
 
 void Scene::update(float dt) {
+	_background.update(dt);
 	for (auto& layer : _layers) {
 		layer->instance.update(dt);
 	}
