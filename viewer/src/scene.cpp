@@ -159,6 +159,7 @@ Scene::Scene(std::filesystem::path cpkpath,
 	static constexpr int W = 1920, H = 1080;
 	_projection = glm::ortho((-W) / 2.0f, W / 2.0f, H / 2.0f, (-H) / 2.0f);
 
+	/*
 	{
 		const auto bg_iter = BattleBGs.find("BGBtCathedral");
 		if (bg_iter == BattleBGs.end()) {
@@ -176,6 +177,7 @@ Scene::Scene(std::filesystem::path cpkpath,
 		_left_pos = glm::vec2(-w * 0.25f, ground - cam_y);
 		_right_pos = glm::vec2(w * 0.25f, ground - cam_y);
 	}
+	*/
 
 	const auto iter = Characters.find(classname);
 	if (iter == Characters.end()) {
@@ -187,7 +189,8 @@ Scene::Scene(std::filesystem::path cpkpath,
 	std::cout << job.mbs.dir << '\t' << job.mbs.path << '\n';
 
 	_layers.push_back(load_layer(job, trackid, classname, charaname));
-	_layers.back()->position = _left_pos;
+	_layers.back()->position = glm::vec2(-300.0f, 0.0f);
+	_camera.fit_bounds(_layers.back()->instance.track_bounds());
 
 	for (const auto& [name, _] : Characters) {
 		_class_names.push_back(name);
@@ -200,7 +203,7 @@ Scene::Scene(std::filesystem::path cpkpath,
 		}
 		(void)iter2->second.variants.at(charaname2);
 		_layers.push_back(load_layer(iter2->second, 0, classname2, charaname2));
-		_layers.back()->position = _right_pos;
+		_layers.back()->position = glm::vec2(300.0f, 0.0f);
 	}
 
 	IMGUI_CHECKVERSION();
@@ -295,7 +298,7 @@ void Scene::render() {
 				auto var_it = job.variants.find(_layers[side]->variant_name);
 				if (var_it == job.variants.end()) var_it = job.variants.begin();
 		_layers[side] = load_layer(job, 0, name, var_it->first);
-			_layers[side]->position = side == 0 ? _left_pos : _right_pos;
+			_layers[side]->position = side == 0 ? glm::vec2(-300.0f, 0.0f) : glm::vec2(300.0f, 0.0f);
 			}
 		}
 	}
@@ -376,19 +379,23 @@ void Scene::render() {
 
 	ImGui::Render();
 
+	/*
 	for (auto& el : _background.elements) {
 		if (!el.is_far) continue;
 		_background.renderer.draw(el.instance, _projection, _camera, {0.0f, 0.0f});
 	}
+	*/
 
 	for (auto& layer : _layers) {
 		layer->renderer.draw(layer->instance, _projection, _camera, layer->position, &layer->layer_tints);
 	}
 
+	/*
 	for (auto& el : _background.elements) {
 		if (el.is_far) continue;
 		_background.renderer.draw(el.instance, _projection, _camera, {0.0f, 0.0f});
 	}
+	*/
 
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -414,7 +421,7 @@ void Scene::render() {
 }
 
 void Scene::update(float dt) {
-	_background.update(dt);
+	// _background.update(dt);
 	for (auto& layer : _layers) {
 		layer->instance.update(dt);
 	}
