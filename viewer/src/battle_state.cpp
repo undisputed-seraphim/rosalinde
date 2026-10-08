@@ -6,12 +6,14 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <glad/glad.h>
 #include <glm/ext.hpp>
 #include <glxx/error.hpp>
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl3.h>
+#include <iterator>
 #include <stdexcept>
 
 namespace {
@@ -61,8 +63,17 @@ BattleState::BattleState(
 	load_characters(selection);
 	load_background(selection.background);
 
-	if (_has_background)
-		_camera.fit_bounds(_background.extent(), 0.02f);
+	if (_has_background) {
+		// TEMP: BG_CAM=<track_idx> fits the camera to that element's s9 bounds.
+		const char* cam = std::getenv("BG_CAM");
+		if (cam) {
+			const int idx = std::atoi(cam);
+			const auto& s9 = _background.data.v77.s9[idx];
+			_camera.fit_bounds({s9.left, s9.top, s9.right, s9.bottom}, 0.02f);
+		} else {
+			_camera.fit_bounds(_background.extent(), 0.02f);
+		}
+	}
 }
 
 void BattleState::load_background(const std::string& name) {
@@ -249,24 +260,62 @@ void BattleState::render() {
 	++_frame;
 
 	// TEMP HACK: stage only. Character drawing and ImGui menus disabled.
-	if (_has_background) {
-		for (auto& el : _background.elements) {
-			if (el.is_far)
-				_background.renderer.draw(el.instance, _projection, _camera, {0.0f, 0.0f});
+	// TEMP: BG_ONLY=<track_idx> renders a single background element in isolation.
+	static const int only = [] {
+		const char* s = std::getenv("BG_ONLY");
+		return s ? std::atoi(s) : -1;
+	}();
+	// TEMP: BG_COLOR tints each element a distinct color so it can be identified.
+	static const bool colorize = std::getenv("BG_COLOR") != nullptr;
+	static const bool no_fog = std::getenv("BG_NOFOG") != nullptr;
+	static const std::vector<uint32_t> all_attrs = [&] {
+		std::vector<uint32_t> a;
+		for (const auto& s4 : _background.data.v77.s4)
+			a.push_back(s4.attributes);
+		return a;
+	}();
+	static const glm::vec4 palette[] = {
+		{1, 0, 0, 1},
+		{0, 1, 0, 1},
+		{0, 0, 1, 1},
+		{1, 1, 0, 1},
+		{1, 0, 1, 1},
+		{0, 1, 1, 1},
+		{1, 0.5f, 0, 1},
+		{0.5f, 0, 1, 1},
+		{0, 1, 0.5f, 1},
+		{0.5f, 1, 0, 1},
+		{1, 0, 0.5f, 1},
+		{0.5f, 0.5f, 1, 1},
+		{1, 1, 1, 1}};
+	auto draw_bg = [&](bool far_pass) {
+		for (const auto& el : _background.elements) {
+			if (el.is_far != far_pass)
+				continue;
+			if (only >= 0 && static_cast<int>(el.track_idx) != only)
+				continue;
+			if (colorize) {
+				std::map<uint32_t, glm::vec4> tints;
+				const glm::vec4 c = palette[el.track_idx % std::size(palette)];
+				for (uint32_t a : all_attrs)
+					tints[a] = c;
+				_background.renderer.draw(el.instance, _projection, _camera, {0.0f, 0.0f}, &tints, !no_fog);
+			} else {
+				_background.renderer.draw(el.instance, _projection, _camera, {0.0f, 0.0f}, nullptr, !no_fog);
+			}
 		}
-	}
+	};
+
+	if (_has_background)
+		draw_bg(true);
 
 	// TEMP HACK: characters disabled
 	// for (auto& layer : _layers) {
 	// 	layer->renderer.draw(layer->instance, _projection, _camera, layer->position, &layer->layer_tints);
 	// }
 
-	if (_has_background) {
-		for (auto& el : _background.elements) {
-			if (!el.is_far)
-				_background.renderer.draw(el.instance, _projection, _camera, {0.0f, 0.0f});
-		}
-	}
+	if (_has_background)
+		draw_bg(false);
 
 	// TEMP HACK: ImGui menus disabled
 	// _ui.draw(_layers, _loader.class_names(), _loader, _variant_side);
