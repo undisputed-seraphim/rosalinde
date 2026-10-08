@@ -17,16 +17,16 @@ namespace mbs {
 namespace v76 {
 
 constexpr auto table = std::array{
-	detail::lookup_entry{0x54, 2, 0xb0, 0x18}, // s0  fog colors
-	detail::lookup_entry{0x56, 2, 0xb8, 0x30}, // s1  texture UVs
-	detail::lookup_entry{0x58, 2, 0xc0, 0x30}, // s2  vertices
-	detail::lookup_entry{0x5a, 2, 0xc8, 0x50}, // s3  hitboxes
-	detail::lookup_entry{0x50, 4, 0xd0, 0x14}, // s4  keyframe layers
-	detail::lookup_entry{0x5c, 2, 0xd8, 0x08}, // s5  hitbox entries
-	detail::lookup_entry{0x62, 2, 0xe0, 0x1c}, // s6  keyframes
-	detail::lookup_entry{0x5e, 2, 0xe8, 0x24}, // s7  transforms
-	detail::lookup_entry{0x60, 2, 0xf0, 0x20}, // s8  animation frames
-	detail::lookup_entry{0x64, 2, 0xf8, 0x30}, // s9  tracks
+	detail::lookup_entry{0x54, 2, 0xb0, 0x18},	// s0  fog colors
+	detail::lookup_entry{0x56, 2, 0xb8, 0x30},	// s1  texture UVs
+	detail::lookup_entry{0x58, 2, 0xc0, 0x30},	// s2  vertices
+	detail::lookup_entry{0x5a, 2, 0xc8, 0x50},	// s3  hitboxes
+	detail::lookup_entry{0x50, 4, 0xd0, 0x14},	// s4  keyframe layers
+	detail::lookup_entry{0x5c, 2, 0xd8, 0x08},	// s5  hitbox entries
+	detail::lookup_entry{0x62, 2, 0xe0, 0x1c},	// s6  keyframes
+	detail::lookup_entry{0x5e, 2, 0xe8, 0x24},	// s7  transforms
+	detail::lookup_entry{0x60, 2, 0xf0, 0x20},	// s8  animation frames
+	detail::lookup_entry{0x64, 2, 0xf8, 0x30},	// s9  tracks
 	detail::lookup_entry{0x66, 2, 0x100, 0x18}, // sa  sequences
 	detail::lookup_entry{0x6a, 2, 0x108, 0x14}, // sb  extras
 };
