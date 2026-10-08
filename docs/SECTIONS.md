@@ -1,10 +1,24 @@
-# V77/MBS Sections Data Analysis
+# FMBS / V77 Data Analysis
 
 ## Overview
 
-This document describes the v77 animation format sections based on CSV dumps from actual
-game data: Scarlet_F.mbs (v77, 333 tracks — character sprite) and BGBtPlain_a.mbs
-(v77, 62 tracks — background scene).
+This document describes the `FMBS` animation/asset format and its v76/v77 section layout.
+The evidence is drawn from real game data — character sprites (`Scarlet_F.mbs`, v77, ~333
+tracks) and background scenes (`BGBtPlain_a.mbs`, `BGEvForest_a.mbs`, `BGBtCathedral.mbs`,
+`Classpedia_BG.mbs`) — together with observations from the reference viewer.
+
+The **same 12-section container** is used for two quite different flavours of asset:
+
+- **Character sprites** — a palette of named combat/dialogue animations; exactly **one
+  track is active** at a time, containing several sub-animations (body parts) that play
+  together.
+- **Background scenes** — either a set of landscape elements that all animate
+  **simultaneously**, or a small **state machine** of mutually-exclusive states
+  (cutscene/set-piece scenes such as the Classpedia class-change).
+
+The format gives us the building blocks (tracks, sequences, frames, keyframes, layers,
+transforms, textures); **which tracks are live and how the camera frames them is external
+game logic, not stored as data.**
 
 ## Field naming convention
 
@@ -17,80 +31,145 @@ per animation and serve as camera framing hints, not sprite bounds.
 
 ---
 
-## Section 9 (s9) — Animation Track Definitions
+## File structure
+
+Header (`file_header`, `#pragma pack(1)`):
+
+```
+magic[4]      "FMBS"
+file_size     u32
+header_size   u32
+_pad0         u32
+_unk0         u16
+_unk1         u16
+version       u16   0x76 or 0x77
+_unk2         u16
+_unk3         u32
+_pad1         u32
+```
+
+The header is followed by a **descriptor table** for the 12 sections. Each descriptor is
+`(count_offset, count_size, data_ptr_offset, row_length)`: read the row count at
+`count_offset` (a `u16` or `u32`), the absolute file offset at `data_ptr_offset` (a `u32`
+pointer), and each row is `row_length` bytes. A count/pointer of `0` means the section is
+absent.
+
+| Idx | Name | Row struct | Row len | Contents |
+|-----|------|------------|---------|----------|
+| 0 | `s0` | `section_0` | 0x18 | Fog/fragment colours (4×RGBA) |
+| 1 | `s1` | `section_1` | 0x30 | Texture UV coords |
+| 2 | `s2` | `section_2` | 0x30 | Vertex positions (quad corners) |
+| 3 | `s3` | `section_3` | 0x50 | Hitboxes (**characters only**) |
+| 4 | `s4` | `section_4` | 0x14 | Keyframe layers (tex/uv/vertex/colour refs) |
+| 5 | `s5` | `section_5` | 0x08 | Hitbox entries (**characters only**) |
+| 6 | `s6` | `section_6` | 0x1c | Keyframes (bounds + layer range) |
+| 7 | `s7` | `section_7` | 0x24 | Transforms (move/rotate/scale/fog) |
+| 8 | `s8` | `section_8` | 0x20 | Animation frames |
+| 9 | `s9` | `section_9` | 0x30 | Tracks |
+| a | `sa` | `section_a` | 0x18 | Sequences |
+| b | `sb` | `section_b` | 0x14 | Timing modifiers (**characters only**) |
+
+`version = 0x76` files are parsed into the same v77 in-memory model.
+
+---
+
+## Section 9 (s9) — Tracks
 
 **Struct:** `left(top right bottom)[4], name[24], sa_set_id(u16), sa_set_no(u8),
 sa_set_main(u8), sa_sb_set_id(u16), sa_sb_set_no(u8), disabled(u8)`
 
-**Field semantics:**
-
 | Field | Meaning |
 |-------|---------|
-| `left,top,right,bottom` | Camera framing bounds for this track (not sprite bounds — vary wildly: FACEBATTLE = 800×855, D_DIE = 302×142) |
-| `name` | Track identifier (e.g. `IDLE`, `MAGIC_A_1`, `D_DIE`) |
-| `sa_set_id` | Starting index into `section_a` |
-| `sa_set_no` | Number of `section_a` entries consumed |
-| `sa_set_main` | 0 = standard track, 1 = "main" variant (used on middle parts of compound animations: KNOCKBACK, MAGIC_B_*, D_SURPRISED_*_A2, D_EXPLAIN_*_A2, D_HAND_*_A2, D_GUTS_POSE_*_A2) |
-| `sa_sb_set_id` | Starting index into `section_b` for timing modifiers |
-| `sa_sb_set_no` | Number of `section_b` entries consumed |
-| `disabled` | 0 = active track, 1 = reserved/padding slot |
+| `left,top,right,bottom` | Camera framing hint for this track (not sprite bounds — vary wildly) |
+| `name` | Track identifier |
+| `sa_set_id` / `sa_set_no` | Starting index / count of `section_a` sequences |
+| `sa_set_main` | 1 on "middle" phase tracks of compound animations (KNOCKBACK, MAGIC_B_*, dialogue `_A2` phases) |
+| `sa_sb_set_id` / `sa_sb_set_no` | Track-level timing-modifier range into `section_b` (**characters only**) |
+| `disabled` | 1 = reserved/padding slot; skip |
 
-### Track naming conventions
+### Track naming — character sprites
 
-**Battle actions:**
-`IDLE`, `TURN`, `UPWARD`, `UPWARD_IDLE`, `UPWARD_END`, `DOWN`, `DOWN_IDLE`, `DOWN_END`,
-`GUARD`, `AVOID`, `KNOCKBACK`, `DASH_1`, `DASH_2`
+**Battle actions:** `IDLE`, `TURN`, `UPWARD`, `UPWARD_IDLE`, `UPWARD_END`, `DOWN`,
+`DOWN_IDLE`, `DOWN_END`, `GUARD`, `AVOID`, `KNOCKBACK`, `DASH_1`, `DASH_2`
 
-**Magic/Attacks (4 phases + end):**
-`MAGIC_A_1` → `MAGIC_A_2` → `MAGIC_A_3` → `MAGIC_A_4` → `MAGIC_A_END`
-(same pattern for B, C, D)
+**Magic/attacks (4 phases + end):** `MAGIC_A_1` → `MAGIC_A_2` → `MAGIC_A_3` → `MAGIC_A_4`
+→ `MAGIC_A_END` (same pattern for B, C, D)
 
-**Character-specific skill overrides:**
-`S01_`/`S02_`/`S03_` (MAGIC_A variants), `S05_`/`S06_` (MAGIC_B),
-`S07_` (MAGIC_C), `S18_QUICK_HEAL`, `S19_LISTED`,
-`S22_CHASE`, `S23_COUNTER`, `S24_ACCUMULATE`, `S25_EX1`
+**Character-specific skill overrides:** `S01_`/`S02_`/`S03_` (MAGIC_A variants),
+`S05_`/`S06_` (MAGIC_B), `S07_` (MAGIC_C), `S18_QUICK_HEAL`, `S19_LISTED`, `S22_CHASE`,
+`S23_COUNTER`, `S24_ACCUMULATE`, `S25_EX1`
 
-**Dialogue animations (D_ prefix):**
-- Idles: `D_IDLE_A` through `D_IDLE_F` (6 directional faces, no C variant)
-- Transitions: `D_IDLE_A_TO_F`, `D_IDLE_F_TO_A`, `D_IDLE_B_TO_D`, etc.
+**Dialogue animations (`D_` prefix):**
+- Idles: `D_IDLE_A`..`D_IDLE_F` (6 directional faces)
+- Transitions: `D_IDLE_A_TO_F`, `D_IDLE_F_TO_A`, ...
 - Movement: `D_WALK_A1/A2`, `D_WALK_B1/B2`, `D_WALK_D1/D2`, `D_DASH_*`, `D_WALK_BACK_*`
 - Expressions: `D_SURPRISED`, `D_NOD`, `D_SIGH`, `D_LAUGH`, `D_DENY`, `D_ANGER`, `D_THINK`
 - Gestures: `D_EXPLAIN`, `D_HAND`, `D_GUTS_POSE`
 - Eye/face: `D_LOOK_IDLE`, `D_LOOK_TURN`, `D_LOOK_OVER`, `D_LOOK_FRONT`, `D_LOOK_UP`, `D_LOOK_AWAY`
 - Postures: `D_SIT`, `D_SIT_FRONT`, `D_SIT_PRAY`, `D_DOWN`, `D_DOWN_SOFT`, `D_DOWN_UPWARD`
 - Special: `D_VICTORY`, `D_DIE`
+- **`FACEBATTLE`** — close-up dialogue camera (BB ±400×455)
 
-**Special track:**
-`FACEBATTLE` — close-up dialogue camera (BB ±400×455)
+### Track naming — background scenes
 
-### `sa_set_main` pattern
+Two families, distinguished by the naming and by whether tracks are *layers* or *states*.
 
-Set to 1 on tracks that serve as the "middle" phase of a compound animation:
-- KNOCKBACK (row 12)
-- MAGIC_B_1, MAGIC_B_2 (rows 25-26): the charged attack variants
-- S05/S06 MAGIC_B variants
-- VICTORY_1, VICTORY_2
-- D_IDLE_A–F: all idle dialogue faces are main (the base state)
-- D_SURPRISED_A2, D_EXPLAIN_A2, D_HAND_A2, D_GUTS_POSE_A2: the middle/intensifying phase
-- FACEBATTLE
+**Landscape elements** (romaji names) — all play simultaneously:
 
-### `sa_sb_set_id` linkage to section B
+| Pattern | Meaning | Examples |
+|---------|---------|----------|
+| `kumo_` | Cloud | kumo_01, kumo_02 |
+| `yama_` | Mountain | yama_01 |
+| `oka_` | Hill | oka_01.. |
+| `mori_` | Forest | mori_01 |
+| `iwayama_` | Rocky cliff | iwayama_01.. |
+| `gake_` | Cliff face | gake_01, gake_02 |
+| `sougen_` | Meadow | sougen_01..05 |
+| `ki_` | Tree | ki_01, ki_02 |
+| `haikyo_` | Ruins | haikyo_01 |
+| `gareki_` | Debris | gareki_01, gareki_02 |
+| `eda_` | Branch | eda_01, eda_02 |
+| `iwa_` | Rock | iwa_01..06 |
+| `kareki_` | Dead tree | kareki_01 |
+| `koiwa_` | Small rock | koiwa_01, koiwa_02 |
+| `kusamiti_` | Grass path | kusamiti_01.. |
+| `kusa_` | Grass tuft | kusa_01..10 |
+| `tobukusa_` | Flying grass | tobukusa_01 |
+| `effect_` | VFX | effect_01..03 |
+| `sora_`/`zimen_` | Sky / ground | (town scenes) |
+| `mizu`/`mizutamari` | Water / puddle | |
 
-Non-zero only on tracks that need timing modifiers (hitstop, speed curves):
+**Cutscene / state families** — mutually exclusive; only one state renders:
 
-| Value | Track(s) |
-|-------|----------|
-| 1 | DASH_1 |
-| 2 | MAGIC_A_3 |
-| 3 | MAGIC_B_END |
-| 4–6 | LISTED, ORDER_1, STANCE_1 |
-| 7–9 | S01/S02/S03_MAGIC_A_3 |
-| 10–11 | S05/S06_MAGIC_B_END |
-| 12–13 | S18_QUICK_HEAL_1, S19_LISTED |
-| 14–24 | D_WALK/D_DASH directionals |
+- `CLS_*_{ENKE,KNKE}_{IDLE,OPEN}` with `BFR`/`AFTR`/`INST`/`VWR` prefixes. `ENKE` ≈ 遠景
+  (far view = the coloured "card"), `KNKE` ≈ 近景 (near view = dark silhouette). Rendering
+  both composites the silhouette over the card and looks wrong.
+- `VWR`/`PSTN` tracks are UI chrome / position markers.
 
-When `sa_sb_set_no = 1`, the track uses 1 section_b entry. When `sa_sb_set_no = 0`,
-section_b is not consulted.
+### Track selection and variants
+
+A background is a *set* of tracks, and only part of the set is live at once:
+
+- **Landscape**: render **every** element track; they are independent layers of one scene.
+- **State scenes**: pick **one** state (e.g. a single `*_ENKE_IDLE` card), never the whole
+  family.
+- **Day/night variants** appear two ways: a suffix `*_yoru` (dodai00_yoru) and a prefix
+  `yor*` (yoru01). Prefer the day set.
+- An `_1` suffix (oka_4_1, hikari_00_1, akari_02_1) is usually an **extra instance** of an
+  element at a different placement, not a variant — keep it.
+
+### `sa_set_main` pattern (characters)
+
+Set to 1 on "middle" phase tracks: `KNOCKBACK`, `MAGIC_B_1/2`, `S05/S06 MAGIC_B`,
+`VICTORY_1/2`, `D_IDLE_A–F`, `D_SURPRISED_A2`/`D_EXPLAIN_A2`/`D_HAND_A2`/`D_GUTS_POSE_A2`,
+`FACEBATTLE`.
+
+### `sa_sb_set_id` linkage to section B (characters)
+
+Non-zero only on tracks needing timing modifiers (hitstop/speed curves): `DASH_1`,
+`MAGIC_A_3`, `MAGIC_B_END`, `LISTED`/`ORDER_1`/`STANCE_1`, `S01–S03 MAGIC_A_3`,
+`S05–S06 MAGIC_B_END`, `S18_QUICK_HEAL_1`/`S19_LISTED`, and the `D_WALK`/`D_DASH`
+directionals. `sa_sb_set_no = 1` means one `section_b` entry is used.
 
 ---
 
@@ -99,84 +178,54 @@ section_b is not consulted.
 **Struct:** `s8_id(u16), s8_no(u16), s8_sum(u32), s8_sum_once(i32), commit_ticks(i32),
 sb_id(u16), sb_no(u8), s8_st(u8), track_id(u16), _pad(u16)`
 
-**Field semantics:**
-
 | Field | Meaning |
 |-------|---------|
 | `s8_id` | Starting index into `section_8` |
 | `s8_no` | Number of `section_8` frames in this sequence |
-| `s8_sum` | Total tick sum of all frame durations (`Σ frames[i].frames` across s8_id..s8_id+s8_no-1) |
-| `s8_sum_once` | "Intro" portion: ticks that play once before the loop begins. -1 = no intro. 0 = entire sequence loops. Positive = tick count of the lead-in before looping |
-| `commit_ticks` | "Commit window": ticks during which this sequence cannot be interrupted. -1 = no commit window. Same as `s8_sum_once` on simple loops. Differs on attacks with section_b timing (MAGIC_A_3: 99 intro, 59 commit). The game must wait `commit_ticks` ticks before allowing a transition out |
-| `sb_id` | Index into `section_b` for per-sequence timing modifier (0 = no modifier) |
-| `sb_no` | Number of `section_b` entries consumed (always 1 when `sb_id` > 0) |
-| `s8_st` | **Character sprites:** "Skip first frame": 0 = play frames [s8_id .. s8_id+s8_no-1]. 1 = play frames [s8_id+1 .. s8_id+s8_no-1]. Set on sequences whose first frame reuses the generic body keyframe (s6_id=12 or equivalent). **Background scenes:** "Sub-sprite index" (0–9): identifies which sub-sprite within a composite landscape element this sequence animates. Each sub-sprite has its own frame loop and transforms but shares the same texture regions. See [Background Scenes](#background-scenes-vs-character-sprites). |
-| `track_id` | Index of this sequence within its parent track. Does NOT always increment consecutively — gaps indicate reserved/future slots |
+| `s8_sum` | Total tick sum of all frame durations |
+| `s8_sum_once` | Intro ticks played once before looping. `-1` = none; `0` = whole sequence loops |
+| `commit_ticks` | Uninterruptible window (characters). `-1` = none |
+| `sb_id` / `sb_no` | Per-sequence timing modifier (characters) |
+| `s8_st` | **Dual-purpose** — see below |
+| `track_id` | Index of this sequence within its parent track; gaps = reserved slots |
 
-### Two-phase playback model
-
-Each section_a entry describes a sequence with two timing windows:
+### Two-phase playback model (characters)
 
 ```
 [s8_id ........ s8_id+s8_no-1]   (s8_no frames spanning s8_sum ticks)
  |--- intro ---|------ loop body ------|
- |  guarded by   |  can be interrupted |
- | s8_sum_once   |  after commit_ticks ticks  |
+ |  guarded by   |  interruptible after  |
+ | s8_sum_once   |       commit_ticks     |
 ```
 
 | s8_sum_once | commit_ticks | Interpretation |
-|-------------|-------|----------------|
-| -1 | -1 | Single-pass sequence (no looping, no commit). Transitional frames. |
-| 0 | -1 | Full-loop sequence with no intro (e.g. IDLE: all 432 ticks loop). |
-| >0 | = s8_sum_once | Simple attack loop: N ticks play once, rest loops. Commit = intro. |
-| >0 | ≠ s8_sum_once | Complex attack with section_b timing. Intro and commit durations diverge (e.g. MAGIC_A_3: 99 intro, 59 commit — the 40-tick gap is interruptible after commit). |
+|-------------|--------------|----------------|
+| -1 | -1 | Single-pass sequence, no loop/commit (transitional) |
+| 0 | -1 | Full-loop, no intro |
+| >0 | = s8_sum_once | Simple attack loop: N ticks once, rest loops |
+| >0 | ≠ s8_sum_once | Complex attack with section_b timing (e.g. MAGIC_A_3: 99 intro / 59 commit) |
 
-### Example: IDLE track
+Backgrounds never use this: `s8_sum_once = -1` on all background sequences.
 
-```
-track_id=0: s8_id=0,   s8_no=55, s8_sum=432, s8_sum_once=0,   commit_ticks=-1, s8_st=0
-track_id=1: s8_id=55,  s8_no=1,  s8_sum=1,   s8_sum_once=-1,  commit_ticks=-1, s8_st=0
-track_id=2: s8_id=56,  s8_no=5,  s8_sum=144, s8_sum_once=0,   commit_ticks=-1, s8_st=0
-track_id=3: s8_id=61,  s8_no=18, s8_sum=144, s8_sum_once=0,   commit_ticks=-1, s8_st=0
-track_id=5: s8_id=79,  s8_no=24, s8_sum=144, s8_sum_once=0,   commit_ticks=-1, s8_st=0
-```
-
-Track 0 is the main loop (6 sub-blocks of 72 ticks each → 432 total). Tracks 1–5 are
-sub-sequences. `track_id=4` is skipped (reserved).
-
-### Example: MAGIC_A attack chain
+### Example: character IDLE and MAGIC_A
 
 ```
-MAGIC_A_1 (track_id=0): s8_sum=102, s8_sum_once=18,  commit_ticks=-1,                         s8_st=0
-MAGIC_A_2 (track_id=0): s8_sum=102, s8_sum_once=18,  commit_ticks=-1,                         s8_st=0
-MAGIC_A_3 (track_id=0): s8_sum=155, s8_sum_once=99,  commit_ticks=59,  sb_id=2, sb_no=1,      s8_st=1
-MAGIC_A_4 (track_id=0): s8_sum=96,  s8_sum_once=40,  commit_ticks=-1,                         s8_st=0
-MAGIC_A_END (track_id=0): s8_sum=171, s8_sum_once=27, commit_ticks=27,                        s8_st=1
+IDLE  track_id=0: s8_no=55 s8_sum=432 s8_sum_once=0   (6 sub-blocks × 72 ticks)
+MAGIC_A_1: s8_sum=102 s8_sum_once=18
+MAGIC_A_2: s8_sum=102 s8_sum_once=18
+MAGIC_A_3: s8_sum=155 s8_sum_once=99 commit_ticks=59 sb_id=2 s8_st=1
+MAGIC_A_4: s8_sum=96  s8_sum_once=40
+MAGIC_A_END: s8_sum=171 s8_sum_once=27 commit_ticks=27 s8_st=1
 ```
-
-MAGIC_A_2 and MAGIC_A_3 both have 18 tick intros. MAGIC_A_3 (the climax) has a 99-tick
-intro with a 59-tick commit window, and references section_b[2] for hitstop timing.
 
 ### `s8_st` — dual semantics
 
-The `s8_st` field has different meanings depending on whether the MBS is a character
-sprite or a background scene.
+**Characters (`s8_st ∈ {0,1}`): "skip first frame".** `1` skips the first frame (a generic
+body keyframe shared across many animations) and starts at `s8_id+1`.
 
-**Character sprites (s8_st ∈ {0,1}): "Skip first frame"**
-
-Every sequence with `s8_st=1` starts with a generic body keyframe (s6_id=12 or equivalent)
-that is shared across many animations. The flag tells the engine to skip this generic first
-frame and start from the animation-specific frames at offset +1.
-
-Sequences with `s8_st=0` start directly with animation-specific keyframes.
-
-**Background scenes (s8_st ∈ {0..9}): "Sub-sprite index"**
-
-For backgrounds, `s8_st` indexes sub-sprites that belong to the same parent track.
-A landscape element like a grass tuft (`kusa_01`) may have sub-sprites at s8_st=0,1,2,3,4
-— each a separate visual component animating at its own cadence within the same logical
-element. These sub-sprites are rendered together at the same depth layer but possibly
-out of phase for natural sway motion. See [Background Scenes](#background-scenes-vs-character-sprites) below.
+**Backgrounds (`s8_st ∈ {0..9}`): "sub-sprite index".** An element such as `kusa_01` can
+have sub-sprites at `s8_st = 0,1,2,3,4`, each a visual component with its own loop,
+sharing the same texture regions but animating at its own cadence (natural sway).
 
 ---
 
@@ -188,97 +237,146 @@ s0s1s2_interp(u8), n_180(u8), _pad1(u32), _pad2(u16), sfx_mute(u16), sfx_id(u32)
 
 ### Flag bits (u32)
 
-| Bit | Name | Evidence |
-|-----|------|----------|
-| 0x01 | FLIPX | Horizontal mirror. Directional variant key |
-| 0x02 | FLIPY | Vertical mirror. Rare (end-frame of turn sequences) |
-| 0x04 | JUMP | Control-flow: when set, `loop_s8_id` gives relative offset to next frame |
-| 0x20 | ACTIVE | Set on 7,582/7,835 frames (96.9%). Clear only on hitbox-only frames (s6_id=1) and dedicated transition frames (s6_id=7,8). Means "emit this frame to the renderer" |
-| 0x80 | POSE | Set on 698/7,835 frames (8.9%). Marks frames where the character body is in a non-idle pose: GUARD, KNOCKBACK, DOWN/SIT stance. May trigger cloth/hair physics recalibration |
-| 0x400 | HITBOX | Hitbox-only frame (no sprite layers rendered) |
-| 0x800 | LAST | End-of-sequence marker. When combined with JUMP: loop point |
-| 0x2000 | — | Purpose unclear. Rarely set (isolated frames). May be "no blend" or "hold" |
-
-### Frame duration clustering
-
-| Duration | Use |
-|----------|-----|
-| 1 | Single-tick hitbox or transition |
-| 2–4 | Brief keyframe change |
-| 5–7 | Short hold |
-| 8–10 | Standard action frame |
-| 14–18 | Generic pose frame |
-| 20–25 | Extended hold |
-| 30–40 | Block cycle (6 ticks × 5..7 frames) |
-| 43, 47, 64, 77, 83 | Intro/end long holds |
+| Bit | Name | Meaning |
+|-----|------|---------|
+| 0x01 | FLIPX | Horizontal mirror (directional variant key) |
+| 0x02 | FLIPY | Vertical mirror (rare) |
+| 0x04 | JUMP | Control-flow: the frame after this one is at `current + loop_s8_id` |
+| 0x20 | ACTIVE | Frame is emitted to the renderer (clear on hitbox-only / transition frames) |
+| 0x80 | POSE | Non-idle body pose (GUARD, KNOCKBACK, DOWN, SIT) |
+| 0x400 | HITBOX | Hitbox-only frame (no sprite layers) |
+| 0x800 | LAST | End-of-sequence marker; with JUMP it is the loop point |
+| 0x2000 | — | Rarely set; purpose unclear |
 
 ### JUMP + loop_s8_id
 
-`loop_s8_id` is a **relative** offset applied when `JUMP=1`:
-```
-next_frame_index = current_index + loop_s8_id
-```
-Example from D_WALK cycle: `JUMP=1, loop_s8_id=17` → jumps back 17 frames in the
-current sequence to create a walk loop.
+`loop_s8_id` is a **relative** offset when `JUMP=1`: `next = current + loop_s8_id`
+(e.g. D_WALK loops back 17 frames).
 
 ### Interpolation fields
 
 | Field | Range | Effect |
 |-------|-------|--------|
 | `s5s3_interp` | 0–7 | Hitbox interpolation |
-| `interp_rate` | 0–2 | Interpolation frequency/speed |
-| `s7_interp` | 0–2 | Transform (move/rotate/scale) interpolation |
+| `interp_rate` | 0–2 | Interpolation frequency |
+| `s7_interp` | 0–2 | Transform interpolation |
 | `s6_interp` | 0–1 | Keyframe layer transition |
-| `s0s1s2_interp` | 0–2 | Color/UV/vertex interpolation |
+| `s0s1s2_interp` | 0–2 | Colour/UV/vertex interpolation |
 
-Typical tiers:
-- **None**: all interp = 0
-- **Light**: s7_interp=1, s5s3_interp=1
-- **Heavy**: s7_interp=2, s0s1s2_interp=2
+Tiers: none (all 0), light (`s7_interp=1`, `s5s3_interp=1`), heavy
+(`s7_interp=2`, `s0s1s2_interp=2`).
 
 ### Other fields
 
-- `n_180`: 0–24, correlates with 180° turn frames. Often set when frames use mirrored
-  versions of the opposite direction's poses.
-- `sfx_mute` / `sfx_id`: Mostly 0. `sfx_mute` may silence the frame's SFX trigger.
-  `sfx_id` selects a sound effect (rarely used — most SFX are emitted at higher level).
+- `n_180`: 0–24, correlates with 180° turn frames.
+- `sfx_mute` / `sfx_id`: mostly 0; frame-level sound-effect trigger.
 
 ---
 
-## Section B (sb) — Timing Modifiers
+## Section 7 (s7) — Transforms
 
-**Struct:** `speed_num(u32), speed_den(u16), _pad0(u32), _pad1(u16), oneshot(u16), _pad2(u32), _pad3(u16)`
+**Struct:** `move(vec3), rotate(vec3), scale(vec2), fog(u32)`
 
-Section B is referenced from section_9 (`sa_sb_set_id`/`sa_sb_set_no`) and
-section_a (`sb_id`/`sb_no`). It provides per-track or per-sequence timing modifiers.
-
-**Example data (from Scarlet_F.mbs):**
+The transform is composed, applied to a vertex, as **scale → translate → rotate**:
 
 ```
-sb[0]:  speed_num=7,  speed_den=2,  oneshot=2    (DASH_1 reference)
-sb[1]:  speed_num=3,  speed_den=1,  oneshot=1    (DASH_1 falloff)
-sb[2]:  speed_num=47, speed_den=17, oneshot=0    (MAGIC_A_3 / S01–S03 MAGIC_A_3 reference)
-sb[3]:  speed_num=14, speed_den=3,  oneshot=0    (MAGIC_B_END / S05–S06 MAGIC_B_END)
-sb[4]:  speed_num=43, speed_den=7               (LISTED / ORDER / STANCE start)
-sb[14]: speed_num=43, speed_den=7               (D_WALK_A1)
-sb[15]: speed_num=43, speed_den=7               (D_WALK_BACK_A1)
-sb[16]: speed_num=4,  speed_den=1,  oneshot=1    (D_DASH_A1)
-sb[17]: speed_num=4,  speed_den=1,  oneshot=1    (D_DASH_SHORT_A1)
-sb[18]: speed_num=4,  speed_den=1,  oneshot=1    (D_WALK_B1)
-sb[19]: speed_num=4,  speed_den=1,  oneshot=1    (D_DASH_B1)
-sb[20]: speed_num=4,  speed_den=1,  oneshot=1    (D_DASH_SHORT_B1)
-sb[21]: speed_num=3,  speed_den=1,  oneshot=1    (D_WALK_D1)
-sb[22]: speed_num=3,  speed_den=1,  oneshot=1    (D_WALK_BACK_D1)
-sb[23]: speed_num=4,  speed_den=1,  oneshot=1    (D_DASH_D1)
-sb[24]: speed_num=4,  speed_den=1,  oneshot=1    (D_DASH_SHORT_D1)
+M = T(move) · S(scale) · R(eulerAngleXYZ(rotate))
 ```
 
-`_pad0`, `_pad1`, `_pad2`, `_pad3` are always 0 in the observed data.
+### `fog` is a per-frame ARGB colour tint
 
-**Hypothesis:** `speed_num` is a per-frame tick multiplier numerator, `speed_den` is the
-denominator, and `oneshot` is a boolean for "one-shot" application. In interactions
-between `s8_sum_once` and `_unk0` (section_a), the section_b values modify either
-the commit window or the per-frame tick duration.
+`fog` is a packed `0xAARRGGBB` **colour** multiplied into the sprite (vertex colour),
+where the alpha byte is an opacity/strength. It is **not** a pure depth key. Verified
+examples from backgrounds:
+
+| Track / layer | `fog` | Effect when multiplied |
+|---------------|-------|------------------------|
+| most elements | `FFFFFFFF` | neutral (no change) |
+| `isu00` shadow sub-sprites | `B4000000` | near-black, α≈0.70 → soft shadow |
+| `hikari00` | `1EFFFFFF` | white, α≈0.12 → faint light shaft |
+| `hikari01` | `32DD6924` | orange, α≈0.20 → warm glow |
+| `dodai01_1` | `FF5280E9` | opaque blue tint |
+| `kumo_01` | `FFE0CDC5` | warm beige (atmospheric tint) |
+
+**Rendering implication:** ignoring `fog` turns shadow/light sub-sprites into opaque
+bright blobs and light shafts into hard streaks. Multiplying it in is essential.
+
+The earlier "fog alpha = binary depth marker with a fixed compositing order" hypothesis
+did **not** hold up — alpha varies continuously and is used per-frame, not as a stable
+depth tier. See *Remaining unknowns* for the (still-open) question of how the engine
+orders background layers.
+
+---
+
+## Section 6 (s6) — Keyframes
+
+**Struct:** `left, top, right, bottom (float), s4_id(u16), s5_id(u16), s4_no(u16),
+s5_no(u8), flags(u8), _pad0(u16)`
+
+A keyframe = a bounding box plus a contiguous range of `section_4` layers and `section_5`
+hitbox entries. `left/top/right/bottom` are *bounds*, but they are not reliable content
+bounds: some keyframes carry runaway values (e.g. `dodai00` reaching x≈50374). For
+accurate geometry use `section_2` vertices (below).
+
+---
+
+## Section 4 (s4) — Keyframe Layers
+
+**Struct:** `_unk0(u32), color_id(u8), flags(u8), blend_id(u8), tex_id(u8),
+attributes(u32), s1_id(u16), s0_id(u16), s2_id(u16), _pad(u16)`
+
+A layer references one texture quad: `s2_id` → vertices (`section_2`), `s1_id` → UVs
+(`section_1`), `s0_id` → colours (`section_0`), `tex_id` → the texture within the FTX
+atlas.
+
+### `blend_id`
+
+Selects the blend mode; it must be honoured. Observed distribution in `BGBtPlain_a`:
+`blend=0` ×887, `1` ×206, `2` ×174, `3` ×96 (`BGBtCathedral`: `0` ×755, `1` ×274).
+The mapping is not confirmed, but a plausible reading is 0=normal alpha, 1=additive,
+2=multiply, 3=screen. Treating everything as normal alpha is wrong for glow/shadow layers.
+
+### `flags`
+
+Known bits: `SKIP = 0x02`, `NOTEX = 0x04`. A very common `0x01` is also seen; combined
+`0x05` (`0x01|NOTEX`) occurs. `NOTEX` layers carry no texture (solid colour).
+
+### `attributes`
+
+A bitmask; only layers whose attributes are enabled by the instance's `variant_flags`
+are drawn. This is how a single MBS covers several class/costume variants.
+
+---
+
+## Section 2 / 1 / 0 — Vertices, UVs, Colours
+
+- `section_2` holds the four quad corner positions per layer (the **actual geometry** used
+  for rendering and for computing content bounds).
+- `section_1` holds per-corner UVs (in texture-texel space).
+- `section_0` holds per-corner RGBA colours.
+
+`section_0` (character) is a small atmospheric ramp table; backgrounds use a much larger
+one (e.g. 262 entries) providing full-scene atmospheric perspective gradients.
+
+---
+
+## Section B (sb) — Timing Modifiers (characters only)
+
+**Struct:** `speed_num(u32), speed_den(u16), _pad0(u32), _pad1(u16), oneshot(u16),
+_pad2(u32), _pad3(u16)`
+
+Referenced from `section_9` (`sa_sb_set_id`) and `section_a` (`sb_id`). Example values:
+
+```
+sb[0]: 7/2   oneshot=2   (DASH_1)
+sb[2]: 47/17 oneshot=0   (MAGIC_A_3 / S01–S03)
+sb[4]: 43/7              (LISTED / ORDER / STANCE)
+sb[14]: 43/7             (D_WALK_A1)
+sb[16]: 4/1  oneshot=1   (D_DASH_A1)
+```
+
+Hypothesis: `speed_num`/`speed_den` scale the per-frame tick duration; `oneshot` marks a
+one-shot application. Pads are always 0. Backgrounds have no section B.
 
 ---
 
@@ -287,198 +385,75 @@ the commit window or the per-frame tick duration.
 ### Character sprite data flow
 
 ```
-Section 9 (Track) — named animation  "IDLE", "MAGIC_A_3"
-  ├── sa_set_id → Section A (sequence list)
-  │     ├── s8_id → Section 8 (frames)
-  │     │     ├── s6_id → Section 6 (keyframe)
-  │     │     │     ├── s4_id → Section 4 (layers: tex, UV, vertex, color)
-  │     │     │     └── s5_id → Section 5 (hitbox entries)
-  │     │     └── s7_id → Section 7 (transform: move, rotate, scale, fog)
-  │     │
-  │     ├── s8_sum_once / commit_ticks → two-phase playback timing
-  │     └── sb_id → Section B (timing modifiers)
-  │
-  └── sa_sb_set_id → Section B (track-level timing modifiers)
+Section 9 (Track) — named animation  "IDLE", "MAGIC_A_3"   (one active at a time)
+  └── sa_set_id → Section A (sequence list)
+        ├── s8_id → Section 8 (frames)
+        │     ├── s6_id → Section 6 (keyframe)
+        │     │     ├── s4_id → Section 4 (layers: tex, UV, vertex, colour)
+        │     │     └── s5_id → Section 5 (hitbox entries)
+        │     └── s7_id → Section 7 (transform)
+        ├── s8_sum_once / commit_ticks → two-phase playback timing
+        └── sb_id → Section B (timing modifiers)
 ```
 
 ### Background scene data flow
 
 ```
-Section 9 (Track) — named element "kumo_01", "kusa_01"
-  ├── sa_set_id → Section A (sequence list)
-  │     ├── s8_st → sub-sprite index within this element (0..9)
-  │     ├── s8_id → Section 8 (frames)
-  │     │     ├── s6_id → Section 6 (keyframe)
-  │     │     │     └── s4_id → Section 4 (texture region + UV + vertex)
-  │     │     └── s7_id → Section 7 (world-space placement + fog depth)
-  │     │
-  │     └── s8_sum → loop duration (long atmospheric loops, no intro/commit)
-  │
-  └── Section B absent (no timing modifiers needed)
+Section 9 (Track) — element or state "kumo_01", "CLS_CHNG_BFR_ENKE_IDLE"
+  └── sa_set_id → Section A (sequence list)
+        ├── s8_st → sub-sprite index within this element
+        ├── s8_id → Section 8 (frames)
+        │     ├── s6_id → Section 6 (keyframe)
+        │     │     └── s4_id → Section 4 (texture region + UV + vertex)
+        │     └── s7_id → Section 7 (world placement + fog tint)
+        └── s8_sum → loop duration (long atmospheric loops, no intro/commit)
 ```
 
 ---
 
----
-
-## Background Scenes vs. Character Sprites
-
-MBS files come in two distinct flavours with different data profiles, semantics, and
-rendering models. The evidence below is drawn from BGBtPlain_a.mbs (v77, 62 tracks)
-compared against Scarlet_F.mbs (v77, 333 tracks).
-
-### Structural comparison
+## Character Sprites vs Background Scenes
 
 | Aspect | Character Sprite | Background Scene |
-|--------|-----------------|-------------------|
-| Track count | ~300+ (all combat/dialogue actions) | ~60 (individual scene elements) |
-| Track semantics | Animation names (IDLE, MAGIC_A_3, D_WALK) | Landscape element names in romaji (kumo, yama, oka, ki, kusa) |
-| Section 0 (fog) | 64 entries — single-character atmospheric ramp | 262 entries — full-scene atmospheric perspective |
-| Section 3 (hitboxes) | Present (per-attack collision data) | Absent — no collision |
-| Section 5 (hitbox entries) | Present | Absent — no collision |
-| Section 7 `fog` field | Per-frame limb/effect tint | Per-element depth marker (see below) |
-| Section A `s8_st` | 0 or 1 (skip-first-frame flag) | 0–9 (sub-sprite index within composite element) |
-| Section B (timing modifiers) | Present (hitstop, speed curves, one-shots) | Absent — no combat timing |
-| Section 8 frames/jump loops | Fast 6–72 frame cycles with JUMP back-references | Very long 50–300 frame atmospheric loops |
-| Section 4 layers | Thousands of per-pose body-part layer stacks | Hundreds of per-element texture region assignments |
+|--------|------------------|------------------|
+| Track count | ~300+ (all actions) | ~15–110 (elements or states) |
+| Track semantics | One animation active; named actions | Many simultaneous elements, **or** mutually-exclusive states |
+| Section 3 / 5 (hitboxes) | Present | Absent |
+| Section B (timing) | Present (hitstop, speed, one-shots) | Absent |
+| Section 7 `fog` | Per-frame limb/effect tint | Per-frame atmospheric/effect tint |
+| Section A `s8_st` | 0/1 (skip first frame) | 0–9 (sub-sprite index) |
+| Section 8 loops | Fast 6–72 frame cycles with JUMP | Long 50–300 frame atmospheric loops |
+| Frame sections | Two-phase intro/commit used | `s8_sum_once = -1` throughout |
 
-### Track naming: landscape element romaji
+---
 
-Background track names identify individual 2D sprites composited into the scene. Each
-track has its own world-space bounds, texture regions, and animation loop:
+## Background specifics
 
-| Pattern | Meaning | Examples |
-|---------|---------|----------|
-| `kumo_` | Cloud | kumo_01, kumo_02 (drift left-right) |
-| `yama_` | Mountain | yama_01 (distant mountain) |
-| `oka_` | Hill | oka_01–04 (rolling hills at different depths) |
-| `mori_` | Forest | mori_01 (tree-line silhouette) |
-| `iwayama_` | Rocky cliff | iwayama_01–07 (cliffs with parallax) |
-| `gake_` | Cliff face | gake_01, gake_02 |
-| `sougen_` | Meadow/grassland | sougen_01–05 (wide grassy plains) |
-| `ki_` | Tree | ki_01, ki_02 (standalone trees swaying) |
-| `haikyo_` | Ruins | haikyo_01 |
-| `gareki_` | Debris | gareki_01, gareki_02 |
-| `eda_` | Branch | eda_01, eda_02 (overhanging branches) |
-| `iwa_` | Rock | iwa_01–06 (boulders and rock formations) |
-| `kareki_` | Dead tree | kareki_01 |
-| `koiwa_` | Small rock | koiwa_01, koiwa_02 (pebbles) |
-| `kusamiti_` | Grass path | kusamiti_01–07 (path-edge grass) |
-| `kusa_` | Grass tuft | kusa_01–10 (grass in multiple sway variants) |
-| `tobukusa_` | Flying grass | tobukusa_01 (particle grass blowing) |
-| `effect_` | VFX | effect_01–03 (ambient particles) |
+### Layer ordering / compositing
 
-### Depth model: the Fog column in Section 7
+Unlike characters (one active track), backgrounds composite many tracks. The intended
+depth order is **not** reliably encoded by `fog` alpha (see Section 7). Track order in
+`section_9` roughly corresponds to back-to-front in the scenes examined, but this is not
+confirmed; the engine may sort by another key.
 
-Section 7 transforms (`move_x, move_y, move_z, rotate_x, rotate_y, rotate_z, scale_x,
-scale_y, fog`) include a 32-bit `fog` field. This encodes depth via ARGB color:
+### Variants and states
 
-```
-fog = 0xAARRGGBB packed uint32
+- **Landscape:** draw all element tracks.
+- **State scenes (Classpedia):** draw a single state. `ENKE` (far view) is the coloured
+  card; `KNKE` (near view) is a dark silhouette layer and must not be composited with it.
+- **Day/night:** `*_yoru` / `yor*` variants should be excluded when a day scene is wanted.
 
-alpha = (fog >> 24) & 0xFF
-```
+### Content bounds / camera framing
 
-The alpha byte is a binary depth marker:
+`s9` bounds are framing *hints* (vary wildly and are not content bounds). `s6` bounds are
+also unreliable (runaway values, and large-scale effect runs such as insert flashes extend
+far). To derive a real content extent, union the transformed `section_2` vertex positions
+of the live layers, and skip heavily-scaled runs (light shafts / flashes).
 
-| Fog alpha | Depth tier | Example elements |
-|-----------|-----------|------------------|
-| `0xFF` | **Far background** (heavy fog overlay) | kumo (clouds), yama (mountains), oka (distant hills) — tinted with atmospheric color |
-| `0xC0`–`0xDF` | **Mid-far** (moderate fog) | mori (forest), some iwayama (cliffs) — partial blending |
-| `0x80`–`0xBF` | **Near-mid** (light fog) | ki (trees), haikyo (ruins) — subtle tint |
-| `0x00` | **Foreground** (no fog, crisp) | kusa (grass tufts), kusamiti (grass paths), gake (cliffs), effects |
+### Textures
 
-The `fog` field also encodes the RGB tint applied at each depth. For example:
-
-```
-kumo_01:    fog=0xFFE1D7C5  →  warm beige, opaque fog
-yama_01:    fog=0xFFD9CABC  →  warm gray, opaque  
-oka_01:     fog=0xFFC0A098  →  red-brown tint, opaque
-mori_01:    fog=0x00C0A098  →  same tint, fully clear (no fog applied!)
-iwayama_01: fog=0x00E1D7C5  →  warm beige, clear
-effect_01:  fog=0xFFFFFFFF  →  opaque white (effects rendered above everything)
-```
-
-When fog alpha is `0x00`, the RGB tint is **not applied** — the sprite renders at its
-native color. When alpha is `0xFF`, the RGB tint is blended in as an atmospheric fog
-overlay. Intermediate alpha values provide proportional blending.
-
-### Compositing render order
-
-```
-1. FAR BACKGROUND  (fog α = 0xFF)
-   clouds → mountains → distant hills
-   
-2. MID BACKGROUND  (fog α = 0xC0..0xDF)
-   forests → far cliffs → midground rocks
-   
-3. NEAR MIDGROUND  (fog α = 0x80..0xBF)
-   trees → ruins → floating debris
-   
-4. MIDGROUND       (fog α = 0x01..0x7F)
-   meadows → boulders → dead trees
-   
-5. CHARACTER SPRITES rendered here
-   
-6. FOREGROUND      (fog α = 0x00)
-   grass tufts → grass paths → foreground cliffs → rocks
-   
-7. FOREGROUND OVERLAY (fog α = 0x00, last in z-order)
-   tall grass → overhanging branches
-   
-8. EFFECTS         (fog α = 0xFF with opaque white tint)
-   ambient VFX → particles → flying grass
-```
-
-The engine derives this order from the fog alpha byte: higher alpha = further back,
-lower alpha = further forward. Effects use alpha `0xFF` with a white/neutral tint to
-indicate they render on top of everything (special case).
-
-### Section 0 fog ramp table
-
-Background scenes have a much larger fog color table (262 entries vs 64 for characters).
-These entries form atmospheric perspective ramps — color gradients that describe how
-each terrain tone transitions from near to far:
-
-```
-Section 0 rows 140-149 (green atmospheric ramp, AAD9CA):
-  0x20 → 0x40 → 0x80 → 0xC0 → 0xFF  (increasing opacity)
-  Adds blue-green fog overlay to far terrain
-
-Section 0 rows 150-159 (earth atmospheric ramp, 97C8A8):
-  Same structure, warmer earth-tone palette
-```
-
-The fog ramp is indexed by the `s0s1s2_interp` field in section 8 to smoothly transition
-the tint as the camera moves or as time-of-day lighting changes.
-
-### Sub-sprite animation within elements
-
-A single named background element can contain multiple sub-sprites that animate
-independently. The `s8_st` field in section A indexes which sub-sprite a sequence
-belongs to:
-
-```
-kusa_01 (grass tuft): sa_set_id=55, sa_set_no=4
-  s8_st=0: root grass tuft, static
-  s8_st=2: second sway layer, out-of-phase animation
-  s8_st=3: third sway layer, different cadence
-  s8_st=4: fourth sway layer
-```
-
-Each sub-sprite has its own section 8 frame loop with different frame durations and
-JUMP targets, creating natural-looking sway where the same logical grass element has
-leaves moving at different speeds. The section 6 keyframes for sub-sprites reference
-the same section 4 layers (shared texture regions) but apply different section 7
-transforms (slightly offset positions and rotations).
-
-### Section B absence
-
-Background MBS files have **no timing modifiers** (section B is empty — `sb_id=0,
-sb_no=0` on all sequences). The two-phase playback model (`s8_sum_once`/`commit_ticks`)
-is unused: `s8_sum_once = -1` on all background sequences, meaning every sequence is
-a single-pass or full-loop with no intro phase. This reflects the fact that background
-animations run continuously without attack commit windows or hitstop effects.
+Backgrounds reference one or more FTX atlases via `s4.tex_id` (an index into the texture
+array); each layer's `s1` UV rectangle selects a sub-sprite within the atlas. The Classpedia
+scene, for example, is a single texture-array-backed card.
 
 ---
 
@@ -486,11 +461,14 @@ animations run continuously without attack commit windows or hitstop effects.
 
 | Section | Field | Observations |
 |---------|-------|--------------|
+| header | `_unk0`, `_unk1`, `_unk3` | Could hold scene-level data (camera/framing); unparsed |
 | s4 | `_unk0` | Various values, unknown purpose |
-| s4 | `attributes` | Bitmask; checked against flags in render(), exact bit meanings unconfirmed |
+| s4 | `attributes` | Bitmask; checked against `variant_flags`, exact bit meanings unconfirmed |
+| s4 | `blend_id` | 0–3; mode mapping not confirmed |
+| s4 | `flags` | `0x02`=SKIP, `0x04`=NOTEX; common `0x01` unidentified |
 | s5 | `_unk0`, `_unk1` | Always 0 |
 | s6 | `flags` u8 | Various values; keyframe properties |
-| s8 | `0x2000` | Rarely set (isolated frames); purpose unclear |
+| s8 | `0x2000` | Rarely set; purpose unclear |
 | s8 | `n_180` | 0–24 on turn frames; exact semantics unconfirmed |
 | sb | `speed_num`/`speed_den`/`oneshot` | Likely timing numerator/denominator/one-shot flag |
-| sb | `_pad0`/`_pad1`/`_pad2` | Always 0; padding or unused enum fields |
+| — | Background layer depth order | Not reliably encoded in `fog`; possible track-order or another key |
