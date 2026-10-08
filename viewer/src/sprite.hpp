@@ -94,4 +94,5 @@ struct SpriteInstance {
 	uint32_t frame_counter() const;
 	glm::vec4 track_bounds() const;
 	glm::vec4 content_bounds() const;
+	glm::vec4 render_bounds() const;
 };
