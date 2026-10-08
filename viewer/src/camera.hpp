@@ -21,7 +21,7 @@ public:
 
 	glm::mat4 lookAt() const;
 	explicit operator glm::mat4() const;
-	void fit_bounds(const glm::vec4& bounds);
+	void fit_bounds(const glm::vec4& bounds, float margin = 0.0f);
 
 	void set_target(const glm::vec2& target);
 	void update_follow(float dt);

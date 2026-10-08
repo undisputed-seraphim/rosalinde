@@ -42,12 +42,12 @@ glm::mat4 Camera::lookAt() const {
 }
 Camera::operator glm::mat4() const { return lookAt(); }
 
-void Camera::fit_bounds(const glm::vec4& bounds) {
+void Camera::fit_bounds(const glm::vec4& bounds, float margin) {
 	static constexpr int W = 1920, H = 1080;
 	float cx = (bounds.x + bounds.z) / 2.0f;
 	float cy = (bounds.y + bounds.w) / 2.0f;
-	float bw = bounds.z - bounds.x;
-	float bh = bounds.w - bounds.y;
+	float bw = (bounds.z - bounds.x) * (1.0f + 2.0f * margin);
+	float bh = (bounds.w - bounds.y) * (1.0f + 2.0f * margin);
 	if (bw <= 0.0f || bh <= 0.0f)
 		return;
 	_zoom = std::min((float)W / bw, (float)H / bh);
