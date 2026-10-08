@@ -59,6 +59,21 @@ BattleState::BattleState(
 	enable_depth(GL_ALWAYS);
 
 	load_characters(selection);
+	load_background(selection.background);
+
+	if (_has_background)
+		_camera.fit_bounds(_background.extent(), 0.02f);
+}
+
+void BattleState::load_background(const std::string& name) {
+	if (name.empty())
+		return;
+	const auto it = BattleBGs.find(name);
+	if (it == BattleBGs.end())
+		throw std::runtime_error("Battle BG " + name + " was not found.");
+	_background = _loader.load_background(it->second);
+	_background.rebind();
+	_has_background = true;
 }
 
 void BattleState::load_characters(const MenuSelection& selection) {
@@ -216,9 +231,14 @@ void BattleState::update(float dt) {
 			const glm::vec4 b = world_bounds(*layer);
 			mid += glm::vec2{(b.x + b.z) * 0.5f, (b.y + b.w) * 0.5f};
 		}
-		_camera.set_target(mid / static_cast<float>(_layers.size()));
+		if (!_has_background)
+			_camera.set_target(mid / static_cast<float>(_layers.size()));
 	}
 	_camera.update_follow(dt);
+
+	// TEMP HACK: stage enabled; keep the background animating.
+	if (_has_background)
+		_background.update(dt);
 
 	for (auto& layer : _layers) {
 		layer->instance.update(dt);
@@ -228,11 +248,28 @@ void BattleState::update(float dt) {
 void BattleState::render() {
 	++_frame;
 
-	for (auto& layer : _layers) {
-		layer->renderer.draw(layer->instance, _projection, _camera, layer->position, &layer->layer_tints);
+	// TEMP HACK: stage only. Character drawing and ImGui menus disabled.
+	if (_has_background) {
+		for (auto& el : _background.elements) {
+			if (el.is_far)
+				_background.renderer.draw(el.instance, _projection, _camera, {0.0f, 0.0f});
+		}
 	}
 
-	_ui.draw(_layers, _loader.class_names(), _loader, _variant_side);
+	// TEMP HACK: characters disabled
+	// for (auto& layer : _layers) {
+	// 	layer->renderer.draw(layer->instance, _projection, _camera, layer->position, &layer->layer_tints);
+	// }
+
+	if (_has_background) {
+		for (auto& el : _background.elements) {
+			if (!el.is_far)
+				_background.renderer.draw(el.instance, _projection, _camera, {0.0f, 0.0f});
+		}
+	}
+
+	// TEMP HACK: ImGui menus disabled
+	// _ui.draw(_layers, _loader.class_names(), _loader, _variant_side);
 
 	if (!_screenshot_path.empty() && !_captured && _frame >= _capture_frame) {
 		int fb_w = 0, fb_h = 0;

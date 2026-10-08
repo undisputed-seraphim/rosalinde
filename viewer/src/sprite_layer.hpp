@@ -3,6 +3,8 @@
 #include "sprite.hpp"
 #include "sprite_renderer.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <criware/cpk.hpp>
 #include <map>
 #include <vector>
@@ -30,6 +32,27 @@ struct BackgroundScene {
 	std::vector<Element> elements;
 
 	void load(const struct Job& job, CPKTable& cpkt);
-	void update(float dt);
-	glm::vec4 extent() const;
+
+	void update(float dt) {
+		for (auto& el : elements)
+			el.instance.update(dt);
+	}
+
+	glm::vec4 extent() const {
+		float l = INFINITY, t = INFINITY, r = -INFINITY, b = -INFINITY;
+		for (const auto& s9 : data.v77.s9) {
+			if (s9.disabled)
+				continue;
+			l = std::min(l, s9.left);
+			t = std::min(t, s9.top);
+			r = std::max(r, s9.right);
+			b = std::max(b, s9.bottom);
+		}
+		return {l, t, r, b};
+	}
+
+	void rebind() {
+		for (auto& el : elements)
+			el.instance.data = &data;
+	}
 };

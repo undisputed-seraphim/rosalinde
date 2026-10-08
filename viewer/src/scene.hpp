@@ -18,6 +18,7 @@ struct ViewerConfig {
 	uint32_t frames = 1;
 	std::string left_class = "HighPriestess";
 	std::string right_class = "Crusader";
+	std::string background = "BGBtCathedral";
 };
 
 class Scene final : public uvw::BaseGame {

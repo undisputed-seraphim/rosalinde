@@ -29,6 +29,7 @@ Scene::Scene(ViewerConfig config)
 		MenuSelection selection;
 		selection.left_class = _config.left_class;
 		selection.right_class = _config.right_class;
+		selection.background = _config.background;
 		start_battle(selection);
 	} else {
 		_menu = std::make_unique<MenuState>(_loader.class_names(), _bg_names);
