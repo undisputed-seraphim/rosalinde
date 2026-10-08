@@ -32,7 +32,7 @@ SpriteRenderer::SpriteRenderer() {
 	_ebo.bind();
 
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 1, GL_SHORT, GL_FALSE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, texid));
+	glVertexAttribIPointer(0, 1, GL_SHORT, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, texid));
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, uv));
 	glEnableVertexAttribArray(2);
