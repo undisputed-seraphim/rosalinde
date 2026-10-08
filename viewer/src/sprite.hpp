@@ -26,6 +26,7 @@ struct CachedKeyframe {
 		glm::vec2 xy[4];
 		uint32_t color[4];
 		uint32_t attributes;
+		uint8_t blend;
 	};
 	std::vector<Layer> layers;
 	glm::vec4 bounds;
@@ -84,10 +85,13 @@ struct SpriteInstance {
 		uint32_t sa_idx,
 		std::vector<SpriteVertex>& verts,
 		std::vector<uint32_t>& indices,
-		const std::map<uint32_t, glm::vec4>* tints = nullptr) const;
+		const std::map<uint32_t, glm::vec4>* tints = nullptr,
+		bool apply_fog = false,
+		int blend_filter = -1) const;
 
 	glm::mat4 transform_for_sa(uint32_t sa_idx, bool* out_flipx = nullptr, bool* out_flipy = nullptr) const;
 	uint32_t sa_count() const;
 	uint32_t frame_counter() const;
 	glm::vec4 track_bounds() const;
+	glm::vec4 content_bounds() const;
 };

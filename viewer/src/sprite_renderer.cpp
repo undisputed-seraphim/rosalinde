@@ -4,6 +4,26 @@
 #include <glm/ext.hpp>
 #include <utility>
 
+namespace {
+void set_blend_mode(uint8_t b) {
+	glBlendEquation(GL_FUNC_ADD);
+	switch (b) {
+	case 1: // additive
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+		break;
+	case 2: // multiply
+		glBlendFunc(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA);
+		break;
+	case 3: // screen
+		glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_COLOR);
+		break;
+	default: // normal alpha
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		break;
+	}
+}
+} // namespace
+
 SpriteRenderer::SpriteRenderer() {
 	glGenVertexArrays(1, &_vao);
 	glBindVertexArray(_vao);
@@ -85,7 +105,8 @@ void SpriteRenderer::draw(
 	const glm::mat4& projection,
 	const Camera& cam,
 	const glm::vec2& offset,
-	const std::map<uint32_t, glm::vec4>* tints) {
+	const std::map<uint32_t, glm::vec4>* tints,
+	bool apply_fog) {
 	const auto& shader = GetKeyframeShader().Use();
 
 	glActiveTexture(GL_TEXTURE0);
@@ -99,12 +120,15 @@ void SpriteRenderer::draw(
 		auto s7m = inst.transform_for_sa(i);
 		shader.SetUniform("u_mvp", projection * view_offset * s7m);
 
-		inst.build_vertices(i, _verts, _indices, tints);
-		if (_verts.empty())
-			continue;
+		for (uint8_t b = 0; b < 4; ++b) {
+			set_blend_mode(b);
+			inst.build_vertices(i, _verts, _indices, tints, apply_fog, b);
+			if (_verts.empty())
+				continue;
 
-		_vbo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_verts));
-		_ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_indices));
-		_ebo.drawElements(gl::Mode::TRIANGLES);
+			_vbo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_verts));
+			_ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_indices));
+			_ebo.drawElements(gl::Mode::TRIANGLES);
+		}
 	}
 }

@@ -7,6 +7,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/euler_angles.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <span>
 #include <stdexcept>
@@ -72,6 +74,7 @@ void SpriteData::preprocess() {
 			CachedKeyframe::Layer layer;
 			layer.tex_id = s4.tex_id;
 			layer.attributes = s4.attributes;
+			layer.blend = s4.blend_id;
 			for (int k = 0; k < 4; ++k) {
 				layer.uv[k] = v77.s1[s4.s1_id].values[k] * texdim;
 				layer.xy[k] = v77.s2[s4.s2_id].values[k];
@@ -224,7 +227,9 @@ void SpriteInstance::build_vertices(
 	uint32_t sa_idx,
 	std::vector<SpriteVertex>& verts,
 	std::vector<uint32_t>& indices,
-	const std::map<uint32_t, glm::vec4>* tints) const {
+	const std::map<uint32_t, glm::vec4>* tints,
+	bool apply_fog,
+	int blend_filter) const {
 	verts.clear();
 	indices.clear();
 
@@ -261,6 +266,8 @@ void SpriteInstance::build_vertices(
 	for (const auto& layer : ck.layers) {
 		if ((layer.attributes & ~variant_flags) != 0)
 			continue;
+		if (blend_filter >= 0 && layer.blend != blend_filter)
+			continue;
 
 		uint32_t c0 = layer.color[0], c1 = layer.color[1], c2 = layer.color[2], c3 = layer.color[3];
 		if (tints) {
@@ -279,6 +286,26 @@ void SpriteInstance::build_vertices(
 				c2 = mul(c2, t);
 				c3 = mul(c3, t);
 			}
+		}
+
+		if (apply_fog) {
+			const uint32_t fog = data->v77.s7[s8.s7_id].fog;
+			const glm::vec4 f{
+				((fog >> 16) & 0xFF) / 255.0f,
+				((fog >> 8) & 0xFF) / 255.0f,
+				(fog & 0xFF) / 255.0f,
+				((fog >> 24) & 0xFF) / 255.0f};
+			auto fmul = [](uint32_t c, const glm::vec4& f) {
+				uint32_t r = ((c >> 0) & 0xFF) * f.r;
+				uint32_t g = ((c >> 8) & 0xFF) * f.g;
+				uint32_t b = ((c >> 16) & 0xFF) * f.b;
+				uint32_t a = ((c >> 24) & 0xFF) * f.a;
+				return (a << 24) | (b << 16) | (g << 8) | r;
+			};
+			c0 = fmul(c0, f);
+			c1 = fmul(c1, f);
+			c2 = fmul(c2, f);
+			c3 = fmul(c3, f);
 		}
 
 		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[0], {layer.xy[0], depth}, c0});
@@ -327,3 +354,25 @@ uint32_t SpriteInstance::sa_count() const { return static_cast<uint32_t>(data->t
 uint32_t SpriteInstance::frame_counter() const { return _frame_counter; }
 
 glm::vec4 SpriteInstance::track_bounds() const { return data->tracks[track_idx].bounds; }
+
+glm::vec4 SpriteInstance::content_bounds() const {
+	float l = INFINITY, t = INFINITY, r = -INFINITY, b = -INFINITY;
+	const auto& track = data->tracks[track_idx];
+	for (size_t i = 0; i < track.runs.size(); ++i) {
+		const auto& run = track.runs[i];
+		if (run.s8_count == 0 || i >= offsets.size())
+			continue;
+		const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
+		const glm::mat4 m = mbs::s7_matrix(data->v77.s7[s8.s7_id], false, false);
+		const glm::vec4 kb = data->keyframes[s8.s6_id].bounds;
+		const glm::vec2 corners[4] = {{kb.x, kb.y}, {kb.z, kb.y}, {kb.x, kb.w}, {kb.z, kb.w}};
+		for (const auto& c : corners) {
+			const glm::vec4 p = m * glm::vec4{c.x, c.y, 0.0f, 1.0f};
+			l = std::min(l, p.x);
+			t = std::min(t, p.y);
+			r = std::max(r, p.x);
+			b = std::max(b, p.y);
+		}
+	}
+	return {l, t, r, b};
+}
