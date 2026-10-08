@@ -32,6 +32,11 @@ void enable_depth(GLenum depthFunc = 0) {
 	glDepthFunc(depthFunc);
 	glEnable(GL_DEPTH_TEST);
 }
+
+glm::vec4 world_bounds(const SpriteLayer& layer) {
+	const glm::vec4 b = layer.instance.track_bounds();
+	return {b.x + layer.position.x, b.y + layer.position.y, b.z + layer.position.x, b.w + layer.position.y};
+}
 } // namespace
 
 BattleState::BattleState(
@@ -69,7 +74,6 @@ void BattleState::load_characters(const MenuSelection& selection) {
 		auto track_idx = _layers.empty() ? 0 : 0;
 		_layers.push_back(_loader.load_layer(job, track_idx, selection.left_class, var_it->first));
 		_layers.back()->position = glm::vec2(-300.0f, 0.0f);
-		_camera.fit_bounds(_layers.back()->instance.track_bounds());
 	}
 
 	if (!selection.right_class.empty()) {
@@ -80,6 +84,18 @@ void BattleState::load_characters(const MenuSelection& selection) {
 			_layers.push_back(_loader.load_layer(job, 0, selection.right_class, var_it->first));
 			_layers.back()->position = glm::vec2(300.0f, 0.0f);
 		}
+	}
+
+	if (!_layers.empty()) {
+		glm::vec4 fit = world_bounds(*_layers.front());
+		for (size_t i = 1; i < _layers.size(); ++i) {
+			const glm::vec4 b = world_bounds(*_layers[i]);
+			fit.x = std::min(fit.x, b.x);
+			fit.y = std::min(fit.y, b.y);
+			fit.z = std::max(fit.z, b.z);
+			fit.w = std::max(fit.w, b.w);
+		}
+		_camera.fit_bounds(fit, 0.15f);
 	}
 }
 
@@ -192,8 +208,15 @@ void BattleState::update(float dt) {
 				layer->position.x += dir * kMoveSpeed * dt;
 			}
 		}
+	}
 
-		_camera.set_target(glm::vec2(layer->position.x, layer->position.y));
+	if (!_layers.empty()) {
+		glm::vec2 mid{0.0f, 0.0f};
+		for (const auto& layer : _layers) {
+			const glm::vec4 b = world_bounds(*layer);
+			mid += glm::vec2{(b.x + b.z) * 0.5f, (b.y + b.w) * 0.5f};
+		}
+		_camera.set_target(mid / static_cast<float>(_layers.size()));
 	}
 	_camera.update_follow(dt);
 
