@@ -59,25 +59,32 @@ rosalinde/
 │   └── extractor.cpp           # CLI extractor. --list, --extract, --columns, --acb, --ftx, --fms, --mbs
 │
 ├── viewer/                     # OpenGL 4.6 / SDL3 sprite viewer
-│   ├── CMakeLists.txt          # Builds viewer.exe (links: eltolinde, imgui, glad, glm, Boost)
+│   ├── CMakeLists.txt          # Builds viewer (links: eltolinde, glad, glm, Boost, SDL3, ZLIB)
 │   └── src/
-│       ├── main.cpp            # Entry point, CLI args, window setup, main loop
-│       ├── state.cpp/hpp       # State: CPK I/O, sprite loading, render orchestrator
-│       ├── sprite.cpp/hpp      # Sprite: GL buffers, texture array, animation playback
-│       ├── shader.cpp/hpp      # Embedded GLSL ES 3.20 keyframe shader
-│       ├── camera.cpp/hpp      # 2D camera (pan/zoom)
-│       ├── tables.cpp/hpp      # ~85 char class + ~170 battle BG hardcoded lookup tables
-│       ├── game.cpp/hpp        # Vestigial Game class (mostly empty, unused)
+│       ├── main.cpp            # Entry point, CLI parsing (--cpk/--screenshot/--frames/--class/--bg)
+│       ├── scene.cpp/hpp       # BaseGame impl: Menu↔Battle state machine
+│       ├── menu_state.cpp/hpp  # ImGui class/stage picker
+│       ├── battle_state.cpp/hpp # Scene: background + character layers, camera, screenshot
+│       ├── animation_graph.*   # Hardcoded action→track map (IDLE / D_WALK / MAGIC_A chain)
+│       ├── asset_loader.*      # CPK/FTX loading + background track selection
+│       ├── debug_ui.cpp/hpp    # ImGui lifecycle + debug panels
+│       ├── sprite_layer.hpp    # SpriteLayer / BackgroundScene value types
+│       ├── sprite.cpp/hpp      # SpriteData parse/preprocess + SpriteInstance playback
+│       ├── sprite_renderer.*   # Texture-array upload + blend-grouped draw
+│       ├── shader.cpp/hpp      # Embedded GLSL 450 keyframe shader
+│       ├── camera.cpp/hpp      # 2D camera (pan/zoom/fit/follow)
+│       ├── screenshot.cpp/hpp  # PNG (zlib) / PPM writer
+│       ├── tables.cpp/hpp      # ~85 char class + ~170 battle BG lookup tables
 │       ├── engine/
-│       │   ├── Engine.cpp/hpp  # Game loop driver
+│       │   ├── Engine.cpp/hpp  # Game loop driver (driven by main.cpp)
 │       │   └── Window.cpp/hpp  # SDL3/OpenGL window RAII wrapper
-│       └── glxx/              # "GL c++ extensions" — thin OpenGL RAII wrappers
+│       └── glxx/               # "GL c++ extensions" — thin OpenGL RAII wrappers
 │           ├── object.hpp      # CRTP base for GL object handles
 │           ├── buffers.hpp/cpp # GL buffer wrapper
 │           ├── shader.hpp/cpp  # GL shader program wrapper
 │           ├── texture.hpp     # 3D / 2DArray texture wrapper
 │           ├── textures.hpp/cpp # 2D / cubemap texture wrapper
-│           └── error.hpp/cpp   # GL debug callback + error checking
+│           └── error.cpp/hpp   # GL debug callback + error checking
 │
 ├── thirdparty/
 │   ├── CMakeLists.txt          # FetchContent for detex, glad, glm, SDL3, entt + builds imgui
@@ -88,25 +95,19 @@ rosalinde/
 │   ├── SDL3.cmake              # SDL3 3.4.0 (fallback)
 │   └── entt.cmake              # EnTT 3.15.0 (ECS, currently unused)
 │
-├── sprite.hpp                  # WIP next-gen Sprite API (NOT compiled, NOT integrated)
-│                               # Has its own Config, pre-processing, Vulkan/GL paths
+├── docs/                       # Format + project documentation
+│   ├── SECTIONS.md             # FMBS/v77 format reference (characters + backgrounds)
+│   ├── VIEWER.md               # Viewer rendering, headless capture, debug tooling
+│   ├── UTF.md                  # @UTF container notes
+│   └── ACB_AFS2.md             # ACB / AFS2 notes
 │
-├── SECTIONS.md                 # Deep dive into v77 animation format (~315 lines)
 ├── README.md                   # Brief overview
-├── .clang-format               # tabs, 120col, left pointer alignment
+├── LICENSE
+├── .clang-format               # tabs, 120col, left pointer alignment (LLVM base)
 ├── .gitignore                  # Ignores build/, .vscode/, object files, executables
 ├── cleanbuild.sh               # Shell script to clean the build directory
-├── tegra_deswizzle.comp        # GLSL compute shader for Tegra X1 texture deswizzle
-├── quad_vanillaware_FMBP_FMBS.php  # PHP reference script for reverse engineering
-│
-├── AcfReferenceTable.bin       # CRIWARE audio reference data
-├── CueNameTable.bin            # CRIWARE cue name data
-├── bcm.acb.log                 # ACB log
-│
-└── csv/                        # Debug CSV dumps from v77 parser
-    ├── section_8.csv           # Animation frames
-    ├── section_9.csv           # Tracks
-    └── section_a.csv           # Sequences
+├── mbs_dump/                   # CSV dumps from the v77 parser
+└── Unicorn.CPK                 # Test archive (root-level; ideally under testdata/)
 ```
 
 ---
@@ -127,7 +128,7 @@ rosalinde/
 
 - **criware**: No dependencies except STL. Self-contained CPK/UTF/CRILAYLA.
 - **eltolinde**: Depends on criware, detex (BCn decompress), Boost::iostreams (legacy), ZLIB, glm.
-- **viewer**: Depends on eltolinde, imgui, glad, glm, Boost::program_options.
+- **viewer**: Depends on eltolinde, imgui, glad, glm, Boost::program_options, SDL3, ZLIB (screenshot).
 - **rosalinde** (extractor): Depends on eltolinde, Boost::program_options.
 
 ---
@@ -135,13 +136,20 @@ rosalinde/
 ## Build
 
 ```bash
-cmake -B build -S . -G "Visual Studio 17 2022"
-cmake --build build --config Debug -j 8
+cmake -B build -S .
+cmake --build build -j 8
 ```
+
+> **Globbed sources**: the viewer lists its sources with `file(GLOB_RECURSE)`. After adding or
+> removing a source file, re-run `cmake -B build -S .` or the new file will not be compiled.
+> (Windows/MSVC also works: `-G "Visual Studio 17 2022"` with `--config Debug`.)
+
+See [`docs/VIEWER.md`](docs/VIEWER.md) for rendering internals, headless capture
+(`xvfb` + `llvmpipe`), and the viewer's debug environment variables.
 
 **Requirements** (all fetched via FetchContent if not installed):
 - CMake 3.28+
-- MSVC 2022 with C++23 (`/std:c++latest`)
+- A C++23 compiler (MSVC 2022 `/std:c++latest`, or GCC 14 / Clang 19)
 - Boost 1.88 (system, iostreams, program_options)
 - SDL3 3.4, ZLIB 1.3.1, glm 1.0, EnTT 3.14+, OpenGL, Catch2 3.12+
 
@@ -174,14 +182,12 @@ The build produces:
 
 | Issue | Location | Notes |
 |-------|----------|-------|
-| **sprite.hpp at root** | `sprite.hpp` | New Sprite API WIP. Not in any CMakeLists.txt. Not compiled. Conflicts with `viewer/src/sprite.hpp`. |
-| **viewer engine unused** | `viewer/src/game.cpp/hpp`, `engine/` | The `Engine`/`BaseGame`/`Game` classes exist but `main.cpp` drives the loop inline. Vestigial. |
+| **viewer engine** | `viewer/src/engine/`, `battle_state.cpp` | `Engine`/`Window` drive the loop (`main.cpp`); `BaseGame` is the game interface. `Scene` is a Menu↔Battle state machine. |
 | **glxx .cpp files are empty** | `glxx/buffers.cpp`, `glxx/textures.cpp` | Only contain an empty namespace. The corresponding .hpp files are header-only. |
-| **Hardcoded lookup tables** | `viewer/src/tables.cpp` | ~250 lines of hardcoded character class and battle BG paths. Should move to external data (JSON). |
-| **CSV debug dumps** | `src/impl/mbs/v77.cpp`, `csv/` | Debug code writes CSVs to a hardcoded path. Should be behind a flag or removed. |
-| **Root-level binary files** | `AcfReferenceTable.bin`, `CueNameTable.bin`, `bcm.acb.log` | Test data mixed into repo root. Should be under `testdata/` |
+| **Hardcoded lookup tables** | `viewer/src/tables.cpp` | Character class + battle BG paths hardcoded (class→MBS/FTX/variants). Should move to external data (JSON). |
+| **CSV debug dumps** | `src/impl/mbs/v77.cpp`, `mbs_dump/` | Debug code writes CSVs to a hardcoded path. Should be behind a flag or removed. |
+| **Root-level test archive** | `Unicorn.CPK` | Test data in repo root. Should be under `testdata/`. |
 | **Incomplete parsers** | `asb.cpp`, `otm.cpp` | Mostly stubs. |
-| **Two competing Sprite classes** | `sprite.hpp` (root) vs `viewer/src/sprite.hpp` | The root one is the intended replacement but hasn't been integrated yet. |
 | **Boost iostreams legacy** | `src/impl/mbs.cpp` | The istream path in `mbs.cpp` wraps the span path. Boost::iostreams is only needed for legacy code paths. |
 | **No CI** | — | Builds are local-only. No GitHub Actions or similar. |
 | **Test coverage is minimal** | `libcriware/tests/` | Only one Catch2 test (`substream.t.cpp`). No tests for CPK, UTF, MBS, FTX, or the viewer. |
@@ -192,8 +198,8 @@ The build produces:
 ## Guidance for agents working independently
 
 ### Before making changes
-1. **Build first**: `cmake --build build --config Debug -j 8`
-2. **Test the extractor**: `./build/Debug/rosalinde.exe --cpk "C:/Users/undis/Downloads/ryujinx/Games/Unicorn.CPK" --list`
+1. **Build first**: `cmake --build build -j 8`
+2. **Test the extractor**: `./build/rosalinde --cpk ~/Unicorn.CPK --list`
 3. **Check what you're about to touch**: Read neighboring files to understand conventions (tabs, no comments, namespace usage).
 
 ### File organization rules
@@ -207,7 +213,7 @@ The build produces:
 ### Working on different areas
 - **criware library**: Low-risk. The only invariant is that `utf.cpp` must not be rewritten. New `table<>` schemas are welcome.
 - **eltolinde library**: Medium-risk. The MBS/FTX parsers are reverse-engineered. Verify against the CPK test archive.
-- **viewer**: Higher-risk. The GL state, shaders, and animation playback are fragile. Verify visual output.
+- **viewer**: Higher-risk. The GL state, shaders, and animation playback are fragile. Verify visual output headlessly (see [`docs/VIEWER.md`](docs/VIEWER.md)) rather than assuming.
 - **tools/extractor.cpp**: CLI utility. Adding flags is safe.
 
 ### Common pitfalls
@@ -219,15 +225,17 @@ The build produces:
 ### Testing
 ```bash
 # Build everything
-cmake --build build --config Debug -j 8
+cmake --build build -j 8
 
 # Run criware unit test
-./build/libcriware/Debug/criware_test.exe
+./build/libcriware/criware_test
 
 # Run extractor integration test (requires Unicorn.CPK)
-./build/Debug/rosalinde.exe --cpk "C:/Users/undis/Downloads/ryujinx/Games/Unicorn.CPK" --list | wc -l
+./build/rosalinde --cpk ~/Unicorn.CPK --list | wc -l
 # Expected: 4752
 
-# Run viewer (requires CPK)
-./build/viewer/Debug/viewer.exe --cpk "C:/Users/undis/Downloads/ryujinx/Games/Unicorn.CPK" --list
+# Run the viewer headlessly and capture a frame (see docs/VIEWER.md)
+LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe \
+  xvfb-run -a -s "-screen 0 1920x1080x24" \
+  ./build/viewer/viewer --cpk ~/Unicorn.CPK --frames 1 --screenshot /tmp/frame.png
 ```
