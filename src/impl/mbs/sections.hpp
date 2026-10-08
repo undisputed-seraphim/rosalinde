@@ -144,11 +144,11 @@ struct section_a {
 struct section_b {
 	uint32_t speed_num; // per-frame speed numerator (3–75)
 	uint16_t speed_den; // per-frame speed denominator (1–17)
-	uint32_t _pad0;     // always 0
-	uint16_t _pad1;     // always 0
-	uint16_t oneshot;   // one-shot flag (0–3)
-	uint32_t _pad2;     // always 0
-	uint16_t _pad3;     // always 0
+	uint32_t _pad0;		// always 0
+	uint16_t _pad1;		// always 0
+	uint16_t oneshot;	// one-shot flag (0–3)
+	uint32_t _pad2;		// always 0
+	uint16_t _pad3;		// always 0
 };
 #pragma pack(pop)
 

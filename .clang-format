@@ -1,4 +1,8 @@
+---
+BasedOnStyle: LLVM
 Language: Cpp
+
+# Width
 ColumnLimit: 120
 
 # Tabs
@@ -7,21 +11,18 @@ IndentWidth: 4
 TabWidth: 4
 
 # Visibility
-IndentAccessModifiers: false
 AccessModifierOffset: -4
 
 # Constructors
 BreakConstructorInitializers: BeforeComma
 
+# Pointers
 PointerAlignment: Left
 
-# Function declaration
+# Function declarations
 BinPackArguments: false
 BinPackParameters: false
-ExperimentalAutoDetectBinPacking: false
 AllowAllParametersOfDeclarationOnNextLine: false
 AlignAfterOpenBracket: AlwaysBreak
-AlwaysBreakAfterReturnType: None
-
-# Templates
 AlwaysBreakTemplateDeclarations: true
+...

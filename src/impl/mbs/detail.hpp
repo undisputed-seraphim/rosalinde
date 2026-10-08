@@ -11,12 +11,12 @@
 namespace mbs::detail {
 
 struct lookup_entry {
-	int16_t c;          // file offset for element count
-	int16_t c_size;     // byte size of count field (2 or 4)
-	int16_t p;          // file offset for data-start pointer
-	int16_t row_length; // byte size of a single row
-	uint32_t h = 0;     // resolved: number of rows
-	uint32_t offset = 0; // resolved: file offset to data start
+	int16_t c;				// file offset for element count
+	int16_t c_size;			// byte size of count field (2 or 4)
+	int16_t p;				// file offset for data-start pointer
+	int16_t row_length;		// byte size of a single row
+	uint32_t h = 0;			// resolved: number of rows
+	uint32_t offset = 0;	// resolved: file offset to data start
 	uint32_t data_size = 0; // resolved: h * row_length
 };
 
@@ -39,8 +39,12 @@ inline void resolve_table(byte_reader& r, std::span<lookup_entry> table) {
 		}
 		r.seek(c);
 		switch (cs) {
-		case 2: h = r.read<uint16_t>(); break;
-		case 4: h = r.read<uint32_t>(); break;
+		case 2:
+			h = r.read<uint16_t>();
+			break;
+		case 4:
+			h = r.read<uint32_t>();
+			break;
 		}
 		r.seek(p);
 		o = r.read<uint32_t>();

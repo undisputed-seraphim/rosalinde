@@ -14,9 +14,11 @@ auto parse(std::span<const uint8_t> data) -> File {
 
 	size_t src_path_pos = std::string::npos;
 	for (size_t i = 8; i + 3 < data.size(); ++i) {
-		if (data[i] != 'C' && data[i] != 'c') continue;
+		if (data[i] != 'C' && data[i] != 'c')
+			continue;
 		size_t end = i;
-		while (end < data.size() && data[end] != 0) ++end;
+		while (end < data.size() && data[end] != 0)
+			++end;
 		std::string s(reinterpret_cast<const char*>(&data[i]), end - i);
 		if ((s.find("C:/") == 0 || s.find("c:/") == 0) && s.ends_with(".ascp")) {
 			src_path_pos = i;
@@ -27,24 +29,29 @@ auto parse(std::span<const uint8_t> data) -> File {
 
 	auto read_str_at = [&](size_t at) -> std::string {
 		size_t end = at;
-		while (end < data.size() && data[end] != 0) ++end;
+		while (end < data.size() && data[end] != 0)
+			++end;
 		return std::string(reinterpret_cast<const char*>(&data[at]), end - at);
 	};
 	auto is_fn_name = [](const std::string& s) -> bool {
-		if (s.size() < 2 || s.size() > 64) return false;
-		return std::all_of(s.begin(), s.end(),
-						   [](char c) { return std::isalnum(c) || c == '_'; });
+		if (s.size() < 2 || s.size() > 64)
+			return false;
+		return std::all_of(s.begin(), s.end(), [](char c) { return std::isalnum(c) || c == '_'; });
 	};
 
 	std::vector<size_t> fn_offsets;
 	for (size_t i = 8; i + 1 < data.size(); ++i) {
-		if (data[i] != 0x08 && data[i] != 0x0a) continue;
-		if (!std::isalpha(data[i + 1])) continue;
+		if (data[i] != 0x08 && data[i] != 0x0a)
+			continue;
+		if (!std::isalpha(data[i + 1]))
+			continue;
 
 		size_t end = i + 1;
-		while (end < data.size() && data[end] != 0) ++end;
+		while (end < data.size() && data[end] != 0)
+			++end;
 		std::string name(reinterpret_cast<const char*>(&data[i + 1]), end - i - 1);
-		if (is_fn_name(name)) fn_offsets.push_back(i);
+		if (is_fn_name(name))
+			fn_offsets.push_back(i);
 	}
 
 	for (size_t k = 0; k < fn_offsets.size(); ++k) {
@@ -59,8 +66,7 @@ auto parse(std::span<const uint8_t> data) -> File {
 		file.functions.emplace_back().name = name;
 		if (bc_start < bc_end && bc_start < data.size()) {
 			size_t len = std::min(bc_end, data.size()) - bc_start;
-			file.functions.back().bytecode.assign(
-				data.begin() + bc_start, data.begin() + bc_start + len);
+			file.functions.back().bytecode.assign(data.begin() + bc_start, data.begin() + bc_start + len);
 		}
 	}
 
