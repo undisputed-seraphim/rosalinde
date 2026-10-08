@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <eltolinde.hpp>
+#include <glad/glad.h>
 #include <map>
 #include <stdexcept>
 #include <utility>
@@ -146,6 +147,18 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 		}
 	}
 
+	if (std::getenv("FTX_GPU_DUMP")) {
+		glBindTexture(GL_TEXTURE_2D_ARRAY, bg.renderer.texture_array());
+		GLint w = 0, h = 0, d = 0;
+		glGetTexLevelParameteriv(GL_TEXTURE_2D_ARRAY, 0, GL_TEXTURE_WIDTH, &w);
+		glGetTexLevelParameteriv(GL_TEXTURE_2D_ARRAY, 0, GL_TEXTURE_HEIGHT, &h);
+		glGetTexLevelParameteriv(GL_TEXTURE_2D_ARRAY, 0, GL_TEXTURE_DEPTH, &d);
+		fprintf(stderr, "[gpu tex] %dx%dx%d\n", w, h, d);
+		std::vector<uint8_t> pix(static_cast<size_t>(w) * h * d * 4);
+		glGetTexImage(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA, GL_UNSIGNED_BYTE, pix.data());
+		screenshot::write("/tmp/opencode/gpu_tex.png", w, h * d, pix);
+	}
+
 	const auto& v77 = bg.data.v77;
 	static const bool dump = std::getenv("BG_DUMP") != nullptr;
 	static const int layers_idx = std::getenv("BG_LAYERS") ? std::atoi(std::getenv("BG_LAYERS")) : -1;
@@ -228,6 +241,24 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 					s7b.scale.x,
 					s7b.scale.y,
 					s7b.fog);
+
+				if (static_cast<int>(i) == layers_idx) {
+					const auto& ck = bg.data.keyframes[s8b.s6_id];
+					for (size_t li = 0; li < ck.layers.size(); ++li) {
+						const auto& L = ck.layers[li];
+						fprintf(
+							stderr,
+							"              layer %zu tex=%u blend=%u col0=%08X uv0=(%.1f,%.1f) uv2=(%.1f,%.1f)\n",
+							li,
+							L.tex_id,
+							L.blend,
+							L.color[0],
+							L.uv[0].x,
+							L.uv[0].y,
+							L.uv[2].x,
+							L.uv[2].y);
+					}
+				}
 			}
 
 			if (static_cast<int>(i) == layers_idx) {
@@ -236,14 +267,12 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 					const auto& L = ck.layers[li];
 					fprintf(
 						stderr,
-						"            layer %zu tex=%u blend=%u attr=%08X col0=%08X col1=%08X uv0=(%.1f,%.1f) "
-						"uv2=(%.1f,%.1f) xy0=(%.1f,%.1f) xy2=(%.1f,%.1f)\n",
+						"            layer %zu tex=%u blend=%u attr=%08X col0=%08X uv0=(%.1f,%.1f) uv2=(%.1f,%.1f) xy0=(%.1f,%.1f) xy2=(%.1f,%.1f)\n",
 						li,
 						L.tex_id,
 						L.blend,
 						L.attributes,
 						L.color[0],
-						L.color[1],
 						L.uv[0].x,
 						L.uv[0].y,
 						L.uv[2].x,

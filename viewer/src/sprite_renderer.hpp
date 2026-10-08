@@ -18,6 +18,7 @@ public:
 	SpriteRenderer& operator=(SpriteRenderer&& other) noexcept;
 
 	void upload_textures(const SpriteData& data);
+	GLuint texture_array() const { return _texture_array; }
 	void draw(
 		const SpriteInstance& inst,
 		const glm::mat4& projection,
