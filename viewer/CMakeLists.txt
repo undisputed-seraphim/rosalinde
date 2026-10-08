@@ -13,4 +13,4 @@ target_sources(viewer PRIVATE
 )
 target_include_directories(viewer PRIVATE ${IMGUI_DIR})
 
-target_link_libraries(viewer PRIVATE eltolinde glad glm::glm Boost::program_options SDL3::SDL3)
+target_link_libraries(viewer PRIVATE eltolinde glad glm::glm Boost::program_options SDL3::SDL3 ZLIB::ZLIB)

@@ -9,8 +9,9 @@
 #include <iostream>
 #include <stdexcept>
 
-Scene::Scene(std::filesystem::path cpkpath)
-	: _loader(cpkpath) {
+Scene::Scene(ViewerConfig config)
+	: _config(std::move(config))
+	, _loader(_config.cpk) {
 
 	glEnable(GL_DEBUG_OUTPUT);
 	glDebugMessageCallback(&message_callback, NULL);
@@ -23,7 +24,15 @@ Scene::Scene(std::filesystem::path cpkpath)
 	for (const auto& [name, _] : BattleBGs)
 		_bg_names.push_back(name);
 
-	_menu = std::make_unique<MenuState>(_loader.class_names(), _bg_names);
+	if (!_config.screenshot.empty()) {
+		ImGui::GetIO().IniFilename = nullptr;
+		MenuSelection selection;
+		selection.left_class = _config.left_class;
+		selection.right_class = _config.right_class;
+		start_battle(selection);
+	} else {
+		_menu = std::make_unique<MenuState>(_loader.class_names(), _bg_names);
+	}
 }
 
 bool Scene::handle_inputs() {
@@ -41,12 +50,16 @@ bool Scene::handle_inputs() {
 			if (_battle->should_quit())
 				return true;
 			if (_battle->is_done()) {
+				if (!_config.screenshot.empty())
+					return true;
 				_battle.reset();
 				_mode = Mode::Menu;
 				_menu = std::make_unique<MenuState>(_loader.class_names(), _bg_names);
 			}
 		}
 	}
+	if (!_config.screenshot.empty() && _battle && _battle->captured())
+		return true;
 	return false;
 }
 
@@ -73,7 +86,7 @@ void Scene::update(float dt) {
 }
 
 void Scene::start_battle(const MenuSelection& selection) {
-	_battle = std::make_unique<BattleState>(_loader, _ui, selection);
+	_battle = std::make_unique<BattleState>(_loader, _ui, selection, _config.screenshot, _config.frames);
 	_mode = Mode::Battle;
 	_menu.reset();
 }
