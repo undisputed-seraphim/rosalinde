@@ -1,4 +1,5 @@
 #include "asset_loader.hpp"
+#include "screenshot.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -135,6 +136,15 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(mbs_buf.data()), mbs_buf.size()),
 		std::move(ftx_entries));
 	bg.renderer.upload_textures(bg.data);
+
+	if (std::getenv("FTX_DUMP")) {
+		for (size_t k = 0; k < bg.data.textures.size(); ++k) {
+			const auto& t = bg.data.textures[k];
+			char path[160];
+			std::snprintf(path, sizeof(path), "/tmp/opencode/ftx_%02zu.png", k);
+			screenshot::write(path, t.width, t.height, t.rgba);
+		}
+	}
 
 	const auto& v77 = bg.data.v77;
 	static const bool dump = std::getenv("BG_DUMP") != nullptr;
