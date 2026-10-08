@@ -376,3 +376,40 @@ glm::vec4 SpriteInstance::content_bounds() const {
 	}
 	return {l, t, r, b};
 }
+
+glm::vec4 SpriteInstance::render_bounds() const {
+	float l = INFINITY, t = INFINITY, r = -INFINITY, b = -INFINITY;
+	const auto& track = data->tracks[track_idx];
+	for (uint32_t i = 0; i < track.runs.size(); ++i) {
+		const auto& run = track.runs[i];
+		if (run.s8_count == 0 || i >= offsets.size())
+			continue;
+		const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
+		if (s8.flags & mbs::v77::s8flag::HITBOX)
+			continue;
+		if ((s8.flags & mbs::v77::s8flag::LAST) && !(s8.flags & mbs::v77::s8flag::ACTIVE))
+			continue;
+		// Skip heavily-scaled runs (light shafts, insert flashes): they are
+		// overlays and would otherwise blow up the framing bounds.
+		const auto& s7 = data->v77.s7[s8.s7_id];
+		if (std::max(std::abs(s7.scale.x), std::abs(s7.scale.y)) > 4.0f)
+			continue;
+		const auto& ck = data->keyframes[s8.s6_id];
+		if (ck.layers.empty())
+			continue;
+
+		const glm::mat4 m = transform_for_sa(i);
+		for (const auto& layer : ck.layers) {
+			if ((layer.attributes & ~variant_flags) != 0)
+				continue;
+			for (int k = 0; k < 4; ++k) {
+				const glm::vec4 p = m * glm::vec4{layer.xy[k].x, layer.xy[k].y, 0.0f, 1.0f};
+				l = std::min(l, p.x);
+				t = std::min(t, p.y);
+				r = std::max(r, p.x);
+				b = std::max(b, p.y);
+			}
+		}
+	}
+	return {l, t, r, b};
+}

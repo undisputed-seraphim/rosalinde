@@ -248,7 +248,8 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 						const auto& L = ck.layers[li];
 						fprintf(
 							stderr,
-							"              layer %zu tex=%u blend=%u col0=%08X uv0=(%.1f,%.1f) uv2=(%.1f,%.1f)\n",
+							"              layer %zu tex=%u blend=%u col0=%08X uv0=(%.1f,%.1f) uv2=(%.1f,%.1f) "
+							"xy0=(%.0f,%.0f) xy2=(%.0f,%.0f)\n",
 							li,
 							L.tex_id,
 							L.blend,
@@ -256,7 +257,11 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 							L.uv[0].x,
 							L.uv[0].y,
 							L.uv[2].x,
-							L.uv[2].y);
+							L.uv[2].y,
+							L.xy[0].x,
+							L.xy[0].y,
+							L.xy[2].x,
+							L.xy[2].y);
 					}
 				}
 			}
@@ -267,7 +272,8 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 					const auto& L = ck.layers[li];
 					fprintf(
 						stderr,
-						"            layer %zu tex=%u blend=%u attr=%08X col0=%08X uv0=(%.1f,%.1f) uv2=(%.1f,%.1f) xy0=(%.1f,%.1f) xy2=(%.1f,%.1f)\n",
+						"            layer %zu tex=%u blend=%u attr=%08X col0=%08X uv0=(%.1f,%.1f) uv2=(%.1f,%.1f) "
+						"xy0=(%.1f,%.1f) xy2=(%.1f,%.1f)\n",
 						li,
 						L.tex_id,
 						L.blend,

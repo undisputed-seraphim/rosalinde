@@ -63,15 +63,14 @@ BattleState::BattleState(
 	load_characters(selection);
 	load_background(selection.background);
 
+	// Camera frames the characters (set up in load_characters). Background-fit
+	// framing is set aside for now; BG_CAM=<track_idx> still overrides to frame
+	// a single background element's s9 bounds.
 	if (_has_background) {
-		// TEMP: BG_CAM=<track_idx> fits the camera to that element's s9 bounds.
-		const char* cam = std::getenv("BG_CAM");
-		if (cam) {
+		if (const char* cam = std::getenv("BG_CAM")) {
 			const int idx = std::atoi(cam);
 			const auto& s9 = _background.data.v77.s9[idx];
 			_camera.fit_bounds({s9.left, s9.top, s9.right, s9.bottom}, 0.02f);
-		} else {
-			_camera.fit_bounds(_background.extent(), 0.02f);
 		}
 	}
 }
@@ -309,10 +308,9 @@ void BattleState::render() {
 	if (_has_background)
 		draw_bg(true);
 
-	// TEMP HACK: characters disabled
-	// for (auto& layer : _layers) {
-	// 	layer->renderer.draw(layer->instance, _projection, _camera, layer->position, &layer->layer_tints);
-	// }
+	for (auto& layer : _layers) {
+		layer->renderer.draw(layer->instance, _projection, _camera, layer->position, &layer->layer_tints);
+	}
 
 	if (_has_background)
 		draw_bg(false);

@@ -54,7 +54,7 @@ struct BackgroundScene {
 	glm::vec4 content_extent() const {
 		float l = INFINITY, t = INFINITY, r = -INFINITY, b = -INFINITY;
 		for (const auto& el : elements) {
-			const glm::vec4 e = el.instance.content_bounds();
+			const glm::vec4 e = el.instance.render_bounds();
 			l = std::min(l, e.x);
 			t = std::min(t, e.y);
 			r = std::max(r, e.z);
