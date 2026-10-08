@@ -38,6 +38,9 @@ private:
 	std::vector<std::unique_ptr<SpriteLayer>> _layers;
 	size_t _active_layer = 0;
 
+	BackgroundScene _background;
+	bool _has_background = false;
+
 	AnimationGraph _graph;
 
 	int _variant_side = 0;
@@ -50,5 +53,6 @@ private:
 	bool _captured = false;
 
 	void load_characters(const MenuSelection& selection);
+	void load_background(const std::string& name);
 	void apply_action(AnimationGraph::Action action);
 };

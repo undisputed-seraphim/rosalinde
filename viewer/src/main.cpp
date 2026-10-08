@@ -22,7 +22,10 @@ int main(int argc, char* argv[]) try {
 		"Left character class (screenshot mode)")(
 		"class2",
 		::boost::program_options::value<std::string>(&config.right_class)->default_value(config.right_class),
-		"Right character class (screenshot mode)");
+		"Right character class (screenshot mode)")(
+		"bg",
+		::boost::program_options::value<std::string>(&config.background)->default_value(config.background),
+		"Battle background/stage name (screenshot mode)");
 	::boost::program_options::variables_map vm;
 	::boost::program_options::store(::boost::program_options::parse_command_line(argc, argv, desc), vm);
 	try {
