@@ -14,7 +14,8 @@ void Engine::run(std::function<std::unique_ptr<BaseGame>()> factory) {
 		uint64_t now = SDL_GetTicks();
 		float dt = (now - last) / 1000.0f;
 		last = now;
-		if (dt > 0.25f) dt = 0.25f;
+		if (dt > 0.25f)
+			dt = 0.25f;
 
 		stop = game->handle_inputs();
 		game->update(dt);

@@ -12,11 +12,10 @@
 #include <stdexcept>
 
 namespace mbs {
-	glm::mat4 s7_matrix(const section_7& s7, bool flipx, bool flipy);
+glm::mat4 s7_matrix(const section_7& s7, bool flipx, bool flipy);
 }
 
-static glm::mat4 s7_matrix_interp(
-	const mbs::section_7& a, const mbs::section_7& b, float t, bool flipx, bool flipy) {
+static glm::mat4 s7_matrix_interp(const mbs::section_7& a, const mbs::section_7& b, float t, bool flipx, bool flipy) {
 	const int8_t x = flipx ? -1 : 1;
 	const int8_t y = flipy ? -1 : 1;
 	glm::vec3 move = glm::mix(a.move, b.move, t);
@@ -64,7 +63,8 @@ void SpriteData::preprocess() {
 		ck.layers.reserve(s6.s4_no);
 		for (uint32_t j = 0; j < s6.s4_no; ++j) {
 			const auto& s4 = v77.s4[s6.s4_id + j];
-			if (s4.tex_id >= textures.size()) continue;
+			if (s4.tex_id >= textures.size())
+				continue;
 
 			const auto& tex = textures[s4.tex_id];
 			const auto texdim = glm::vec2{tex.width, tex.height};
@@ -117,7 +117,8 @@ void SpriteData::preprocess() {
 
 const SpriteData::Track* SpriteData::find_track(const std::string& name) const {
 	for (const auto& t : tracks) {
-		if (t.name == name) return &t;
+		if (t.name == name)
+			return &t;
 	}
 	return nullptr;
 }
@@ -128,7 +129,8 @@ void SpriteInstance::play(uint32_t track_id) {
 		_transition_src_s7.resize(n);
 		for (uint32_t i = 0; i < n; ++i) {
 			const auto& run = data->tracks[track_idx].runs[i];
-			if (run.s8_count == 0) continue;
+			if (run.s8_count == 0)
+				continue;
 			const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
 			_transition_src_s7[i] = data->v77.s7[s8.s7_id];
 		}
@@ -169,7 +171,8 @@ void SpriteInstance::update(float dt_seconds) {
 
 	if (_transition_t < 1.0f) {
 		_transition_t += dt_seconds / kTransitionDuration;
-		if (_transition_t > 1.0f) _transition_t = 1.0f;
+		if (_transition_t > 1.0f)
+			_transition_t = 1.0f;
 	}
 
 	bool advanced = false;
@@ -179,7 +182,8 @@ void SpriteInstance::update(float dt_seconds) {
 		_accum -= 1.0f;
 		for (uint32_t i = 0; i < track.runs.size(); ++i) {
 			const auto& run = track.runs[i];
-			if (run.s8_count == 0) continue;
+			if (run.s8_count == 0)
+				continue;
 			if (--ticks[i] == 0) {
 				advanced = true;
 				const auto& prev_s8 = data->v77.s8[run.s8_start + offsets[i]];
@@ -192,57 +196,71 @@ void SpriteInstance::update(float dt_seconds) {
 					}
 				} else {
 					++offsets[i];
-					if (offsets[i] >= run.s8_count) offsets[i] = run.loop_start;
+					if (offsets[i] >= run.s8_count)
+						offsets[i] = run.loop_start;
 				}
 				ticks[i] = data->v77.s8[run.s8_start + offsets[i]].frames;
 			}
 		}
 	}
 
-	if (advanced) _frame_counter++;
+	if (advanced)
+		_frame_counter++;
 }
 
 void SpriteInstance::next_track() {
-	if (data->tracks.empty()) return;
+	if (data->tracks.empty())
+		return;
 	play((track_idx + 1) % data->tracks.size());
 }
 
 void SpriteInstance::prev_track() {
-	if (data->tracks.empty()) return;
+	if (data->tracks.empty())
+		return;
 	play(track_idx == 0 ? data->tracks.size() - 1 : track_idx - 1);
 }
 
 void SpriteInstance::build_vertices(
-	uint32_t sa_idx, std::vector<SpriteVertex>& verts, std::vector<uint32_t>& indices,
+	uint32_t sa_idx,
+	std::vector<SpriteVertex>& verts,
+	std::vector<uint32_t>& indices,
 	const std::map<uint32_t, glm::vec4>* tints) const {
 	verts.clear();
 	indices.clear();
 
 	const auto& track = data->tracks[track_idx];
-	if (sa_idx >= track.runs.size()) return;
+	if (sa_idx >= track.runs.size())
+		return;
 
 	const auto& run = track.runs[sa_idx];
-	if (run.s8_count == 0) return;
+	if (run.s8_count == 0)
+		return;
 
 	const auto& s8 = data->v77.s8[run.s8_start + offsets[sa_idx]];
-	if (s8.flags & mbs::v77::s8flag::HITBOX) return;
-	if ((s8.flags & mbs::v77::s8flag::LAST) && !(s8.flags & mbs::v77::s8flag::ACTIVE)) return;
+	if (s8.flags & mbs::v77::s8flag::HITBOX)
+		return;
+	if ((s8.flags & mbs::v77::s8flag::LAST) && !(s8.flags & mbs::v77::s8flag::ACTIVE))
+		return;
 
 	const auto& ck = data->keyframes[s8.s6_id];
-	if (ck.layers.empty()) return;
+	if (ck.layers.empty())
+		return;
 
 	uint32_t visible = 0;
 	for (const auto& layer : ck.layers) {
-		if ((layer.attributes & ~variant_flags) == 0) visible++;
+		if ((layer.attributes & ~variant_flags) == 0)
+			visible++;
 	}
-	if (visible == 0) return;
+	if (visible == 0)
+		return;
 
 	const float zrate = 1.0f / (visible + 1.0f);
 	float depth = 1.0f;
 	uint32_t base = 0;
 
 	for (const auto& layer : ck.layers) {
-		if ((layer.attributes & ~variant_flags) != 0) continue;
+		if ((layer.attributes & ~variant_flags) != 0)
+			continue;
 
 		uint32_t c0 = layer.color[0], c1 = layer.color[1], c2 = layer.color[2], c3 = layer.color[3];
 		if (tints) {
@@ -256,8 +274,10 @@ void SpriteInstance::build_vertices(
 					uint32_t a = ((c >> 24) & 0xFF) * t.a;
 					return (a << 24) | (b << 16) | (g << 8) | r;
 				};
-				c0 = mul(c0, t); c1 = mul(c1, t);
-				c2 = mul(c2, t); c3 = mul(c3, t);
+				c0 = mul(c0, t);
+				c1 = mul(c1, t);
+				c2 = mul(c2, t);
+				c3 = mul(c3, t);
 			}
 		}
 
@@ -279,8 +299,10 @@ glm::mat4 SpriteInstance::transform_for_sa(uint32_t sa_idx, bool* out_flipx, boo
 
 	bool flipx = s8.flags & mbs::v77::s8flag::FLIPX;
 	bool flipy = s8.flags & mbs::v77::s8flag::FLIPY;
-	if (out_flipx) *out_flipx = flipx;
-	if (out_flipy) *out_flipy = flipy;
+	if (out_flipx)
+		*out_flipx = flipx;
+	if (out_flipy)
+		*out_flipy = flipy;
 
 	const auto& curr_s7 = data->v77.s7[s8.s7_id];
 
@@ -300,14 +322,8 @@ glm::mat4 SpriteInstance::transform_for_sa(uint32_t sa_idx, bool* out_flipx, boo
 	return s7_matrix_interp(prev_s7, curr_s7, t, flipx, flipy);
 }
 
-uint32_t SpriteInstance::sa_count() const {
-	return static_cast<uint32_t>(data->tracks[track_idx].runs.size());
-}
+uint32_t SpriteInstance::sa_count() const { return static_cast<uint32_t>(data->tracks[track_idx].runs.size()); }
 
-uint32_t SpriteInstance::frame_counter() const {
-	return _frame_counter;
-}
+uint32_t SpriteInstance::frame_counter() const { return _frame_counter; }
 
-glm::vec4 SpriteInstance::track_bounds() const {
-	return data->tracks[track_idx].bounds;
-}
+glm::vec4 SpriteInstance::track_bounds() const { return data->tracks[track_idx].bounds; }

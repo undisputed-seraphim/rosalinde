@@ -37,7 +37,8 @@ namespace {
 
 template <typename T>
 static T read_le(const uint8_t* p) {
-	static_assert(sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
+	static_assert(
+		sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
 		"read_le only supports 1/2/4/8 byte types");
 	if constexpr (sizeof(T) == 1) {
 		return *p;
@@ -50,7 +51,8 @@ static T read_le(const uint8_t* p) {
 }
 
 static uint64_t round_up(uint64_t value, uint64_t alignment) {
-	if (alignment == 0) return value;
+	if (alignment == 0)
+		return value;
 	return (value + alignment - 1) / alignment * alignment;
 }
 
@@ -59,22 +61,24 @@ static uint64_t round_up(uint64_t value, uint64_t alignment) {
 AFS2 AFS2::parse(std::span<const uint8_t> data, uint64_t base_offset) {
 	AFS2 afs2;
 
-	if (data.size() < 16) return afs2;
+	if (data.size() < 16)
+		return afs2;
 
 	const char magic_exp[] = {'A', 'F', 'S', '2'};
-	if (std::memcmp(data.data(), magic_exp, 4) != 0) return afs2;
+	if (std::memcmp(data.data(), magic_exp, 4) != 0)
+		return afs2;
 
 	// --- header ---
-	const uint32_t raw_version  = read_le<uint32_t>(data.data() + 4);
-	const int32_t  file_count   = static_cast<int32_t>(read_le<uint32_t>(data.data() + 8));
-	const uint32_t raw_align    = read_le<uint32_t>(data.data() + 12);
+	const uint32_t raw_version = read_le<uint32_t>(data.data() + 4);
+	const int32_t file_count = static_cast<int32_t>(read_le<uint32_t>(data.data() + 8));
+	const uint32_t raw_align = read_le<uint32_t>(data.data() + 12);
 
 	const uint32_t offset_field_size = (raw_version >> 8) & 0xFF;
-	const uint32_t id_field_size     = raw_version & 0xFF;
+	const uint32_t id_field_size = raw_version & 0xFF;
 
-	afs2._version   = raw_version;
+	afs2._version = raw_version;
 	afs2._alignment = raw_align & 0xFFFF;
-	afs2._hca_key   = static_cast<uint16_t>(raw_align >> 16);
+	afs2._hca_key = static_cast<uint16_t>(raw_align >> 16);
 
 	if (file_count <= 0)
 		return afs2;
@@ -115,15 +119,15 @@ AFS2 AFS2::parse(std::span<const uint8_t> data, uint64_t base_offset) {
 	}
 	// Last entry: data goes to end of archive
 	afs2._entries[static_cast<size_t>(file_count) - 1].size =
-		static_cast<uint64_t>(data.size()) + base_offset -
-		afs2._entries[static_cast<size_t>(file_count) - 1].offset;
+		static_cast<uint64_t>(data.size()) + base_offset - afs2._entries[static_cast<size_t>(file_count) - 1].offset;
 
 	return afs2;
 }
 
 const AFS2::Entry* AFS2::find(uint16_t id) const {
 	for (auto& e : _entries)
-		if (e.id == id) return &e;
+		if (e.id == id)
+			return &e;
 	return nullptr;
 }
 

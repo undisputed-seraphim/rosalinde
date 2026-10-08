@@ -163,9 +163,7 @@ public:
 	}
 
 	// Only for Element Array Buffers
-	template <
-		buffer::Type BufT = BufferType,
-		std::enable_if_t<BufT == buffer::Type::ELEMENT_ARRAY_BUFFER, bool> = true>
+	template <buffer::Type BufT = BufferType, std::enable_if_t<BufT == buffer::Type::ELEMENT_ARRAY_BUFFER, bool> = true>
 	const basic_buffer& drawElements(Mode m = Mode::TRIANGLES) const noexcept {
 		constexpr GLenum type = []() {
 			if constexpr (std::is_same_v<value_type, std::uint8_t>) {
@@ -191,6 +189,7 @@ public:
 		_hnd = other._hnd;
 		other._hnd = 0;
 		std::swap(_storage, other._storage);
+		return *this;
 	}
 };
 

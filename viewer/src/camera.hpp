@@ -22,4 +22,12 @@ public:
 	glm::mat4 lookAt() const;
 	explicit operator glm::mat4() const;
 	void fit_bounds(const glm::vec4& bounds);
+
+	void set_target(const glm::vec2& target);
+	void update_follow(float dt);
+
+private:
+	bool _following = false;
+	glm::vec2 _target{0, 0};
+	static constexpr float kFollowSpeed = 6.0f;
 };

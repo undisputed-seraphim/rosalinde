@@ -10,10 +10,10 @@ namespace criware {
 class AFS2 {
 public:
 	struct Entry {
-		uint16_t id = 0;        // waveform ID (always uint16 LE)
-		uint64_t offset = 0;    // raw offset from stream (before alignment add)
-		uint64_t aligned = 0;   // offset rounded up to alignment boundary
-		uint64_t size = 0;      // file data size in bytes
+		uint16_t id = 0;	  // waveform ID (always uint16 LE)
+		uint64_t offset = 0;  // raw offset from stream (before alignment add)
+		uint64_t aligned = 0; // offset rounded up to alignment boundary
+		uint64_t size = 0;	  // file data size in bytes
 	};
 
 	AFS2() = default;

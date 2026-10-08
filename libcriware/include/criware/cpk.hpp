@@ -12,12 +12,12 @@
 // ============================================================================
 
 using CPKSchema = decltype(schema::make(
-	schema::col<"DirName",     std::string>(),
-	schema::col<"FileName",    std::string>(),
-	schema::col<"FileSize",    uint64_t>(),
+	schema::col<"DirName", std::string>(),
+	schema::col<"FileName", std::string>(),
+	schema::col<"FileSize", uint64_t>(),
 	schema::col<"ExtractSize", uint64_t>(),
-	schema::col<"FileOffset",  uint64_t>(),
-	schema::col<"ID",          uint64_t>()));
+	schema::col<"FileOffset", uint64_t>(),
+	schema::col<"ID", uint64_t>()));
 
 class CPKTable {
 public:
@@ -38,19 +38,37 @@ public:
 	iterator end() const { return _table.end(); }
 	row_type operator[](size_t i) const { return _table[i]; }
 
-	template <size_t I> auto& column() { return _table.column<I>(); }
-	template <size_t I> const auto& column() const { return _table.column<I>(); }
-	template <schema::fixed_string Name> auto& column() { return _table.column<Name>(); }
-	template <schema::fixed_string Name> const auto& column() const { return _table.column<Name>(); }
+	template <size_t I>
+	auto& column() {
+		return _table.column<I>();
+	}
+	template <size_t I>
+	const auto& column() const {
+		return _table.column<I>();
+	}
+	template <schema::fixed_string Name>
+	auto& column() {
+		return _table.column<Name>();
+	}
+	template <schema::fixed_string Name>
+	const auto& column() const {
+		return _table.column<Name>();
+	}
 
 	template <schema::fixed_string... Names>
-	auto rows() const { return _table.rows<Names...>(); }
+	auto rows() const {
+		return _table.rows<Names...>();
+	}
 
 	template <schema::fixed_string... Names>
-	auto rows() { return _table.rows<Names...>(); }
+	auto rows() {
+		return _table.rows<Names...>();
+	}
 
 	template <schema::fixed_string... Names>
-	size_t row_count() const noexcept { return _table.row_count<Names...>(); }
+	size_t row_count() const noexcept {
+		return _table.row_count<Names...>();
+	}
 
 	static constexpr bool has_column(std::string_view name) noexcept { return table_type::has_column(name); }
 	static constexpr size_t column_index(std::string_view name) noexcept { return table_type::column_index(name); }
@@ -66,8 +84,7 @@ private:
 // TopLevelCpk
 // ============================================================================
 
-using TopLevelCPKSchema = decltype(schema::make(
-	schema::col<"TocOffset", uint64_t>()));
+using TopLevelCPKSchema = decltype(schema::make(schema::col<"TocOffset", uint64_t>()));
 
 class TopLevelCpk {
 public:
@@ -75,6 +92,7 @@ public:
 	TopLevelCpk(const TopLevelCpk&) = delete;
 	TopLevelCpk(TopLevelCpk&&) = default;
 	CPKTable getTableOfContents() const;
+
 private:
 	table<TopLevelCPKSchema> _table;
 	std::filesystem::path _path;
