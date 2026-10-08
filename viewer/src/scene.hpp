@@ -6,20 +6,30 @@
 #include "engine/Engine.hpp"
 #include "menu_state.hpp"
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
 
+struct ViewerConfig {
+	std::filesystem::path cpk;
+	std::string screenshot;
+	uint32_t frames = 1;
+	std::string left_class = "HighPriestess";
+	std::string right_class = "Crusader";
+};
+
 class Scene final : public uvw::BaseGame {
 public:
-	Scene(std::filesystem::path cpkpath);
+	Scene(ViewerConfig config);
 
 	bool handle_inputs() override;
 	void render() override;
 	void update(float dt) override;
 
 private:
+	ViewerConfig _config;
 	AssetLoader _loader;
 	DebugUI _ui;
 

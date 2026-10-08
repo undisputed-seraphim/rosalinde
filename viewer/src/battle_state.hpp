@@ -14,7 +14,12 @@
 
 class BattleState {
 public:
-	BattleState(const AssetLoader& loader, DebugUI& ui, const MenuSelection& selection);
+	BattleState(
+		const AssetLoader& loader,
+		DebugUI& ui,
+		const MenuSelection& selection,
+		std::string screenshot_path = {},
+		uint32_t capture_frame = 1);
 
 	bool handle_inputs();
 	void update(float dt);
@@ -22,6 +27,7 @@ public:
 
 	bool is_done() const { return _done; }
 	bool should_quit() const { return _quit; }
+	bool captured() const { return _captured; }
 
 private:
 	const AssetLoader& _loader;
@@ -39,6 +45,8 @@ private:
 	bool _quit = false;
 
 	std::string _screenshot_path;
+	uint32_t _capture_frame = 1;
+	uint32_t _frame = 0;
 	bool _captured = false;
 
 	void load_characters(const MenuSelection& selection);

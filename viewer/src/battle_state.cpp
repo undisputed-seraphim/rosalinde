@@ -1,4 +1,5 @@
 #include "battle_state.hpp"
+#include "screenshot.hpp"
 #include "tables.hpp"
 
 #include <SDL3/SDL.h>
@@ -33,11 +34,18 @@ void enable_depth(GLenum depthFunc = 0) {
 }
 } // namespace
 
-BattleState::BattleState(const AssetLoader& loader, DebugUI& ui, const MenuSelection& selection)
+BattleState::BattleState(
+	const AssetLoader& loader,
+	DebugUI& ui,
+	const MenuSelection& selection,
+	std::string screenshot_path,
+	uint32_t capture_frame)
 	: _loader(loader)
 	, _ui(ui)
 	, _camera(2.5f)
-	, _projection(1.0f) {
+	, _projection(1.0f)
+	, _screenshot_path(std::move(screenshot_path))
+	, _capture_frame(capture_frame) {
 
 	static constexpr int W = 1920, H = 1080;
 	_projection = glm::ortho((-W) / 2.0f, W / 2.0f, H / 2.0f, (-H) / 2.0f);
@@ -195,29 +203,29 @@ void BattleState::update(float dt) {
 }
 
 void BattleState::render() {
+	++_frame;
+
 	for (auto& layer : _layers) {
 		layer->renderer.draw(layer->instance, _projection, _camera, layer->position, &layer->layer_tints);
 	}
 
 	_ui.draw(_layers, _loader.class_names(), _loader, _variant_side);
 
-	if (!_screenshot_path.empty() && !_captured) {
-		static constexpr int W = 1920, H = 1080;
-		std::vector<uint8_t> pixels(W * H * 4);
-		glReadPixels(0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-
-		FILE* f = fopen(_screenshot_path.c_str(), "wb");
-		if (f) {
-			fprintf(f, "P6\n%d %d\n255\n", W, H);
-			for (int y = H - 1; y >= 0; --y) {
-				for (int x = 0; x < W; ++x) {
-					unsigned i = (y * W + x) * 4;
-					fwrite(&pixels[i], 1, 3, f);
-				}
-			}
-			fclose(f);
+	if (!_screenshot_path.empty() && !_captured && _frame >= _capture_frame) {
+		int fb_w = 0, fb_h = 0;
+		SDL_GetWindowSizeInPixels(SDL_GL_GetCurrentWindow(), &fb_w, &fb_h);
+		if (fb_w > 0 && fb_h > 0) {
+			std::vector<uint8_t> pixels(static_cast<size_t>(fb_w) * fb_h * 4);
+			glReadPixels(0, 0, fb_w, fb_h, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+			bool ok = screenshot::write(_screenshot_path, fb_w, fb_h, pixels);
+			fprintf(
+				stderr,
+				"%s: %s (%dx%d)\n",
+				ok ? "screenshot written" : "screenshot FAILED",
+				_screenshot_path.c_str(),
+				fb_w,
+				fb_h);
 		}
 		_captured = true;
-		_done = true;
 	}
 }
