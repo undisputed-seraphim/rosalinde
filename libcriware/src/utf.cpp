@@ -1,6 +1,6 @@
-#include <criware/utf.hpp>
 #include <criware/byte_reader.hpp>
 #include <criware/endian_swap.hpp>
+#include <criware/utf.hpp>
 
 #include <cstring>
 #include <iostream>
@@ -8,7 +8,8 @@
 template <typename T>
 static T read_be(byte_reader& r) {
 	T val = r.read<T>();
-	if constexpr (sizeof(T) == 1) return val;
+	if constexpr (sizeof(T) == 1)
+		return val;
 	return swap_endian(val);
 }
 
@@ -79,7 +80,8 @@ UTF UTF::parse(std::span<const uint8_t> data) {
 			size_t saved = r.tell();
 			r.seek(string_offset + name_idx);
 			const uint8_t* start = r.cur;
-			while (*r.cur != 0) r.skip(1);
+			while (*r.cur != 0)
+				r.skip(1);
 			fname = std::string(reinterpret_cast<const char*>(start), r.cur - start);
 			r.skip(1); // null
 			r.seek(saved);
@@ -91,22 +93,43 @@ UTF UTF::parse(std::span<const uint8_t> data) {
 		field f(ftype, is_valid);
 		if (has_default) {
 			switch (ftype) {
-			case field::type::UINT8: f.push_back(r.read<uint8_t>()); break;
-			case field::type::INT8: f.push_back(r.read<int8_t>()); break;
-			case field::type::UINT16: f.push_back(read_be<uint16_t>(r)); break;
-			case field::type::INT16: f.push_back(read_be<int16_t>(r)); break;
-			case field::type::UINT32: f.push_back(read_be<uint32_t>(r)); break;
-			case field::type::INT32: f.push_back(read_be<int32_t>(r)); break;
-			case field::type::UINT64: f.push_back(read_be<uint64_t>(r)); break;
-			case field::type::INT64: f.push_back(read_be<int64_t>(r)); break;
-			case field::type::FLOAT: f.push_back(read_be<float>(r)); break;
-			case field::type::DOUBLE: f.push_back(read_be<double>(r)); break;
+			case field::type::UINT8:
+				f.push_back(r.read<uint8_t>());
+				break;
+			case field::type::INT8:
+				f.push_back(r.read<int8_t>());
+				break;
+			case field::type::UINT16:
+				f.push_back(read_be<uint16_t>(r));
+				break;
+			case field::type::INT16:
+				f.push_back(read_be<int16_t>(r));
+				break;
+			case field::type::UINT32:
+				f.push_back(read_be<uint32_t>(r));
+				break;
+			case field::type::INT32:
+				f.push_back(read_be<int32_t>(r));
+				break;
+			case field::type::UINT64:
+				f.push_back(read_be<uint64_t>(r));
+				break;
+			case field::type::INT64:
+				f.push_back(read_be<int64_t>(r));
+				break;
+			case field::type::FLOAT:
+				f.push_back(read_be<float>(r));
+				break;
+			case field::type::DOUBLE:
+				f.push_back(read_be<double>(r));
+				break;
 			case field::type::STRING: {
 				uint32_t idx = read_be<uint32_t>(r);
 				size_t saved = r.tell();
 				r.seek(string_offset + idx);
 				const uint8_t* start = r.cur;
-				while (*r.cur != 0) r.skip(1);
+				while (*r.cur != 0)
+					r.skip(1);
 				f.push_back(std::string(reinterpret_cast<const char*>(start), r.cur - start));
 				r.skip(1);
 				r.seek(saved);
@@ -118,7 +141,8 @@ UTF UTF::parse(std::span<const uint8_t> data) {
 				f.push_back(field::data_t{data_offset + off, len});
 				break;
 			}
-			default: break;
+			default:
+				break;
 			}
 			f.has_default = true;
 		}
@@ -128,24 +152,46 @@ UTF UTF::parse(std::span<const uint8_t> data) {
 	r.seek(rows_offset);
 	for (uint32_t i = 0; i < num_rows; ++i) {
 		for (auto& [_, f] : cols) {
-			if (f.has_default || !f.valid) continue;
+			if (f.has_default || !f.valid)
+				continue;
 			switch (f.type_) {
-			case field::type::UINT8: f.push_back(r.read<uint8_t>()); break;
-			case field::type::INT8: f.push_back(r.read<int8_t>()); break;
-			case field::type::UINT16: f.push_back(read_be<uint16_t>(r)); break;
-			case field::type::INT16: f.push_back(read_be<int16_t>(r)); break;
-			case field::type::UINT32: f.push_back(read_be<uint32_t>(r)); break;
-			case field::type::INT32: f.push_back(read_be<int32_t>(r)); break;
-			case field::type::UINT64: f.push_back(read_be<uint64_t>(r)); break;
-			case field::type::INT64: f.push_back(read_be<int64_t>(r)); break;
-			case field::type::FLOAT: f.push_back(read_be<float>(r)); break;
-			case field::type::DOUBLE: f.push_back(read_be<double>(r)); break;
+			case field::type::UINT8:
+				f.push_back(r.read<uint8_t>());
+				break;
+			case field::type::INT8:
+				f.push_back(r.read<int8_t>());
+				break;
+			case field::type::UINT16:
+				f.push_back(read_be<uint16_t>(r));
+				break;
+			case field::type::INT16:
+				f.push_back(read_be<int16_t>(r));
+				break;
+			case field::type::UINT32:
+				f.push_back(read_be<uint32_t>(r));
+				break;
+			case field::type::INT32:
+				f.push_back(read_be<int32_t>(r));
+				break;
+			case field::type::UINT64:
+				f.push_back(read_be<uint64_t>(r));
+				break;
+			case field::type::INT64:
+				f.push_back(read_be<int64_t>(r));
+				break;
+			case field::type::FLOAT:
+				f.push_back(read_be<float>(r));
+				break;
+			case field::type::DOUBLE:
+				f.push_back(read_be<double>(r));
+				break;
 			case field::type::STRING: {
 				uint32_t idx = read_be<uint32_t>(r);
 				size_t saved = r.tell();
 				r.seek(string_offset + idx);
 				const uint8_t* start = r.cur;
-				while (*r.cur != 0) r.skip(1);
+				while (*r.cur != 0)
+					r.skip(1);
 				f.push_back(std::string(reinterpret_cast<const char*>(start), r.cur - start));
 				r.skip(1);
 				r.seek(saved);
@@ -157,7 +203,9 @@ UTF UTF::parse(std::span<const uint8_t> data) {
 				f.push_back(field::data_t{data_offset + off, len});
 				break;
 			}
-			default: f.push_back(std::monostate{}); break;
+			default:
+				f.push_back(std::monostate{});
+				break;
 			}
 		}
 	}

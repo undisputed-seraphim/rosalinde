@@ -41,13 +41,12 @@ int main(int argc, char* argv[]) try {
 	bool list = false;
 
 	po::options_description desc;
-	desc.add_options()
-		("help,h", "Print this help message")
-		("cpk", po::value<std::string>(&cpk_path)->required(), "Path to Unicorn.CPK")
-		("acb", po::value<std::string>(&acb_path)->required(), "ACB path inside CPK (e.g. Sound/bgm.acb)")
-		("cue,c", po::value<int>(&cue_id), "Play cue by ID")
-		("track,t", po::value<int>(&track_idx), "Play track by index")
-		("list,l", po::bool_switch(&list), "List all cues");
+	desc.add_options()("help,h", "Print this help message")(
+		"cpk", po::value<std::string>(&cpk_path)->required(), "Path to Unicorn.CPK")(
+		"acb", po::value<std::string>(&acb_path)->required(), "ACB path inside CPK (e.g. Sound/bgm.acb)")(
+		"cue,c", po::value<int>(&cue_id), "Play cue by ID")(
+		"track,t", po::value<int>(&track_idx), "Play track by index")(
+		"list,l", po::bool_switch(&list), "List all cues");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -59,33 +58,32 @@ int main(int argc, char* argv[]) try {
 	}
 
 	auto acb_data = load_acb(cpk_path, acb_path);
-	auto acb = criware::ACB::parse(std::span(
-		reinterpret_cast<const uint8_t*>(acb_data.data()), acb_data.size()));
+	auto acb = criware::ACB::parse(std::span(reinterpret_cast<const uint8_t*>(acb_data.data()), acb_data.size()));
 
-	std::cout << acb_path << ": " << acb.cues().size() << " cues, "
-			  << acb.waveforms().size() << " waveforms, "
+	std::cout << acb_path << ": " << acb.cues().size() << " cues, " << acb.waveforms().size() << " waveforms, "
 			  << acb.tracks().size() << " tracks\n";
 	std::cout << "format version: 0x" << std::hex << acb.format_version() << std::dec << "\n";
 
 	unsigned named = 0;
 	for (auto& c : acb.cues())
-		if (!c.cue_name.empty()) named++;
+		if (!c.cue_name.empty())
+			named++;
 	std::cout << named << " named cues\n";
 
 	if (list) {
 		for (auto& c : acb.cues()) {
-			std::cout << "  cue " << c.cue_id << " refType=" << (int)c.reference_type
-					  << " wav=" << c.waveform_id << " enc=" << (int)c.encode_type
-					  << " stream=" << c.streaming;
-			if (!c.cue_name.empty()) std::cout << " name=" << c.cue_name;
+			std::cout << "  cue " << c.cue_id << " refType=" << (int)c.reference_type << " wav=" << c.waveform_id
+					  << " enc=" << (int)c.encode_type << " stream=" << c.streaming;
+			if (!c.cue_name.empty())
+				std::cout << " name=" << c.cue_name;
 			std::cout << "\n";
 		}
 		unsigned wav_count = 0;
 		for (auto& w : acb.waveforms()) {
 			if (wav_count++ < 5 || wav_count == acb.waveforms().size())
-				std::cout << "  wav " << w.waveform_id << " enc=" << (int)w.encode_type
-						  << " ch=" << (int)w.num_channels << " rate=" << w.sampling_rate
-						  << " samples=" << w.num_samples << " stream=" << (int)w.streaming << "\n";
+				std::cout << "  wav " << w.waveform_id << " enc=" << (int)w.encode_type << " ch=" << (int)w.num_channels
+						  << " rate=" << w.sampling_rate << " samples=" << w.num_samples
+						  << " stream=" << (int)w.streaming << "\n";
 		}
 		return 0;
 	}
@@ -100,8 +98,8 @@ int main(int argc, char* argv[]) try {
 			std::cerr << "cue " << cue_id << " not found or not resolved\n";
 			return 1;
 		}
-		std::cout << "Playing cue " << cue_id << " (wav=" << cue->waveform_id
-				  << " enc=" << (int)cue->encode_type << " stream=" << cue->streaming << ")\n";
+		std::cout << "Playing cue " << cue_id << " (wav=" << cue->waveform_id << " enc=" << (int)cue->encode_type
+				  << " stream=" << cue->streaming << ")\n";
 		waveform_id = cue->waveform_id;
 	} else if (track_idx >= 0) {
 		auto* track = acb.find_track(static_cast<uint32_t>(track_idx));
@@ -166,7 +164,8 @@ int main(int argc, char* argv[]) try {
 
 	while (true) {
 		size_t n = source.read(chunk, CHUNK);
-		if (n == 0) break;
+		if (n == 0)
+			break;
 
 		SDL_PutAudioStreamData(stream, chunk, static_cast<int>(n));
 		total_pushed += n;

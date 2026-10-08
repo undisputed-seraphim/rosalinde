@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <span>
@@ -21,12 +21,14 @@ public:
 class SpanAudioSource final : public AudioSource {
 public:
 	explicit SpanAudioSource(std::span<const uint8_t> data)
-		: _data(data), _cursor(0) {}
+		: _data(data)
+		, _cursor(0) {}
 
 	size_t read(uint8_t* buf, size_t len) override {
 		size_t avail = _data.size() - _cursor;
 		size_t n = len < avail ? len : avail;
-		if (n == 0) return 0;
+		if (n == 0)
+			return 0;
 		std::memcpy(buf, _data.data() + _cursor, n);
 		_cursor += n;
 		return n;
@@ -53,7 +55,8 @@ public:
 	}
 
 	size_t read(uint8_t* buf, size_t len) override {
-		if (!_file) return 0;
+		if (!_file)
+			return 0;
 		_file.read(reinterpret_cast<char*>(buf), static_cast<std::streamsize>(len));
 		size_t got = static_cast<size_t>(_file.gcount());
 		_cursor += got;

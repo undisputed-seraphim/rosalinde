@@ -13,12 +13,16 @@ constexpr uint32_t TOC_magic = 0x20434F54;
 
 static uint64_t read_header(std::istream& i, uint32_t magic) {
 #pragma pack(push, 1)
-	struct { uint32_t magic; uint32_t _pad; uint64_t length; } hdr;
+	struct {
+		uint32_t magic;
+		uint32_t _pad;
+		uint64_t length;
+	} hdr;
 #pragma pack(pop)
 	i.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
 	if (hdr.magic != magic)
-		throw std::runtime_error("Mismatched magic bytes at offset "
-			+ std::to_string(static_cast<size_t>(i.tellg()) - sizeof(hdr)));
+		throw std::runtime_error(
+			"Mismatched magic bytes at offset " + std::to_string(static_cast<size_t>(i.tellg()) - sizeof(hdr)));
 	return hdr.length;
 }
 
@@ -33,8 +37,8 @@ TopLevelCpk::TopLevelCpk(std::filesystem::path path)
 	_buffer.resize(size);
 	ifs.read(_buffer.data(), static_cast<std::streamsize>(size));
 	UTF::decipher(_buffer);
-	_table = table<TopLevelCPKSchema>::parse(
-		std::span(reinterpret_cast<const uint8_t*>(_buffer.data()), _buffer.size()));
+	_table =
+		table<TopLevelCPKSchema>::parse(std::span(reinterpret_cast<const uint8_t*>(_buffer.data()), _buffer.size()));
 }
 
 CPKTable TopLevelCpk::getTableOfContents() const {
@@ -46,8 +50,7 @@ CPKTable TopLevelCpk::getTableOfContents() const {
 	ifs.read(_buffer.data(), static_cast<std::streamsize>(size));
 	UTF::decipher(_buffer);
 	CPKTable table(_path, TocOffset);
-	table.parse_toc(std::span(
-		reinterpret_cast<const uint8_t*>(_buffer.data()), _buffer.size()));
+	table.parse_toc(std::span(reinterpret_cast<const uint8_t*>(_buffer.data()), _buffer.size()));
 	return table;
 }
 
@@ -59,9 +62,7 @@ CPKTable::CPKTable(std::filesystem::path path, uint64_t offset)
 	: _path(std::move(path))
 	, _offset(offset) {}
 
-void CPKTable::parse_toc(std::span<const uint8_t> data) {
-	_table = table_type::parse(data);
-}
+void CPKTable::parse_toc(std::span<const uint8_t> data) { _table = table_type::parse(data); }
 
 void CPKTable::extract(const row_type& entry, std::vector<char>& out) const {
 	extract(get<"DirName">(entry), get<"FileName">(entry), out);
@@ -69,7 +70,8 @@ void CPKTable::extract(const row_type& entry, std::vector<char>& out) const {
 
 void CPKTable::extract(std::string_view dir, std::string_view file, std::vector<char>& out) const {
 	auto it = find_file(dir, file);
-	if (it == end()) return;
+	if (it == end())
+		return;
 	const auto& [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] = *it;
 
 	_buffer.resize(static_cast<size_t>(FileSize));
@@ -92,4 +94,3 @@ CPKTable::iterator CPKTable::find_file(std::string_view dir, std::string_view fi
 	}
 	return it;
 }
-

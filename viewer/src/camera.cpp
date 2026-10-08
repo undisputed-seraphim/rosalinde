@@ -1,5 +1,6 @@
 #include "camera.hpp"
 #include <algorithm>
+#include <cmath>
 #include <glm/ext.hpp>
 
 Camera::Camera()
@@ -47,7 +48,21 @@ void Camera::fit_bounds(const glm::vec4& bounds) {
 	float cy = (bounds.y + bounds.w) / 2.0f;
 	float bw = bounds.z - bounds.x;
 	float bh = bounds.w - bounds.y;
-	if (bw <= 0.0f || bh <= 0.0f) return;
+	if (bw <= 0.0f || bh <= 0.0f)
+		return;
 	_zoom = std::min((float)W / bw, (float)H / bh);
 	_pos = {cx, cy, 0.0f};
+}
+
+void Camera::set_target(const glm::vec2& target) {
+	_target = target;
+	_following = true;
+}
+
+void Camera::update_follow(float dt) {
+	if (!_following)
+		return;
+	float t = 1.0f - std::exp(-kFollowSpeed * dt);
+	_pos.x += (_target.x - _pos.x) * t;
+	_pos.y += (_target.y - _pos.y) * t;
 }

@@ -2,6 +2,7 @@
 #include "shader.hpp"
 
 #include <glm/ext.hpp>
+#include <utility>
 
 SpriteRenderer::SpriteRenderer() {
 	glGenVertexArrays(1, &_vao);
@@ -22,9 +23,35 @@ SpriteRenderer::SpriteRenderer() {
 	glBindVertexArray(0);
 }
 
+SpriteRenderer::SpriteRenderer(SpriteRenderer&& other) noexcept
+	: _texture_array(std::exchange(other._texture_array, 0))
+	, _vao(std::exchange(other._vao, 0))
+	, _vbo(std::move(other._vbo))
+	, _ebo(std::move(other._ebo))
+	, _verts(std::move(other._verts))
+	, _indices(std::move(other._indices)) {}
+
+SpriteRenderer& SpriteRenderer::operator=(SpriteRenderer&& other) noexcept {
+	if (this != &other) {
+		if (_vao)
+			glDeleteVertexArrays(1, &_vao);
+		if (_texture_array)
+			glDeleteTextures(1, &_texture_array);
+		_texture_array = std::exchange(other._texture_array, 0);
+		_vao = std::exchange(other._vao, 0);
+		_vbo = std::move(other._vbo);
+		_ebo = std::move(other._ebo);
+		_verts = std::move(other._verts);
+		_indices = std::move(other._indices);
+	}
+	return *this;
+}
+
 SpriteRenderer::~SpriteRenderer() {
-	if (_vao) glDeleteVertexArrays(1, &_vao);
-	if (_texture_array) glDeleteTextures(1, &_texture_array);
+	if (_vao)
+		glDeleteVertexArrays(1, &_vao);
+	if (_texture_array)
+		glDeleteTextures(1, &_texture_array);
 }
 
 void SpriteRenderer::upload_textures(const SpriteData& data) {
@@ -34,7 +61,8 @@ void SpriteRenderer::upload_textures(const SpriteData& data) {
 		max_y = std::max(max_y, t.height);
 	}
 
-	if (_texture_array) glDeleteTextures(1, &_texture_array);
+	if (_texture_array)
+		glDeleteTextures(1, &_texture_array);
 	glGenTextures(1, &_texture_array);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _texture_array);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -52,8 +80,12 @@ void SpriteRenderer::upload_textures(const SpriteData& data) {
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 }
 
-void SpriteRenderer::draw(const SpriteInstance& inst, const glm::mat4& projection, const Camera& cam,
-	const glm::vec2& offset, const std::map<uint32_t, glm::vec4>* tints) {
+void SpriteRenderer::draw(
+	const SpriteInstance& inst,
+	const glm::mat4& projection,
+	const Camera& cam,
+	const glm::vec2& offset,
+	const std::map<uint32_t, glm::vec4>* tints) {
 	const auto& shader = GetKeyframeShader().Use();
 
 	glActiveTexture(GL_TEXTURE0);
@@ -68,7 +100,8 @@ void SpriteRenderer::draw(const SpriteInstance& inst, const glm::mat4& projectio
 		shader.SetUniform("u_mvp", projection * view_offset * s7m);
 
 		inst.build_vertices(i, _verts, _indices, tints);
-		if (_verts.empty()) continue;
+		if (_verts.empty())
+			continue;
 
 		_vbo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_verts));
 		_ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_indices));

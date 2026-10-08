@@ -1,76 +1,34 @@
 #pragma once
 
-#include "camera.hpp"
-#include "sprite.hpp"
-#include "sprite_renderer.hpp"
+#include "asset_loader.hpp"
+#include "battle_state.hpp"
+#include "debug_ui.hpp"
 #include "engine/Engine.hpp"
+#include "menu_state.hpp"
 
-#include <criware/cpk.hpp>
 #include <filesystem>
-#include <glm/glm.hpp>
-#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-struct SpriteLayer {
-	std::string name;
-	std::string class_name;
-	std::string variant_name;
-	glm::vec2 position{0, 0};
-	SpriteData data;
-	SpriteInstance instance;
-	SpriteRenderer renderer;
-	uint32_t default_flags = 0;
-	std::map<uint32_t, glm::vec4> layer_tints;
-};
-
-struct BackgroundScene {
-	struct Element {
-		uint32_t track_idx;
-		bool is_far;
-		SpriteInstance instance;
-	};
-	SpriteData data;
-	SpriteRenderer renderer;
-	std::vector<Element> elements;
-
-	void load(const struct Job& job, CPKTable& cpkt);
-	void update(float dt);
-	glm::vec4 extent() const;
-};
-
 class Scene final : public uvw::BaseGame {
 public:
-	Scene(std::filesystem::path cpkpath, const std::string& classname,
-		const std::string& charaname, const std::string& classname2,
-		const std::string& charaname2, uint32_t trackid, bool debug,
-		std::string screenshot_path = {});
-
-	~Scene() noexcept;
+	Scene(std::filesystem::path cpkpath);
 
 	bool handle_inputs() override;
 	void render() override;
 	void update(float dt) override;
 
 private:
-	CPKTable _cpkt;
-	Camera _camera;
-	glm::mat4 _projection;
+	AssetLoader _loader;
+	DebugUI _ui;
 
-	std::vector<std::unique_ptr<SpriteLayer>> _layers;
-	std::vector<std::string> _class_names;
-	size_t _active_layer = 0;
+	enum class Mode { Menu, Battle };
+	Mode _mode = Mode::Menu;
 
-	BackgroundScene _background;
-	glm::vec2 _left_pos{0, 0};
-	glm::vec2 _right_pos{0, 0};
+	std::vector<std::string> _bg_names;
+	std::unique_ptr<MenuState> _menu;
+	std::unique_ptr<BattleState> _battle;
 
-	std::string _screenshot_path;
-	bool _done = false;
-	bool _captured = false;
-	int _variant_side = 0;
-
-	std::unique_ptr<SpriteLayer> load_layer(const struct Job& job, uint32_t trackid,
-		const std::string& class_name, const std::string& variant_name) const;
+	void start_battle(const MenuSelection& selection);
 };
