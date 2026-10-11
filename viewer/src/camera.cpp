@@ -59,6 +59,12 @@ void Camera::set_target(const glm::vec2& target) {
 	_following = true;
 }
 
+void Camera::recenter(const glm::vec2& pos) {
+	_pos = {pos.x, pos.y, 0.0f};
+	_target = pos;
+	_following = false;
+}
+
 void Camera::update_follow(float dt) {
 	if (!_following)
 		return;

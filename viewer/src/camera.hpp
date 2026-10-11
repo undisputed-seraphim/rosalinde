@@ -24,6 +24,7 @@ public:
 	void fit_bounds(const glm::vec4& bounds, float margin = 0.0f);
 
 	void set_target(const glm::vec2& target);
+	void recenter(const glm::vec2& pos);
 	void update_follow(float dt);
 
 private:

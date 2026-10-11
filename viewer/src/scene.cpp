@@ -30,6 +30,7 @@ Scene::Scene(ViewerConfig config)
 		sc.entry = _config.script;
 		sc.func = _config.scene_func;
 		sc.limit = _config.scene_limit;
+		sc.camera = _config.scene_camera;
 		sc.screenshot = _config.screenshot;
 		sc.frames = _config.frames;
 		_script = std::make_unique<ScriptState>(_loader, _ui, std::move(sc));
