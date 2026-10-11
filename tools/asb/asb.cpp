@@ -1,5 +1,6 @@
 #include "asb.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -1167,6 +1168,156 @@ Scene extract_scene(const Module& mod) {
 			scene.functions.push_back(std::move(sf));
 	}
 	return scene;
+}
+
+// --- Scene IR: fold the event stream into entities (Tier 3 state pass) -------
+namespace {
+
+bool ends_with(const std::string& s, const char* suf) {
+	size_t n = std::strlen(suf);
+	return s.size() >= n && s.compare(s.size() - n, n, suf) == 0;
+}
+bool looks_create(const std::string& c) {
+	return c == "CreateSpriteMone" || c == "CreateSpriteCoA" || c == "CreateSpriteEffect" ||
+		   c == "CreateSpriteMoneWorld" || c == "CreateSpriteMoneStageStart" || c == "DrUiCreateChara" ||
+		   c == "CreateSpriteMoneStageStart";
+}
+} // namespace
+
+SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source) {
+	SceneIR ir;
+	ir.source = source;
+	ir.function = fn.name;
+	std::unordered_map<std::string, int> by_id;
+
+	auto find = [&](const std::vector<std::string>& ss) -> int {
+		for (const auto& s : ss) {
+			auto it = by_id.find(s);
+			if (it != by_id.end())
+				return it->second;
+		}
+		return -1;
+	};
+	auto plausible_scale = [](double d) { return std::isfinite(d) && d > 1e-4 && d < 1e4; };
+
+	for (const auto& e : fn.events) {
+		const std::string& c = e.call;
+
+		if (looks_create(c)) {
+			SceneEntity ent;
+			ent.kind = c;
+			for (const auto& s : e.strings) {
+				if (ends_with(s, ".mbs"))
+					ent.mbs = s;
+				else if (ends_with(s, ".ftx"))
+					ent.ftx = s;
+				else if (!s.empty())
+					ent.aliases.push_back(s);
+			}
+			if (ent.mbs.empty() && ent.ftx.empty())
+				continue;
+			ent.id = ent.aliases.empty() ? ent.mbs : ent.aliases[0];
+			if (e.vec3.size() >= 3) {
+				ent.pos[0] = float(e.vec3[0]);
+				ent.pos[1] = float(e.vec3[1]);
+				ent.pos[2] = float(e.vec3[2]);
+			} else if (e.vec2.size() >= 2) {
+				ent.pos[0] = float(e.vec2[0]);
+				ent.pos[1] = float(e.vec2[1]);
+			}
+			ent.order = int(ir.entities.size());
+			ir.entities.push_back(ent);
+			int idx = int(ir.entities.size()) - 1;
+			by_id[ent.id] = idx;
+			for (const auto& a : ent.aliases)
+				by_id[a] = idx;
+			continue;
+		}
+
+		if (c == "DeleteSprite" || c == "DrUiDeleteChara" || c == "DrDeleteEffect") {
+			int i = find(e.strings);
+			if (i >= 0)
+				ir.entities[i].visible = false;
+			continue;
+		}
+
+		if (c == "DrSetPosV" || c == "SetSpritePosV" || c == "DrUiSetPosV" || c == "DrSetOffsetPosV" ||
+			c == "DrSetEffectPosV") {
+			int i = find(e.strings);
+			if (i < 0)
+				continue;
+			if (e.vec3.size() >= 3) {
+				ir.entities[i].pos[0] = float(e.vec3[0]);
+				ir.entities[i].pos[1] = float(e.vec3[1]);
+				ir.entities[i].pos[2] = float(e.vec3[2]);
+			} else if (e.vec2.size() >= 2) {
+				ir.entities[i].pos[0] = float(e.vec2[0]);
+				ir.entities[i].pos[1] = float(e.vec2[1]);
+			}
+			continue;
+		}
+
+		if (c == "DrSetScale" || c == "SetSpriteScale" || c == "DrUiSetScale" || c == "SetSpriteMoneScale") {
+			int i = find(e.strings);
+			if (i < 0)
+				continue;
+			if (!e.floats.empty() && plausible_scale(e.floats[0]))
+				ir.entities[i].scale = float(e.floats[0]);
+			continue;
+		}
+
+		if (c == "DrSetIdleAnimation" || c == "DrAnimation" || c == "DrChangeAnimation") {
+			int i = find(e.strings);
+			if (i < 0)
+				continue;
+			for (const auto& s : e.strings) {
+				if (by_id.find(s) == by_id.end() && !ends_with(s, ".mbs") && !ends_with(s, ".ftx")) {
+					ir.entities[i].track = s;
+					break;
+				}
+			}
+			continue;
+		}
+
+		if (c == "SetSpriteMoneAnimation" || c == "SetSpriteMoneAnimationPaused") {
+			int i = find(e.strings);
+			if (i >= 0 && !e.ints.empty())
+				ir.entities[i].track_index = int(e.ints[0]);
+			continue;
+		}
+
+		if (c == "DrSetCameraPosV" || c == "SetCameraPosV" || c == "DrSetOffsetPosV") {
+			SceneCamera key;
+			if (e.vec3.size() >= 3) {
+				key.pos[0] = float(e.vec3[0]);
+				key.pos[1] = float(e.vec3[1]);
+				key.pos[2] = float(e.vec3[2]);
+			} else if (e.vec2.size() >= 2) {
+				key.pos[0] = float(e.vec2[0]);
+				key.pos[1] = float(e.vec2[1]);
+			} else {
+				continue;
+			}
+			ir.camera.push_back(key);
+			continue;
+		}
+
+		if (c == "DrSetCameraZoom" || c == "DrSetCameraParam" || c == "SetCameraParam") {
+			if (!ir.camera.empty() && !e.floats.empty() && plausible_scale(e.floats[0])) {
+				ir.camera.back().zoom = float(e.floats[0]);
+				ir.camera.back().has_zoom = true;
+			}
+			continue;
+		}
+
+		if (c == "DrCreateStage" || c == "FlCreateStage" || c == "StSetBattleScene") {
+			for (int v : e.ints)
+				ir.stage.push_back(v);
+			continue;
+		}
+	}
+
+	return ir;
 }
 
 } // namespace asb2

@@ -250,6 +250,36 @@ struct Scene {
 	std::vector<SceneFunction> functions;
 };
 
+// Scene IR: the result of folding a function's event stream into entities.
+struct SceneEntity {
+	std::string id;
+	std::string kind; // originating create call
+	std::string mbs;  // "Dir/File.mbs"
+	std::string ftx;  // "Dir/File.ftx"
+	std::vector<std::string> aliases;
+	float pos[3] = {0.0f, 0.0f, 0.0f};
+	float scale = 1.0f;
+	std::string track; // animation name, if known
+	int track_index = -1;
+	int layer = -1;
+	bool visible = true;
+	int order = 0;
+};
+
+struct SceneCamera {
+	float pos[3] = {0.0f, 0.0f, 0.0f};
+	float zoom = 0.0f;
+	bool has_zoom = false;
+};
+
+struct SceneIR {
+	std::string source;
+	std::string function;
+	std::vector<SceneEntity> entities;
+	std::vector<SceneCamera> camera;
+	std::vector<int64_t> stage;
+};
+
 struct Module {
 	bool no_debug_info = false;
 	std::vector<TypeInfoPtr> used_types;
@@ -282,5 +312,6 @@ struct Module {
 Module parse(std::span<const uint8_t> data);
 std::string disassemble(const Module& mod, const Function& fn);
 Scene extract_scene(const Module& mod);
+SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source);
 
 } // namespace asb2

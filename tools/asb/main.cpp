@@ -275,13 +275,48 @@ static std::string scene_index_json(const Module& mod, const std::string& name) 
 	return j;
 }
 
+static std::string num(double v) {
+	char buf[32];
+	std::snprintf(buf, sizeof(buf), "%g", v);
+	return buf;
+}
+
+static std::string scene_ir_json(const Module& mod, const std::string& name) {
+	asb2::Scene sc = asb2::extract_scene(mod);
+	std::string j = "  {\"file\":\"" + json_escape(name) + "\",\"functions\":[";
+	bool firstf = true;
+	for (const auto& f : sc.functions) {
+		asb2::SceneIR ir = asb2::build_scene_ir(f, name);
+		if (ir.entities.empty())
+			continue;
+		j += (firstf ? "" : ",");
+		firstf = false;
+		j += "{\"name\":\"" + json_escape(f.name) + "\",\"entities\":[";
+		for (size_t i = 0; i < ir.entities.size(); ++i) {
+			const auto& e = ir.entities[i];
+			j += (i ? "," : "");
+			j += "{\"id\":\"" + json_escape(e.id) + "\",\"kind\":\"" + json_escape(e.kind) + "\",\"mbs\":\"" +
+				 json_escape(e.mbs) + "\",\"ftx\":\"" + json_escape(e.ftx) + "\",\"pos\":[" + num(e.pos[0]) + "," +
+				 num(e.pos[1]) + "," + num(e.pos[2]) + "],\"scale\":" + num(e.scale) + ",\"track\":\"" +
+				 json_escape(e.track) + "\",\"track_index\":" + std::to_string(e.track_index) +
+				 ",\"visible\":" + (e.visible ? "true" : "false") + "}";
+		}
+		j += "],\"camera\":[";
+		for (size_t i = 0; i < ir.camera.size(); ++i)
+			j += (i ? "," : "") + std::string("[") + num(ir.camera[i].pos[0]) + "," + num(ir.camera[i].pos[1]) + "," +
+				 num(ir.camera[i].pos[2]) + "]";
+		j += "],\"stage\":" + ilist(ir.stage) + "}";
+	}
+	return j + "]}";
+}
+
 static std::span<const uint8_t> as_bytes(const std::vector<char>& v) {
 	return {reinterpret_cast<const uint8_t*>(v.data()), v.size()};
 }
 
 int main(int argc, char** argv) {
 	std::string cpk_path, entry, input_path, json_path, disasm_dir;
-	bool all = false, want_disasm = false, summary = false, want_scene = false, scene_index = false;
+	bool all = false, want_disasm = false, summary = false, want_scene = false, scene_index = false, want_ir = false;
 
 	for (int i = 1; i < argc; ++i) {
 		std::string a = argv[i];
@@ -296,6 +331,7 @@ int main(int argc, char** argv) {
 		else if (a == "--summary") summary = true;
 		else if (a == "--scene") want_scene = true;
 		else if (a == "--scene-index") scene_index = true;
+		else if (a == "--scene-ir") want_ir = true;
 		else if (a == "-h" || a == "--help") {
 			std::printf("usage: asb_harvest [--input FILE.asb | --cpk CPK --asb Script/X.asb | --cpk CPK --all]\n"
 						"                    [--disasm] [--disasm-dir DIR] [--summary] [--scene] [--scene-index] [--json OUT.json|-]\n");
@@ -331,7 +367,8 @@ int main(int argc, char** argv) {
 		if (!first)
 			json += ",\n";
 		json += want_scene ? scene_json(mod, name)
-						   : (scene_index ? scene_index_json(mod, name) : harvest(mod, name, data.size(), summary));
+						   : (scene_index ? scene_index_json(mod, name)
+										  : (want_ir ? scene_ir_json(mod, name) : harvest(mod, name, data.size(), summary)));
 		first = false;
 	};
 
