@@ -3,6 +3,7 @@
 #include <criware/cpk.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -332,6 +333,51 @@ static void write_chara_table(const std::map<std::string, asb2::CharaInfo>& t, s
 		os << name << '\t' << ci.disp_name << '\t' << ci.mbs << '\t' << ci.ftx << '\n';
 }
 
+static std::string trim(const std::string& s) {
+	size_t a = 0, b = s.size();
+	while (a < b && static_cast<unsigned char>(s[a]) <= ' ')
+		++a;
+	while (b > a && static_cast<unsigned char>(s[b - 1]) <= ' ')
+		--b;
+	return s.substr(a, b - a);
+}
+
+// Parse the game's generated enum headers (Debug/_UcEnum_*.inc):
+//   NAME:N
+//   ENTRY , // comment
+//   ...
+//   NAME_END
+static void parse_uc_enum(const std::string& content, std::ostream& os) {
+	std::istringstream is(content);
+	std::string line;
+	std::string table;
+	while (std::getline(is, line)) {
+		auto comma = line.find(',');
+		if (comma == std::string::npos) {
+			// Header like "CHARASET:1388" (possibly with a UTF-8 BOM); ignore
+			// terminators ("..._END") and blank lines.
+			auto colon = line.find(':');
+			if (colon != std::string::npos) {
+				table.clear();
+				for (char c : line.substr(0, colon))
+					if (std::isalnum(static_cast<unsigned char>(c)) || c == '_')
+						table += c;
+			}
+			continue;
+		}
+		if (table.empty())
+			continue;
+		std::string name = trim(line.substr(0, comma));
+		std::string jp;
+		auto sl = line.find("//");
+		if (sl != std::string::npos)
+			jp = trim(line.substr(sl + 2));
+		if (name.empty())
+			continue;
+		os << table << '\t' << name << '\t' << jp << '\n';
+	}
+}
+
 static std::span<const uint8_t> as_bytes(const std::vector<char>& v) {
 	return {reinterpret_cast<const uint8_t*>(v.data()), v.size()};
 }
@@ -339,7 +385,7 @@ static std::span<const uint8_t> as_bytes(const std::vector<char>& v) {
 int main(int argc, char** argv) {
 	std::string cpk_path, entry, input_path, json_path, disasm_dir, chara_file;
 	bool all = false, want_disasm = false, summary = false, want_scene = false, scene_index = false, want_ir = false,
-		 want_chara = false;
+		 want_chara = false, want_enums = false;
 
 	for (int i = 1; i < argc; ++i) {
 		std::string a = argv[i];
@@ -357,6 +403,7 @@ int main(int argc, char** argv) {
 		else if (a == "--scene-ir") want_ir = true;
 		else if (a == "--chara-table") want_chara = true;
 		else if (a == "--chara-file") chara_file = next();
+		else if (a == "--uc-enums") want_enums = true;
 		else if (a == "-h" || a == "--help") {
 			std::printf("usage: asb_harvest [--input FILE.asb | --cpk CPK --asb Script/X.asb | --cpk CPK --all]\n"
 						"                    [--disasm] [--disasm-dir DIR] [--summary] [--scene] [--scene-index] [--json OUT.json|-]\n");
@@ -369,6 +416,27 @@ int main(int argc, char** argv) {
 
 	std::string json = "[\n";
 	bool first = true;
+
+	if (want_enums) {
+		if (cpk_path.empty()) {
+			std::fprintf(stderr, "--uc-enums requires --cpk\n");
+			return 2;
+		}
+		CPKTable table = TopLevelCpk(fs::absolute(cpk_path)).getTableOfContents();
+		std::ostringstream os;
+		os << "# kind\tname\tcomment (generated from Debug/_UcEnum_*.inc by asb_harvest --uc-enums)\n";
+		const char* files[] = {"_UcEnum_Class.inc", "_UcEnum_CharaSet.inc", "_UcEnum_CharaNpc.inc"};
+		for (const char* file : files) {
+			std::vector<char> buf;
+			table.extract("Debug", file, buf);
+			parse_uc_enum(std::string(buf.begin(), buf.end()), os);
+		}
+		if (!json_path.empty() && json_path != "-")
+			std::ofstream(json_path) << os.str();
+		else
+			std::cout << os.str();
+		return 0;
+	}
 
 	asb2::CharTable char_table;
 	if (!chara_file.empty())
