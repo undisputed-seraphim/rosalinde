@@ -25,7 +25,16 @@ int main(int argc, char* argv[]) try {
 		"Right character class (screenshot mode)")(
 		"bg",
 		::boost::program_options::value<std::string>(&config.background)->default_value(config.background),
-		"Battle background/stage name (screenshot mode)");
+		"Battle background/stage name (screenshot mode)")(
+		"script",
+		::boost::program_options::value<std::string>(&config.script),
+		"Render a script-composed scene from a CPK script (e.g. Script/Dr_OW_0_Opening.asb)")(
+		"scene-func",
+		::boost::program_options::value<std::string>(&config.scene_func),
+		"Scene function to build (default: scene00, then MAIN)")(
+		"scene-limit",
+		::boost::program_options::value<int>(&config.scene_limit)->default_value(config.scene_limit),
+		"Maximum sprite entities to load for a script scene");
 	::boost::program_options::variables_map vm;
 	::boost::program_options::store(::boost::program_options::parse_command_line(argc, argv, desc), vm);
 	try {

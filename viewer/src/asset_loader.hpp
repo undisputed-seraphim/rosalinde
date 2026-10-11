@@ -19,6 +19,8 @@ public:
 
 	const std::vector<std::string>& class_names() const { return _class_names; }
 
+	const CPKTable& cpk() const { return _cpkt; }
+
 private:
 	CPKTable _cpkt;
 	std::vector<std::string> _class_names;

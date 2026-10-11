@@ -5,6 +5,7 @@
 #include "debug_ui.hpp"
 #include "engine/Engine.hpp"
 #include "menu_state.hpp"
+#include "script_state.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -19,6 +20,9 @@ struct ViewerConfig {
 	std::string left_class = "HighPriestess";
 	std::string right_class = "Crusader";
 	std::string background = "Classpedia_BG";
+	std::string script;     // Script/X.asb — render a script-composed scene
+	std::string scene_func; // scene function name (default: scene00/MAIN)
+	int scene_limit = 8;    // max sprite entities
 };
 
 class Scene final : public uvw::BaseGame {
@@ -34,12 +38,13 @@ private:
 	AssetLoader _loader;
 	DebugUI _ui;
 
-	enum class Mode { Menu, Battle };
+	enum class Mode { Menu, Battle, Script };
 	Mode _mode = Mode::Menu;
 
 	std::vector<std::string> _bg_names;
 	std::unique_ptr<MenuState> _menu;
 	std::unique_ptr<BattleState> _battle;
+	std::unique_ptr<ScriptState> _script;
 
 	void start_battle(const MenuSelection& selection);
 };

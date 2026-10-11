@@ -24,7 +24,17 @@ Scene::Scene(ViewerConfig config)
 	for (const auto& [name, _] : BattleBGs)
 		_bg_names.push_back(name);
 
-	if (!_config.screenshot.empty()) {
+	if (!_config.script.empty()) {
+		ImGui::GetIO().IniFilename = nullptr;
+		ScriptSceneConfig sc;
+		sc.entry = _config.script;
+		sc.func = _config.scene_func;
+		sc.limit = _config.scene_limit;
+		sc.screenshot = _config.screenshot;
+		sc.frames = _config.frames;
+		_script = std::make_unique<ScriptState>(_loader, _ui, std::move(sc));
+		_mode = Mode::Script;
+	} else if (!_config.screenshot.empty()) {
 		ImGui::GetIO().IniFilename = nullptr;
 		MenuSelection selection;
 		selection.left_class = _config.left_class;
@@ -58,8 +68,16 @@ bool Scene::handle_inputs() {
 				_menu = std::make_unique<MenuState>(_loader.class_names(), _bg_names);
 			}
 		}
+
+		if (_mode == Mode::Script && _script) {
+			_script->handle_inputs();
+			if (_script->should_quit())
+				return true;
+		}
 	}
 	if (!_config.screenshot.empty() && _battle && _battle->captured())
+		return true;
+	if (!_config.screenshot.empty() && _script && _script->captured())
 		return true;
 	return false;
 }
@@ -74,6 +92,8 @@ void Scene::render() {
 		}
 	} else if (_mode == Mode::Battle && _battle) {
 		_battle->render();
+	} else if (_mode == Mode::Script && _script) {
+		_script->render();
 	}
 
 	_ui.end_frame();
@@ -83,6 +103,8 @@ void Scene::render() {
 void Scene::update(float dt) {
 	if (_mode == Mode::Battle && _battle) {
 		_battle->update(dt);
+	} else if (_mode == Mode::Script && _script) {
+		_script->update(dt);
 	}
 }
 
