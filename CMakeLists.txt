@@ -72,6 +72,8 @@ target_include_directories(eltolinde PUBLIC
 add_executable(rosalinde "tools/extractor.cpp")
 target_link_libraries(rosalinde PRIVATE eltolinde Boost::program_options)
 
+add_subdirectory(tools/asb)
+
 if(BUILD_VIEWER)
 	add_subdirectory(viewer)
 	add_executable(acbplay "tools/acbplay.cpp")
