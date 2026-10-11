@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <cstdlib>
 #include <glad/glad.h>
 #include <glm/ext.hpp>
 #include <optional>
@@ -208,6 +209,26 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 		fit = {std::min(fit.x, b.x), std::min(fit.y, b.y), std::max(fit.z, b.z), std::max(fit.w, b.w)};
 	}
 	_camera.fit_bounds(fit, 0.15f);
+
+	if (_cfg.camera != "fit" && !ir.camera.empty()) {
+		const asb2::SceneCamera* key = nullptr;
+		if (_cfg.camera == "first")
+			key = &ir.camera.front();
+		else if (_cfg.camera == "last")
+			key = &ir.camera.back();
+		else {
+			const int n = std::atoi(_cfg.camera.c_str());
+			if (n >= 0 && n < static_cast<int>(ir.camera.size()))
+				key = &ir.camera[n];
+		}
+		if (key) {
+			float s = 1.0f;
+			if (const char* e = std::getenv("SCENE_CAM_SCALE"))
+				s = std::atof(e);
+			_camera.recenter({key->pos[0] * s, key->pos[1] * s});
+			fprintf(stderr, "[script] camera key pos=(%.0f,%.0f)\n", key->pos[0], key->pos[1]);
+		}
+	}
 }
 
 bool ScriptState::handle_inputs() {

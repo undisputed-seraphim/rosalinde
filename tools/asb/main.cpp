@@ -310,13 +310,28 @@ static std::string scene_ir_json(const Module& mod, const std::string& name) {
 	return j + "]}";
 }
 
+static std::string chara_json(const Module& mod, const std::string& name) {
+	asb2::Scene sc = asb2::extract_scene(mod);
+	std::string j = "  {\"file\":\"" + json_escape(name) + "\",\"chara\":[";
+	bool first = true;
+	for (const auto& f : sc.functions)
+		for (const auto& e : f.events)
+			if (e.call == "DrUiCreateChara" || e.call == "DrCreateChara" || e.call == "DrCreateNpc") {
+				j += (first ? "" : ",") + std::string("{\"call\":\"") + json_escape(e.call) + "\",\"strings\":" +
+					 slist(e.strings) + "}";
+				first = false;
+			}
+	return j + "]}";
+}
+
 static std::span<const uint8_t> as_bytes(const std::vector<char>& v) {
 	return {reinterpret_cast<const uint8_t*>(v.data()), v.size()};
 }
 
 int main(int argc, char** argv) {
 	std::string cpk_path, entry, input_path, json_path, disasm_dir;
-	bool all = false, want_disasm = false, summary = false, want_scene = false, scene_index = false, want_ir = false;
+	bool all = false, want_disasm = false, summary = false, want_scene = false, scene_index = false, want_ir = false,
+		 want_chara = false;
 
 	for (int i = 1; i < argc; ++i) {
 		std::string a = argv[i];
@@ -332,6 +347,7 @@ int main(int argc, char** argv) {
 		else if (a == "--scene") want_scene = true;
 		else if (a == "--scene-index") scene_index = true;
 		else if (a == "--scene-ir") want_ir = true;
+		else if (a == "--chara-table") want_chara = true;
 		else if (a == "-h" || a == "--help") {
 			std::printf("usage: asb_harvest [--input FILE.asb | --cpk CPK --asb Script/X.asb | --cpk CPK --all]\n"
 						"                    [--disasm] [--disasm-dir DIR] [--summary] [--scene] [--scene-index] [--json OUT.json|-]\n");
@@ -368,7 +384,9 @@ int main(int argc, char** argv) {
 			json += ",\n";
 		json += want_scene ? scene_json(mod, name)
 						   : (scene_index ? scene_index_json(mod, name)
-										  : (want_ir ? scene_ir_json(mod, name) : harvest(mod, name, data.size(), summary)));
+										  : (want_ir ? scene_ir_json(mod, name)
+													 : (want_chara ? chara_json(mod, name)
+																   : harvest(mod, name, data.size(), summary))));
 		first = false;
 	};
 

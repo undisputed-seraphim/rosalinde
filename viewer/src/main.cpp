@@ -34,7 +34,10 @@ int main(int argc, char* argv[]) try {
 		"Scene function to build (default: scene00, then MAIN)")(
 		"scene-limit",
 		::boost::program_options::value<int>(&config.scene_limit)->default_value(config.scene_limit),
-		"Maximum sprite entities to load for a script scene");
+		"Maximum sprite entities to load for a script scene")(
+		"scene-camera",
+		::boost::program_options::value<std::string>(&config.scene_camera)->default_value(config.scene_camera),
+		"Script scene camera: fit (default) | first | last | <index into the scene's camera keys>");
 	::boost::program_options::variables_map vm;
 	::boost::program_options::store(::boost::program_options::parse_command_line(argc, argv, desc), vm);
 	try {
