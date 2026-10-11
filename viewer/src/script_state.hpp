@@ -15,6 +15,7 @@ struct ScriptSceneConfig {
 	std::string func;  // scene function name (optional; default: scene00/MAIN)
 	int limit = 8;     // max sprite entities to load
 	std::string camera = "fit"; // fit | first | last | <index>
+	std::string chara_table;    // path to a generated character name -> asset table
 	std::string screenshot;
 	uint32_t frames = 1;
 };

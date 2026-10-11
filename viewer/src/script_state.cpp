@@ -48,7 +48,8 @@ Job::dir_and_path split_path(const std::string& p) {
 
 const bool kIsSpriteCall(const std::string& c) {
 	return c == "CreateSpriteMone" || c == "DrUiCreateChara" || c == "CreateSpriteCoA" ||
-		   c == "CreateSpriteEffect" || c == "CreateSpriteMoneWorld" || c == "CreateSpriteMoneStageStart";
+		   c == "CreateSpriteEffect" || c == "CreateSpriteMoneWorld" || c == "CreateSpriteMoneStageStart" ||
+		   c == "DrCreateChara" || c == "DrCreateNpc";
 }
 } // namespace
 
@@ -130,26 +131,35 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 				return &f;
 		return nullptr;
 	};
+	auto sprites = [](const asb2::SceneFunction& f) {
+		size_t c = 0;
+		for (const auto& e : f.events)
+			if (kIsSpriteCall(e.call))
+				++c;
+		return c;
+	};
+
 	const asb2::SceneFunction* fn = nullptr;
 	if (!_cfg.func.empty())
 		fn = find_fn(_cfg.func);
 	if (!fn)
-		fn = find_fn("scene00");
-	if (!fn)
-		fn = find_fn("MAIN");
+		for (const char* nm : {"scene00", "MAIN"}) {
+			const asb2::SceneFunction* c = find_fn(nm);
+			if (c && sprites(*c) > 0) {
+				fn = c;
+				break;
+			}
+		}
 	if (!fn)
 		for (const auto& f : scene.functions)
-			if (f.name.rfind("scene", 0) == 0) {
+			if (f.name.rfind("scene", 0) == 0 && sprites(f) > 0) {
 				fn = &f;
 				break;
 			}
 	if (!fn) {
 		size_t best = 0;
 		for (const auto& f : scene.functions) {
-			size_t c = 0;
-			for (const auto& e : f.events)
-				if (kIsSpriteCall(e.call))
-					++c;
+			size_t c = sprites(f);
 			if (c > best) {
 				best = c;
 				fn = &f;
@@ -165,7 +175,10 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 	if (!fn)
 		throw std::runtime_error("no scene function found in " + _cfg.entry);
 
-	asb2::SceneIR ir = asb2::build_scene_ir(*fn, _cfg.entry);
+	asb2::CharTable chars;
+	if (!_cfg.chara_table.empty())
+		chars = asb2::load_char_table(_cfg.chara_table);
+	asb2::SceneIR ir = asb2::build_scene_ir(*fn, _cfg.entry, chars.empty() ? nullptr : &chars);
 	fprintf(stderr, "[script] %s :: %s  (entities=%zu camera=%zu)\n", _cfg.entry.c_str(), fn->name.c_str(),
 			ir.entities.size(), ir.camera.size());
 
