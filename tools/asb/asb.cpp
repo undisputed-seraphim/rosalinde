@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -874,6 +875,26 @@ std::string Module::objprop_name(uint64_t idx) const {
 
 Module parse(std::span<const uint8_t> data) { return Parser(data).run(); }
 
+CharTable load_char_table(const std::string& path) {
+	CharTable t;
+	std::ifstream f(path);
+	std::string line;
+	while (std::getline(f, line)) {
+		if (line.empty() || line[0] == '#')
+			continue;
+		std::vector<std::string> cols;
+		size_t s = 0;
+		for (size_t i = 0; i <= line.size(); ++i)
+			if (i == line.size() || line[i] == '\t') {
+				cols.push_back(line.substr(s, i - s));
+				s = i + 1;
+			}
+		if (cols.size() >= 4)
+			t[cols[0]] = {cols[1], cols[2], cols[3]};
+	}
+	return t;
+}
+
 // --- Formatting -------------------------------------------------------------
 std::string token_name(int token) {
 	switch (token) {
@@ -1184,7 +1205,7 @@ bool looks_create(const std::string& c) {
 }
 } // namespace
 
-SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source) {
+SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars) {
 	SceneIR ir;
 	ir.source = source;
 	ir.function = fn.name;
@@ -1217,6 +1238,37 @@ SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source) {
 			if (ent.mbs.empty() && ent.ftx.empty())
 				continue;
 			ent.id = ent.aliases.empty() ? ent.mbs : ent.aliases[0];
+			if (e.vec3.size() >= 3) {
+				ent.pos[0] = float(e.vec3[0]);
+				ent.pos[1] = float(e.vec3[1]);
+				ent.pos[2] = float(e.vec3[2]);
+			} else if (e.vec2.size() >= 2) {
+				ent.pos[0] = float(e.vec2[0]);
+				ent.pos[1] = float(e.vec2[1]);
+			}
+			ent.order = int(ir.entities.size());
+			ir.entities.push_back(ent);
+			int idx = int(ir.entities.size()) - 1;
+			by_id[ent.id] = idx;
+			for (const auto& a : ent.aliases)
+				by_id[a] = idx;
+			continue;
+		}
+
+		if (c == "DrCreateChara" || c == "DrCreateNpc") {
+			SceneEntity ent;
+			ent.kind = c;
+			ent.aliases = e.strings;
+			ent.id = e.strings.size() >= 2 ? e.strings[1] : (e.strings.empty() ? std::string() : e.strings[0]);
+			if (chars) {
+				auto it = chars->find(ent.id);
+				if (it == chars->end() && !e.strings.empty())
+					it = chars->find(e.strings[0]);
+				if (it != chars->end()) {
+					ent.mbs = it->second.mbs;
+					ent.ftx = it->second.ftx;
+				}
+			}
 			if (e.vec3.size() >= 3) {
 				ent.pos[0] = float(e.vec3[0]);
 				ent.pos[1] = float(e.vec3[1]);

@@ -37,7 +37,10 @@ int main(int argc, char* argv[]) try {
 		"Maximum sprite entities to load for a script scene")(
 		"scene-camera",
 		::boost::program_options::value<std::string>(&config.scene_camera)->default_value(config.scene_camera),
-		"Script scene camera: fit (default) | first | last | <index into the scene's camera keys>");
+		"Script scene camera: fit (default) | first | last | <index into the scene's camera keys>")(
+		"chara-table",
+		::boost::program_options::value<std::string>(&config.chara_table),
+		"Generated character name -> asset table (see: asb_harvest --chara-table)");
 	::boost::program_options::variables_map vm;
 	::boost::program_options::store(::boost::program_options::parse_command_line(argc, argv, desc), vm);
 	try {

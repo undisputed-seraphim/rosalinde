@@ -24,6 +24,7 @@ struct ViewerConfig {
 	std::string scene_func; // scene function name (default: scene00/MAIN)
 	int scene_limit = 8;    // max sprite entities
 	std::string scene_camera = "fit"; // fit | first | last | <index>
+	std::string chara_table; // generated character name -> asset table
 };
 
 class Scene final : public uvw::BaseGame {

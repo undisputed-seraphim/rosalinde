@@ -4,6 +4,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace asb2 {
@@ -280,6 +281,16 @@ struct SceneIR {
 	std::vector<int64_t> stage;
 };
 
+// Character name -> asset resolution (generated, not hand-maintained).
+struct CharaInfo {
+	std::string disp_name;
+	std::string mbs;
+	std::string ftx;
+};
+using CharTable = std::unordered_map<std::string, CharaInfo>;
+
+CharTable load_char_table(const std::string& path);
+
 struct Module {
 	bool no_debug_info = false;
 	std::vector<TypeInfoPtr> used_types;
@@ -312,6 +323,6 @@ struct Module {
 Module parse(std::span<const uint8_t> data);
 std::string disassemble(const Module& mod, const Function& fn);
 Scene extract_scene(const Module& mod);
-SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source);
+SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars = nullptr);
 
 } // namespace asb2
