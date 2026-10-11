@@ -164,30 +164,20 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 	if (!fn)
 		throw std::runtime_error("no scene function found in " + _cfg.entry);
 
-	fprintf(stderr, "[script] %s :: %s  (%zu events)\n", _cfg.entry.c_str(), fn->name.c_str(), fn->events.size());
+	asb2::SceneIR ir = asb2::build_scene_ir(*fn, _cfg.entry);
+	fprintf(stderr, "[script] %s :: %s  (entities=%zu camera=%zu)\n", _cfg.entry.c_str(), fn->name.c_str(),
+			ir.entities.size(), ir.camera.size());
 
-	for (const auto& e : fn->events) {
+	for (const auto& e : ir.entities) {
 		if (_layers.size() >= static_cast<size_t>(std::max(1, _cfg.limit)))
 			break;
-		if (!kIsSpriteCall(e.call))
+		if (!e.visible || e.mbs.empty() || e.ftx.empty())
 			continue;
 
-		std::string mbs, ftx, name;
-		for (const auto& s : e.strings) {
-			if (s.size() >= 4 && s.compare(s.size() - 4, 4, ".mbs") == 0)
-				mbs = s;
-			else if (s.size() >= 4 && s.compare(s.size() - 4, 4, ".ftx") == 0)
-				ftx = s;
-			else if (name.empty())
-				name = s;
-		}
-		if (mbs.empty() || ftx.empty())
-			continue;
-
-		auto m = lookup(mbs);
-		auto fx = lookup_ftx(ftx, mbs);
+		auto m = lookup(e.mbs);
+		auto fx = lookup_ftx(e.ftx, e.mbs);
 		if (!m || !fx) {
-			fprintf(stderr, "[script] skip %s (not in archive)\n", mbs.c_str());
+			fprintf(stderr, "[script] skip %s (not in archive)\n", e.mbs.c_str());
 			continue;
 		}
 
@@ -197,13 +187,14 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 
 		std::unique_ptr<SpriteLayer> layer;
 		try {
-			layer = _loader.load_layer(job, 0, name.empty() ? file : name, e.call);
+			layer = _loader.load_layer(job, 0, e.id, e.kind);
 		} catch (const std::exception& ex) {
-			fprintf(stderr, "[script] skip %s: %s\n", job.mbs.path.c_str(), ex.what());
+			fprintf(stderr, "[script] skip %s: %s\n", e.id.c_str(), ex.what());
 			continue;
 		}
-		if (e.vec2.size() >= 2)
-			layer->position = glm::vec2(static_cast<float>(e.vec2[0]), static_cast<float>(e.vec2[1]));
+		if (e.track_index >= 0 && e.track_index < static_cast<int>(layer->data.tracks.size()))
+			layer->instance.play(static_cast<uint32_t>(e.track_index));
+		layer->position = glm::vec2(e.pos[0], e.pos[1]);
 		_layers.push_back(std::move(layer));
 	}
 
