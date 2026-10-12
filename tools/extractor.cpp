@@ -3,7 +3,6 @@
 #include <criware/cpk.hpp>
 #include <criware/utf.hpp>
 #include <eltolinde.hpp>
-#include <impl/asb.hpp>
 #include <impl/mbs/csv_dump.hpp>
 #include <impl/mbs/detail.hpp>
 #include <impl/mbs/sections.hpp>
@@ -15,7 +14,6 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <map>
 #include <set>
 #include <span>
 #include <string_view>
@@ -50,7 +48,6 @@ struct Args {
 	std::string dump_file;
 	std::string mbs_dump;
 	std::string mbs_out = "mbs_dump";
-	std::string asb_dump;
 	std::string extract_all;
 	std::string skip_ext;
 	uint64_t max_size_mb = 0;
@@ -198,13 +195,12 @@ int main(int argc, char* argv[]) try {
 		po::value<std::string>(&args.mbs_dump),
 		"Dump MBS sections to CSV (DirName/FileName of .mbs in CPK)")(
 		"mbs-out", po::value<std::string>(&args.mbs_out), "Output directory for MBS CSV dump (default: mbs_dump)")(
-		"asb-dump",
-		po::value<std::string>(&args.asb_dump),
-		"Dump ASB compiled script (DirName/FileName of .asb in CPK)")(
 		"extract-all",
 		po::value<std::string>(&args.extract_all),
 		"Extract every entry into DIR (preserving DirName/FileName)")(
-		"skip-ext", po::value<std::string>(&args.skip_ext), "Extensions to skip when extracting all (e.g. ftx,acb,awb)")(
+		"skip-ext",
+		po::value<std::string>(&args.skip_ext),
+		"Extensions to skip when extracting all (e.g. ftx,acb,awb)")(
 		"max-size-mb",
 		po::value<uint64_t>(&args.max_size_mb)->default_value(0),
 		"Skip entries whose decompressed size exceeds N MiB (0 = no limit)");
@@ -319,77 +315,6 @@ int main(int argc, char* argv[]) try {
 		mbs::dump_csv(v, outdir);
 		std::cout << "Dumped " << dir << "/" << name << " (v" << std::hex << h.version << std::dec << ", "
 				  << v.s9.size() << " tracks) -> " << outdir << "/\n";
-		return 0;
-	}
-
-	if (!args.asb_dump.empty()) {
-		auto [dir, name] = split_path(args.asb_dump);
-		auto data = extract_entry(table, dir, name);
-		auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
-
-		auto file = asb::parse(bytes);
-
-		std::printf("=== %s ===\n", file.source_path.c_str());
-		std::printf(
-			"Header: %02x %02x %02x %02x %02x %02x %02x %02x\n",
-			file.header[0],
-			file.header[1],
-			file.header[2],
-			file.header[3],
-			file.header[4],
-			file.header[5],
-			file.header[6],
-			file.header[7]);
-		std::printf("Functions: %zu\n", file.functions.size());
-
-		bool is_large = data.size() > 65536;
-		constexpr size_t kMaxLines = 64;
-
-		std::map<uint32_t, size_t> callsys_counts;
-
-		for (size_t fi = 0; fi < file.functions.size(); ++fi) {
-			const auto& fn = file.functions[fi];
-			std::printf("\n  [%zu] %s (%zu bytes)\n", fi, fn.name.c_str(), fn.bytecode.size());
-
-			if (is_large && fi > 0) {
-				continue;
-			}
-
-			size_t pc = 0;
-			size_t line = 0;
-			while (pc < fn.bytecode.size() && line < kMaxLines) {
-				uint8_t op = fn.bytecode[pc];
-				int sz = asb::bc_instr_size(op);
-				if (sz < 1)
-					sz = 1;
-
-				std::printf("    %04zx: %02x %-14s", pc, op, asb::bc_opcode_name(op));
-
-				if (op == asb::BC_CALLSYS && pc + 5 < fn.bytecode.size()) {
-					uint8_t pop = fn.bytecode[pc + 1];
-					uint32_t fnid = fn.bytecode[pc + 2] | (fn.bytecode[pc + 3] << 8) | (fn.bytecode[pc + 4] << 16) |
-									(fn.bytecode[pc + 5] << 24);
-					std::printf(" #%u pop=%u", fnid, pop);
-					callsys_counts[fnid]++;
-				}
-				std::printf("\n");
-
-				if (pc + sz > fn.bytecode.size())
-					break;
-				pc += sz;
-				line++;
-			}
-			if (pc < fn.bytecode.size()) {
-				std::printf("    ... (%zu more bytes)\n", fn.bytecode.size() - pc);
-			}
-		}
-
-		if (!callsys_counts.empty()) {
-			std::printf("\nCALLSYS targets:\n");
-			for (auto [id, cnt] : callsys_counts) {
-				std::printf("  #%u: %zu calls\n", id, cnt);
-			}
-		}
 		return 0;
 	}
 

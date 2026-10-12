@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace asb2 {
+namespace asb {
 
 struct TypeInfo;
 using TypeInfoPtr = std::shared_ptr<TypeInfo>;
@@ -201,7 +201,7 @@ struct Function {
 	std::vector<TypeInfoPtr> obj_var_types;
 	std::vector<int> obj_var_pos;
 	int obj_vars_on_heap = 0;
-	std::vector<int> line_numbers;              // pairs (inst_pos, line)
+	std::vector<int> line_numbers;					   // pairs (inst_pos, line)
 	std::vector<std::pair<int, std::string>> sections; // (inst_pos, section name)
 	std::vector<Variable> variables;
 	std::string script_section;
@@ -301,7 +301,7 @@ struct Module {
 	std::vector<GlobalProp> globals;
 	std::vector<std::string> used_strings;
 	std::vector<ObjectProp> used_obj_props;
-	std::vector<FunctionPtr> functions;        // module functions (with bodies)
+	std::vector<FunctionPtr> functions;		   // module functions (with bodies)
 	std::vector<FunctionPtr> global_functions; // references into functions
 	std::vector<FunctionPtr> funcdefs;
 	std::vector<BindInfo> binds;
@@ -325,4 +325,4 @@ std::string disassemble(const Module& mod, const Function& fn);
 Scene extract_scene(const Module& mod);
 SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars = nullptr);
 
-} // namespace asb2
+} // namespace asb
