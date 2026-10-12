@@ -9,12 +9,14 @@
 #include <impl/mbs/sections.hpp>
 
 #include <array>
+#include <cctype>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <set>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -49,6 +51,9 @@ struct Args {
 	std::string mbs_dump;
 	std::string mbs_out = "mbs_dump";
 	std::string asb_dump;
+	std::string extract_all;
+	std::string skip_ext;
+	uint64_t max_size_mb = 0;
 	bool help = false;
 };
 
@@ -195,7 +200,14 @@ int main(int argc, char* argv[]) try {
 		"mbs-out", po::value<std::string>(&args.mbs_out), "Output directory for MBS CSV dump (default: mbs_dump)")(
 		"asb-dump",
 		po::value<std::string>(&args.asb_dump),
-		"Dump ASB compiled script (DirName/FileName of .asb in CPK)");
+		"Dump ASB compiled script (DirName/FileName of .asb in CPK)")(
+		"extract-all",
+		po::value<std::string>(&args.extract_all),
+		"Extract every entry into DIR (preserving DirName/FileName)")(
+		"skip-ext", po::value<std::string>(&args.skip_ext), "Extensions to skip when extracting all (e.g. ftx,acb,awb)")(
+		"max-size-mb",
+		po::value<uint64_t>(&args.max_size_mb)->default_value(0),
+		"Skip entries whose decompressed size exceeds N MiB (0 = no limit)");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -215,6 +227,54 @@ int main(int argc, char* argv[]) try {
 
 	if (args.list) {
 		print_list(list_entries(table));
+		return 0;
+	}
+
+	if (!args.extract_all.empty()) {
+		auto lower = [](std::string_view s) {
+			std::string out(s);
+			for (char& c : out)
+				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+			return out;
+		};
+
+		std::set<std::string> skip;
+		{
+			std::string_view rest = args.skip_ext;
+			while (!rest.empty()) {
+				auto pos = rest.find(',');
+				auto tok = rest.substr(0, pos);
+				if (!tok.empty())
+					skip.insert(lower(tok));
+				if (pos == std::string_view::npos)
+					break;
+				rest = rest.substr(pos + 1);
+			}
+		}
+
+		const uint64_t max_bytes = args.max_size_mb * 1024ull * 1024ull;
+		size_t done = 0, skipped = 0;
+		for (const auto& e : list_entries(table)) {
+			auto dot = e.name.find_last_of('.');
+			std::string ext = dot == std::string::npos ? std::string() : lower(e.name.substr(dot + 1));
+			if (skip.count(ext)) {
+				++skipped;
+				continue;
+			}
+			if (max_bytes != 0 && e.extract_size > max_bytes) {
+				++skipped;
+				continue;
+			}
+
+			fs::path out_path = fs::path(args.extract_all) / e.dir / e.name;
+			fs::create_directories(out_path.parent_path());
+
+			std::vector<char> data;
+			table.extract(e.dir, e.name, data);
+			write_file(out_path, data);
+			++done;
+		}
+		std::cout << "Extracted " << done << " files (" << skipped << " skipped) -> " << args.extract_all << "\n";
 		return 0;
 	}
 
