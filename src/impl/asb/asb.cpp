@@ -1403,12 +1403,18 @@ bool ends_with(const std::string& s, const char* suf) {
 	size_t n = std::strlen(suf);
 	return s.size() >= n && s.compare(s.size() - n, n, suf) == 0;
 }
-bool looks_create(const std::string& c) {
-	return c == "CreateSpriteMone" || c == "CreateSpriteCoA" || c == "CreateSpriteEffect" ||
-		   c == "CreateSpriteMoneWorld" || c == "CreateSpriteMoneStageStart" || c == "DrUiCreateChara" ||
-		   c == "CreateSpriteMoneStageStart";
-}
 } // namespace
+
+bool is_sprite_create_call(std::string_view c) {
+	return c == "CreateSpriteMone" || c == "CreateSpriteCoA" || c == "CreateSpriteEffect" ||
+		   c == "CreateSpriteMoneWorld" || c == "CreateSpriteMoneStageStart" || c == "DrUiCreateChara";
+}
+
+bool is_chara_create_call(std::string_view c) {
+	return c == "DrCreateChara" || c == "DrCreateNpc" || c == "DrUiCreateChara";
+}
+
+bool is_entity_create_call(std::string_view c) { return is_sprite_create_call(c) || is_chara_create_call(c); }
 
 SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars) {
 	SceneIR ir;
@@ -1429,7 +1435,7 @@ SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const
 	for (const auto& e : fn.events) {
 		const std::string& c = e.call;
 
-		if (looks_create(c)) {
+		if (is_sprite_create_call(c)) {
 			SceneEntity ent;
 			ent.kind = c;
 			for (const auto& s : e.strings) {
@@ -1460,7 +1466,7 @@ SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const
 			continue;
 		}
 
-		if (c == "DrCreateChara" || c == "DrCreateNpc") {
+		if (is_chara_create_call(c)) {
 			SceneEntity ent;
 			ent.kind = c;
 			ent.aliases = e.strings;

@@ -258,9 +258,7 @@ static std::string scene_index_json(const Module& mod, const std::string& name) 
 		size_t sf = 0;
 		for (const auto& e : f.events) {
 			const std::string& c = e.call;
-			const bool is_sprite = c == "CreateSpriteMone" || c == "DrUiCreateChara" || c == "CreateSpriteCoA" ||
-								   c == "CreateSpriteEffect" || c == "CreateSpriteMoneWorld" ||
-								   c == "CreateSpriteMoneStageStart";
+			const bool is_sprite = asb::is_sprite_create_call(c);
 			if (is_sprite) {
 				++sf;
 				++sprites;
@@ -268,7 +266,7 @@ static std::string scene_index_json(const Module& mod, const std::string& name) 
 					if (ends_with(s, ".mbs") || ends_with(s, ".ftx"))
 						aset.insert(s);
 			}
-			if (c == "DrCreateChara" || c == "DrCreateNpc" || c == "DrUiCreateChara")
+			if (asb::is_chara_create_call(c))
 				++chara;
 			if (c == "DrCreateStage" || c == "FlCreateStage" || c == "StSetBattleScene" || c == "StCreateUnit" ||
 				c == "StCreateDemoUnit" || c == "FlCreateCharaSymbol")

@@ -4,6 +4,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -324,5 +325,10 @@ Module parse(std::span<const uint8_t> data);
 std::string disassemble(const Module& mod, const Function& fn);
 Scene extract_scene(const Module& mod);
 SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars = nullptr);
+
+// Call-name classification, shared by the scene fold, the harvest tool and the viewer.
+bool is_sprite_create_call(std::string_view call);
+bool is_chara_create_call(std::string_view call);
+bool is_entity_create_call(std::string_view call);
 
 } // namespace asb
