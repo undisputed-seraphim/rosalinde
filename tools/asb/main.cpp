@@ -414,7 +414,7 @@ static const std::map<std::string, std::string>& class_aliases() {
 	static const std::map<std::string, std::string> a = {
 		{"ALBION_PRINCESS", "Scarlet"},        {"ALBION_PRINCESS_HG", "Scarlet"},
 		{"CORNIA_PRINCESS", "Virginia"},       {"CORNIA_PRINCESS_HG", "Virginia"},
-		{"ELHEIM_PRINCESS_W", "Eltlinde_F"},   {"ELHEIM_PRINCESS_B", "Eltlinde_F"},
+		{"ELHEIM_PRINCESS_W", "Eltlinde_F00"}, {"ELHEIM_PRINCESS_B", "Eltlinde_F10"},
 		{"DARK_PRINCE", "BlackPrince"},        {"DARK_PRINCE_HG", "BlackPrince_HG"},
 		{"PALADIN", "WhiteKnight_HG_M"},       {"WERELION", "Gladiator_HG"},
 		{"DREADNOUGHT", "Armoria_HG"},         {"DREADNOUGHT_POSSESSION", "Armoria_HG"},
@@ -525,6 +525,7 @@ int main(int argc, char** argv) {
 				size_t e = stem.size();
 				while (e > 0 && std::isdigit(static_cast<unsigned char>(stem[e - 1])))
 					--e;
+				ftx_of.emplace(lower(stem), fn);
 				ftx_of.emplace(lower(stem.substr(0, e)), fn);
 			}
 		}
@@ -532,6 +533,15 @@ int main(int argc, char** argv) {
 		std::ostringstream os;
 		os << "# key\tjp_name\tmbs\tftx (generated from Debug/_UcEnum_Class.inc + Chara/*.mbs by asb_harvest --classes)\n";
 		const auto& aliases = class_aliases();
+		// MBS claimed by an explicit alias; another class must not also claim it
+		// (e.g. WhiteKnight_HG_M belongs to PALADIN, so WHITE_KNIGHT_HG stays female-only).
+		std::map<std::string, std::string> claimed;
+		for (const auto& [cid, cbase] : aliases) {
+			std::string cb = lower(cbase);
+			claimed[cb] = cid;
+			claimed[cb + "_m"] = cid;
+			claimed[cb + "_f"] = cid;
+		}
 		size_t matched = 0, unmatched = 0;
 		for (const auto& [id, jp] : classes) {
 			if (id == "UNKNOWN")
@@ -550,6 +560,9 @@ int main(int argc, char** argv) {
 			}
 			const bool base_has_gender = b.size() >= 2 && (b.compare(b.size() - 2, 2, "_m") == 0 || b.compare(b.size() - 2, 2, "_f") == 0);
 			for (const auto& stem : hits) {
+				auto cit = claimed.find(stem);
+				if (cit != claimed.end() && cit->second != id)
+					continue;
 				++matched;
 				std::string key = id;
 				if (!base_has_gender && stem.size() >= 2 && stem[stem.size() - 2] == '_') {
