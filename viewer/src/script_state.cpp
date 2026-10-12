@@ -7,24 +7,11 @@
 
 #include <SDL3/SDL.h>
 #include <algorithm>
-#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <glad/glad.h>
 #include <glm/ext.hpp>
-#include <optional>
 #include <stdexcept>
-#include <unordered_map>
-
-namespace {
-Job::dir_and_path split_path(const std::string& p) {
-	const auto pos = p.find_last_of('/');
-	if (pos == std::string::npos)
-		return {"", p};
-	return {p.substr(0, pos), p.substr(pos + 1)};
-}
-
-} // namespace
 
 ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConfig cfg)
 	: _loader(loader)
@@ -39,53 +26,6 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 
 	const CPKTable& cpk = _loader.cpk();
 
-	// The game's VFS is case-insensitive: scripts may reference "GUI/interface.mbs"
-	// for a file shipped as "GUI/Interface.mbs". Build a lowercase index for lookup.
-	auto lower = [](std::string s) {
-		for (char& c : s)
-			c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-		return s;
-	};
-	std::unordered_map<std::string, std::pair<std::string, std::string>> ci;
-	for (const auto& [d, f] : cpk.rows<"DirName", "FileName">())
-		ci[lower(d + "/" + f)] = {d, f};
-
-	auto lookup = [&](const std::string& path) -> std::optional<std::pair<std::string, std::string>> {
-		auto sp = split_path(path);
-		if (cpk.find_file(sp.dir, sp.path) != cpk.end())
-			return std::make_pair(sp.dir, sp.path);
-		auto it = ci.find(lower(path));
-		if (it != ci.end())
-			return it->second;
-		return std::nullopt;
-	};
-	// Scripts sometimes reference an FTX with a single-digit frame suffix
-	// ("Op_Prince_M0.ftx") while the archive ships "Op_Prince_M00.ftx".
-	auto lookup_ftx = [&](const std::string& ftx,
-						  const std::string& mbs) -> std::optional<std::pair<std::string, std::string>> {
-		std::vector<std::string> cands = {ftx};
-		auto sp = split_path(ftx);
-		std::string n = sp.path;
-		auto ext = n.rfind('.');
-		if (ext != std::string::npos) {
-			size_t e = ext;
-			while (e > 0 && std::isdigit(static_cast<unsigned char>(n[e - 1])))
-				--e;
-			if (e < ext && ext - e == 1)
-				cands.push_back(
-					sp.dir.empty() ? (n.substr(0, e) + "0" + n.substr(e))
-								   : (sp.dir + "/" + n.substr(0, e) + "0" + n.substr(e)));
-		}
-		std::string stem = mbs;
-		if (stem.size() >= 4 && stem.compare(stem.size() - 4, 4, ".mbs") == 0)
-			stem.resize(stem.size() - 4);
-		for (const char* suf : {".ftx", "0.ftx", "00.ftx"})
-			cands.push_back(stem + suf);
-		for (const auto& c : cands)
-			if (auto r = lookup(c))
-				return r;
-		return std::nullopt;
-	};
 	const auto slash = _cfg.entry.find_last_of('/');
 	const std::string dir = slash == std::string::npos ? "" : _cfg.entry.substr(0, slash);
 	const std::string file = slash == std::string::npos ? _cfg.entry : _cfg.entry.substr(slash + 1);
@@ -167,16 +107,16 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 		if (!e.visible || e.mbs.empty() || e.ftx.empty())
 			continue;
 
-		auto m = lookup(e.mbs);
-		auto fx = lookup_ftx(e.ftx, e.mbs);
+		auto m = _loader.resolve(e.mbs);
+		auto fx = _loader.resolve_ftx(e.ftx, e.mbs);
 		if (!m || !fx) {
 			fprintf(stderr, "[script] skip %s (not in archive)\n", e.mbs.c_str());
 			continue;
 		}
 
 		Job job;
-		job.mbs = {m->first, m->second};
-		job.ftx = {fx->first, fx->second};
+		job.mbs = *m;
+		job.ftx = *fx;
 
 		std::unique_ptr<SpriteLayer> layer;
 		try {

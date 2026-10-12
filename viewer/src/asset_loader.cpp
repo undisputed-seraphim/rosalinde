@@ -2,15 +2,23 @@
 #include "screenshot.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <eltolinde.hpp>
 #include <glad/glad.h>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
 namespace {
+
+std::string lower(std::string s) {
+	for (char& c : s)
+		c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+	return s;
+}
 
 // Decide which s9 tracks of a background MBS are "live".
 //
@@ -71,6 +79,43 @@ AssetLoader::AssetLoader(std::filesystem::path cpk_path)
 	for (const auto& [name, _] : Characters) {
 		_class_names.push_back(name);
 	}
+	for (const auto& [d, f] : _cpkt.rows<"DirName", "FileName">())
+		_asset_index[lower(d + "/" + f)] = {d, f};
+}
+
+std::optional<Job::dir_and_path> AssetLoader::resolve(std::string_view path) const {
+	const Job::dir_and_path sp = split_path(path);
+	if (_cpkt.find_file(sp.dir, sp.path) != _cpkt.end())
+		return sp;
+	auto it = _asset_index.find(lower(std::string(path)));
+	if (it != _asset_index.end())
+		return it->second;
+	return std::nullopt;
+}
+
+std::optional<Job::dir_and_path> AssetLoader::resolve_ftx(std::string_view ftx, std::string_view mbs) const {
+	std::vector<std::string> cands = {std::string(ftx)};
+	const Job::dir_and_path sp = split_path(ftx);
+	std::string n = sp.path;
+	auto ext = n.rfind('.');
+	if (ext != std::string::npos) {
+		size_t e = ext;
+		while (e > 0 && std::isdigit(static_cast<unsigned char>(n[e - 1])))
+			--e;
+		if (e < ext && ext - e == 1)
+			cands.push_back(
+				sp.dir.empty() ? (n.substr(0, e) + "0" + n.substr(e))
+							   : (sp.dir + "/" + n.substr(0, e) + "0" + n.substr(e)));
+	}
+	std::string stem(mbs);
+	if (stem.size() >= 4 && stem.compare(stem.size() - 4, 4, ".mbs") == 0)
+		stem.resize(stem.size() - 4);
+	for (const char* suf : {".ftx", "0.ftx", "00.ftx"})
+		cands.push_back(stem + suf);
+	for (const auto& c : cands)
+		if (auto r = resolve(c))
+			return r;
+	return std::nullopt;
 }
 
 std::unique_ptr<SpriteLayer> AssetLoader::load_layer(
