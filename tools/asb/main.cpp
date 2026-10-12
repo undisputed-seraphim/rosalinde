@@ -378,6 +378,51 @@ static void parse_uc_enum(const std::string& content, std::ostream& os) {
 	}
 }
 
+static std::string lower(std::string s) {
+	for (char& c : s)
+		c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+	return s;
+}
+
+// FIGHTER_HG -> Fighter_HG ; BLACK_KNIGHT -> BlackKnight ; DARK_MARQUESS_S -> DarkMarquess_S
+static std::string class_base(const std::string& id) {
+	std::vector<std::string> toks;
+	size_t s = 0;
+	for (size_t i = 0; i <= id.size(); ++i)
+		if (i == id.size() || id[i] == '_') {
+			toks.push_back(id.substr(s, i - s));
+			s = i + 1;
+		}
+	std::string out;
+	for (size_t i = 0; i < toks.size(); ++i) {
+		std::string t = toks[i];
+		for (char& c : t)
+			c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+		if (!t.empty())
+			t[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(t[0])));
+		const bool sep = (t == "Hg") || (i > 0 && toks[i - 1] == "MARQUESS" && toks[i].size() == 1);
+		if (sep && !out.empty())
+			out += '_';
+		out += t;
+	}
+	return out;
+}
+
+// Classes whose sprite file is not the title-cased class name.
+static const std::map<std::string, std::string>& class_aliases() {
+	static const std::map<std::string, std::string> a = {
+		{"ALBION_PRINCESS", "Scarlet"},        {"ALBION_PRINCESS_HG", "Scarlet"},
+		{"CORNIA_PRINCESS", "Virginia"},       {"CORNIA_PRINCESS_HG", "Virginia"},
+		{"ELHEIM_PRINCESS_W", "Eltlinde_F"},   {"ELHEIM_PRINCESS_B", "Eltlinde_F"},
+		{"DARK_PRINCE", "BlackPrince"},        {"DARK_PRINCE_HG", "BlackPrince_HG"},
+		{"PALADIN", "WhiteKnight_HG_M"},       {"WERELION", "Gladiator_HG"},
+		{"DREADNOUGHT", "Armoria_HG"},         {"DREADNOUGHT_POSSESSION", "Armoria_HG"},
+		{"NECROMANCER", "Necromancer"},        {"NECROMANCER_Z", "Necromancer"},
+		{"DARK_MARQUESS_L_BEAST", "DarkMarquess_L"},
+	};
+	return a;
+}
+
 static std::span<const uint8_t> as_bytes(const std::vector<char>& v) {
 	return {reinterpret_cast<const uint8_t*>(v.data()), v.size()};
 }
@@ -385,7 +430,7 @@ static std::span<const uint8_t> as_bytes(const std::vector<char>& v) {
 int main(int argc, char** argv) {
 	std::string cpk_path, entry, input_path, json_path, disasm_dir, chara_file;
 	bool all = false, want_disasm = false, summary = false, want_scene = false, scene_index = false, want_ir = false,
-		 want_chara = false, want_enums = false;
+		 want_chara = false, want_enums = false, want_classes = false;
 
 	for (int i = 1; i < argc; ++i) {
 		std::string a = argv[i];
@@ -404,6 +449,7 @@ int main(int argc, char** argv) {
 		else if (a == "--chara-table") want_chara = true;
 		else if (a == "--chara-file") chara_file = next();
 		else if (a == "--uc-enums") want_enums = true;
+		else if (a == "--classes") want_classes = true;
 		else if (a == "-h" || a == "--help") {
 			std::printf("usage: asb_harvest [--input FILE.asb | --cpk CPK --asb Script/X.asb | --cpk CPK --all]\n"
 						"                    [--disasm] [--disasm-dir DIR] [--summary] [--scene] [--scene-index] [--json OUT.json|-]\n");
@@ -438,11 +484,94 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
+	if (want_classes) {
+		if (cpk_path.empty()) {
+			std::fprintf(stderr, "--classes requires --cpk\n");
+			return 2;
+		}
+		CPKTable table = TopLevelCpk(fs::absolute(cpk_path)).getTableOfContents();
+
+		std::vector<char> cbuf;
+		table.extract("Debug", "_UcEnum_Class.inc", cbuf);
+		std::vector<std::pair<std::string, std::string>> classes;
+		{
+			std::istringstream is(std::string(cbuf.begin(), cbuf.end()));
+			std::string line;
+			while (std::getline(is, line)) {
+				auto comma = line.find(',');
+				if (comma == std::string::npos)
+					continue;
+				std::string id = trim(line.substr(0, comma));
+				std::string jp;
+				auto sl = line.find("//");
+				if (sl != std::string::npos)
+					jp = trim(line.substr(sl + 2));
+				if (!id.empty())
+					classes.emplace_back(id, jp);
+			}
+		}
+
+		std::map<std::string, std::string> mbs_of, ftx_of;
+		for (const auto& [d, f] : table.rows<"DirName", "FileName">()) {
+			if (d != "Chara")
+				continue;
+			std::string fn = f;
+			if (fn.size() > 4 && fn.compare(fn.size() - 4, 4, ".mbs") == 0)
+				mbs_of[lower(fn.substr(0, fn.size() - 4))] = fn;
+			else if (fn.size() > 4 && fn.compare(fn.size() - 4, 4, ".ftx") == 0) {
+				std::string stem = fn.substr(0, fn.size() - 4);
+				size_t e = stem.size();
+				while (e > 0 && std::isdigit(static_cast<unsigned char>(stem[e - 1])))
+					--e;
+				ftx_of.emplace(lower(stem.substr(0, e)), fn);
+			}
+		}
+
+		std::ostringstream os;
+		os << "# key\tjp_name\tmbs\tftx (generated from Debug/_UcEnum_Class.inc + Chara/*.mbs by asb_harvest --classes)\n";
+		const auto& aliases = class_aliases();
+		size_t matched = 0, unmatched = 0;
+		for (const auto& [id, jp] : classes) {
+			if (id == "UNKNOWN")
+				continue;
+			std::string base = aliases.count(id) ? aliases.at(id) : class_base(id);
+			std::string b = lower(base);
+			std::vector<std::string> hits;
+			for (const auto& [stem, fn] : mbs_of)
+				if (stem == b || stem == b + "_m" || stem == b + "_f")
+					hits.push_back(stem);
+			std::sort(hits.begin(), hits.end());
+			if (hits.empty()) {
+				++unmatched;
+				std::fprintf(stderr, "[classes] no Chara mbs for %s (base %s)\n", id.c_str(), base.c_str());
+				continue;
+			}
+			const bool base_has_gender = b.size() >= 2 && (b.compare(b.size() - 2, 2, "_m") == 0 || b.compare(b.size() - 2, 2, "_f") == 0);
+			for (const auto& stem : hits) {
+				++matched;
+				std::string key = id;
+				if (!base_has_gender && stem.size() >= 2 && stem[stem.size() - 2] == '_') {
+					char g = stem.back();
+					if (g == 'm' || g == 'f')
+						key += std::string("_") + static_cast<char>(std::toupper(static_cast<unsigned char>(g)));
+				}
+				auto ft = ftx_of.find(stem);
+				os << key << '\t' << jp << '\t' << mbs_of[stem] << '\t'
+				   << (ft == ftx_of.end() ? std::string() : ft->second) << '\n';
+			}
+		}
+		std::fprintf(stderr, "[classes] matched=%zu unmatched=%zu\n", matched, unmatched);
+		if (!json_path.empty() && json_path != "-")
+			std::ofstream(json_path) << os.str();
+		else
+			std::cout << os.str();
+		return 0;
+	}
+
 	asb2::CharTable char_table;
 	if (!chara_file.empty())
 		char_table = asb2::load_char_table(chara_file);
 	std::map<std::string, asb2::CharaInfo> chara_acc;
-
 	auto process = [&](const std::string& name, std::span<const uint8_t> data) {
 		Module mod = asb2::parse(data);
 		bool ok = mod.error.empty() && mod.consumed == mod.total;
