@@ -17,8 +17,8 @@ struct ViewerConfig {
 	std::filesystem::path cpk;
 	std::string screenshot;
 	uint32_t frames = 1;
-	std::string left_class = "HighPriestess";
-	std::string right_class = "Crusader";
+	std::string left_class = "ALBION_PRINCESS_HG_F";
+	std::string right_class = "CORNIA_PRINCESS_F";
 	std::string background = "Classpedia_BG";
 	std::string script;     // Script/X.asb — render a script-composed scene
 	std::string scene_func; // scene function name (default: scene00/MAIN)
