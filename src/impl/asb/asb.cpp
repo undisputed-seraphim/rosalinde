@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace asb2 {
+namespace asb {
 
 namespace {
 
@@ -44,46 +44,206 @@ struct OpInfo {
 
 // PTR_ARG=QW_ARG, PTR_DW_ARG=QW_DW_ARG, wW_PTR_ARG=wW_QW_ARG, rW_PTR_ARG=rW_QW_ARG (64-bit)
 const OpInfo OP[201] = {
-	{"PopPtr", NO_ARG}, {"PshGPtr", QW_ARG}, {"PshC4", DW_ARG}, {"PshV4", rW_ARG}, {"PSF", rW_ARG},
-	{"SwapPtr", NO_ARG}, {"NOT", rW_ARG}, {"PshG4", QW_ARG}, {"LdGRdR4", wW_QW_ARG}, {"CALL", DW_ARG},
-	{"RET", W_ARG}, {"JMP", DW_ARG}, {"JZ", DW_ARG}, {"JNZ", DW_ARG}, {"JS", DW_ARG},
-	{"JNS", DW_ARG}, {"JP", DW_ARG}, {"JNP", DW_ARG}, {"TZ", NO_ARG}, {"TNZ", NO_ARG},
-	{"TS", NO_ARG}, {"TNS", NO_ARG}, {"TP", NO_ARG}, {"TNP", NO_ARG}, {"NEGi", rW_ARG},
-	{"NEGf", rW_ARG}, {"NEGd", rW_ARG}, {"INCi16", NO_ARG}, {"INCi8", NO_ARG}, {"DECi16", NO_ARG},
-	{"DECi8", NO_ARG}, {"INCi", NO_ARG}, {"DECi", NO_ARG}, {"INCf", NO_ARG}, {"DECf", NO_ARG},
-	{"INCd", NO_ARG}, {"DECd", NO_ARG}, {"IncVi", rW_ARG}, {"DecVi", rW_ARG}, {"BNOT", rW_ARG},
-	{"BAND", wW_rW_rW_ARG}, {"BOR", wW_rW_rW_ARG}, {"BXOR", wW_rW_rW_ARG}, {"BSLL", wW_rW_rW_ARG}, {"BSRL", wW_rW_rW_ARG},
-	{"BSRA", wW_rW_rW_ARG}, {"COPY", W_DW_ARG}, {"PshC8", QW_ARG}, {"PshVPtr", rW_ARG}, {"RDSPtr", NO_ARG},
-	{"CMPd", rW_rW_ARG}, {"CMPu", rW_rW_ARG}, {"CMPf", rW_rW_ARG}, {"CMPi", rW_rW_ARG}, {"CMPIi", rW_DW_ARG},
-	{"CMPIf", rW_DW_ARG}, {"CMPIu", rW_DW_ARG}, {"JMPP", rW_ARG}, {"PopRPtr", NO_ARG}, {"PshRPtr", NO_ARG},
-	{"STR", W_ARG}, {"CALLSYS", DW_ARG}, {"CALLBND", DW_ARG}, {"SUSPEND", NO_ARG}, {"ALLOC", QW_DW_ARG},
-	{"FREE", wW_QW_ARG}, {"LOADOBJ", rW_ARG}, {"STOREOBJ", wW_ARG}, {"GETOBJ", W_ARG}, {"REFCPY", QW_ARG},
-	{"CHKREF", NO_ARG}, {"GETOBJREF", W_ARG}, {"GETREF", W_ARG}, {"PshNull", NO_ARG}, {"ClrVPtr", wW_ARG},
-	{"OBJTYPE", QW_ARG}, {"TYPEID", DW_ARG}, {"SetV4", wW_DW_ARG}, {"SetV8", wW_QW_ARG}, {"ADDSi", W_DW_ARG},
-	{"CpyVtoV4", wW_rW_ARG}, {"CpyVtoV8", wW_rW_ARG}, {"CpyVtoR4", rW_ARG}, {"CpyVtoR8", rW_ARG}, {"CpyVtoG4", rW_QW_ARG},
-	{"CpyRtoV4", wW_ARG}, {"CpyRtoV8", wW_ARG}, {"CpyGtoV4", wW_QW_ARG}, {"WRTV1", rW_ARG}, {"WRTV2", rW_ARG},
-	{"WRTV4", rW_ARG}, {"WRTV8", rW_ARG}, {"RDR1", wW_ARG}, {"RDR2", wW_ARG}, {"RDR4", wW_ARG},
-	{"RDR8", wW_ARG}, {"LDG", QW_ARG}, {"LDV", rW_ARG}, {"PGA", QW_ARG}, {"CmpPtr", rW_rW_ARG},
-	{"VAR", rW_ARG}, {"iTOf", rW_ARG}, {"fTOi", rW_ARG}, {"uTOf", rW_ARG}, {"fTOu", rW_ARG},
-	{"sbTOi", rW_ARG}, {"swTOi", rW_ARG}, {"ubTOi", rW_ARG}, {"uwTOi", rW_ARG}, {"dTOi", wW_rW_ARG},
-	{"dTOu", wW_rW_ARG}, {"dTOf", wW_rW_ARG}, {"iTOd", wW_rW_ARG}, {"uTOd", wW_rW_ARG}, {"fTOd", wW_rW_ARG},
-	{"ADDi", wW_rW_rW_ARG}, {"SUBi", wW_rW_rW_ARG}, {"MULi", wW_rW_rW_ARG}, {"DIVi", wW_rW_rW_ARG}, {"MODi", wW_rW_rW_ARG},
-	{"ADDf", wW_rW_rW_ARG}, {"SUBf", wW_rW_rW_ARG}, {"MULf", wW_rW_rW_ARG}, {"DIVf", wW_rW_rW_ARG}, {"MODf", wW_rW_rW_ARG},
-	{"ADDd", wW_rW_rW_ARG}, {"SUBd", wW_rW_rW_ARG}, {"MULd", wW_rW_rW_ARG}, {"DIVd", wW_rW_rW_ARG}, {"MODd", wW_rW_rW_ARG},
-	{"ADDIi", wW_rW_DW_ARG}, {"SUBIi", wW_rW_DW_ARG}, {"MULIi", wW_rW_DW_ARG}, {"ADDIf", wW_rW_DW_ARG}, {"SUBIf", wW_rW_DW_ARG},
-	{"MULIf", wW_rW_DW_ARG}, {"SetG4", QW_DW_ARG}, {"ChkRefS", NO_ARG}, {"ChkNullV", rW_ARG}, {"CALLINTF", DW_ARG},
-	{"iTOb", rW_ARG}, {"iTOw", rW_ARG}, {"SetV1", wW_DW_ARG}, {"SetV2", wW_DW_ARG}, {"Cast", DW_ARG},
-	{"i64TOi", wW_rW_ARG}, {"uTOi64", wW_rW_ARG}, {"iTOi64", wW_rW_ARG}, {"fTOi64", wW_rW_ARG}, {"dTOi64", rW_ARG},
-	{"fTOu64", wW_rW_ARG}, {"dTOu64", rW_ARG}, {"i64TOf", wW_rW_ARG}, {"u64TOf", wW_rW_ARG}, {"i64TOd", rW_ARG},
-	{"u64TOd", rW_ARG}, {"NEGi64", rW_ARG}, {"INCi64", NO_ARG}, {"DECi64", NO_ARG}, {"BNOT64", rW_ARG},
-	{"ADDi64", wW_rW_rW_ARG}, {"SUBi64", wW_rW_rW_ARG}, {"MULi64", wW_rW_rW_ARG}, {"DIVi64", wW_rW_rW_ARG}, {"MODi64", wW_rW_rW_ARG},
-	{"BAND64", wW_rW_rW_ARG}, {"BOR64", wW_rW_rW_ARG}, {"BXOR64", wW_rW_rW_ARG}, {"BSLL64", wW_rW_rW_ARG}, {"BSRL64", wW_rW_rW_ARG},
-	{"BSRA64", wW_rW_rW_ARG}, {"CMPi64", rW_rW_ARG}, {"CMPu64", rW_rW_ARG}, {"ChkNullS", W_ARG}, {"ClrHi", NO_ARG},
-	{"JitEntry", QW_ARG}, {"CallPtr", rW_ARG}, {"FuncPtr", QW_ARG}, {"LoadThisR", W_DW_ARG}, {"PshV8", rW_ARG},
-	{"DIVu", wW_rW_rW_ARG}, {"MODu", wW_rW_rW_ARG}, {"DIVu64", wW_rW_rW_ARG}, {"MODu64", wW_rW_rW_ARG}, {"LoadRObjR", rW_W_DW_ARG},
-	{"LoadVObjR", rW_W_DW_ARG}, {"RefCpyV", wW_QW_ARG}, {"JLowZ", DW_ARG}, {"JLowNZ", DW_ARG}, {"AllocMem", wW_DW_ARG},
-	{"SetListSize", rW_DW_DW_ARG}, {"PshListElmnt", rW_DW_ARG}, {"SetListType", rW_DW_DW_ARG}, {"POWi", wW_rW_rW_ARG}, {"POWu", wW_rW_rW_ARG},
-	{"POWf", wW_rW_rW_ARG}, {"POWd", wW_rW_rW_ARG}, {"POWdi", wW_rW_rW_ARG}, {"POWi64", wW_rW_rW_ARG}, {"POWu64", wW_rW_rW_ARG},
+	{"PopPtr", NO_ARG},
+	{"PshGPtr", QW_ARG},
+	{"PshC4", DW_ARG},
+	{"PshV4", rW_ARG},
+	{"PSF", rW_ARG},
+	{"SwapPtr", NO_ARG},
+	{"NOT", rW_ARG},
+	{"PshG4", QW_ARG},
+	{"LdGRdR4", wW_QW_ARG},
+	{"CALL", DW_ARG},
+	{"RET", W_ARG},
+	{"JMP", DW_ARG},
+	{"JZ", DW_ARG},
+	{"JNZ", DW_ARG},
+	{"JS", DW_ARG},
+	{"JNS", DW_ARG},
+	{"JP", DW_ARG},
+	{"JNP", DW_ARG},
+	{"TZ", NO_ARG},
+	{"TNZ", NO_ARG},
+	{"TS", NO_ARG},
+	{"TNS", NO_ARG},
+	{"TP", NO_ARG},
+	{"TNP", NO_ARG},
+	{"NEGi", rW_ARG},
+	{"NEGf", rW_ARG},
+	{"NEGd", rW_ARG},
+	{"INCi16", NO_ARG},
+	{"INCi8", NO_ARG},
+	{"DECi16", NO_ARG},
+	{"DECi8", NO_ARG},
+	{"INCi", NO_ARG},
+	{"DECi", NO_ARG},
+	{"INCf", NO_ARG},
+	{"DECf", NO_ARG},
+	{"INCd", NO_ARG},
+	{"DECd", NO_ARG},
+	{"IncVi", rW_ARG},
+	{"DecVi", rW_ARG},
+	{"BNOT", rW_ARG},
+	{"BAND", wW_rW_rW_ARG},
+	{"BOR", wW_rW_rW_ARG},
+	{"BXOR", wW_rW_rW_ARG},
+	{"BSLL", wW_rW_rW_ARG},
+	{"BSRL", wW_rW_rW_ARG},
+	{"BSRA", wW_rW_rW_ARG},
+	{"COPY", W_DW_ARG},
+	{"PshC8", QW_ARG},
+	{"PshVPtr", rW_ARG},
+	{"RDSPtr", NO_ARG},
+	{"CMPd", rW_rW_ARG},
+	{"CMPu", rW_rW_ARG},
+	{"CMPf", rW_rW_ARG},
+	{"CMPi", rW_rW_ARG},
+	{"CMPIi", rW_DW_ARG},
+	{"CMPIf", rW_DW_ARG},
+	{"CMPIu", rW_DW_ARG},
+	{"JMPP", rW_ARG},
+	{"PopRPtr", NO_ARG},
+	{"PshRPtr", NO_ARG},
+	{"STR", W_ARG},
+	{"CALLSYS", DW_ARG},
+	{"CALLBND", DW_ARG},
+	{"SUSPEND", NO_ARG},
+	{"ALLOC", QW_DW_ARG},
+	{"FREE", wW_QW_ARG},
+	{"LOADOBJ", rW_ARG},
+	{"STOREOBJ", wW_ARG},
+	{"GETOBJ", W_ARG},
+	{"REFCPY", QW_ARG},
+	{"CHKREF", NO_ARG},
+	{"GETOBJREF", W_ARG},
+	{"GETREF", W_ARG},
+	{"PshNull", NO_ARG},
+	{"ClrVPtr", wW_ARG},
+	{"OBJTYPE", QW_ARG},
+	{"TYPEID", DW_ARG},
+	{"SetV4", wW_DW_ARG},
+	{"SetV8", wW_QW_ARG},
+	{"ADDSi", W_DW_ARG},
+	{"CpyVtoV4", wW_rW_ARG},
+	{"CpyVtoV8", wW_rW_ARG},
+	{"CpyVtoR4", rW_ARG},
+	{"CpyVtoR8", rW_ARG},
+	{"CpyVtoG4", rW_QW_ARG},
+	{"CpyRtoV4", wW_ARG},
+	{"CpyRtoV8", wW_ARG},
+	{"CpyGtoV4", wW_QW_ARG},
+	{"WRTV1", rW_ARG},
+	{"WRTV2", rW_ARG},
+	{"WRTV4", rW_ARG},
+	{"WRTV8", rW_ARG},
+	{"RDR1", wW_ARG},
+	{"RDR2", wW_ARG},
+	{"RDR4", wW_ARG},
+	{"RDR8", wW_ARG},
+	{"LDG", QW_ARG},
+	{"LDV", rW_ARG},
+	{"PGA", QW_ARG},
+	{"CmpPtr", rW_rW_ARG},
+	{"VAR", rW_ARG},
+	{"iTOf", rW_ARG},
+	{"fTOi", rW_ARG},
+	{"uTOf", rW_ARG},
+	{"fTOu", rW_ARG},
+	{"sbTOi", rW_ARG},
+	{"swTOi", rW_ARG},
+	{"ubTOi", rW_ARG},
+	{"uwTOi", rW_ARG},
+	{"dTOi", wW_rW_ARG},
+	{"dTOu", wW_rW_ARG},
+	{"dTOf", wW_rW_ARG},
+	{"iTOd", wW_rW_ARG},
+	{"uTOd", wW_rW_ARG},
+	{"fTOd", wW_rW_ARG},
+	{"ADDi", wW_rW_rW_ARG},
+	{"SUBi", wW_rW_rW_ARG},
+	{"MULi", wW_rW_rW_ARG},
+	{"DIVi", wW_rW_rW_ARG},
+	{"MODi", wW_rW_rW_ARG},
+	{"ADDf", wW_rW_rW_ARG},
+	{"SUBf", wW_rW_rW_ARG},
+	{"MULf", wW_rW_rW_ARG},
+	{"DIVf", wW_rW_rW_ARG},
+	{"MODf", wW_rW_rW_ARG},
+	{"ADDd", wW_rW_rW_ARG},
+	{"SUBd", wW_rW_rW_ARG},
+	{"MULd", wW_rW_rW_ARG},
+	{"DIVd", wW_rW_rW_ARG},
+	{"MODd", wW_rW_rW_ARG},
+	{"ADDIi", wW_rW_DW_ARG},
+	{"SUBIi", wW_rW_DW_ARG},
+	{"MULIi", wW_rW_DW_ARG},
+	{"ADDIf", wW_rW_DW_ARG},
+	{"SUBIf", wW_rW_DW_ARG},
+	{"MULIf", wW_rW_DW_ARG},
+	{"SetG4", QW_DW_ARG},
+	{"ChkRefS", NO_ARG},
+	{"ChkNullV", rW_ARG},
+	{"CALLINTF", DW_ARG},
+	{"iTOb", rW_ARG},
+	{"iTOw", rW_ARG},
+	{"SetV1", wW_DW_ARG},
+	{"SetV2", wW_DW_ARG},
+	{"Cast", DW_ARG},
+	{"i64TOi", wW_rW_ARG},
+	{"uTOi64", wW_rW_ARG},
+	{"iTOi64", wW_rW_ARG},
+	{"fTOi64", wW_rW_ARG},
+	{"dTOi64", rW_ARG},
+	{"fTOu64", wW_rW_ARG},
+	{"dTOu64", rW_ARG},
+	{"i64TOf", wW_rW_ARG},
+	{"u64TOf", wW_rW_ARG},
+	{"i64TOd", rW_ARG},
+	{"u64TOd", rW_ARG},
+	{"NEGi64", rW_ARG},
+	{"INCi64", NO_ARG},
+	{"DECi64", NO_ARG},
+	{"BNOT64", rW_ARG},
+	{"ADDi64", wW_rW_rW_ARG},
+	{"SUBi64", wW_rW_rW_ARG},
+	{"MULi64", wW_rW_rW_ARG},
+	{"DIVi64", wW_rW_rW_ARG},
+	{"MODi64", wW_rW_rW_ARG},
+	{"BAND64", wW_rW_rW_ARG},
+	{"BOR64", wW_rW_rW_ARG},
+	{"BXOR64", wW_rW_rW_ARG},
+	{"BSLL64", wW_rW_rW_ARG},
+	{"BSRL64", wW_rW_rW_ARG},
+	{"BSRA64", wW_rW_rW_ARG},
+	{"CMPi64", rW_rW_ARG},
+	{"CMPu64", rW_rW_ARG},
+	{"ChkNullS", W_ARG},
+	{"ClrHi", NO_ARG},
+	{"JitEntry", QW_ARG},
+	{"CallPtr", rW_ARG},
+	{"FuncPtr", QW_ARG},
+	{"LoadThisR", W_DW_ARG},
+	{"PshV8", rW_ARG},
+	{"DIVu", wW_rW_rW_ARG},
+	{"MODu", wW_rW_rW_ARG},
+	{"DIVu64", wW_rW_rW_ARG},
+	{"MODu64", wW_rW_rW_ARG},
+	{"LoadRObjR", rW_W_DW_ARG},
+	{"LoadVObjR", rW_W_DW_ARG},
+	{"RefCpyV", wW_QW_ARG},
+	{"JLowZ", DW_ARG},
+	{"JLowNZ", DW_ARG},
+	{"AllocMem", wW_DW_ARG},
+	{"SetListSize", rW_DW_DW_ARG},
+	{"PshListElmnt", rW_DW_ARG},
+	{"SetListType", rW_DW_DW_ARG},
+	{"POWi", wW_rW_rW_ARG},
+	{"POWu", wW_rW_rW_ARG},
+	{"POWf", wW_rW_rW_ARG},
+	{"POWd", wW_rW_rW_ARG},
+	{"POWdi", wW_rW_rW_ARG},
+	{"POWi64", wW_rW_rW_ARG},
+	{"POWu64", wW_rW_rW_ARG},
 	{"Thiscall1", DW_ARG},
 };
 
@@ -98,24 +258,42 @@ constexpr uint32_t ASOBJ_FUNCDEF = 1u << 24;
 constexpr uint32_t ASOBJ_ENUM = 1u << 26;
 constexpr uint32_t ASOBJ_TYPEDEF = 1u << 28;
 
-enum FuncType { F_DUMMY = -1, F_SYSTEM = 0, F_SCRIPT = 1, F_INTERFACE = 2, F_VIRTUAL = 3, F_FUNCDEF = 4, F_IMPORTED = 5, F_DELEGATE = 6 };
+enum FuncType {
+	F_DUMMY = -1,
+	F_SYSTEM = 0,
+	F_SCRIPT = 1,
+	F_INTERFACE = 2,
+	F_VIRTUAL = 3,
+	F_FUNCDEF = 4,
+	F_IMPORTED = 5,
+	F_DELEGATE = 6
+};
 
 const char* func_type_name(int t) {
 	switch (t) {
-	case F_SYSTEM: return "system";
-	case F_SCRIPT: return "script";
-	case F_INTERFACE: return "interface";
-	case F_VIRTUAL: return "virtual";
-	case F_FUNCDEF: return "funcdef";
-	case F_IMPORTED: return "imported";
-	case F_DELEGATE: return "delegate";
-	default: return "?";
+	case F_SYSTEM:
+		return "system";
+	case F_SCRIPT:
+		return "script";
+	case F_INTERFACE:
+		return "interface";
+	case F_VIRTUAL:
+		return "virtual";
+	case F_FUNCDEF:
+		return "funcdef";
+	case F_IMPORTED:
+		return "imported";
+	case F_DELEGATE:
+		return "delegate";
+	default:
+		return "?";
 	}
 }
 
 class Parser {
 public:
-	explicit Parser(std::span<const uint8_t> d) : data(d) {}
+	explicit Parser(std::span<const uint8_t> d)
+		: data(d) {}
 
 	Module run() {
 		mod.total = data.size();
@@ -356,17 +534,22 @@ private:
 			in.op = u8();
 			const OpInfo& oi = opinfo(in.op);
 			switch (oi.type) {
-			case NO_ARG: break;
+			case NO_ARG:
+				break;
 			case W_ARG:
 			case wW_ARG:
-			case rW_ARG: in.wargs.push_back(int16_t(enc_u16())); break;
+			case rW_ARG:
+				in.wargs.push_back(int16_t(enc_u16()));
+				break;
 			case W_DW_ARG:
 			case rW_DW_ARG:
 			case wW_DW_ARG:
 				in.wargs.push_back(int16_t(enc_u16()));
 				in.dargs.push_back(enc_u32());
 				break;
-			case DW_ARG: in.dargs.push_back(enc_u32()); break;
+			case DW_ARG:
+				in.dargs.push_back(enc_u32());
+				break;
 			case DW_DW_ARG:
 				in.dargs.push_back(enc_u32());
 				in.dargs.push_back(enc_u32());
@@ -737,7 +920,7 @@ private:
 		for (size_t i = 0; i < fn.code.size(); ++i) {
 			Instruction& in = fn.code[i];
 			switch (in.op) {
-			case 9:   // CALL
+			case 9:	  // CALL
 			case 139: // CALLINTF
 			case 61:  // CALLSYS
 			case 200: // Thiscall1
@@ -780,9 +963,9 @@ private:
 				if (in.wargs.size() >= 2)
 					in.ann = mod.objprop_name(uint64_t(in.wargs[1]));
 				break;
-			case 1:   // PshGPtr
-			case 7:   // PshG4
-			case 8:   // LdGRdR4
+			case 1:	  // PshGPtr
+			case 7:	  // PshG4
+			case 8:	  // LdGRdR4
 			case 84:  // CpyVtoG4
 			case 87:  // CpyGtoV4
 			case 96:  // LDG
@@ -898,21 +1081,36 @@ CharTable load_char_table(const std::string& path) {
 // --- Formatting -------------------------------------------------------------
 std::string token_name(int token) {
 	switch (token) {
-	case ttVoid: return "void";
-	case ttBool: return "bool";
-	case ttInt: return "int";
-	case ttInt8: return "int8";
-	case ttInt16: return "int16";
-	case ttInt64: return "int64";
-	case ttUInt: return "uint";
-	case ttUInt8: return "uint8";
-	case ttUInt16: return "uint16";
-	case ttUInt64: return "uint64";
-	case ttFloat: return "float";
-	case ttDouble: return "double";
-	case ttAuto: return "auto";
-	case ttNull: return "null";
-	default: return "tt" + std::to_string(int(token));
+	case ttVoid:
+		return "void";
+	case ttBool:
+		return "bool";
+	case ttInt:
+		return "int";
+	case ttInt8:
+		return "int8";
+	case ttInt16:
+		return "int16";
+	case ttInt64:
+		return "int64";
+	case ttUInt:
+		return "uint";
+	case ttUInt8:
+		return "uint8";
+	case ttUInt16:
+		return "uint16";
+	case ttUInt64:
+		return "uint64";
+	case ttFloat:
+		return "float";
+	case ttDouble:
+		return "double";
+	case ttAuto:
+		return "auto";
+	case ttNull:
+		return "null";
+	default:
+		return "tt" + std::to_string(int(token));
 	}
 }
 
@@ -927,11 +1125,16 @@ std::string TypeInfo::format() const {
 		}
 		return s + ">";
 	}
-	case List: return (list_of ? list_of->format() : std::string("?")) + "{}";
-	case SubType: return name;
-	case Child: return (parent ? parent->format() : std::string("?")) + "::" + name;
-	case Object: return name_space.empty() ? name : name_space + "::" + name;
-	default: return {};
+	case List:
+		return (list_of ? list_of->format() : std::string("?")) + "{}";
+	case SubType:
+		return name;
+	case Child:
+		return (parent ? parent->format() : std::string("?")) + "::" + name;
+	case Object:
+		return name_space.empty() ? name : name_space + "::" + name;
+	default:
+		return {};
 	}
 }
 
@@ -1133,9 +1336,9 @@ Scene extract_scene(const Module& mod) {
 			case 47: // PshC8
 				pending.push_back({Val::N64, in.qarg, {}});
 				break;
-			case 1:   // PshGPtr
-			case 7:   // PshG4
-			case 8:   // LdGRdR4
+			case 1:	  // PshGPtr
+			case 7:	  // PshG4
+			case 8:	  // LdGRdR4
 			case 84:  // CpyVtoG4
 			case 96:  // LDG
 			case 98:  // PGA
@@ -1158,10 +1361,10 @@ Scene extract_scene(const Module& mod) {
 					}
 				}
 				break;
-			case 9:   // CALL
-			case 139: // CALLINTF
-			case 61:  // CALLSYS
-			case 200: // Thiscall1
+			case 9:	   // CALL
+			case 139:  // CALLINTF
+			case 61:   // CALLSYS
+			case 200:  // Thiscall1
 			case 62: { // CALLBND
 				std::string cname, cdecl_str;
 				char ckind = '?';
@@ -1173,7 +1376,9 @@ Scene extract_scene(const Module& mod) {
 				} else if (!in.dargs.empty()) {
 					cname = call_name(in.dargs[0], cdecl_str, ckind);
 				}
-				bool ctor = (cname == "$beh0" && (cdecl_str.rfind("void FnVector2::", 0) == 0 || cdecl_str.rfind("void FnVector3::", 0) == 0));
+				bool ctor =
+					(cname == "$beh0" &&
+					 (cdecl_str.rfind("void FnVector2::", 0) == 0 || cdecl_str.rfind("void FnVector3::", 0) == 0));
 				std::string vecname = cdecl_str.rfind("void FnVector3::", 0) == 0 ? "FnVector3" : "FnVector2";
 				if (ctor)
 					flush(vecname, cdecl_str, ckind, true);
@@ -1372,4 +1577,4 @@ SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const
 	return ir;
 }
 
-} // namespace asb2
+} // namespace asb

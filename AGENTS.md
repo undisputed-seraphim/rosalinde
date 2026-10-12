@@ -38,20 +38,21 @@ rosalinde/
 │       └── substream.t.cpp     # Catch2 unit test for substreambuf
 │
 ├── src/                        # eltolinde library (game format parsers)
-│   ├── eltolinde.hpp           # Umbrella header: includes mbs.hpp, fms.hpp, ftx.hpp
+│   ├── eltolinde.hpp           # Umbrella header: includes fms.hpp, ftx.hpp
 │   └── impl/
-│       ├── mbs.hpp             # MBS animation parser interface (MBS class)
-│       ├── mbs.cpp             # Header parsing, v76/v77 dispatch
 │       ├── mbs/
-│       │   ├── sections.hpp    # All v77 section structs (s0..sb) + glm types
-│       │   ├── detail.hpp      # Shared parsing: lookup tables, resolve_table, populate_sections
+│       │   ├── sections.hpp    # All v77 section structs (s0..sb) + file_header + glm types
+│       │   ├── detail.hpp      # Shared parsing + parse_v76/parse_v77 entry points
+│       │   ├── csv_dump.hpp    # CSV debug dump of parsed sections
 │       │   ├── v76.cpp         # v76 parser (populates mbs::v77 struct)
-│       │   └── v77.cpp         # v77 parser + CSV debug dumper + s7_matrix()
+│       │   └── v77.cpp         # v77 parser + s7_matrix()
 │       ├── ftx.hpp             # FTEX/FTX0 texture archive declarations
 │       ├── ftx.cpp             # FTEX parsing + BC3/BC4/BC7 decompress + Tegra deswizzle
 │       ├── fms.hpp             # FMSB string table parser (header-only)
 │       ├── nnd.hpp             # NND parser (array of uint32, header-only)
-│       ├── asb.hpp / asb.cpp   # ASB compiled script (stubbed)
+│       ├── asb/
+│       │   ├── asb.hpp         # AngelScript 2.34 module decoder (Module/Signature/Instruction)
+│       │   └── asb.cpp         # Parser + disassembler + scene extraction (SceneIR)
 │       ├── otm.hpp / otm.cpp   # OTBM file format (stubbed)
 │       └── byte_reader.hpp     # Zero-dependency span cursor for binary parsing
 │
@@ -187,8 +188,8 @@ The build produces:
 | **Hardcoded lookup tables** | `viewer/src/tables.cpp` | Character class + battle BG paths hardcoded (class→MBS/FTX/variants). Should move to external data (JSON). |
 | **CSV debug dumps** | `src/impl/mbs/v77.cpp`, `mbs_dump/` | Debug code writes CSVs to a hardcoded path. Should be behind a flag or removed. |
 | **Root-level test archive** | `Unicorn.CPK` | Test data in repo root. Should be under `testdata/`. |
-| **Incomplete parsers** | `asb.cpp`, `otm.cpp` | Mostly stubs. |
-| **Boost iostreams legacy** | `src/impl/mbs.cpp` | The istream path in `mbs.cpp` wraps the span path. Boost::iostreams is only needed for legacy code paths. |
+| **Incomplete parsers** | `src/impl/otm.cpp` | Mostly a stub. |
+| **Boost iostreams legacy** | `CMakeLists.txt` | `eltolinde` still links Boost::iostreams, but no `src/` file uses it any more. |
 | **No CI** | — | Builds are local-only. No GitHub Actions or similar. |
 | **Test coverage is minimal** | `libcriware/tests/` | Only one Catch2 test (`substream.t.cpp`). No tests for CPK, UTF, MBS, FTX, or the viewer. |
 | **FetchContent + find_package duplication** | `thirdparty/*.cmake` | GLM and SDL3 try `find_package()` first, then fall back to FetchContent. Can cause version mismatches. |

@@ -1,8 +1,8 @@
 #include "script_state.hpp"
 #include "screenshot.hpp"
 
-#include <asb.hpp>
 #include <criware/cpk.hpp>
+#include <impl/asb/asb.hpp>
 
 #include <SDL3/SDL.h>
 #include <algorithm>
@@ -47,9 +47,9 @@ Job::dir_and_path split_path(const std::string& p) {
 }
 
 const bool kIsSpriteCall(const std::string& c) {
-	return c == "CreateSpriteMone" || c == "DrUiCreateChara" || c == "CreateSpriteCoA" ||
-		   c == "CreateSpriteEffect" || c == "CreateSpriteMoneWorld" || c == "CreateSpriteMoneStageStart" ||
-		   c == "DrCreateChara" || c == "DrCreateNpc";
+	return c == "CreateSpriteMone" || c == "DrUiCreateChara" || c == "CreateSpriteCoA" || c == "CreateSpriteEffect" ||
+		   c == "CreateSpriteMoneWorld" || c == "CreateSpriteMoneStageStart" || c == "DrCreateChara" ||
+		   c == "DrCreateNpc";
 }
 } // namespace
 
@@ -88,7 +88,8 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 	};
 	// Scripts sometimes reference an FTX with a single-digit frame suffix
 	// ("Op_Prince_M0.ftx") while the archive ships "Op_Prince_M00.ftx".
-	auto lookup_ftx = [&](const std::string& ftx, const std::string& mbs) -> std::optional<std::pair<std::string, std::string>> {
+	auto lookup_ftx = [&](const std::string& ftx,
+						  const std::string& mbs) -> std::optional<std::pair<std::string, std::string>> {
 		std::vector<std::string> cands = {ftx};
 		auto sp = split_path(ftx);
 		std::string n = sp.path;
@@ -98,8 +99,9 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 			while (e > 0 && std::isdigit(static_cast<unsigned char>(n[e - 1])))
 				--e;
 			if (e < ext && ext - e == 1)
-				cands.push_back(sp.dir.empty() ? (n.substr(0, e) + "0" + n.substr(e))
-											   : (sp.dir + "/" + n.substr(0, e) + "0" + n.substr(e)));
+				cands.push_back(
+					sp.dir.empty() ? (n.substr(0, e) + "0" + n.substr(e))
+								   : (sp.dir + "/" + n.substr(0, e) + "0" + n.substr(e)));
 		}
 		std::string stem = mbs;
 		if (stem.size() >= 4 && stem.compare(stem.size() - 4, 4, ".mbs") == 0)
@@ -121,17 +123,16 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 
 	std::vector<char> buf;
 	cpk.extract(*entry, buf);
-	asb2::Module mod = asb2::parse(
-		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()));
-	asb2::Scene scene = asb2::extract_scene(mod);
+	asb::Module mod = asb::parse(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()));
+	asb::Scene scene = asb::extract_scene(mod);
 
-	auto find_fn = [&](const std::string& n) -> const asb2::SceneFunction* {
+	auto find_fn = [&](const std::string& n) -> const asb::SceneFunction* {
 		for (const auto& f : scene.functions)
 			if (f.name == n)
 				return &f;
 		return nullptr;
 	};
-	auto sprites = [](const asb2::SceneFunction& f) {
+	auto sprites = [](const asb::SceneFunction& f) {
 		size_t c = 0;
 		for (const auto& e : f.events)
 			if (kIsSpriteCall(e.call))
@@ -139,12 +140,12 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 		return c;
 	};
 
-	const asb2::SceneFunction* fn = nullptr;
+	const asb::SceneFunction* fn = nullptr;
 	if (!_cfg.func.empty())
 		fn = find_fn(_cfg.func);
 	if (!fn)
 		for (const char* nm : {"scene00", "MAIN"}) {
-			const asb2::SceneFunction* c = find_fn(nm);
+			const asb::SceneFunction* c = find_fn(nm);
 			if (c && sprites(*c) > 0) {
 				fn = c;
 				break;
@@ -175,12 +176,17 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 	if (!fn)
 		throw std::runtime_error("no scene function found in " + _cfg.entry);
 
-	asb2::CharTable chars;
+	asb::CharTable chars;
 	if (!_cfg.chara_table.empty())
-		chars = asb2::load_char_table(_cfg.chara_table);
-	asb2::SceneIR ir = asb2::build_scene_ir(*fn, _cfg.entry, chars.empty() ? nullptr : &chars);
-	fprintf(stderr, "[script] %s :: %s  (entities=%zu camera=%zu)\n", _cfg.entry.c_str(), fn->name.c_str(),
-			ir.entities.size(), ir.camera.size());
+		chars = asb::load_char_table(_cfg.chara_table);
+	asb::SceneIR ir = asb::build_scene_ir(*fn, _cfg.entry, chars.empty() ? nullptr : &chars);
+	fprintf(
+		stderr,
+		"[script] %s :: %s  (entities=%zu camera=%zu)\n",
+		_cfg.entry.c_str(),
+		fn->name.c_str(),
+		ir.entities.size(),
+		ir.camera.size());
 
 	for (const auto& e : ir.entities) {
 		if (_layers.size() >= static_cast<size_t>(std::max(1, _cfg.limit)))
@@ -224,7 +230,7 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 	_camera.fit_bounds(fit, 0.15f);
 
 	if (_cfg.camera != "fit" && !ir.camera.empty()) {
-		const asb2::SceneCamera* key = nullptr;
+		const asb::SceneCamera* key = nullptr;
 		if (_cfg.camera == "first")
 			key = &ir.camera.front();
 		else if (_cfg.camera == "last")
@@ -274,8 +280,13 @@ void ScriptState::render() {
 			std::vector<uint8_t> pixels(static_cast<size_t>(fb_w) * fb_h * 4);
 			glReadPixels(0, 0, fb_w, fb_h, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
 			const bool ok = screenshot::write(_cfg.screenshot, fb_w, fb_h, pixels);
-			fprintf(stderr, "%s: %s (%dx%d)\n", ok ? "screenshot written" : "screenshot FAILED",
-					_cfg.screenshot.c_str(), fb_w, fb_h);
+			fprintf(
+				stderr,
+				"%s: %s (%dx%d)\n",
+				ok ? "screenshot written" : "screenshot FAILED",
+				_cfg.screenshot.c_str(),
+				fb_w,
+				fb_h);
 		}
 		_captured = true;
 	}
