@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <set>
 #include <span>
 #include <sstream>
 #include <string>
@@ -430,7 +431,7 @@ static std::span<const uint8_t> as_bytes(const std::vector<char>& v) {
 int main(int argc, char** argv) {
 	std::string cpk_path, entry, input_path, json_path, disasm_dir, chara_file;
 	bool all = false, want_disasm = false, summary = false, want_scene = false, scene_index = false, want_ir = false,
-		 want_chara = false, want_enums = false, want_classes = false;
+		 want_chara = false, want_enums = false, want_classes = false, want_bgs = false;
 
 	for (int i = 1; i < argc; ++i) {
 		std::string a = argv[i];
@@ -450,6 +451,7 @@ int main(int argc, char** argv) {
 		else if (a == "--chara-file") chara_file = next();
 		else if (a == "--uc-enums") want_enums = true;
 		else if (a == "--classes") want_classes = true;
+		else if (a == "--bgs") want_bgs = true;
 		else if (a == "-h" || a == "--help") {
 			std::printf("usage: asb_harvest [--input FILE.asb | --cpk CPK --asb Script/X.asb | --cpk CPK --all]\n"
 						"                    [--disasm] [--disasm-dir DIR] [--summary] [--scene] [--scene-index] [--json OUT.json|-]\n");
@@ -561,6 +563,32 @@ int main(int argc, char** argv) {
 			}
 		}
 		std::fprintf(stderr, "[classes] matched=%zu unmatched=%zu\n", matched, unmatched);
+		if (!json_path.empty() && json_path != "-")
+			std::ofstream(json_path) << os.str();
+		else
+			std::cout << os.str();
+		return 0;
+	}
+
+	if (want_bgs) {
+		if (cpk_path.empty()) {
+			std::fprintf(stderr, "--bgs requires --cpk\n");
+			return 2;
+		}
+		CPKTable table = TopLevelCpk(fs::absolute(cpk_path)).getTableOfContents();
+		std::set<std::string> files;
+		for (const auto& [d, f] : table.rows<"DirName", "FileName">())
+			if (d == "BattleBG")
+				files.insert(f);
+		std::ostringstream os;
+		os << "# key\tmbs\tftx (generated from BattleBG/* by asb_harvest --bgs)\n";
+		for (const auto& f : files) {
+			if (f.size() > 4 && f.compare(f.size() - 4, 4, ".mbs") == 0) {
+				std::string stem = f.substr(0, f.size() - 4);
+				std::string ftx = stem + ".ftx";
+				os << stem << '\t' << f << '\t' << (files.count(ftx) ? ftx : std::string()) << '\n';
+			}
+		}
 		if (!json_path.empty() && json_path != "-")
 			std::ofstream(json_path) << os.str();
 		else
