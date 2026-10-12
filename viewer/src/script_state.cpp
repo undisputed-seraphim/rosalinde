@@ -46,11 +46,6 @@ Job::dir_and_path split_path(const std::string& p) {
 	return {p.substr(0, pos), p.substr(pos + 1)};
 }
 
-const bool kIsSpriteCall(const std::string& c) {
-	return c == "CreateSpriteMone" || c == "DrUiCreateChara" || c == "CreateSpriteCoA" || c == "CreateSpriteEffect" ||
-		   c == "CreateSpriteMoneWorld" || c == "CreateSpriteMoneStageStart" || c == "DrCreateChara" ||
-		   c == "DrCreateNpc";
-}
 } // namespace
 
 ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConfig cfg)
@@ -135,7 +130,7 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 	auto sprites = [](const asb::SceneFunction& f) {
 		size_t c = 0;
 		for (const auto& e : f.events)
-			if (kIsSpriteCall(e.call))
+			if (asb::is_entity_create_call(e.call))
 				++c;
 		return c;
 	};
