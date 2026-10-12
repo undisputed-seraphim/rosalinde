@@ -27,7 +27,7 @@ if(BUILD_VIEWER)
 endif()
 
 find_package(ZLIB 1.3.1 REQUIRED)
-find_package(Boost CONFIG 1.88 REQUIRED COMPONENTS system program_options iostreams)
+find_package(Boost CONFIG 1.88 REQUIRED COMPONENTS program_options iostreams)
 find_package(glm CONFIG 1.0.0 REQUIRED)
 find_package(Catch2 3 REQUIRED)
 

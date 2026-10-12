@@ -1077,7 +1077,7 @@ Scene extract_scene(const Module& mod) {
 		std::vector<double> lastvec;
 		bool has_vec = false;
 
-		auto flush = [&](const std::string& cname, const std::string& cdecl, char ckind, bool is_ctor) {
+		auto flush = [&](const std::string& cname, const std::string& cdecl_str, char ckind, bool is_ctor) {
 			std::vector<double> floats;
 			std::vector<int64_t> ints;
 			for (const Val& v : pending) {
@@ -1104,7 +1104,7 @@ Scene extract_scene(const Module& mod) {
 			}
 			SceneEvent ev;
 			ev.call = cname;
-			ev.decl = cdecl;
+			ev.decl = cdecl_str;
 			ev.kind = ckind;
 			for (const Val& v : pending)
 				if (v.k == Val::S)
@@ -1163,22 +1163,22 @@ Scene extract_scene(const Module& mod) {
 			case 61:  // CALLSYS
 			case 200: // Thiscall1
 			case 62: { // CALLBND
-				std::string cname, cdecl;
+				std::string cname, cdecl_str;
 				char ckind = '?';
 				if (in.op == 62) {
 					if (!in.dargs.empty() && in.dargs[0] < mod.binds.size()) {
-						cdecl = mod.binds[in.dargs[0]].sig.decl();
+						cdecl_str = mod.binds[in.dargs[0]].sig.decl();
 						cname = mod.binds[in.dargs[0]].sig.name;
 					}
 				} else if (!in.dargs.empty()) {
-					cname = call_name(in.dargs[0], cdecl, ckind);
+					cname = call_name(in.dargs[0], cdecl_str, ckind);
 				}
-				bool ctor = (cname == "$beh0" && (cdecl.rfind("void FnVector2::", 0) == 0 || cdecl.rfind("void FnVector3::", 0) == 0));
-				std::string vecname = cdecl.rfind("void FnVector3::", 0) == 0 ? "FnVector3" : "FnVector2";
+				bool ctor = (cname == "$beh0" && (cdecl_str.rfind("void FnVector2::", 0) == 0 || cdecl_str.rfind("void FnVector3::", 0) == 0));
+				std::string vecname = cdecl_str.rfind("void FnVector3::", 0) == 0 ? "FnVector3" : "FnVector2";
 				if (ctor)
-					flush(vecname, cdecl, ckind, true);
+					flush(vecname, cdecl_str, ckind, true);
 				else
-					flush(cname, cdecl, ckind, false);
+					flush(cname, cdecl_str, ckind, false);
 				break;
 			}
 			default:
