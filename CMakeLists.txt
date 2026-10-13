@@ -16,6 +16,7 @@ set(Boost_USE_STATIC_LIBS ON)
 
 include(thirdparty/detex.cmake)
 include(thirdparty/glm.cmake)
+include(thirdparty/angelscript.cmake)
 
 if(BUILD_VIEWER)
 	include(thirdparty/SDL3.cmake)
