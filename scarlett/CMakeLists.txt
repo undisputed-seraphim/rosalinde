@@ -2,6 +2,7 @@
 add_library(scarlett STATIC
 	src/asb.cpp
 	src/host.cpp
+	src/registry.cpp
 )
 target_include_directories(scarlett PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
