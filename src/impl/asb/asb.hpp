@@ -150,6 +150,8 @@ struct DataType {
 	bool is_reference = false;
 	bool is_read_only = false;
 	std::string format() const;
+	// AngelScript declaration syntax (const -> type -> @ / @const -> &).
+	std::string as_decl() const;
 };
 
 struct Signature {
@@ -170,6 +172,9 @@ struct Signature {
 	bool is_explicit = false;
 	bool dont_cleanup = false;
 	std::string decl() const;
+	// Like decl() but without the object-type prefix, in the syntax
+	// RegisterGlobalFunction/RegisterObjectMethod expect.
+	std::string bare_decl(bool include_namespace = true) const;
 };
 
 struct Instruction {
