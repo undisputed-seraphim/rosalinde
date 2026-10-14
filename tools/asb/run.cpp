@@ -218,6 +218,10 @@ int main(int argc, char** argv) try {
 	// value (or const-ref) is a value type. Reference evidence wins.
 	std::unordered_set<std::string> value_names;
 	std::unordered_set<std::string> ref_names;
+	// Reference object types registered by the engine (from the exe's
+	// RegisterClass_* setup); these are never value types.
+	for (const char* n : {"UcStObject", "UcStChaseParam", "UcMsgBalloonParam", "UcSpriteTextParam"})
+		ref_names.insert(n);
 	auto mark_value = [&](const asb::DataType& dt) {
 		if (dt.token == asb::ttIdentifier && dt.type_info) {
 			std::string n = dt.type_info->format();
