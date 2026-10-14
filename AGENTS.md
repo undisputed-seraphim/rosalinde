@@ -16,7 +16,7 @@ Three layers:
 ```
 rosalinde/
 │
-├── CMakeLists.txt              # Root project. C++23, builds eltolinde lib + rosalinde exe
+├── CMakeLists.txt              # Root project. C++23, builds eltolinde/scarlett libs + rosalinde exe
 │
 ├── libcriware/                 # CPK/UTF archive library (no game-format knowledge)
 │   ├── CMakeLists.txt          # Builds criware.lib + criware_test.exe
@@ -50,14 +50,21 @@ rosalinde/
 │       ├── ftx.cpp             # FTEX parsing + BC3/BC4/BC7 decompress + Tegra deswizzle
 │       ├── fms.hpp             # FMSB string table parser (header-only)
 │       ├── nnd.hpp             # NND parser (array of uint32, header-only)
-│       ├── asb/
-│       │   ├── asb.hpp         # AngelScript 2.34 module decoder (Module/Signature/Instruction)
-│       │   └── asb.cpp         # Parser + disassembler + scene extraction (SceneIR)
 │       ├── otm.hpp / otm.cpp   # OTBM file format (stubbed)
 │       └── byte_reader.hpp     # Zero-dependency span cursor for binary parsing
 │
+├── scarlett/                   # AngelScript runtime library (decoder + hosted VM)
+│   ├── CMakeLists.txt          # Builds scarlett (links: angelscript_addon)
+│   ├── include/scarlett/
+│   │   ├── asb.hpp             # .asb module decoder (Module/Signature/Instruction/SceneIR)
+│   │   └── host.hpp            # Hosts a decoded module in a stock AngelScript 2.34 engine
+│   └── src/
+│       ├── asb.cpp             # Parser + disassembler + scene extraction (SceneIR)
+│       └── host.cpp            # Engine setup + module import registration + load/run
+│
 ├── tools/
-│   └── extractor.cpp           # CLI extractor. --list, --extract, --columns, --acb, --ftx, --fms, --mbs
+│   ├── extractor.cpp           # CLI extractor. --list, --extract, --columns, --acb, --ftx, --fms, --mbs
+│   └── asb/                    # asb_harvest (analysis/generators) + asb_run (host CLI); link scarlett
 │
 ├── viewer/                     # OpenGL 4.6 / SDL3 sprite viewer
 │   ├── CMakeLists.txt          # Builds viewer (links: eltolinde, glad, glm, Boost, SDL3, ZLIB)
@@ -122,14 +129,17 @@ rosalinde/
         ↑                   ↑
    viewer.exe ←── imgui ────┘
         ↑
-   eltolinde.lib ←── criware.lib ←── ZLIB (via detex)
-        ↑
-   rosalinde.exe (extractor)
+        ├── eltolinde.lib ←── criware.lib ←── ZLIB (via detex)
+        └── scarlett.lib  ←── angelscript.lib (vendored 2.34.0)
+
+   rosalinde.exe (extractor) ←── eltolinde.lib
+   tools/asb/* (asb_harvest, asb_run) ←── scarlett.lib
 ```
 
 - **criware**: No dependencies except STL. Self-contained CPK/UTF/CRILAYLA.
 - **eltolinde**: Depends on criware, detex (BCn decompress), Boost::iostreams (legacy), ZLIB, glm.
-- **viewer**: Depends on eltolinde, imgui, glad, glm, Boost::program_options, SDL3, ZLIB (screenshot).
+- **scarlett**: Depends on the vendored AngelScript (angelscript + add-ons). Decodes `.asb` and hosts modules in a stock AngelScript 2.34 engine.
+- **viewer**: Depends on eltolinde, scarlett, imgui, glad, glm, Boost::program_options, SDL3, ZLIB (screenshot).
 - **rosalinde** (extractor): Depends on eltolinde, Boost::program_options.
 
 ---
@@ -160,6 +170,7 @@ The build produces:
 | `criware` | static lib | `libcriware/src/*.cpp` |
 | `criware_test` | executable | `libcriware/tests/*.cpp` |
 | `eltolinde` | static lib | `src/**/*.*` |
+| `scarlett` | static lib | `scarlett/src/*.cpp` |
 | `rosalinde` | executable | `tools/extractor.cpp` |
 | `imgui` | static lib | `thirdparty/imgui-1.91.3/*.cpp` |
 | `viewer` | executable | `viewer/src/**/*.*` |
@@ -205,6 +216,7 @@ The build produces:
 
 ### File organization rules
 - New game-format parsers go under `src/impl/` (or `src/impl/<format>/` if multi-file).
+- AngelScript / `.asb` work goes under `scarlett/` (the runtime library); tools link `scarlett`.
 - New CRIWARE container support goes under `libcriware/`.
 - Viewer-only code stays under `viewer/src/`.
 - CLI-only code stays under `tools/`.

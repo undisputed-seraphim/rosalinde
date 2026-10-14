@@ -70,6 +70,8 @@ target_include_directories(eltolinde PUBLIC
 	$<INSTALL_INTERFACE:/src>
 )
 
+add_subdirectory(scarlett)
+
 add_executable(rosalinde "tools/extractor.cpp")
 target_link_libraries(rosalinde PRIVATE eltolinde Boost::program_options)
 

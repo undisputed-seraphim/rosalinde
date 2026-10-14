@@ -3,7 +3,7 @@
 #include "screenshot.hpp"
 
 #include <criware/cpk.hpp>
-#include <impl/asb/asb.hpp>
+#include <scarlett/asb.hpp>
 
 #include <SDL3/SDL.h>
 #include <algorithm>
