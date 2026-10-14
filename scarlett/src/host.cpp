@@ -206,8 +206,7 @@ void Host::register_module(const Module& mod) {
 	};
 	constexpr asDWORD vec_flags =
 		asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS_CDAK | asOBJ_APP_CLASS_ALLFLOATS;
-	constexpr asDWORD color_flags =
-		asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS_CDAK | asOBJ_APP_CLASS_ALLINTS;
+	constexpr asDWORD color_flags = asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS_C | asOBJ_APP_CLASS_ALLINTS;
 	const VT value_types[] = {
 		{"FnVector2", 12, vec_flags},
 		{"FnVector3", 12, vec_flags},
@@ -304,32 +303,19 @@ void Host::register_module(const Module& mod) {
 			continue;
 		const Signature& sig = mod.used_functions[i]->sig;
 		int r;
-		bool is_beh = sig.name.rfind("$beh", 0) == 0 || sig.name == "$fact" || sig.name == "$list";
+		bool is_beh = sig.name.rfind("$beh", 0) == 0 || sig.name == "$fact";
 		if (is_beh && sig.name.size() >= 4) {
-			// Map the serialized behaviour name to the behaviour the bytecode
-			// reader will look for (AngelScript as_restore.cpp): $beh0 is the
-			// constructor, $beh2 the destructor, $beh3/$fact a factory and
-			// $beh4/$list the list factory. (The trailing digit is not the
-			// asEBehaviours value.) Constructors/destructors target the method's
-			// object type; factories target the type they return/construct.
-			asEBehaviours beh;
+			// The serialized behaviour digit is the asEBehaviours value: 0 =
+			// constructor, 2 = destructor, 3 = factory, 4 = list factory (see
+			// AngelScript as_restore.cpp). `$fact` is a factory too.
+			// Constructors/destructors target the method's object type;
+			// factories target the type they produce.
+			asEBehaviours beh = sig.name == "$fact" ? asBEHAVE_FACTORY : static_cast<asEBehaviours>(sig.name[4] - '0');
 			TypeInfoPtr target;
-			if (sig.name == "$beh0") {
-				beh = asBEHAVE_CONSTRUCT;
-				target = sig.object_type;
-			} else if (sig.name == "$beh2") {
-				beh = asBEHAVE_DESTRUCT;
-				target = sig.object_type;
-			} else if (sig.name == "$beh3" || sig.name == "$fact") {
-				beh = asBEHAVE_FACTORY;
+			if (beh == asBEHAVE_FACTORY || beh == asBEHAVE_LIST_FACTORY)
 				target = sig.return_type.type_info ? sig.return_type.type_info : sig.object_type;
-			} else if (sig.name == "$beh4" || sig.name == "$list") {
-				beh = asBEHAVE_LIST_CONSTRUCT;
-				target = sig.object_type ? sig.object_type : sig.return_type.type_info;
-			} else {
-				++skipped;
-				continue;
-			}
+			else
+				target = sig.object_type;
 			if (!target) {
 				++skipped;
 				continue;
