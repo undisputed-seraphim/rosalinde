@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
@@ -37,7 +38,7 @@ std::vector<uint8_t> extract_entry(const std::string& cpk, const std::string& en
 } // namespace
 
 int main(int argc, char** argv) try {
-	std::string input, cpk, entry, func;
+	std::string input, cpk, entry, func, eval;
 	unsigned max_calls = 200;
 	for (int i = 1; i < argc; ++i) {
 		std::string a = argv[i];
@@ -50,6 +51,8 @@ int main(int argc, char** argv) try {
 			entry = next();
 		else if (a == "--func")
 			func = next();
+		else if (a == "--eval")
+			eval = next();
 		else if (a == "--max-calls")
 			max_calls = std::stoul(next());
 		else {
@@ -58,6 +61,19 @@ int main(int argc, char** argv) try {
 		}
 	}
 	(void)max_calls;
+
+	if (!eval.empty()) {
+		asb::Host host;
+		if (!host.compile(eval))
+			return 3;
+		asIScriptFunction* target = host.find_function({func.empty() ? "main" : func, "scene00", "MAIN"});
+		if (!target) {
+			std::fprintf(stderr, "[as] no entry function\n");
+			return 4;
+		}
+		host.execute(target);
+		return 0;
+	}
 
 	std::vector<uint8_t> bytes = !input.empty() ? read_file(input) : extract_entry(cpk, entry);
 	if (bytes.empty())

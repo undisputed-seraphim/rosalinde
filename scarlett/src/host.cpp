@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <new>
@@ -449,6 +450,14 @@ bool Host::load(std::span<const uint8_t> bytecode) {
 	std::fprintf(
 		stderr, "LoadByteCode r=%d stripped=%d consumed=%u/%zu\n", r, stripped, in.pos, bytecode.size());
 	return r == 0;
+}
+
+bool Host::compile(const std::string& source) {
+	_impl->module = _impl->engine->GetModule("test", asGM_ALWAYS_CREATE);
+	_impl->module->AddScriptSection("test", source.c_str(), source.size());
+	int r = _impl->module->Build();
+	std::fprintf(stderr, "Build r=%d\n", r);
+	return r >= 0;
 }
 
 asIScriptModule* Host::module() const {

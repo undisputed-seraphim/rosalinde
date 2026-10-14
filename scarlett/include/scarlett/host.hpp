@@ -32,6 +32,9 @@ public:
 	// Load the compiled module. Returns true on success (r == 0).
 	bool load(std::span<const uint8_t> bytecode);
 
+	// Compile AngelScript source into the host module (for tests/minimal repros).
+	bool compile(const std::string& source);
+
 	asIScriptModule* module() const;
 
 	// First matching entry function by candidate name, or nullptr.
