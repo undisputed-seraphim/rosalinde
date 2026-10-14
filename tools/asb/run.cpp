@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace {
@@ -46,56 +47,6 @@ void MessageCallback(const asSMessageInfo* msg, void*) {
 	}
 	std::fprintf(
 		stderr, "[as %s] %s:%d:%d %s\n", sev, msg->section ? msg->section : "", msg->row, msg->col, msg->message);
-}
-
-// Render a DataType the way AngelScript's own GetDeclaration does, so the
-// declaration we hand to RegisterGlobalFunction parses into the same signature
-// the module's usedFunctions table expects.
-std::string as_type(const asb::DataType& dt) {
-	std::string s;
-	if (dt.is_read_only)
-		s += "const ";
-	s += dt.token == asb::ttIdentifier ? (dt.type_info ? dt.type_info->format() : std::string("?"))
-									   : asb::token_name(dt.token);
-	if (dt.is_object_handle) {
-		s += "@";
-		if (dt.handle_to_const)
-			s += "const";
-	}
-	if (dt.is_reference)
-		s += "&";
-	return s;
-}
-
-std::string as_decl(const asb::Signature& sig) {
-	std::string s = as_type(sig.return_type);
-	s += " ";
-	if (!sig.name_space.empty())
-		s += sig.name_space + "::";
-	s += sig.name;
-	s += "(";
-	for (size_t i = 0; i < sig.params.size(); ++i) {
-		if (i)
-			s += ", ";
-		s += as_type(sig.params[i]);
-		if (sig.params[i].is_reference && i < sig.inout_flags.size()) {
-			switch (sig.inout_flags[i]) {
-			case 1:
-				s += "in";
-				break;
-			case 2:
-				s += "out";
-				break;
-			case 3:
-				s += "inout";
-				break;
-			default:
-				break;
-			}
-		}
-	}
-	s += ")";
-	return s;
 }
 
 std::string arg_to_string(asIScriptGeneric* gen, asUINT i) {
@@ -230,77 +181,235 @@ int main(int argc, char** argv) try {
 		mod.used_functions.size(),
 		mod.used_types.size(),
 		mod.error.c_str());
+	for (const auto& b : mod.binds)
+		std::fprintf(stderr, "[as] bind from '%s': %s\n", b.import_from.c_str(), b.sig.decl().c_str());
 
 	asIScriptEngine* engine = asCreateScriptEngine();
 	engine->SetMessageCallback(asFUNCTION(MessageCallback), nullptr, asCALL_CDECL);
+	engine->SetEngineProperty(asEP_EXPAND_DEF_ARRAY_TO_TMPL, 1);
 
 	RegisterStdString(engine);
 	RegisterScriptArray(engine, true);
 
-	// Register the value types the module refers to (sizes matter to the reader).
+	// Value types the engine exposes (known sizes).
 	struct VT {
 		const char* name;
 		int size;
-		asDWORD flags;
 	};
 	const VT value_types[] = {
-		{"FnVector2", 8, asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS | asOBJ_APP_CLASS_ALLFLOATS},
-		{"FnVector3", 12, asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS | asOBJ_APP_CLASS_ALLFLOATS},
-		{"FnVector4", 16, asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS | asOBJ_APP_CLASS_ALLFLOATS},
-		{"FnColor", 4, asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS | asOBJ_APP_CLASS_ALLINTS},
+		{"FnVector2", 8},
+		{"FnVector3", 12},
+		{"FnVector4", 16},
+		{"FnColor", 4},
 	};
+	std::unordered_map<std::string, int> known_size;
 	std::unordered_map<std::string, bool> registered_types;
 	for (const auto& vt : value_types) {
-		int r = engine->RegisterObjectType(vt.name, vt.size, vt.flags);
+		int r = engine->RegisterObjectType(vt.name, vt.size, asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS);
 		if (r < 0)
 			std::fprintf(stderr, "[as] RegisterObjectType(%s) r=%d\n", vt.name, r);
+		known_size[vt.name] = vt.size;
 		registered_types[vt.name] = true;
 	}
 	registered_types["string"] = true; // registered by the scriptstdstring add-on
 	registered_types["array"] = true;  // registered by the scriptarray add-on
 
-	// Engine object types the module refers to. Register the unknown ones as
-	// opaque reference types so import declarations can be parsed. (Script
-	// classes declared in the module itself must not be registered here.)
+	// Classify the module's own object types by how signatures use them: a type
+	// used via @ (or produced by a factory) is a reference type; one used by
+	// value (or const-ref) is a value type. Reference evidence wins.
+	std::unordered_set<std::string> value_names;
+	std::unordered_set<std::string> ref_names;
+	auto mark_value = [&](const asb::DataType& dt) {
+		if (dt.token == asb::ttIdentifier && dt.type_info) {
+			std::string n = dt.type_info->format();
+			if (n.empty() || n.find('<') != std::string::npos || n.find('[') != std::string::npos)
+				return;
+			if (dt.is_object_handle)
+				ref_names.insert(n);
+			else
+				value_names.insert(n);
+		}
+	};
+	auto scan_sig = [&](const asb::Signature& sig) {
+		mark_value(sig.return_type);
+		for (const auto& p : sig.params)
+			mark_value(p);
+	};
+	for (const auto& f : mod.used_functions)
+		if (f)
+			scan_sig(f->sig);
+	for (const auto& f : mod.functions)
+		if (f)
+			scan_sig(f->sig);
+
+	for (const auto& n : value_names) {
+		if (registered_types.count(n))
+			continue;
+		if (ref_names.count(n)) { // factory/handle evidence: reference type
+			int r = engine->RegisterObjectType(n.c_str(), 0, asOBJ_REF | asOBJ_NOCOUNT);
+			if (r < 0)
+				std::fprintf(stderr, "[as] RegisterObjectType(%s,ref) r=%d\n", n.c_str(), r);
+			registered_types[n] = true;
+			continue;
+		}
+		int size = known_size.count(n) ? known_size[n] : 32;
+		int r = engine->RegisterObjectType(n.c_str(), size, asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS);
+		if (r < 0)
+			std::fprintf(stderr, "[as] RegisterObjectType(%s,value) r=%d\n", n.c_str(), r);
+		registered_types[n] = true;
+	}
+	for (const auto& n : ref_names) {
+		if (registered_types.count(n))
+			continue;
+		int r = engine->RegisterObjectType(n.c_str(), 0, asOBJ_REF | asOBJ_NOCOUNT);
+		if (r < 0)
+			std::fprintf(stderr, "[as] RegisterObjectType(%s,ref) r=%d\n", n.c_str(), r);
+		registered_types[n] = true;
+	}
+
+	// Remaining engine object types the module refers to -> opaque references.
 	for (const auto& t : mod.used_types) {
 		if (!t)
 			continue;
-		std::fprintf(stderr, "[as] used_type kind=%d name=%s\n", int(t->kind), t->format().c_str());
 		if (t->kind != asb::TypeInfo::Object)
 			continue;
 		std::string name = t->format();
-		if (name.empty() || name.find('<') != std::string::npos || registered_types.count(name))
+		if (name.empty() || name.find('<') != std::string::npos || name.find('[') != std::string::npos ||
+			registered_types.count(name))
 			continue;
 		int r = engine->RegisterObjectType(name.c_str(), 0, asOBJ_REF | asOBJ_NOCOUNT);
 		if (r < 0)
 			std::fprintf(stderr, "[as] RegisterObjectType(%s) r=%d\n", name.c_str(), r);
+		registered_types[name] = true;
 	}
 
-	// Register every native (kind 'a') global the module imports, as generic stubs.
+	// Register every native (kind 'a') the module imports, as generic stubs:
+	// global functions on the engine, object methods on their (opaque) types.
 	unsigned registered = 0, skipped = 0;
 	for (size_t i = 0; i < mod.used_functions.size(); ++i) {
 		char kind = i < mod.used_function_kind.size() ? mod.used_function_kind[i] : '?';
 		if (kind != 'a' || !mod.used_functions[i])
 			continue;
 		const asb::Signature& sig = mod.used_functions[i]->sig;
-		if (!sig.name.empty() && sig.name[0] == '$') { // internal behaviour/factory ($beh*, $list)
+		int r;
+		if ((sig.name.rfind("$beh", 0) == 0 || sig.name == "$fact") && sig.name.size() >= 4) {
+			// Object behaviour the reader expects the registered type to expose.
+			// Constructors/destructors target the method's object type; factories
+			// target the type they return.
+			asb::TypeInfoPtr target = sig.object_type;
+			if (!target && (sig.name == "$fact" || sig.name == "$beh3"))
+				target = sig.return_type.type_info;
+			if (!target) {
+				++skipped;
+				continue;
+			}
+			std::string obj = target->format();
+			if (obj.empty() || obj[0] == '$' || obj.find('[') != std::string::npos) {
+				++skipped;
+				continue;
+			}
+			std::string decl = sig.return_type.as_decl() + " f(";
+			for (size_t k = 0; k < sig.params.size(); ++k) {
+				if (k)
+					decl += ", ";
+				decl += sig.params[k].as_decl();
+				if (sig.params[k].is_reference && k < sig.inout_flags.size()) {
+					switch (sig.inout_flags[k]) {
+					case 1:
+						decl += "in";
+						break;
+					case 2:
+						decl += "out";
+						break;
+					case 3:
+						decl += "inout";
+						break;
+					default:
+						break;
+					}
+				}
+			}
+			decl += ")";
+			if (decl.find('[') != std::string::npos) { // default-array types confuse the parser
+				++skipped;
+				continue;
+			}
+			int beh = sig.name == "$fact" ? asBEHAVE_FACTORY : (sig.name[4] - '0');
+			r = engine->RegisterObjectBehaviour(
+				obj.c_str(), (asEBehaviours)beh, decl.c_str(), asFUNCTION(GenericStub), asCALL_GENERIC);
+			if (r < 0) {
+				std::fprintf(stderr, "[as] RegisterObjectBehaviour failed r=%d: %s %s\n", r, obj.c_str(), decl.c_str());
+				++skipped;
+			} else {
+				++registered;
+			}
+			continue;
+		}
+		if (!sig.name.empty() && sig.name[0] == '$') { // other internals ($list, ...)
 			++skipped;
 			continue;
 		}
-		if (sig.object_type) { // object method: needs RegisterObjectMethod (later)
-			++skipped;
-			continue;
-		}
-		std::string decl = as_decl(sig);
-		int r = engine->RegisterGlobalFunction(decl.c_str(), asFUNCTION(GenericStub), asCALL_GENERIC);
-		if (r < 0) {
-			std::fprintf(stderr, "[as] RegisterGlobalFunction failed r=%d: %s\n", r, decl.c_str());
-			++skipped;
+		if (sig.object_type) {
+			std::string obj = sig.object_type->format();
+			if (obj.empty() || obj[0] == '$' || obj.find('[') != std::string::npos) {
+				++skipped;
+				continue;
+			}
+			std::string decl = sig.bare_decl(false);
+			if (decl.find('[') != std::string::npos) {
+				++skipped;
+				continue;
+			}
+			r = engine->RegisterObjectMethod(obj.c_str(), decl.c_str(), asFUNCTION(GenericStub), asCALL_GENERIC);
+			if (r < 0) {
+				std::fprintf(stderr, "[as] RegisterObjectMethod failed r=%d: %s::%s\n", r, obj.c_str(), decl.c_str());
+				++skipped;
+			} else {
+				++registered;
+			}
 		} else {
-			++registered;
+			std::string decl = sig.bare_decl(true);
+			if (decl.find('[') != std::string::npos) {
+				++skipped;
+				continue;
+			}
+			r = engine->RegisterGlobalFunction(decl.c_str(), asFUNCTION(GenericStub), asCALL_GENERIC);
+			if (r < 0) {
+				std::fprintf(stderr, "[as] RegisterGlobalFunction failed r=%d: %s\n", r, decl.c_str());
+				++skipped;
+			} else {
+				++registered;
+			}
 		}
 	}
 	std::fprintf(stderr, "[as] registered %u native(s), skipped %u\n", registered, skipped);
+
+	// Engine global properties the module reads (constants such as
+	// FnColor::BlackA0). Storage must outlive the engine.
+	std::vector<std::unique_ptr<std::vector<char>>> prop_storage;
+	for (const auto& g : mod.used_globals) {
+		if (g.module_prop)
+			continue; // module globals are created by the reader
+		int size = 32;
+		if (g.type.type_info) {
+			std::string tn = g.type.type_info->format();
+			if (known_size.count(tn))
+				size = known_size[tn];
+		}
+		auto buf = std::make_unique<std::vector<char>>(static_cast<size_t>(size), 0);
+		std::string decl = g.type.as_decl() + " " + g.name;
+		if (decl.find('[') != std::string::npos)
+			continue; // default-array type properties
+		if (!g.name_space.empty())
+			engine->SetDefaultNamespace(g.name_space.c_str());
+		int r = engine->RegisterGlobalProperty(decl.c_str(), buf->data());
+		if (!g.name_space.empty())
+			engine->SetDefaultNamespace("");
+		if (r < 0)
+			std::fprintf(
+				stderr, "[as] RegisterGlobalProperty failed r=%d: %s (ns %s)\n", r, decl.c_str(), g.name_space.c_str());
+		prop_storage.push_back(std::move(buf));
+	}
 
 	asIScriptModule* m = engine->GetModule("loaded", asGM_ALWAYS_CREATE);
 	FileStream in;

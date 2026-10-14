@@ -1153,6 +1153,24 @@ std::string DataType::format() const {
 	return s;
 }
 
+std::string DataType::as_decl() const {
+	std::string s;
+	if (is_read_only)
+		s += "const ";
+	if (token == ttIdentifier)
+		s += type_info ? type_info->format() : "?";
+	else
+		s += token_name(token);
+	if (is_object_handle) {
+		s += "@";
+		if (handle_to_const)
+			s += "const";
+	}
+	if (is_reference)
+		s += "&";
+	return s;
+}
+
 std::string Signature::decl() const {
 	std::string s = return_type.format();
 	s += " ";
@@ -1174,6 +1192,39 @@ std::string Signature::decl() const {
 		s += params[i].format();
 	}
 	s += ")";
+	return s;
+}
+
+std::string Signature::bare_decl(bool include_namespace) const {
+	std::string s = return_type.as_decl();
+	s += " ";
+	if (include_namespace && !name_space.empty())
+		s += name_space + "::";
+	s += name;
+	s += "(";
+	for (size_t i = 0; i < params.size(); ++i) {
+		if (i)
+			s += ", ";
+		s += params[i].as_decl();
+		if (params[i].is_reference && i < inout_flags.size()) {
+			switch (inout_flags[i]) {
+			case 1:
+				s += "in";
+				break;
+			case 2:
+				s += "out";
+				break;
+			case 3:
+				s += "inout";
+				break;
+			default:
+				break;
+			}
+		}
+	}
+	s += ")";
+	if (is_readonly)
+		s += " const";
 	return s;
 }
 
