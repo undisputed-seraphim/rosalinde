@@ -186,7 +186,6 @@ int main(int argc, char** argv) try {
 
 	asIScriptEngine* engine = asCreateScriptEngine();
 	engine->SetMessageCallback(asFUNCTION(MessageCallback), nullptr, asCALL_CDECL);
-	engine->SetEngineProperty(asEP_EXPAND_DEF_ARRAY_TO_TMPL, 1);
 
 	RegisterStdString(engine);
 	RegisterScriptArray(engine, true);
@@ -197,7 +196,7 @@ int main(int argc, char** argv) try {
 		int size;
 	};
 	const VT value_types[] = {
-		{"FnVector2", 8},
+		{"FnVector2", 12},
 		{"FnVector3", 12},
 		{"FnVector4", 16},
 		{"FnColor", 4},
@@ -398,8 +397,8 @@ int main(int argc, char** argv) try {
 		}
 		auto buf = std::make_unique<std::vector<char>>(static_cast<size_t>(size), 0);
 		std::string decl = g.type.as_decl() + " " + g.name;
-		if (decl.find('[') != std::string::npos)
-			continue; // default-array type properties
+		if (decl.find('[') != std::string::npos || decl.find('<') != std::string::npos)
+			continue; // array/template type properties
 		if (!g.name_space.empty())
 			engine->SetDefaultNamespace(g.name_space.c_str());
 		int r = engine->RegisterGlobalProperty(decl.c_str(), buf->data());
@@ -410,6 +409,21 @@ int main(int argc, char** argv) try {
 				stderr, "[as] RegisterGlobalProperty failed r=%d: %s (ns %s)\n", r, decl.c_str(), g.name_space.c_str());
 		prop_storage.push_back(std::move(buf));
 	}
+
+	// Object member properties the module accesses. The reader matches these by
+	// name only, so a placeholder type/offset is enough to satisfy resolution.
+	unsigned obj_props = 0;
+	for (const auto& op : mod.used_obj_props) {
+		if (!op.obj)
+			continue;
+		std::string obj = op.obj->format();
+		if (obj.empty() || obj[0] == '$' || obj.find('<') != std::string::npos || obj.find('[') != std::string::npos)
+			continue;
+		std::string decl = "int " + op.name;
+		if (engine->RegisterObjectProperty(obj.c_str(), decl.c_str(), 0) >= 0)
+			++obj_props;
+	}
+	std::fprintf(stderr, "[as] registered %u object propert(ies)\n", obj_props);
 
 	asIScriptModule* m = engine->GetModule("loaded", asGM_ALWAYS_CREATE);
 	FileStream in;
