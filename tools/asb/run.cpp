@@ -186,9 +186,19 @@ int main(int argc, char** argv) try {
 
 	asIScriptEngine* engine = asCreateScriptEngine();
 	engine->SetMessageCallback(asFUNCTION(MessageCallback), nullptr, asCALL_CDECL);
+	// Don't run global-variable initializers at load time; they call stubbed
+	// natives and would abort the load.
+	engine->SetEngineProperty(asEP_INIT_GLOBAL_VARS_AFTER_BUILD, 0);
 
 	RegisterStdString(engine);
 	RegisterScriptArray(engine, true);
+	// The project's bytecode was built against an add-on whose array factory
+	// uses `int` for the length parameter, while this add-on uses `uint`. The
+	// reader matches the stored factory stub, so register int-typed variants.
+	engine->RegisterObjectBehaviour(
+		"array<T>", asBEHAVE_FACTORY, "array<T>@ f(int&in, int)", asFUNCTION(GenericStub), asCALL_GENERIC);
+	engine->RegisterObjectBehaviour(
+		"array<T>", asBEHAVE_FACTORY, "array<T>@ f(int&in, int, const T &in)", asFUNCTION(GenericStub), asCALL_GENERIC);
 
 	// Value types the engine exposes (known sizes).
 	struct VT {
