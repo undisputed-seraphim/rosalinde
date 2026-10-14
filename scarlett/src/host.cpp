@@ -1,12 +1,16 @@
 #include <scarlett/host.hpp>
 
+#include "registry.hpp"
+
 #include <angelscript.h>
 #include <scriptarray/scriptarray.h>
 #include <scriptstdstring/scriptstdstring.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <new>
 #include <stdexcept>
 #include <string_view>
 #include <unordered_map>
@@ -69,6 +73,7 @@ std::string arg_to_string(asIScriptGeneric* gen, asUINT i) {
 }
 
 std::function<void(const std::string&)>* g_call_log = nullptr;
+Registry* g_scene_registry = nullptr;
 
 void GenericStub(asIScriptGeneric* gen) {
 	asIScriptFunction* fn = gen->GetFunction();
@@ -86,6 +91,11 @@ void GenericStub(asIScriptGeneric* gen) {
 		(*g_call_log)(line);
 	else
 		std::printf("%s\n", line.c_str());
+
+	// Let the recording shim model scene-relevant calls (and the scheduler hook)
+	// before falling back to a benign no-op return.
+	if (g_scene_registry && g_scene_registry->dispatch(gen))
+		return;
 
 	int rt = fn->GetReturnTypeId();
 	if (rt == asTYPEID_VOID)
@@ -117,6 +127,20 @@ void GenericStub(asIScriptGeneric* gen) {
 	default:
 		break;
 	}
+
+	// Value types are returned into caller-allocated storage; if we leave it
+	// untouched the VM later destroys/copies uninitialised memory (e.g. a bogus
+	// `string`). Default-construct a string and zero anything else.
+	if (rt & asTYPEID_MASK_OBJECT) {
+		asITypeInfo* ti = gen->GetEngine()->GetTypeInfoById(rt);
+		void* loc = gen->GetAddressOfReturnLocation();
+		if (loc && ti) {
+			if (std::strcmp(ti->GetName(), "string") == 0)
+				new (loc) std::string();
+			else if (int size = ti->GetSize(); size > 0)
+				std::memset(loc, 0, static_cast<size_t>(size));
+		}
+	}
 }
 
 void AbortCallback(asIScriptContext* ctx, void* param) {
@@ -136,14 +160,16 @@ struct Host::Impl {
 	std::unordered_map<std::string, int> known_size;
 	std::unordered_map<std::string, bool> registered_types;
 	std::function<void(const std::string&)> call_log;
+	const CharTable* chars = nullptr;
 };
 
 Host::Host()
 	: _impl(new Impl()) {
 	_impl->engine = asCreateScriptEngine();
 	_impl->engine->SetMessageCallback(asFUNCTION(MessageCallback), nullptr, asCALL_CDECL);
-	// Don't run global-variable initializers at load time; they call stubbed
-	// natives and would abort the load.
+	// Don't run the module's global-variable initializers at load time: they
+	// call stubbed natives and make the load fail. Constants the scene needs
+	// are handled lazily elsewhere.
 	_impl->engine->SetEngineProperty(asEP_INIT_GLOBAL_VARS_AFTER_BUILD, 0);
 
 	RegisterStdString(_impl->engine);
@@ -170,19 +196,26 @@ void Host::set_call_log(std::function<void(const std::string&)> cb) {
 void Host::register_module(const Module& mod) {
 	asIScriptEngine* engine = _impl->engine;
 
-	// Value types the engine exposes (known sizes).
+	// Value types the engine exposes (known sizes + the register flags the game
+	// used). The collection flags matter: the VM's stack layout is derived from
+	// them, so they must match the module's original registration.
 	struct VT {
 		const char* name;
 		int size;
+		asDWORD flags;
 	};
+	constexpr asDWORD vec_flags =
+		asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS_CDAK | asOBJ_APP_CLASS_ALLFLOATS;
+	constexpr asDWORD color_flags =
+		asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS_CDAK | asOBJ_APP_CLASS_ALLINTS;
 	const VT value_types[] = {
-		{"FnVector2", 12},
-		{"FnVector3", 12},
-		{"FnVector4", 16},
-		{"FnColor", 4},
+		{"FnVector2", 12, vec_flags},
+		{"FnVector3", 12, vec_flags},
+		{"FnVector4", 16, vec_flags},
+		{"FnColor", 4, color_flags},
 	};
 	for (const auto& vt : value_types) {
-		int r = engine->RegisterObjectType(vt.name, vt.size, asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS);
+		int r = engine->RegisterObjectType(vt.name, vt.size, vt.flags);
 		if (r < 0)
 			std::fprintf(stderr, "[as] RegisterObjectType(%s) r=%d\n", vt.name, r);
 		_impl->known_size[vt.name] = vt.size;
@@ -271,13 +304,32 @@ void Host::register_module(const Module& mod) {
 			continue;
 		const Signature& sig = mod.used_functions[i]->sig;
 		int r;
-		if ((sig.name.rfind("$beh", 0) == 0 || sig.name == "$fact") && sig.name.size() >= 4) {
-			// Object behaviour the reader expects the registered type to expose.
-			// Constructors/destructors target the method's object type; factories
-			// target the type they return.
-			TypeInfoPtr target = sig.object_type;
-			if (!target && (sig.name == "$fact" || sig.name == "$beh3"))
-				target = sig.return_type.type_info;
+		bool is_beh = sig.name.rfind("$beh", 0) == 0 || sig.name == "$fact" || sig.name == "$list";
+		if (is_beh && sig.name.size() >= 4) {
+			// Map the serialized behaviour name to the behaviour the bytecode
+			// reader will look for (AngelScript as_restore.cpp): $beh0 is the
+			// constructor, $beh2 the destructor, $beh3/$fact a factory and
+			// $beh4/$list the list factory. (The trailing digit is not the
+			// asEBehaviours value.) Constructors/destructors target the method's
+			// object type; factories target the type they return/construct.
+			asEBehaviours beh;
+			TypeInfoPtr target;
+			if (sig.name == "$beh0") {
+				beh = asBEHAVE_CONSTRUCT;
+				target = sig.object_type;
+			} else if (sig.name == "$beh2") {
+				beh = asBEHAVE_DESTRUCT;
+				target = sig.object_type;
+			} else if (sig.name == "$beh3" || sig.name == "$fact") {
+				beh = asBEHAVE_FACTORY;
+				target = sig.return_type.type_info ? sig.return_type.type_info : sig.object_type;
+			} else if (sig.name == "$beh4" || sig.name == "$list") {
+				beh = asBEHAVE_LIST_CONSTRUCT;
+				target = sig.object_type ? sig.object_type : sig.return_type.type_info;
+			} else {
+				++skipped;
+				continue;
+			}
 			if (!target) {
 				++skipped;
 				continue;
@@ -313,9 +365,7 @@ void Host::register_module(const Module& mod) {
 				++skipped;
 				continue;
 			}
-			int beh = sig.name == "$fact" ? asBEHAVE_FACTORY : (sig.name[4] - '0');
-			r = engine->RegisterObjectBehaviour(
-				obj.c_str(), (asEBehaviours)beh, decl.c_str(), asFUNCTION(GenericStub), asCALL_GENERIC);
+			r = engine->RegisterObjectBehaviour(obj.c_str(), beh, decl.c_str(), asFUNCTION(GenericStub), asCALL_GENERIC);
 			if (r < 0) {
 				std::fprintf(stderr, "[as] RegisterObjectBehaviour failed r=%d: %s %s\n", r, obj.c_str(), decl.c_str());
 				++skipped;
@@ -440,6 +490,66 @@ int Host::execute(asIScriptFunction* fn) {
 	ctx->Release();
 	g_call_log = nullptr;
 	return er;
+}
+
+void Host::set_char_table(const CharTable& chars) {
+	_impl->chars = &chars;
+}
+
+Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
+	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
+
+	Registry reg;
+	reg.set_char_table(_impl->chars);
+	reg.reset(std::move(source), fn ? fn->GetName() : "");
+	g_scene_registry = &reg;
+
+	asIScriptContext* ctx = _impl->engine->CreateContext();
+	ctx->Prepare(fn);
+
+	unsigned long steps = 0;
+	ctx->SetLineCallback(asFUNCTION(AbortCallback), &steps, asCALL_CDECL);
+
+	long frame = 0;
+	long wake = 0;
+	bool done = false;
+
+	auto burst = [&]() {
+		reg.frame = frame;
+		steps = 0;
+		int er = ctx->Execute();
+		if (er == asEXECUTION_SUSPENDED) {
+			wake = frame + std::max(1L, reg.pending_wait);
+		} else {
+			done = true;
+			if (er != asEXECUTION_FINISHED)
+				std::fprintf(stderr, "[as] run r=%d\n", er);
+		}
+		reg.pending_wait = -1;
+		reg.flush_keyframe();
+	};
+
+	burst();
+	while (!done) {
+		long next = std::max(wake, frame + 1);
+		if (next > max_frames)
+			break;
+		frame = next;
+		burst();
+	}
+
+	std::fprintf(
+		stderr,
+		"[as] run %s: %zu keyframe(s), %zu entit(ies), last frame %ld\n",
+		fn ? fn->GetName() : "?",
+		reg.timeline().keyframes.size(),
+		reg.timeline().keyframes.empty() ? 0 : reg.timeline().keyframes.back().entities.size(),
+		frame);
+
+	g_scene_registry = nullptr;
+	g_call_log = nullptr;
+	ctx->Release();
+	return std::move(reg.timeline());
 }
 
 } // namespace asb

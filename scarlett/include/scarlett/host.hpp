@@ -1,6 +1,7 @@
 #pragma once
 
 #include <scarlett/asb.hpp>
+#include <scarlett/scene.hpp>
 
 #include <cstdint>
 #include <functional>
@@ -37,8 +38,16 @@ public:
 	asIScriptFunction* find_function(const std::vector<std::string>& names) const;
 
 	// Execute a function to completion (aborts past a step limit). Returns the
-	// AngelScript execution result.
+	// AngelScript execution result. Does not model the scene or time.
 	int execute(asIScriptFunction* fn);
+
+	// Display-name -> asset table used to resolve chara creates while recording.
+	void set_char_table(const CharTable& chars);
+
+	// Run a function under a virtual clock: `Wait(n)` parks the script for n
+	// frames, the scene-relevant natives populate a runtime scene, and a
+	// keyframe is recorded whenever it changes. Returns the resulting timeline.
+	Timeline run(asIScriptFunction* fn, std::string source, long max_frames = 200000);
 
 	// Override the native call trace target; by default calls print to stdout.
 	void set_call_log(std::function<void(const std::string&)> cb);
