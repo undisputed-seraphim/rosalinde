@@ -56,13 +56,21 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 		std::fprintf(out, "\t\t\t\"entities\": [\n");
 		for (size_t i = 0; i < f.entities.size(); ++i) {
 			const asb::RuntimeEntity& e = f.entities[i];
+			std::string aliases;
+			for (size_t j = 0; j < e.aliases.size(); ++j) {
+				if (j)
+					aliases += ", ";
+				aliases += "\"" + e.aliases[j] + "\"";
+			}
 			std::fprintf(
 				out,
-				"\t\t\t\t{\"name\": \"%s\", \"kind\": \"%s\", \"mbs\": \"%s\", \"ftx\": \"%s\", \"track\": \"%s\", "
+				"\t\t\t\t{\"name\": \"%s\", \"kind\": \"%s\", \"space\": \"%s\", \"mbs\": \"%s\", \"ftx\": \"%s\", "
+				"\"track\": \"%s\", "
 				"\"track_index\": %d, \"pos\": [%g, %g, %g], \"scale\": %g, \"layer\": %d, \"visible\": %s, "
-				"\"order\": %d}%s\n",
+				"\"order\": %d, \"aliases\": [%s]}%s\n",
 				e.name.c_str(),
 				e.kind.c_str(),
+				e.space == asb::RuntimeEntity::Space::Ui ? "ui" : "world",
 				e.mbs.c_str(),
 				e.ftx.c_str(),
 				e.track.c_str(),
@@ -74,6 +82,7 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 				e.layer,
 				e.visible ? "true" : "false",
 				e.order,
+				aliases.c_str(),
 				i + 1 < f.entities.size() ? "," : "");
 		}
 		std::fprintf(out, "\t\t\t]\n\t\t}%s\n", k + 1 < tl.keyframes.size() ? "," : "");
