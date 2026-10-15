@@ -32,6 +32,12 @@ void read_color(asIScriptGeneric* gen, int i, float* out) {
 
 bool plausible_scale(float s) { return std::isfinite(s) && s > 1e-4f && s < 1e4f; }
 
+// Opt-in trace (SCENE_TRACE) of the scene-relevant natives as the module runs.
+bool scene_trace() {
+	static const bool on = std::getenv("SCENE_TRACE") != nullptr;
+	return on;
+}
+
 } // namespace
 
 void Registry::reset(std::string source, std::string function) {
@@ -73,6 +79,8 @@ void Registry::create_sprite(
 	const float* pos3,
 	int layer,
 	float scale) {
+	if (scene_trace())
+		std::fprintf(stderr, "[vm f=%ld] create %-22s \"%s\" mbs=%s\n", frame, kind.c_str(), id.c_str(), mbs.c_str());
 	int idx = ensure(id);
 	auto& e = _entities[idx];
 	e.kind = kind;
@@ -96,6 +104,12 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 	std::string id = names.size() >= 2 ? names[1] : (names.empty() ? std::string() : names[0]);
 	if (id.empty() && !names.empty())
 		id = names[0];
+	if (scene_trace()) {
+		std::fprintf(stderr, "[vm f=%ld] chara  %-22s \"%s\"", frame, kind.c_str(), id.c_str());
+		for (const auto& n : names)
+			std::fprintf(stderr, " [%s]", n.c_str());
+		std::fprintf(stderr, "\n");
+	}
 	int idx = ensure(id);
 	auto& e = _entities[idx];
 	e.kind = kind;
@@ -332,6 +346,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "SetSpriteMoneAnimation" || name == "SetSpriteMoneAnimationPaused") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track_index = I(1);
+			if (scene_trace())
+				std::fprintf(stderr, "[vm f=%ld] anim   \"%s\" track=%d\n", frame, e->name.c_str(), e->track_index);
 			_dirty = true;
 		}
 		return true;
@@ -339,6 +355,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrUiSetAnimation") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track_index = I(1);
+			if (scene_trace())
+				std::fprintf(stderr, "[vm f=%ld] anim   \"%s\" track=%d\n", frame, e->name.c_str(), e->track_index);
 			_dirty = true;
 		}
 		return true;
@@ -372,6 +390,9 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 
 	if (name == "DeleteSprite" || name == "DrUiDeleteChara" || name == "DrDeleteEffect" || name == "DeleteEffect") {
 		if (RuntimeEntity* e = ent(0)) {
+			if (scene_trace())
+				std::fprintf(
+					stderr, "[vm f=%ld] delete %-22s \"%s\"\n", frame, std::string(name).c_str(), e->name.c_str());
 			e->visible = false;
 			_dirty = true;
 		}

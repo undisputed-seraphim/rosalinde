@@ -9,6 +9,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <span>
 #include <stdexcept>
@@ -155,7 +157,8 @@ void SpriteInstance::play(uint32_t track_id) {
 		}
 	}
 	_frame_counter++;
-	fprintf(stdout, "%u: %s\n", track_id, track.name.c_str());
+	if (std::getenv("SCENE_TRACE"))
+		fprintf(stderr, "[anim] play track %u \"%s\"\n", track_id, track.name.c_str());
 }
 
 void SpriteInstance::play(const std::string& name) {
