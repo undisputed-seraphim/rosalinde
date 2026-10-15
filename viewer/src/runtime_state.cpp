@@ -21,8 +21,10 @@
 
 namespace {
 
-// Total length (in animation frames) of a track, from the MBS `s8[].frames`.
-// Cached; 0 when unknown, which leaves `WaitSpriteMoneAnimationEnd` immediate.
+// Length (in animation frames) of a track: the longest sub-animation (the MBS
+// sequences of a track are body parts that play together, so the track ends
+// when its longest part completes one cycle). Cached; 0 when unknown, which
+// leaves `WaitSpriteMoneAnimationEnd` immediate.
 long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int track_index) {
 	if (mbs.empty() || track_index < 0)
 		return 0;
@@ -41,9 +43,12 @@ long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int tra
 				SpriteData sd = SpriteData::load(
 					std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()), {});
 				if (track_index < static_cast<int>(sd.tracks.size())) {
-					for (const auto& run : sd.tracks[track_index].runs)
+					for (const auto& run : sd.tracks[track_index].runs) {
+						long run_len = 0;
 						for (uint32_t k = 0; k < run.s8_count && run.s8_start + k < sd.v77.s8.size(); ++k)
-							n += sd.v77.s8[run.s8_start + k].frames;
+							run_len += sd.v77.s8[run.s8_start + k].frames;
+						n = std::max(n, run_len);
+					}
 				}
 			}
 		}
