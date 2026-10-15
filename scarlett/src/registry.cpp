@@ -240,7 +240,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	// provider knows the track; otherwise it stays immediate.
 	if (name == "WaitSpriteMoneAnimationEnd") {
 		long n = 0;
-		if (RuntimeEntity* e = ent(0); e && _track_frames)
+		RuntimeEntity* e = ent(0);
+		if (e && _track_frames)
 			n = _track_frames(e->mbs, e->track_index);
 		if (n > 0) {
 			pending_wait = n;
