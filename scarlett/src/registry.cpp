@@ -93,6 +93,10 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 	auto& e = _entities[idx];
 	e.kind = kind;
 	e.space = kind == "DrUiCreateChara" ? RuntimeEntity::Space::Ui : RuntimeEntity::Space::World;
+	// UI chara are created hidden and faded in later by DrUiSetColorA; world
+	// chara (DrCreateChara/Npc) are visible immediately.
+	if (e.space == RuntimeEntity::Space::Ui)
+		e.alpha = 0;
 	e.aliases = names;
 	if (_chars) {
 		auto it = _chars->find(id);
@@ -216,10 +220,13 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
+	// CreateSpriteMone(name, mbs, ftx, track, FnVector2 pos, layer, scale, bool,
+	// int, int, int): the first three string args are the id, the .mbs and the
+	// .ftx (pushed in reverse, so S(0) is the name the mutators key on).
 	if (name == "CreateSpriteMone" || name == "CreateSpriteEffect" || name == "CreateSpriteMoneWorld") {
 		float p[3] = {0.0f, 0.0f, 0.0f};
 		V(4, p, 2);
-		create_sprite(std::string(name), S(2), S(0), S(1), p, I(5), F(6));
+		create_sprite(std::string(name), S(0), S(1), S(2), p, I(5), F(6));
 		return true;
 	}
 	if (name == "CreateSpriteMoneStageStart") {
