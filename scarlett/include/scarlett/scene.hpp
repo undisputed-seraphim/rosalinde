@@ -22,6 +22,8 @@ struct RuntimeEntity {
 	int track_index = -1;
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	float scale = 1.0f;
+	float dir_x = 1.0f; // facing: -1 mirrored, +1 default
+	int alpha = 255;	// 0-255, from DrUiSetColorA (0 = not yet faded in)
 	int layer = -1;
 	bool visible = true;
 	int order = 0;

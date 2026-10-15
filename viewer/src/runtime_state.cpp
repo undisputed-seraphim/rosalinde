@@ -19,7 +19,7 @@
 RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	: _loader(loader)
 	, _cfg(std::move(cfg))
-	, _camera(2.5f) {
+	, _camera(1.0f) {
 
 	_projection = glm::ortho(-960.0f, 960.0f, 540.0f, -540.0f);
 	enable_blend(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
@@ -98,10 +98,12 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 		fit = {std::min(fit.x, b.x), std::min(fit.y, b.y), std::max(fit.z, b.z), std::max(fit.w, b.w)};
 		any = true;
 	}
-	if (any)
+	// "design" keeps the fixed design-space projection (origin centred), which
+	// matches the game's UI space; "fit" zooms to the scene bounds instead.
+	if (any && _cfg.camera == "fit")
 		_camera.fit_bounds(fit, 0.15f);
 
-	if (_cfg.camera != "fit") {
+	if (_cfg.camera != "fit" && _cfg.camera != "design") {
 		std::vector<const asb::RuntimeCamera*> keys;
 		for (const auto& k : _timeline.keyframes)
 			if (k.camera.has_pos)
@@ -136,7 +138,7 @@ void RuntimeState::apply_keyframe() {
 	for (size_t i = 0; i < _layers.size(); ++i) {
 		if (!_layers[i])
 			continue;
-		const bool on = i < n && k.entities[i].visible;
+		const bool on = i < n && k.entities[i].visible && k.entities[i].alpha > 0;
 		_active[i] = on ? 1 : 0;
 		if (i >= n)
 			continue;

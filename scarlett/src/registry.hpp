@@ -4,6 +4,7 @@
 #include <scarlett/scene.hpp>
 
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -36,10 +37,16 @@ public:
 
 private:
 	bool construct_value(asIScriptGeneric* gen);
+	bool vec_binary(asIScriptGeneric* gen, std::string_view op);
 	int ensure(const std::string& name);
 	void alias(int idx, const std::string& name);
 	void create_sprite(
-		const std::string& kind, const std::string& id, std::string mbs, std::string ftx, const float* pos3, int layer,
+		const std::string& kind,
+		const std::string& id,
+		std::string mbs,
+		std::string ftx,
+		const float* pos3,
+		int layer,
 		float scale);
 	void create_chara(const std::string& kind, const std::vector<std::string>& names);
 

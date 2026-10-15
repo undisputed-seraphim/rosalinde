@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <string_view>
 
 namespace asb {
@@ -137,6 +138,39 @@ bool Registry::construct_value(asIScriptGeneric* gen) {
 	return true;
 }
 
+// The FnVector* value types are plain float tuples; scripts do real arithmetic
+// on them (positions come from `a + b`), so evaluate the operators instead of
+// letting the stub return zeroes.
+bool Registry::vec_binary(asIScriptGeneric* gen, std::string_view op) {
+	asIScriptFunction* fn = gen->GetFunction();
+	asITypeInfo* ot = fn ? fn->GetObjectType() : nullptr;
+	if (!ot)
+		return false;
+	std::string on = ot->GetName();
+	int comps = on == "FnVector2" ? 2 : on == "FnVector3" ? 3 : on == "FnVector4" ? 4 : 0;
+	if (!comps)
+		return false;
+	const float* a = static_cast<const float*>(gen->GetObject());
+	float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
+	if (!a || !r)
+		return false;
+	const bool scalar = gen->GetArgTypeId(0) == asTYPEID_FLOAT;
+	const float s = scalar ? gen->GetArgFloat(0) : 0.0f;
+	const float* b = scalar ? nullptr : static_cast<const float*>(gen->GetArgAddress(0));
+	for (int i = 0; i < comps; ++i) {
+		const float y = scalar ? s : (b ? b[i] : 0.0f);
+		if (op == "opAdd")
+			r[i] = a[i] + y;
+		else if (op == "opSub")
+			r[i] = a[i] - y;
+		else if (op == "opMul")
+			r[i] = a[i] * y;
+		else if (op == "opDiv")
+			r[i] = y != 0.0f ? a[i] / y : 0.0f;
+	}
+	return true;
+}
+
 bool Registry::dispatch(asIScriptGeneric* gen) {
 	asIScriptFunction* fn = gen->GetFunction();
 	if (!fn || !fn->GetName())
@@ -156,6 +190,9 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 
 	if (name.size() >= 4 && name.substr(0, 4) == "$beh")
 		return construct_value(gen);
+
+	if ((name == "opAdd" || name == "opSub" || name == "opMul" || name == "opDiv") && vec_binary(gen, name))
+		return true;
 
 	auto S = [&](int i) { return read_string(gen, i); };
 	auto F = [&](int i) { return gen->GetArgFloat(i); };
@@ -225,9 +262,35 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		}
 		return true;
 	}
+	if (name == "DrUiSetAnimation") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->track_index = I(1);
+			_dirty = true;
+		}
+		return true;
+	}
 	if (name == "DrSetIdleAnimation" || name == "DrAnimation" || name == "DrChangeAnimation") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track = S(1);
+			_dirty = true;
+		}
+		return true;
+	}
+
+	if (name == "DrUiSetDirX" || name == "SetSpriteDirX") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->dir_x = I(1) < 0 ? -1.0f : 1.0f;
+			_dirty = true;
+		}
+		return true;
+	}
+
+	// DrUiSetColorA(name, value, time): the value is the target grey/alpha (0 at
+	// creation, 255 when fully faded in); fade time is ignored. Track the low
+	// byte so a not-yet-faded-in sprite stays hidden.
+	if (name == "DrUiSetColorA" || name == "SetSpriteColorA" || name == "DrSetColorA") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->alpha = I(1) & 0xff;
 			_dirty = true;
 		}
 		return true;
@@ -267,6 +330,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		_dirty = true;
 		return true;
 	}
+
+	// Unmodelled call. With ASB_CENSUS set, report it so a run can enumerate the
+	// natives a scene depends on (returns stay at their stub defaults).
+	if (std::getenv("ASB_CENSUS"))
+		std::fprintf(stderr, "[census] %s%s%s\n", fn->GetNamespace(), *fn->GetNamespace() ? "::" : "", fn->GetName());
 
 	return false;
 }

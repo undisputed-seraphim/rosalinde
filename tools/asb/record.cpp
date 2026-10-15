@@ -66,7 +66,8 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 				out,
 				"\t\t\t\t{\"name\": \"%s\", \"kind\": \"%s\", \"space\": \"%s\", \"mbs\": \"%s\", \"ftx\": \"%s\", "
 				"\"track\": \"%s\", "
-				"\"track_index\": %d, \"pos\": [%g, %g, %g], \"scale\": %g, \"layer\": %d, \"visible\": %s, "
+				"\"track_index\": %d, \"pos\": [%g, %g, %g], \"scale\": %g, \"dir_x\": %g, \"alpha\": %d, "
+				"\"layer\": %d, \"visible\": %s, "
 				"\"order\": %d, \"aliases\": [%s]}%s\n",
 				e.name.c_str(),
 				e.kind.c_str(),
@@ -79,6 +80,8 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 				e.pos[1],
 				e.pos[2],
 				e.scale,
+				e.dir_x,
+				e.alpha,
 				e.layer,
 				e.visible ? "true" : "false",
 				e.order,

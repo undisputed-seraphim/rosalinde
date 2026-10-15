@@ -38,7 +38,7 @@ std::vector<uint8_t> extract_entry(const std::string& cpk, const std::string& en
 } // namespace
 
 int main(int argc, char** argv) try {
-	std::string input, cpk, entry, func, eval;
+	std::string input, cpk, entry, func, eval, disasm;
 	unsigned max_calls = 200;
 	for (int i = 1; i < argc; ++i) {
 		std::string a = argv[i];
@@ -53,6 +53,8 @@ int main(int argc, char** argv) try {
 			func = next();
 		else if (a == "--eval")
 			eval = next();
+		else if (a == "--disasm")
+			disasm = next();
 		else if (a == "--max-calls")
 			max_calls = std::stoul(next());
 		else {
@@ -91,6 +93,16 @@ int main(int argc, char** argv) try {
 		mod.error.c_str());
 	for (const auto& b : mod.binds)
 		std::fprintf(stderr, "[as] bind from '%s': %s\n", b.import_from.c_str(), b.sig.decl().c_str());
+
+	if (!disasm.empty()) {
+		for (const auto& f : mod.functions)
+			if (f && f->sig.name == disasm) {
+				std::printf("%s\n", asb::disassemble(mod, *f).c_str());
+				return 0;
+			}
+		std::fprintf(stderr, "no such function: %s\n", disasm.c_str());
+		return 5;
+	}
 
 	asb::Host host;
 	host.register_module(mod);
