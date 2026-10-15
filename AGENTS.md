@@ -97,7 +97,7 @@ The build produces:
 | **No CI** | — | Builds are local-only. No GitHub Actions or similar. |
 | **Test coverage is minimal** | `libcriware/tests/` | Only one Catch2 test (`substream.t.cpp`). No tests for CPK, UTF, MBS, FTX, or the viewer. |
 | **FetchContent + find_package duplication** | `thirdparty/*.cmake` | GLM and SDL3 try `find_package()` first, then fall back to FetchContent. Can cause version mismatches. |
-| **AS execution crashes on 8 scripts** | `scarlett/src/host.cpp` | Under the hosted VM (global init off), 672/680 scripts run; `Dr_OW_0_Opening`, `Dr_OW_C_0_St_Before_1`, `Dr_OW_Z_Arena_1st_2`, `St_OW_{A_2,D_8,D_1,C_3,Z_1}` corrupt the VM stack/heap. Likely a remaining value-vs-reference/size mismatch for a type an object file declares as a local. |
+| **AS host needs exact registrations** | `scarlett/src/host.cpp` | The hosted VM only works if registration never fails: a failed `RegisterObject*` sets the engine's `configFailed`, which stops `PrepareEngine` computing system-function interfaces and silently breaks value-returning natives. So skip anything already registered, register namespace-qualified types inside their namespace, and leave `asEP_INIT_GLOBAL_VARS_AFTER_BUILD` on. All 680 scripts load and run. |
 
 ---
 
