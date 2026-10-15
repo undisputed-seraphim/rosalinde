@@ -47,6 +47,10 @@ public:
 	// Display-name -> asset table used to resolve chara creates while recording.
 	void set_char_table(const CharTable& chars);
 
+	// Optional animation-length provider (frames) for an asset + track index,
+	// used to model `WaitSpriteMoneAnimationEnd` during run().
+	void set_track_frames(std::function<long(const std::string&, int)> fn);
+
 	// Run a function under a virtual clock: `Wait(n)` parks the script for n
 	// frames, the scene-relevant natives populate a runtime scene, and a
 	// keyframe is recorded whenever it changes. Returns the resulting timeline.

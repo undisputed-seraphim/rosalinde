@@ -184,8 +184,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			ctx->Suspend();
 		return true;
 	}
-	if (name == "WaitSpriteMoneAnimationEnd" || name == "WaitFadeDone" || name == "DrActionWait" ||
-		name == "ObjectSetupWait")
+	if (name == "WaitFadeDone" || name == "DrActionWait" || name == "ObjectSetupWait")
 		return true; // modelled as immediate while the engine action has no runtime
 
 	if (name.size() >= 4 && name.substr(0, 4) == "$beh")
@@ -202,6 +201,20 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		auto it = _by_name.find(read_string(gen, i));
 		return it == _by_name.end() ? nullptr : &_entities[it->second];
 	};
+
+	// Wait until a sprite's animation finishes. Only modelled when a length
+	// provider knows the track; otherwise it stays immediate.
+	if (name == "WaitSpriteMoneAnimationEnd") {
+		long n = 0;
+		if (RuntimeEntity* e = ent(0); e && _track_frames)
+			n = _track_frames(e->mbs, e->track_index);
+		if (n > 0) {
+			pending_wait = n;
+			if (asIScriptContext* ctx = asGetActiveContext())
+				ctx->Suspend();
+		}
+		return true;
+	}
 
 	if (name == "CreateSpriteMone" || name == "CreateSpriteEffect" || name == "CreateSpriteMoneWorld") {
 		float p[3] = {0.0f, 0.0f, 0.0f};
