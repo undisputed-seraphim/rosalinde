@@ -1,12 +1,14 @@
 #pragma once
 
 #include "camera.hpp"
+#include "deswizzle.hpp"
 #include "glxx/buffers.hpp"
 #include "sprite.hpp"
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <map>
+#include <memory>
 #include <vector>
 
 class SpriteRenderer {
@@ -30,6 +32,7 @@ public:
 private:
 	GLuint _texture_array = 0;
 	GLuint _vao = 0;
+	std::unique_ptr<Deswizzler> _deswizzler;
 	gl::ArrayBuffer<SpriteVertex> _vbo;
 	gl::uiElementBuffer _ebo;
 

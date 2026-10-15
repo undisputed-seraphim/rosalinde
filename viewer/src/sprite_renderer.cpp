@@ -2,6 +2,7 @@
 #include "shader.hpp"
 
 #include <glm/ext.hpp>
+#include <span>
 #include <utility>
 
 namespace {
@@ -46,6 +47,7 @@ SpriteRenderer::SpriteRenderer() {
 SpriteRenderer::SpriteRenderer(SpriteRenderer&& other) noexcept
 	: _texture_array(std::exchange(other._texture_array, 0))
 	, _vao(std::exchange(other._vao, 0))
+	, _deswizzler(std::move(other._deswizzler))
 	, _vbo(std::move(other._vbo))
 	, _ebo(std::move(other._ebo))
 	, _verts(std::move(other._verts))
@@ -59,6 +61,7 @@ SpriteRenderer& SpriteRenderer::operator=(SpriteRenderer&& other) noexcept {
 			glDeleteTextures(1, &_texture_array);
 		_texture_array = std::exchange(other._texture_array, 0);
 		_vao = std::exchange(other._vao, 0);
+		_deswizzler = std::move(other._deswizzler);
 		_vbo = std::move(other._vbo);
 		_ebo = std::move(other._ebo);
 		_verts = std::move(other._verts);
@@ -92,10 +95,14 @@ void SpriteRenderer::upload_textures(const SpriteData& data) {
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_ALWAYS);
 
 	glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, max_x, max_y, data.textures.size());
+
+	if (!_deswizzler)
+		_deswizzler = std::make_unique<Deswizzler>();
 	for (size_t i = 0; i < data.textures.size(); ++i) {
 		const auto& t = data.textures[i];
-		glTexSubImage3D(
-			GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, t.width, t.height, 1, GL_RGBA, GL_UNSIGNED_BYTE, t.rgba.data());
+		const auto* raw = reinterpret_cast<const uint8_t*>(t.rgba.data());
+		std::span<const uint8_t> payload(raw + t.compressed_size, t.uncompressed_size);
+		_deswizzler->upload_slice(_texture_array, static_cast<unsigned>(i), t.width, t.height, t.comp, payload);
 	}
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 }
