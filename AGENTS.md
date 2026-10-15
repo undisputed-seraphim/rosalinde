@@ -21,7 +21,7 @@ Layers:
         ↑                   ↑
    viewer.exe ←── imgui ────┘
         ↑
-        ├── eltolinde.lib ←── criware.lib ←── ZLIB (via detex)
+        ├── eltolinde.lib ←── criware.lib
         └── scarlett.lib  ←── angelscript.lib (vendored 2.34.0)
 
    rosalinde.exe (extractor) ←── eltolinde.lib
@@ -29,7 +29,7 @@ Layers:
 ```
 
 - **criware**: No dependencies except STL. Self-contained CPK/UTF/CRILAYLA.
-- **eltolinde**: Depends on criware, detex (BCn decompress), Boost::iostreams (legacy), ZLIB, glm.
+- **eltolinde**: Depends on criware, Boost::iostreams (legacy), ZLIB (vestigial), glm. FTX textures are decoded on the GPU by the viewer, not here.
 - **scarlett**: Depends on the vendored AngelScript (angelscript + add-ons). Decodes `.asb` and hosts modules in a stock AngelScript 2.34 engine.
 - **viewer**: Depends on eltolinde, scarlett, imgui, glad, glm, Boost::program_options, SDL3, ZLIB (screenshot).
 - **rosalinde** (extractor): Depends on eltolinde, Boost::program_options.

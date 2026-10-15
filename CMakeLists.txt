@@ -14,7 +14,6 @@ list(PREPEND CMAKE_PREFIX_PATH "$ENV{HOME}/.local")
 
 set(Boost_USE_STATIC_LIBS ON)
 
-include(thirdparty/detex.cmake)
 include(thirdparty/glm.cmake)
 include(thirdparty/angelscript.cmake)
 
@@ -56,7 +55,7 @@ add_subdirectory(libcriware)
 
 file(GLOB_RECURSE lib_src "src/*.*")
 add_library(eltolinde STATIC ${lib_src})
-target_link_libraries(eltolinde PUBLIC Boost::boost Boost::iostreams glm::glm ZLIB::ZLIB detex criware)
+target_link_libraries(eltolinde PUBLIC Boost::boost Boost::iostreams glm::glm ZLIB::ZLIB criware)
 target_compile_definitions(eltolinde PUBLIC
 	"GLM_FORCE_AVX2=1"
 	"GLM_FORCE_SWIZZLE=1"
