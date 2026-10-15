@@ -26,16 +26,31 @@ Scene::Scene(ViewerConfig config)
 
 	if (!_config.script.empty()) {
 		ImGui::GetIO().IniFilename = nullptr;
-		ScriptSceneConfig sc;
-		sc.entry = _config.script;
-		sc.func = _config.scene_func;
-		sc.limit = _config.scene_limit;
-		sc.camera = _config.scene_camera;
-		sc.chara_table = _config.chara_table;
-		sc.screenshot = _config.screenshot;
-		sc.frames = _config.frames;
-		_script = std::make_unique<ScriptState>(_loader, _ui, std::move(sc));
-		_mode = Mode::Script;
+		if (_config.runtime) {
+			RuntimeSceneConfig rc;
+			rc.entry = _config.script;
+			rc.func = _config.scene_func;
+			rc.limit = _config.scene_limit > 0 ? _config.scene_limit : 256;
+			rc.camera = _config.scene_camera;
+			rc.chara_table = _config.chara_table;
+			rc.screenshot = _config.screenshot;
+			rc.frames = _config.frames;
+			rc.frame = _config.scene_frame;
+			rc.fps = _config.scene_fps;
+			_runtime = std::make_unique<RuntimeState>(_loader, std::move(rc));
+			_mode = Mode::Runtime;
+		} else {
+			ScriptSceneConfig sc;
+			sc.entry = _config.script;
+			sc.func = _config.scene_func;
+			sc.limit = _config.scene_limit > 0 ? _config.scene_limit : 8;
+			sc.camera = _config.scene_camera;
+			sc.chara_table = _config.chara_table;
+			sc.screenshot = _config.screenshot;
+			sc.frames = _config.frames;
+			_script = std::make_unique<ScriptState>(_loader, _ui, std::move(sc));
+			_mode = Mode::Script;
+		}
 	} else if (!_config.screenshot.empty()) {
 		ImGui::GetIO().IniFilename = nullptr;
 		MenuSelection selection;
@@ -76,10 +91,18 @@ bool Scene::handle_inputs() {
 			if (_script->should_quit())
 				return true;
 		}
+
+		if (_mode == Mode::Runtime && _runtime) {
+			_runtime->handle_inputs();
+			if (_runtime->should_quit())
+				return true;
+		}
 	}
 	if (!_config.screenshot.empty() && _battle && _battle->captured())
 		return true;
 	if (!_config.screenshot.empty() && _script && _script->captured())
+		return true;
+	if (!_config.screenshot.empty() && _runtime && _runtime->captured())
 		return true;
 	return false;
 }
@@ -96,6 +119,8 @@ void Scene::render() {
 		_battle->render();
 	} else if (_mode == Mode::Script && _script) {
 		_script->render();
+	} else if (_mode == Mode::Runtime && _runtime) {
+		_runtime->render();
 	}
 
 	_ui.end_frame();
@@ -107,6 +132,8 @@ void Scene::update(float dt) {
 		_battle->update(dt);
 	} else if (_mode == Mode::Script && _script) {
 		_script->update(dt);
+	} else if (_mode == Mode::Runtime && _runtime) {
+		_runtime->update(dt);
 	}
 }
 

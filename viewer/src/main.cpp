@@ -32,9 +32,18 @@ int main(int argc, char* argv[]) try {
 		"scene-func",
 		::boost::program_options::value<std::string>(&config.scene_func),
 		"Scene function to build (default: scene00, then MAIN)")(
+		"runtime",
+		::boost::program_options::bool_switch(&config.runtime),
+		"Reconstruct the scene by running the hosted AngelScript VM (playback)")(
+		"scene-frame",
+		::boost::program_options::value<long>(&config.scene_frame)->default_value(config.scene_frame),
+		"Runtime: advance the scene to this frame, then hold (-1 = real time)")(
+		"scene-fps",
+		::boost::program_options::value<float>(&config.scene_fps)->default_value(config.scene_fps),
+		"Runtime: frame step rate")(
 		"scene-limit",
 		::boost::program_options::value<int>(&config.scene_limit)->default_value(config.scene_limit),
-		"Maximum sprite entities to load for a script scene")(
+		"Maximum sprite entities to load (0 = per-mode default)")(
 		"scene-camera",
 		::boost::program_options::value<std::string>(&config.scene_camera)->default_value(config.scene_camera),
 		"Script scene camera: fit (default) | first | last | <index into the scene's camera keys>")(

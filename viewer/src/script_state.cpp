@@ -1,4 +1,5 @@
 #include "script_state.hpp"
+#include "scene_layers.hpp"
 #include "scene_util.hpp"
 #include "screenshot.hpp"
 
@@ -101,35 +102,23 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 		ir.entities.size(),
 		ir.camera.size());
 
+	std::vector<LayerSpec> specs;
+	specs.reserve(ir.entities.size());
 	for (const auto& e : ir.entities) {
-		if (_layers.size() >= static_cast<size_t>(std::max(1, _cfg.limit)))
-			break;
-		if (!e.visible || e.mbs.empty() || e.ftx.empty())
-			continue;
-
-		auto m = _loader.resolve(e.mbs);
-		auto fx = _loader.resolve_ftx(e.ftx, e.mbs);
-		if (!m || !fx) {
-			fprintf(stderr, "[script] skip %s (not in archive)\n", e.mbs.c_str());
-			continue;
-		}
-
-		Job job;
-		job.mbs = *m;
-		job.ftx = *fx;
-
-		std::unique_ptr<SpriteLayer> layer;
-		try {
-			layer = _loader.load_layer(job, 0, e.id, e.kind);
-		} catch (const std::exception& ex) {
-			fprintf(stderr, "[script] skip %s: %s\n", e.id.c_str(), ex.what());
-			continue;
-		}
-		if (e.track_index >= 0 && e.track_index < static_cast<int>(layer->data.tracks.size()))
-			layer->instance.play(static_cast<uint32_t>(e.track_index));
-		layer->position = glm::vec2(e.pos[0], e.pos[1]);
-		_layers.push_back(std::move(layer));
+		LayerSpec s;
+		s.id = e.id;
+		s.kind = e.kind;
+		s.mbs = e.mbs;
+		s.ftx = e.ftx;
+		s.track_index = e.track_index;
+		s.pos = glm::vec2(e.pos[0], e.pos[1]);
+		s.scale = e.scale;
+		s.visible = e.visible;
+		specs.push_back(std::move(s));
 	}
+	for (auto& layer : build_layers(_loader, specs, std::max(1, _cfg.limit)))
+		if (layer)
+			_layers.push_back(std::move(layer));
 
 	fprintf(stderr, "[script] loaded %zu sprite layer(s)\n", _layers.size());
 	if (_layers.empty())
