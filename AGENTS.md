@@ -121,7 +121,7 @@ The build produces:
 ### Working on different areas
 - **criware library**: Low-risk. The only invariant is that `utf.cpp` must not be rewritten. New `table<>` schemas are welcome.
 - **eltolinde library**: Medium-risk. The MBS/FTX parsers are reverse-engineered. Verify against the CPK test archive.
-- **viewer**: Higher-risk. The GL state, shaders, and animation playback are fragile. Verify visual output headlessly (see [`docs/VIEWER.md`](docs/VIEWER.md)) rather than assuming.
+- **viewer**: Higher-risk. The GL state, shaders, and animation playback are fragile. Verify visual output headlessly (see [`docs/VIEWER.md`](docs/VIEWER.md)) rather than assuming. Script scenes render two ways: the static fold (`--script`) and hosted-VM playback (`--runtime`, with `--scene-frame N` for deterministic capture, `--scene-fps`, `--scene-camera design|fit|first|last|<n>`).
 - **tools/extractor.cpp**: CLI utility. Adding flags is safe.
 
 ### Common pitfalls
