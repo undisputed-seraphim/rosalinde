@@ -106,6 +106,24 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 		_timeline.keyframes.size(),
 		_timeline.keyframes.back().entities.size());
 
+	if (std::getenv("RUNTIME_DUMP")) {
+		for (const auto& k : _timeline.keyframes) {
+			std::fprintf(stderr, "[kf %ld]", k.frame);
+			for (const auto& e : k.entities)
+				if (e.visible && e.alpha > 0)
+					std::fprintf(
+						stderr,
+						" %s(%.0f,%.0f a=%d s=%.2f t=%d)",
+						e.name.c_str(),
+						e.pos[0],
+						e.pos[1],
+						e.alpha,
+						e.scale,
+						e.track_index);
+			std::fprintf(stderr, "\n");
+		}
+	}
+
 	const auto& ents = _timeline.keyframes.back().entities;
 	std::vector<LayerSpec> specs;
 	specs.reserve(ents.size());
