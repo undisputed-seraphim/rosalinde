@@ -47,4 +47,8 @@ std::vector<Entry> parse(std::span<char>);
 unsigned decompress(Entry&);
 void deswizzle(Entry&);
 
+// Bytes per 4x4 block for a compression format (16 for BC7, 8 for BC3/BC4,
+// 0 for uncompressed).
+unsigned block_bytes(Compression);
+
 } // namespace FTX
