@@ -107,6 +107,20 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 		_timeline.keyframes.back().entities.size());
 
 	if (std::getenv("RUNTIME_DUMP")) {
+		for (const auto& f : _timeline.fades)
+			std::fprintf(
+				stderr,
+				"[fade %ld..%ld] (%.2f,%.2f,%.2f,%.2f) -> (%.2f,%.2f,%.2f,%.2f)\n",
+				f.start,
+				f.end,
+				f.from[0],
+				f.from[1],
+				f.from[2],
+				f.from[3],
+				f.to[0],
+				f.to[1],
+				f.to[2],
+				f.to[3]);
 		for (const auto& k : _timeline.keyframes) {
 			std::fprintf(stderr, "[kf %ld]", k.frame);
 			for (const auto& e : k.entities)
@@ -142,6 +156,20 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	_layers = build_layers(_loader, specs, _cfg.limit);
 	_active.assign(_layers.size(), 0);
 	_track.assign(_layers.size(), -1);
+
+	std::unordered_map<std::string, int> by_name;
+	for (size_t i = 0; i < ents.size(); ++i) {
+		by_name[ents[i].name] = static_cast<int>(i);
+		for (const auto& a : ents[i].aliases)
+			by_name[a] = static_cast<int>(i);
+	}
+	_parent.assign(_layers.size(), -1);
+	for (size_t i = 0; i < ents.size() && i < _parent.size(); ++i) {
+		if (ents[i].parent.empty())
+			continue;
+		if (auto it = by_name.find(ents[i].parent); it != by_name.end() && it->second != static_cast<int>(i))
+			_parent[i] = it->second;
+	}
 
 	size_t loaded = 0;
 	for (const auto& l : _layers)
@@ -207,7 +235,10 @@ void RuntimeState::apply_keyframe() {
 		if (i >= n)
 			continue;
 		const asb::RuntimeEntity& e = k.entities[i];
-		_layers[i]->position = glm::vec2(e.pos[0], e.pos[1]);
+		glm::vec2 pos(e.pos[0], e.pos[1]);
+		if (_parent[i] >= 0 && _parent[i] < static_cast<int>(n))
+			pos += glm::vec2(k.entities[_parent[i]].pos[0], k.entities[_parent[i]].pos[1]);
+		_layers[i]->position = pos;
 		const int tracks = static_cast<int>(_layers[i]->data.tracks.size());
 		if (e.track_index >= 0 && e.track_index != _track[i] && e.track_index < tracks) {
 			_layers[i]->instance.play(static_cast<uint32_t>(e.track_index));
@@ -268,6 +299,10 @@ void RuntimeState::render() {
 		if (_layers[i] && _active[i])
 			_layers[i]->renderer.draw(
 				_layers[i]->instance, _projection, _camera, _layers[i]->position, &_layers[i]->layer_tints);
+
+	float fade[4];
+	asb::fade_at(_timeline.fades, _frame, fade);
+	_fade.draw(glm::vec4(fade[0], fade[1], fade[2], fade[3]));
 
 	if (!_cfg.screenshot.empty() && !_captured && _render_count >= _cfg.frames) {
 		int fb_w = 0, fb_h = 0;

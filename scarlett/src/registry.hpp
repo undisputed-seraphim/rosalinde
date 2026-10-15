@@ -57,6 +57,12 @@ private:
 		float scale);
 	void create_chara(const std::string& kind, const std::vector<std::string>& names);
 
+	// Screen-fade overlay colour (linear RGBA) at `frame`, and start a fade
+	// towards `to` lasting `time` frames from the current frame.
+	void fade_at(long frame, float* out) const;
+	void push_fade(const float* to, long time);
+	long fade_end() const;
+
 	const CharTable* _chars = nullptr;
 	std::function<long(const std::string&, int)> _track_frames;
 	Timeline _timeline;

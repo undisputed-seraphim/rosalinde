@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -28,6 +29,7 @@ struct RuntimeEntity {
 	bool visible = true;
 	int order = 0;
 	Space space = Space::World;
+	std::string parent; // SetSpriteToAnchor target (empty = none); pos is relative
 };
 
 struct RuntimeCamera {
@@ -37,6 +39,24 @@ struct RuntimeCamera {
 	bool has_zoom = false;
 	float accel = 0.0f;
 	float decel = 0.0f;
+};
+
+// A whole-screen colour fade (CrossFadeAsync/ColorFadeAsync). The overlay
+// colour is lerped from `from` to `to` (linear RGBA, 0..1) over [start, end].
+struct ScreenFade {
+	long start = 0;
+	long end = 0;
+	float from[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+	float to[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+};
+
+// DrCreateStage(stageType, weatherType, coaPreset, flagColorIndex).
+struct StageConfig {
+	long frame = 0;
+	int stage_type = 0;
+	int weather_type = 0;
+	int coa_preset = 0;
+	int flag_color = 0;
 };
 
 // The whole scene at one frame. Only emitted when something changed.
@@ -50,6 +70,23 @@ struct Timeline {
 	std::string source;
 	std::string function;
 	std::vector<Keyframe> keyframes;
+	std::vector<ScreenFade> fades;
+	std::vector<StageConfig> stages;
 };
+
+// Overlay colour (linear RGBA) produced by the fades list at `frame`.
+inline void fade_at(const std::vector<ScreenFade>& fades, long frame, float* out) {
+	out[0] = out[1] = out[2] = out[3] = 0.0f;
+	for (const auto& s : fades) {
+		if (frame >= s.end) {
+			for (int k = 0; k < 4; ++k)
+				out[k] = s.to[k];
+		} else if (frame >= s.start) {
+			const float t = static_cast<float>(frame - s.start) / static_cast<float>(std::max(1L, s.end - s.start));
+			for (int k = 0; k < 4; ++k)
+				out[k] = s.from[k] + (s.to[k] - s.from[k]) * t;
+		}
+	}
+}
 
 } // namespace asb
