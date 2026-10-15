@@ -21,6 +21,11 @@
 
 namespace {
 
+static bool scene_trace() {
+	static const bool on = std::getenv("SCENE_TRACE") != nullptr;
+	return on;
+}
+
 // Length (in animation frames) of a track: the longest sub-animation (the MBS
 // sequences of a track are body parts that play together, so the track ends
 // when its longest part completes one cycle). Cached; 0 when unknown, which
@@ -236,6 +241,8 @@ void RuntimeState::apply_keyframe() {
 		if (!_layers[i])
 			continue;
 		const bool on = i < n && k.entities[i].visible && k.entities[i].alpha > 0;
+		if (scene_trace() && on != static_cast<bool>(_active[i]))
+			std::fprintf(stderr, "[play f=%ld] %c %s\n", _frame, on ? '+' : '-', _layers[i]->class_name.c_str());
 		_active[i] = on ? 1 : 0;
 		if (i >= n)
 			continue;

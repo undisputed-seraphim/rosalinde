@@ -4,8 +4,14 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
+#include <cstdlib>
 #include <thread>
 #include <vector>
+
+static bool scene_trace() {
+	static const bool on = std::getenv("SCENE_TRACE") != nullptr;
+	return on;
+}
 
 std::vector<std::unique_ptr<SpriteLayer>>
 build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int limit) {
@@ -24,7 +30,7 @@ build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int
 		auto m = loader.resolve(s.mbs);
 		auto fx = loader.resolve_ftx(s.ftx, s.mbs);
 		if (!m || !fx) {
-			std::fprintf(stderr, "[scene] skip %s (not in archive)\n", s.mbs.c_str());
+			std::fprintf(stderr, "[scene] miss %-24s %s\n", s.id.c_str(), s.mbs.c_str());
 			continue;
 		}
 		jobs[i].mbs = *m;
@@ -75,6 +81,13 @@ build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int
 				layer->instance.play(static_cast<uint32_t>(specs[i].track_index));
 			layer->position = specs[i].pos;
 			layers[i] = std::move(layer);
+			if (scene_trace())
+				std::fprintf(
+					stderr,
+					"[scene] load %-24s %-40s %zu tracks\n",
+					specs[i].id.c_str(),
+					specs[i].mbs.c_str(),
+					layers[i]->data.tracks.size());
 		}
 	}
 	return layers;

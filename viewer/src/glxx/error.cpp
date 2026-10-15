@@ -1,4 +1,5 @@
 #include "glxx/error.hpp"
+#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -80,6 +81,12 @@ void message_callback(
 	GLsizei length,
 	const GLchar* message,
 	const void* userParam) {
+	// Notifications (e.g. NVIDIA's per-buffer "Buffer detailed info") fire for
+	// every allocation and drown the console; only report real problems unless
+	// VIEWER_GL_DEBUG is set.
+	static const bool verbose = std::getenv("VIEWER_GL_DEBUG") != nullptr;
+	if (!verbose && severity == GL_DEBUG_SEVERITY_NOTIFICATION)
+		return;
 	std::cout << '[' << gl_debug_severity_str(severity) << "] [" << gl_debug_type_string(type) << "]\t"
 			  << std::string_view(message, length) << std::endl;
 }
