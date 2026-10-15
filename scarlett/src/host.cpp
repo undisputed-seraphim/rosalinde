@@ -241,6 +241,7 @@ struct Host::Impl {
 	std::unordered_map<std::string, int> known_size;
 	std::unordered_map<std::string, bool> registered_types;
 	std::function<void(const std::string&)> call_log;
+	std::function<long(const std::string&, int)> track_frames;
 	const CharTable* chars = nullptr;
 };
 
@@ -584,11 +585,15 @@ int Host::execute(asIScriptFunction* fn) {
 
 void Host::set_char_table(const CharTable& chars) { _impl->chars = &chars; }
 
+void Host::set_track_frames(std::function<long(const std::string&, int)> fn) { _impl->track_frames = std::move(fn); }
+
 Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
 
 	Registry reg;
 	reg.set_char_table(_impl->chars);
+	if (_impl->track_frames)
+		reg.set_track_frames(_impl->track_frames);
 	reg.reset(std::move(source), fn ? fn->GetName() : "");
 	g_scene_registry = &reg;
 

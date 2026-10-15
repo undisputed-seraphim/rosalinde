@@ -14,7 +14,46 @@
 #include <cstdlib>
 #include <glad/glad.h>
 #include <glm/ext.hpp>
+#include <span>
 #include <stdexcept>
+#include <unordered_map>
+
+namespace {
+
+// Total length (in animation frames) of a track, from the MBS `s8[].frames`.
+// Cached; 0 when unknown, which leaves `WaitSpriteMoneAnimationEnd` immediate.
+long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int track_index) {
+	if (mbs.empty() || track_index < 0)
+		return 0;
+	static std::unordered_map<std::string, long> cache;
+	const std::string key = mbs + '\x1f' + std::to_string(track_index);
+	if (auto it = cache.find(key); it != cache.end())
+		return it->second;
+
+	long n = 0;
+	try {
+		if (auto p = loader.resolve(mbs)) {
+			const CPKTable& cpk = loader.cpk();
+			if (auto e = cpk.find_file(p->dir, p->path); e != cpk.end()) {
+				std::vector<char> buf;
+				cpk.extract(*e, buf);
+				SpriteData sd = SpriteData::load(
+					std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()), {});
+				if (track_index < static_cast<int>(sd.tracks.size())) {
+					for (const auto& run : sd.tracks[track_index].runs)
+						for (uint32_t k = 0; k < run.s8_count && run.s8_start + k < sd.v77.s8.size(); ++k)
+							n += sd.v77.s8[run.s8_start + k].frames;
+				}
+			}
+		}
+	} catch (...) {
+		n = 0;
+	}
+	cache[key] = n;
+	return n;
+}
+
+} // namespace
 
 RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	: _loader(loader)
@@ -45,6 +84,7 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	host.set_call_log([](const std::string&) {});
 	if (!chars.empty())
 		host.set_char_table(chars);
+	host.set_track_frames([this](const std::string& mbs, int idx) { return mbs_track_frames(_loader, mbs, idx); });
 
 	_timeline = asb::run_module(
 		host,
