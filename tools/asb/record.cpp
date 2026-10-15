@@ -90,6 +90,38 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 		}
 		std::fprintf(out, "\t\t\t]\n\t\t}%s\n", k + 1 < tl.keyframes.size() ? "," : "");
 	}
+	std::fprintf(out, "\t],\n\t\"fades\": [\n");
+	for (size_t i = 0; i < tl.fades.size(); ++i) {
+		const asb::ScreenFade& f = tl.fades[i];
+		std::fprintf(
+			out,
+			"\t\t{\"start\": %ld, \"end\": %ld, \"from\": [%g, %g, %g, %g], \"to\": [%g, %g, %g, %g]}%s\n",
+			f.start,
+			f.end,
+			f.from[0],
+			f.from[1],
+			f.from[2],
+			f.from[3],
+			f.to[0],
+			f.to[1],
+			f.to[2],
+			f.to[3],
+			i + 1 < tl.fades.size() ? "," : "");
+	}
+	std::fprintf(out, "\t],\n\t\"stages\": [\n");
+	for (size_t i = 0; i < tl.stages.size(); ++i) {
+		const asb::StageConfig& s = tl.stages[i];
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"stage_type\": %d, \"weather_type\": %d, \"coa_preset\": %d, \"flag_color\": "
+			"%d}%s\n",
+			s.frame,
+			s.stage_type,
+			s.weather_type,
+			s.coa_preset,
+			s.flag_color,
+			i + 1 < tl.stages.size() ? "," : "");
+	}
 	std::fprintf(out, "\t]\n}\n");
 }
 

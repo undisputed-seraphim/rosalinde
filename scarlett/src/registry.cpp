@@ -23,6 +23,13 @@ void read_vec(asIScriptGeneric* gen, int i, float* out, int n) {
 		out[k] = p ? p[k] : 0.0f;
 }
 
+// FnColor is a packed 4-byte RGBA value type.
+void read_color(asIScriptGeneric* gen, int i, float* out) {
+	auto* p = static_cast<const unsigned char*>(gen->GetArgAddress(i));
+	for (int k = 0; k < 4; ++k)
+		out[k] = (p ? p[k] : 0.0f) / 255.0f;
+}
+
 bool plausible_scale(float s) { return std::isfinite(s) && s > 1e-4f && s < 1e4f; }
 
 } // namespace
@@ -119,6 +126,21 @@ bool Registry::construct_value(asIScriptGeneric* gen) {
 	if (!ot || !obj)
 		return false;
 	std::string on = ot->GetName();
+	const int n = static_cast<int>(fn->GetParamCount());
+	if (on == "FnColor") {
+		auto* out = static_cast<unsigned char*>(obj);
+		out[0] = out[1] = out[2] = out[3] = 0;
+		if (n >= 4) {
+			for (int i = 0; i < 4; ++i)
+				out[i] = static_cast<unsigned char>(gen->GetArgDWord(i) & 0xff);
+		} else if (n == 1 && (gen->GetArgTypeId(0) & asTYPEID_MASK_OBJECT)) {
+			const auto* p = static_cast<const unsigned char*>(gen->GetArgAddress(0));
+			if (p)
+				for (int i = 0; i < 4; ++i)
+					out[i] = p[i];
+		}
+		return true;
+	}
 	bool is2 = on == "FnVector2", is3 = on == "FnVector3", is4 = on == "FnVector4";
 	if (!is2 && !is3 && !is4)
 		return false;
@@ -126,7 +148,6 @@ bool Registry::construct_value(asIScriptGeneric* gen) {
 	const int comps = is2 ? 2 : (is3 ? 3 : 4);
 	for (int i = 0; i < comps; ++i)
 		out[i] = 0.0f;
-	const int n = static_cast<int>(fn->GetParamCount());
 	if (n >= 1) {
 		int tid = gen->GetArgTypeId(0);
 		if (tid == asTYPEID_FLOAT) {
@@ -188,7 +209,16 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			ctx->Suspend();
 		return true;
 	}
-	if (name == "WaitFadeDone" || name == "DrActionWait" || name == "ObjectSetupWait")
+	if (name == "WaitFadeDone") {
+		const long end = fade_end();
+		if (end > frame) {
+			pending_wait = end - frame;
+			if (asIScriptContext* ctx = asGetActiveContext())
+				ctx->Suspend();
+		}
+		return true;
+	}
+	if (name == "DrActionWait" || name == "ObjectSetupWait")
 		return true; // modelled as immediate while the engine action has no runtime
 
 	if (name.size() >= 4 && name.substr(0, 4) == "$beh")
@@ -242,6 +272,19 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
+	// Stage/weather/flag configuration. No id->effect mapping is known, so the
+	// visual is left to the engine; record the ids for offline inspection.
+	if (name == "DrCreateStage") {
+		StageConfig s;
+		s.frame = frame;
+		s.stage_type = I(0);
+		s.weather_type = I(1);
+		s.coa_preset = I(2);
+		s.flag_color = I(3);
+		_timeline.stages.push_back(std::move(s));
+		return true;
+	}
+
 	if (name == "DrUiCreateChara") {
 		create_chara(std::string(name), {S(0), S(1), S(2), S(3)});
 		return true;
@@ -259,6 +302,16 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			e->pos[0] = p[0];
 			e->pos[1] = p[1];
 			e->pos[2] = p[2];
+			_dirty = true;
+		}
+		return true;
+	}
+
+	// Anchor one sprite to another: the child's position becomes relative to
+	// the target's (both are usually at the origin, but moving parents matter).
+	if (name == "SetSpriteToAnchor") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->parent = S(1);
 			_dirty = true;
 		}
 		return true;
@@ -351,6 +404,34 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
+	// Whole-screen colour fades: ColorFadeAsync(FnColor, time) ramps the
+	// overlay to `color`; CrossFadeAsync(time) is modelled as a dip to black.
+	if (name == "ColorFadeAsync" || name == "ColorFade2" || name == "ColorFade") {
+		float c[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+		read_color(gen, 0, c);
+		push_fade(c, I(1));
+		return true;
+	}
+	if (name == "CrossFadeAsync") {
+		const long t = std::max(1L, static_cast<long>(I(0)));
+		const float black[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+		const float clear[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+		float from[4];
+		if (_timeline.fades.empty()) {
+			from[0] = from[1] = from[2] = 0.0f;
+			from[3] = 0.0f;
+		} else {
+			fade_at(frame, from);
+		}
+		_timeline.fades.push_back(ScreenFade{
+			frame, frame + t, {from[0], from[1], from[2], from[3]}, {black[0], black[1], black[2], black[3]}});
+		float mid[4];
+		fade_at(frame + t, mid);
+		_timeline.fades.push_back(ScreenFade{
+			frame + t, frame + 2 * t, {mid[0], mid[1], mid[2], mid[3]}, {clear[0], clear[1], clear[2], clear[3]}});
+		return true;
+	}
+
 	// Unmodelled call. With ASB_CENSUS set, report it so a run can enumerate the
 	// natives a scene depends on (returns stay at their stub defaults).
 	if (std::getenv("ASB_CENSUS"))
@@ -358,6 +439,27 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 
 	return false;
 }
+
+void Registry::fade_at(long f, float* out) const { asb::fade_at(_timeline.fades, f, out); }
+
+void Registry::push_fade(const float* to, long time) {
+	float from[4];
+	if (_timeline.fades.empty()) {
+		// Before the first fade the engine's overlay is opaque when the scene is
+		// about to fade in (target transparent) and clear when it fades out.
+		from[0] = to[0];
+		from[1] = to[1];
+		from[2] = to[2];
+		from[3] = to[3] < 0.5f ? 1.0f : 0.0f;
+	} else {
+		fade_at(frame, from);
+	}
+	const long t = std::max(1L, time);
+	_timeline.fades.push_back(
+		ScreenFade{frame, frame + t, {from[0], from[1], from[2], from[3]}, {to[0], to[1], to[2], to[3]}});
+}
+
+long Registry::fade_end() const { return _timeline.fades.empty() ? 0 : _timeline.fades.back().end; }
 
 void Registry::flush_keyframe() {
 	if (!_dirty && !_timeline.keyframes.empty())

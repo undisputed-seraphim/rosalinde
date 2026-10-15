@@ -2,6 +2,7 @@
 
 #include "asset_loader.hpp"
 #include "camera.hpp"
+#include "screen_fade.hpp"
 #include "sprite_layer.hpp"
 
 #include <scarlett/scene.hpp>
@@ -51,6 +52,8 @@ private:
 	std::vector<std::unique_ptr<SpriteLayer>> _layers; // aligned by entity order
 	std::vector<char> _active;
 	std::vector<int> _track;
+	std::vector<int> _parent; // entity index this layer is anchored to, or -1
+	ScreenFadeOverlay _fade;
 
 	size_t _kf = 0;
 	long _frame = 0;
