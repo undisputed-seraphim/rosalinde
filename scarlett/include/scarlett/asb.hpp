@@ -331,6 +331,11 @@ std::string disassemble(const Module& mod, const Function& fn);
 Scene extract_scene(const Module& mod);
 SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars = nullptr);
 
+// Choose the scene entry function: the named function when given, else
+// scene00/MAIN, else the first scene* that creates entities, else the function
+// that creates the most, else the first non-empty one. nullptr if none.
+const SceneFunction* pick_scene_function(const Scene& scene, const std::string& wanted = {});
+
 // Call-name classification, shared by the scene fold, the harvest tool and the viewer.
 bool is_sprite_create_call(std::string_view call);
 bool is_chara_create_call(std::string_view call);

@@ -1634,4 +1634,53 @@ SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const
 	return ir;
 }
 
+namespace {
+
+size_t count_creates(const SceneFunction& f) {
+	size_t c = 0;
+	for (const auto& e : f.events)
+		if (is_entity_create_call(e.call))
+			++c;
+	return c;
+}
+
+} // namespace
+
+const SceneFunction* pick_scene_function(const Scene& scene, const std::string& wanted) {
+	if (!wanted.empty()) {
+		for (const auto& f : scene.functions)
+			if (f.name == wanted)
+				return &f;
+	}
+	auto named = [&](const char* n) -> const SceneFunction* {
+		for (const auto& f : scene.functions)
+			if (f.name == n)
+				return &f;
+		return nullptr;
+	};
+	for (const char* nm : {"scene00", "MAIN"}) {
+		const SceneFunction* c = named(nm);
+		if (c && count_creates(*c) > 0)
+			return c;
+	}
+	for (const auto& f : scene.functions)
+		if (f.name.rfind("scene", 0) == 0 && count_creates(f) > 0)
+			return &f;
+	const SceneFunction* best = nullptr;
+	size_t best_n = 0;
+	for (const auto& f : scene.functions) {
+		size_t c = count_creates(f);
+		if (c > best_n) {
+			best_n = c;
+			best = &f;
+		}
+	}
+	if (best)
+		return best;
+	for (const auto& f : scene.functions)
+		if (!f.events.empty())
+			return &f;
+	return nullptr;
+}
+
 } // namespace asb

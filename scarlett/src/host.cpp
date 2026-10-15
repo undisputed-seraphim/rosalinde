@@ -126,7 +126,8 @@ bool behaviour_exists(asITypeInfo* ti, asEBehaviours beh, const std::string& dec
 	}
 	for (asUINT i = 0; i < ti->GetFactoryCount(); ++i) {
 		asIScriptFunction* f = ti->GetFactoryByIndex(i);
-		if (f && (beh == asBEHAVE_FACTORY || beh == asBEHAVE_LIST_FACTORY) && params_of(f->GetDeclaration(false)) == want)
+		if (f && (beh == asBEHAVE_FACTORY || beh == asBEHAVE_LIST_FACTORY) &&
+			params_of(f->GetDeclaration(false)) == want)
 			return true;
 	}
 	return false;
@@ -245,9 +246,7 @@ Host::~Host() {
 	delete _impl;
 }
 
-void Host::set_call_log(std::function<void(const std::string&)> cb) {
-	_impl->call_log = std::move(cb);
-}
+void Host::set_call_log(std::function<void(const std::string&)> cb) { _impl->call_log = std::move(cb); }
 
 void Host::register_module(const Module& mod) {
 	asIScriptEngine* engine = _impl->engine;
@@ -260,8 +259,7 @@ void Host::register_module(const Module& mod) {
 		int size;
 		asDWORD flags;
 	};
-	constexpr asDWORD vec_flags =
-		asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS_CDAK | asOBJ_APP_CLASS_ALLFLOATS;
+	constexpr asDWORD vec_flags = asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS_CDAK | asOBJ_APP_CLASS_ALLFLOATS;
 	constexpr asDWORD color_flags = asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS_C | asOBJ_APP_CLASS_ALLINTS;
 	const VT value_types[] = {
 		{"FnVector2", 12, vec_flags},
@@ -381,7 +379,8 @@ void Host::register_module(const Module& mod) {
 				continue;
 			}
 			std::string obj = target->format();
-			if (obj.empty() || obj[0] == '$' || obj.find('[') != std::string::npos || obj.find('<') != std::string::npos) {
+			if (obj.empty() || obj[0] == '$' || obj.find('[') != std::string::npos ||
+				obj.find('<') != std::string::npos) {
 				++skipped;
 				continue;
 			}
@@ -433,7 +432,8 @@ void Host::register_module(const Module& mod) {
 		if (sig.object_type) {
 			TypeInfoPtr ot = sig.object_type;
 			std::string obj = ot->format();
-			if (obj.empty() || obj[0] == '$' || obj.find('[') != std::string::npos || obj.find('<') != std::string::npos) {
+			if (obj.empty() || obj[0] == '$' || obj.find('[') != std::string::npos ||
+				obj.find('<') != std::string::npos) {
 				++skipped;
 				continue;
 			}
@@ -522,8 +522,7 @@ bool Host::load(std::span<const uint8_t> bytecode) {
 	FileStream in(bytecode);
 	bool stripped = false;
 	int r = _impl->module->LoadByteCode(&in, &stripped);
-	std::fprintf(
-		stderr, "LoadByteCode r=%d stripped=%d consumed=%u/%zu\n", r, stripped, in.pos, bytecode.size());
+	std::fprintf(stderr, "LoadByteCode r=%d stripped=%d consumed=%u/%zu\n", r, stripped, in.pos, bytecode.size());
 	return r == 0;
 }
 
@@ -535,9 +534,7 @@ bool Host::compile(const std::string& source) {
 	return r >= 0;
 }
 
-asIScriptModule* Host::module() const {
-	return _impl->module;
-}
+asIScriptModule* Host::module() const { return _impl->module; }
 
 asIScriptFunction* Host::find_function(const std::vector<std::string>& names) const {
 	if (!_impl->module)
@@ -562,9 +559,7 @@ int Host::execute(asIScriptFunction* fn) {
 	return er;
 }
 
-void Host::set_char_table(const CharTable& chars) {
-	_impl->chars = &chars;
-}
+void Host::set_char_table(const CharTable& chars) { _impl->chars = &chars; }
 
 Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
@@ -620,6 +615,27 @@ Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 	g_call_log = nullptr;
 	ctx->Release();
 	return std::move(reg.timeline());
+}
+
+Timeline run_module(
+	Host& host,
+	std::span<const uint8_t> bytecode,
+	const std::string& source,
+	const std::string& func,
+	long max_frames) {
+	Module mod = parse(bytecode);
+	host.register_module(mod);
+	if (!host.load(bytecode))
+		return Timeline{};
+
+	Scene scene = extract_scene(mod);
+	const SceneFunction* picked = pick_scene_function(scene, func);
+	asIScriptFunction* fn = picked ? host.find_function({picked->name}) : nullptr;
+	if (!fn)
+		fn = host.find_function({"scene00", "MAIN"});
+	if (!fn)
+		return Timeline{};
+	return host.run(fn, source, max_frames);
 }
 
 } // namespace asb

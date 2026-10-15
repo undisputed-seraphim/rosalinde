@@ -58,11 +58,19 @@ void Registry::alias(int idx, const std::string& name) {
 }
 
 void Registry::create_sprite(
-	const std::string& kind, const std::string& id, std::string mbs, std::string ftx, const float* pos3, int layer,
+	const std::string& kind,
+	const std::string& id,
+	std::string mbs,
+	std::string ftx,
+	const float* pos3,
+	int layer,
 	float scale) {
 	int idx = ensure(id);
 	auto& e = _entities[idx];
 	e.kind = kind;
+	e.space = RuntimeEntity::Space::World;
+	if (!id.empty() && e.aliases.empty())
+		e.aliases.push_back(id);
 	if (!mbs.empty())
 		e.mbs = std::move(mbs);
 	if (!ftx.empty())
@@ -83,6 +91,8 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 	int idx = ensure(id);
 	auto& e = _entities[idx];
 	e.kind = kind;
+	e.space = kind == "DrUiCreateChara" ? RuntimeEntity::Space::Ui : RuntimeEntity::Space::World;
+	e.aliases = names;
 	if (_chars) {
 		auto it = _chars->find(id);
 		if (it == _chars->end() && !names.empty())
