@@ -73,8 +73,64 @@ std::string arg_to_string(asIScriptGeneric* gen, asUINT i) {
 	return buf;
 }
 
+// RAII: register a type/function inside an (optional) namespace, then restore.
+struct NSGuard {
+	asIScriptEngine* e;
+	NSGuard(asIScriptEngine* eng, const std::string& ns)
+		: e(eng) {
+		e->SetDefaultNamespace(ns.empty() ? "" : ns.c_str());
+	}
+	~NSGuard() { e->SetDefaultNamespace(""); }
+	NSGuard(const NSGuard&) = delete;
+};
+
 std::function<void(const std::string&)>* g_call_log = nullptr;
 Registry* g_scene_registry = nullptr;
+
+// True if the type already exposes a method/factory/behaviour with this
+// declaration. Registering a duplicate makes the engine set its `configFailed`
+// flag, which then stops it preparing the system-function interfaces (and thus
+// breaks value-returning natives).
+bool decl_exists(asITypeInfo* ti, const std::string& decl) {
+	if (!ti)
+		return true;
+	if (ti->GetMethodByDecl(decl.c_str()))
+		return true;
+	if (ti->GetFactoryByDecl(decl.c_str()))
+		return true;
+	return false;
+}
+
+std::string params_of(const std::string& d) {
+	auto a = d.find('(');
+	auto b = d.rfind(')');
+	if (a == std::string::npos || b == std::string::npos || b < a)
+		return d;
+	return d.substr(a, b - a + 1);
+}
+
+// Behaviour declarations use the type name (e.g. `string(const string&in)`),
+// not our `void f(...)` spelling, so match constructors/destructors/factories by
+// behaviour kind + parameter list.
+bool behaviour_exists(asITypeInfo* ti, asEBehaviours beh, const std::string& decl) {
+	if (!ti)
+		return true;
+	std::string want = params_of(decl);
+	for (asUINT i = 0;; ++i) {
+		asEBehaviours b;
+		asIScriptFunction* f = ti->GetBehaviourByIndex(i, &b);
+		if (!f)
+			break;
+		if (b == beh && params_of(f->GetDeclaration(false)) == want)
+			return true;
+	}
+	for (asUINT i = 0; i < ti->GetFactoryCount(); ++i) {
+		asIScriptFunction* f = ti->GetFactoryByIndex(i);
+		if (f && (beh == asBEHAVE_FACTORY || beh == asBEHAVE_LIST_FACTORY) && params_of(f->GetDeclaration(false)) == want)
+			return true;
+	}
+	return false;
+}
 
 void GenericStub(asIScriptGeneric* gen) {
 	asIScriptFunction* fn = gen->GetFunction();
@@ -168,10 +224,9 @@ Host::Host()
 	: _impl(new Impl()) {
 	_impl->engine = asCreateScriptEngine();
 	_impl->engine->SetMessageCallback(asFUNCTION(MessageCallback), nullptr, asCALL_CDECL);
-	// Don't run the module's global-variable initializers at load time: they
-	// call stubbed natives and make the load fail. Constants the scene needs
-	// are handled lazily elsewhere.
-	_impl->engine->SetEngineProperty(asEP_INIT_GLOBAL_VARS_AFTER_BUILD, 0);
+	// Let the engine initialise the module's global variables after load so that
+	// global string/array constants hold their real values.
+	_impl->engine->SetEngineProperty(asEP_INIT_GLOBAL_VARS_AFTER_BUILD, 1);
 
 	RegisterStdString(_impl->engine);
 	RegisterScriptArray(_impl->engine, true);
@@ -229,6 +284,7 @@ void Host::register_module(const Module& mod) {
 	// value (or const-ref) is a value type. Reference evidence wins.
 	std::unordered_set<std::string> value_names;
 	std::unordered_set<std::string> ref_names;
+	std::unordered_map<std::string, TypeInfoPtr> type_ptr;
 	// Reference object types registered by the engine (from the exe's
 	// RegisterClass_* setup); these are never value types.
 	for (const char* n : {"UcStObject", "UcStChaseParam", "UcMsgBalloonParam", "UcSpriteTextParam"})
@@ -238,6 +294,7 @@ void Host::register_module(const Module& mod) {
 			std::string n = dt.type_info->format();
 			if (n.empty() || n.find('<') != std::string::npos || n.find('[') != std::string::npos)
 				return;
+			type_ptr[n] = dt.type_info;
 			if (dt.is_object_handle)
 				ref_names.insert(n);
 			else
@@ -256,29 +313,30 @@ void Host::register_module(const Module& mod) {
 		if (f)
 			scan_sig(f->sig);
 
+	auto register_named = [&](const std::string& key, int size, asDWORD flags) {
+		auto it = type_ptr.find(key);
+		TypeInfoPtr t = it != type_ptr.end() ? it->second : nullptr;
+		NSGuard g(engine, t ? t->name_space : std::string());
+		std::string nm = (t && !t->name.empty()) ? t->name : key;
+		int r = engine->RegisterObjectType(nm.c_str(), size, flags);
+		if (r < 0)
+			std::fprintf(stderr, "[as] RegisterObjectType(%s) r=%d\n", key.c_str(), r);
+		_impl->registered_types[key] = true;
+	};
+
 	for (const auto& n : value_names) {
 		if (_impl->registered_types.count(n))
 			continue;
-		if (ref_names.count(n)) { // factory/handle evidence: reference type
-			int r = engine->RegisterObjectType(n.c_str(), 0, asOBJ_REF | asOBJ_NOCOUNT);
-			if (r < 0)
-				std::fprintf(stderr, "[as] RegisterObjectType(%s,ref) r=%d\n", n.c_str(), r);
-			_impl->registered_types[n] = true;
-			continue;
-		}
-		int size = _impl->known_size.count(n) ? _impl->known_size[n] : 32;
-		int r = engine->RegisterObjectType(n.c_str(), size, asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS);
-		if (r < 0)
-			std::fprintf(stderr, "[as] RegisterObjectType(%s,value) r=%d\n", n.c_str(), r);
-		_impl->registered_types[n] = true;
+		if (ref_names.count(n))
+			register_named(n, 0, asOBJ_REF | asOBJ_NOCOUNT);
+		else
+			register_named(
+				n, _impl->known_size.count(n) ? _impl->known_size[n] : 32, asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS);
 	}
 	for (const auto& n : ref_names) {
 		if (_impl->registered_types.count(n))
 			continue;
-		int r = engine->RegisterObjectType(n.c_str(), 0, asOBJ_REF | asOBJ_NOCOUNT);
-		if (r < 0)
-			std::fprintf(stderr, "[as] RegisterObjectType(%s,ref) r=%d\n", n.c_str(), r);
-		_impl->registered_types[n] = true;
+		register_named(n, 0, asOBJ_REF | asOBJ_NOCOUNT);
 	}
 
 	// Remaining engine object types the module refers to -> opaque references.
@@ -289,7 +347,8 @@ void Host::register_module(const Module& mod) {
 		if (name.empty() || name.find('<') != std::string::npos || name.find('[') != std::string::npos ||
 			_impl->registered_types.count(name))
 			continue;
-		int r = engine->RegisterObjectType(name.c_str(), 0, asOBJ_REF | asOBJ_NOCOUNT);
+		NSGuard g(engine, t->name_space);
+		int r = engine->RegisterObjectType(t->name.c_str(), 0, asOBJ_REF | asOBJ_NOCOUNT);
 		if (r < 0)
 			std::fprintf(stderr, "[as] RegisterObjectType(%s) r=%d\n", name.c_str(), r);
 		_impl->registered_types[name] = true;
@@ -322,7 +381,7 @@ void Host::register_module(const Module& mod) {
 				continue;
 			}
 			std::string obj = target->format();
-			if (obj.empty() || obj[0] == '$' || obj.find('[') != std::string::npos) {
+			if (obj.empty() || obj[0] == '$' || obj.find('[') != std::string::npos || obj.find('<') != std::string::npos) {
 				++skipped;
 				continue;
 			}
@@ -352,7 +411,13 @@ void Host::register_module(const Module& mod) {
 				++skipped;
 				continue;
 			}
-			r = engine->RegisterObjectBehaviour(obj.c_str(), beh, decl.c_str(), asFUNCTION(GenericStub), asCALL_GENERIC);
+			NSGuard g(engine, target->name_space);
+			if (behaviour_exists(engine->GetTypeInfoByName(target->name.c_str()), beh, decl)) {
+				++skipped;
+				continue;
+			}
+			r = engine->RegisterObjectBehaviour(
+				target->name.c_str(), beh, decl.c_str(), asFUNCTION(GenericStub), asCALL_GENERIC);
 			if (r < 0) {
 				std::fprintf(stderr, "[as] RegisterObjectBehaviour failed r=%d: %s %s\n", r, obj.c_str(), decl.c_str());
 				++skipped;
@@ -366,8 +431,9 @@ void Host::register_module(const Module& mod) {
 			continue;
 		}
 		if (sig.object_type) {
-			std::string obj = sig.object_type->format();
-			if (obj.empty() || obj[0] == '$' || obj.find('[') != std::string::npos) {
+			TypeInfoPtr ot = sig.object_type;
+			std::string obj = ot->format();
+			if (obj.empty() || obj[0] == '$' || obj.find('[') != std::string::npos || obj.find('<') != std::string::npos) {
 				++skipped;
 				continue;
 			}
@@ -376,7 +442,12 @@ void Host::register_module(const Module& mod) {
 				++skipped;
 				continue;
 			}
-			r = engine->RegisterObjectMethod(obj.c_str(), decl.c_str(), asFUNCTION(GenericStub), asCALL_GENERIC);
+			NSGuard g(engine, ot->name_space);
+			if (decl_exists(engine->GetTypeInfoByName(ot->name.c_str()), decl)) {
+				++skipped;
+				continue;
+			}
+			r = engine->RegisterObjectMethod(ot->name.c_str(), decl.c_str(), asFUNCTION(GenericStub), asCALL_GENERIC);
 			if (r < 0) {
 				std::fprintf(stderr, "[as] RegisterObjectMethod failed r=%d: %s::%s\n", r, obj.c_str(), decl.c_str());
 				++skipped;
@@ -386,6 +457,10 @@ void Host::register_module(const Module& mod) {
 		} else {
 			std::string decl = sig.bare_decl(true);
 			if (decl.find('[') != std::string::npos) {
+				++skipped;
+				continue;
+			}
+			if (engine->GetGlobalFunctionByDecl(decl.c_str())) {
 				++skipped;
 				continue;
 			}
