@@ -21,14 +21,14 @@ struct ViewerConfig {
 	std::string left_class = "ALBION_PRINCESS_HG_F";
 	std::string right_class = "CORNIA_PRINCESS_F";
 	std::string background = "Classpedia_BG";
-	std::string script;				  // Script/X.asb — render a script-composed scene
-	std::string scene_func;			  // scene function name (default: scene00/MAIN)
-	int scene_limit = 0;			  // max sprite entities; 0 = per-mode default (8 / 256)
-	std::string scene_camera = "fit"; // fit | first | last | <index>
-	std::string chara_table;		  // generated character name -> asset table
-	bool runtime = false;			  // run the hosted VM instead of the static fold
-	long scene_frame = -1;			  // runtime: scene frame to advance to (-1 = real time)
-	float scene_fps = 30.0f;		  // runtime: frame step rate
+	std::string script;		  // Script/X.asb — render a script-composed scene
+	std::string scene_func;	  // scene function name (default: scene00/MAIN)
+	int scene_limit = 0;	  // max sprite entities; 0 = per-mode default (8 / 256)
+	std::string scene_camera; // empty = per-mode default (fit static / design runtime)
+	std::string chara_table;  // generated character name -> asset table
+	bool runtime = false;	  // run the hosted VM instead of the static fold
+	long scene_frame = -1;	  // runtime: scene frame to advance to (-1 = real time)
+	float scene_fps = 30.0f;  // runtime: frame step rate
 };
 
 class Scene final : public uvw::BaseGame {

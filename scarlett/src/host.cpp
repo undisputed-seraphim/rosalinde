@@ -68,8 +68,27 @@ std::string arg_to_string(asIScriptGeneric* gen, asUINT i) {
 		std::snprintf(buf, sizeof(buf), "%g", gen->GetArgDouble(i));
 	else if (t & asTYPEID_OBJHANDLE)
 		std::snprintf(buf, sizeof(buf), "@%p", gen->GetArgAddress(i));
-	else
-		std::snprintf(buf, sizeof(buf), "obj@%p", gen->GetArgAddress(i));
+	else {
+		asITypeInfo* ti = gen->GetEngine()->GetTypeInfoById(t);
+		const char* tn = ti ? ti->GetName() : "";
+		std::string_view tns = tn ? tn : "";
+		if (tns == "string") {
+			auto* s = static_cast<const std::string*>(gen->GetArgAddress(i));
+			std::snprintf(buf, sizeof(buf), "\"%s\"", s ? s->c_str() : "");
+		} else if (tns == "FnVector2" || tns == "FnVector3" || tns == "FnVector4") {
+			auto* f = static_cast<const float*>(gen->GetArgAddress(i));
+			int n = tns == "FnVector2" ? 2 : (tns == "FnVector3" ? 3 : 4);
+			std::string v = "(";
+			for (int k = 0; k < n; ++k) {
+				char b[32];
+				std::snprintf(b, sizeof(b), k ? ",%g" : "%g", f ? f[k] : 0.0f);
+				v += b;
+			}
+			v += ")";
+			std::snprintf(buf, sizeof(buf), "%s", v.c_str());
+		} else
+			std::snprintf(buf, sizeof(buf), "obj@%p", gen->GetArgAddress(i));
+	}
 	return buf;
 }
 
@@ -137,6 +156,10 @@ void GenericStub(asIScriptGeneric* gen) {
 	asIScriptFunction* fn = gen->GetFunction();
 
 	std::string line = "call ";
+	if (*fn->GetNamespace()) {
+		line += fn->GetNamespace();
+		line += "::";
+	}
 	line += fn->GetName();
 	line += "(";
 	for (asUINT i = 0; i < gen->GetArgCount(); ++i) {

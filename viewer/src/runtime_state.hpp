@@ -13,10 +13,10 @@
 #include <vector>
 
 struct RuntimeSceneConfig {
-	std::string entry;			// e.g. "Script/Dr_OW_0_Opening.asb"
-	std::string func;			// scene function (default: pick_scene_function)
-	int limit = 256;			// max sprite layers to load
-	std::string camera = "fit"; // fit | first | last | <index into the camera keys>
+	std::string entry;			   // e.g. "Script/Dr_OW_0_Opening.asb"
+	std::string func;			   // scene function (default: pick_scene_function)
+	int limit = 256;			   // max sprite layers to load
+	std::string camera = "design"; // design (origin-centred) | fit | first | last | <index>
 	std::string chara_table;
 	std::string screenshot;
 	uint32_t frames = 1; // rendered frames before capture
