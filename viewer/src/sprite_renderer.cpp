@@ -1,6 +1,7 @@
 #include "sprite_renderer.hpp"
 #include "shader.hpp"
 
+#include <cstdio>
 #include <glm/ext.hpp>
 #include <span>
 #include <utility>
@@ -100,6 +101,18 @@ void SpriteRenderer::upload_textures(const SpriteData& data) {
 		_deswizzler = std::make_unique<Deswizzler>();
 	for (size_t i = 0; i < data.textures.size(); ++i) {
 		const auto& t = data.textures[i];
+		const size_t need = static_cast<size_t>(t.compressed_size) + t.uncompressed_size;
+		if (t.width == 0 || t.height == 0 || t.rgba.size() < need) {
+			std::fprintf(
+				stderr,
+				"[tex] skip malformed texture %zu (%ux%u, %zu bytes, need %zu)\n",
+				i,
+				t.width,
+				t.height,
+				t.rgba.size(),
+				need);
+			continue;
+		}
 		const auto* raw = reinterpret_cast<const uint8_t*>(t.rgba.data());
 		std::span<const uint8_t> payload(raw + t.compressed_size, t.uncompressed_size);
 		_deswizzler->upload_slice(_texture_array, static_cast<unsigned>(i), t.width, t.height, t.comp, payload);
