@@ -215,9 +215,11 @@ void Deswizzler::upload_slice(
 	glBindTexture(GL_TEXTURE_2D, _tmp);
 	glUniform1i(glGetUniformLocation(_expand, "u_src"), 0);
 	glUniform1i(glGetUniformLocation(_expand, "u_layer"), static_cast<GLint>(layer));
-	glBindImageTexture(0, array_tex, 0, GL_FALSE, layer, GL_WRITE_ONLY, GL_RGBA8);
+	// Bind the whole array (layered) so the shader's image2DArray + z=layer is
+	// valid; binding a single layer (layered=GL_FALSE) needs image2D instead.
+	glBindImageTexture(0, array_tex, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA8);
 	glDispatchCompute((width + 7u) / 8u, (height + 7u) / 8u, 1);
 	glMemoryBarrier(GL_ALL_BARRIER_BITS);
-	glBindImageTexture(0, 0, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+	glBindImageTexture(0, 0, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA8);
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
