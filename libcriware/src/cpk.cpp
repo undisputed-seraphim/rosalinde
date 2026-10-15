@@ -74,16 +74,18 @@ void CPKTable::extract(std::string_view dir, std::string_view file, std::vector<
 		return;
 	const auto& [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] = *it;
 
-	_buffer.resize(static_cast<size_t>(FileSize));
+	// Local buffer (not the shared member) so concurrent extract() calls on the
+	// same table are safe.
+	std::vector<char> raw(static_cast<size_t>(FileSize));
 	std::ifstream(_path, std::ios::binary)
 		.seekg(static_cast<std::streamoff>(FileOffset + _offset), std::ios::beg)
-		.read(_buffer.data(), static_cast<std::streamsize>(FileSize));
+		.read(raw.data(), static_cast<std::streamsize>(FileSize));
 	if (ExtractSize == FileSize) {
-		std::swap(_buffer, out);
+		out = std::move(raw);
 		return;
 	}
 	out.resize(static_cast<size_t>(ExtractSize));
-	[[maybe_unused]] const auto ret = decompress(_buffer, out);
+	[[maybe_unused]] const auto ret = decompress(raw, out);
 }
 
 CPKTable::iterator CPKTable::find_file(std::string_view dir, std::string_view file) const {

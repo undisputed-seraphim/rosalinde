@@ -1,5 +1,6 @@
 #include "asset_loader.hpp"
 #include "screenshot.hpp"
+#include "trace.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -123,36 +124,57 @@ std::unique_ptr<SpriteLayer> AssetLoader::load_layer(
 	uint32_t trackid,
 	const std::string& class_name,
 	const std::string& variant_name) const {
+	return make_layer(prepare(job), trackid, class_name, variant_name);
+}
 
-	std::vector<char> mbs_buf, ftx_buf;
-	if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
-		throw std::runtime_error("MBS was not found: " + job.mbs.dir + "/" + job.mbs.path);
-	} else {
-		_cpkt.extract(*entry, mbs_buf);
+AssetLoader::PreparedLayer AssetLoader::prepare(const Job& job) const {
+	PreparedLayer p;
+	std::vector<char> ftx_raw;
+	{
+		viewer::trace::Scoped sc("prepare extract " + job.mbs.path);
+		if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
+			throw std::runtime_error("MBS was not found: " + job.mbs.dir + "/" + job.mbs.path);
+		} else {
+			_cpkt.extract(*entry, p.mbs);
+		}
+		if (auto entry = _cpkt.find_file(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
+			throw std::runtime_error("FTX was not found: " + job.ftx.dir + "/" + job.ftx.path);
+		} else {
+			_cpkt.extract(*entry, ftx_raw);
+		}
 	}
-	if (auto entry = _cpkt.find_file(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
-		throw std::runtime_error("FTX was not found: " + job.ftx.dir + "/" + job.ftx.path);
-	} else {
-		_cpkt.extract(*entry, ftx_buf);
+	{
+		viewer::trace::Scoped sc("prepare ftx decode " + job.ftx.path);
+		p.ftx = FTX::parse(ftx_raw);
+		for (auto& t : p.ftx) {
+			FTX::decompress(t);
+			FTX::deswizzle(t);
+		}
 	}
+	return p;
+}
 
-	auto ftx_entries = FTX::parse(ftx_buf);
-	for (auto& t : ftx_entries) {
-		FTX::decompress(t);
-		FTX::deswizzle(t);
-	}
-
+std::unique_ptr<SpriteLayer> AssetLoader::make_layer(
+	PreparedLayer&& p,
+	uint32_t trackid,
+	const std::string& class_name,
+	const std::string& variant_name) const {
 	auto layer = std::make_unique<SpriteLayer>();
 	layer->name = class_name + ":" + variant_name;
 	layer->class_name = class_name;
 	layer->variant_name = variant_name;
 	layer->default_flags = 0xFFFFFFFF;
-	layer->data = SpriteData::load(
-		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(mbs_buf.data()), mbs_buf.size()),
-		std::move(ftx_entries));
+	{
+		viewer::trace::Scoped sc("make mbs parse " + class_name);
+		layer->data = SpriteData::load(
+			std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(p.mbs.data()), p.mbs.size()), std::move(p.ftx));
+	}
 	for (const auto& s4 : layer->data.v77.s4)
 		layer->layer_tints.try_emplace(s4.attributes, 1.0f, 1.0f, 1.0f, 1.0f);
-	layer->renderer.upload_textures(layer->data);
+	{
+		viewer::trace::Scoped sc("make gpu upload " + class_name);
+		layer->renderer.upload_textures(layer->data);
+	}
 	layer->instance = SpriteInstance{&layer->data, trackid, layer->default_flags};
 	layer->instance.play(trackid);
 	return layer;

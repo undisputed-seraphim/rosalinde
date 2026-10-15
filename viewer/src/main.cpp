@@ -1,5 +1,6 @@
 #include "engine/Engine.hpp"
 #include "scene.hpp"
+#include "trace.hpp"
 
 #include <boost/program_options.hpp>
 #include <filesystem>
@@ -7,6 +8,8 @@
 #include <string>
 
 int main(int argc, char* argv[]) try {
+	viewer::trace::reset();
+	viewer::trace::stamp("main() enter");
 	ViewerConfig config;
 	::boost::program_options::options_description desc;
 	desc.add_options()("help,h", "Print this help message")(
@@ -63,7 +66,13 @@ int main(int argc, char* argv[]) try {
 		throw;
 	}
 
-	uvw::Engine("Rosalinde").run([&] { return std::make_unique<Scene>(config); });
+	uvw::Engine("Rosalinde").run([&] {
+		viewer::trace::stamp("creating Scene");
+		auto scene = std::make_unique<Scene>(config);
+		viewer::trace::stamp("Scene constructed");
+		return scene;
+	});
+	viewer::trace::stamp("Engine::run returned");
 } catch (const std::exception& e) {
 	std::cout << e.what() << std::endl;
 	return 1;

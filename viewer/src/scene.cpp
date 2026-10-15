@@ -1,5 +1,6 @@
 #include "scene.hpp"
 #include "tables.hpp"
+#include "trace.hpp"
 
 #include <SDL3/SDL.h>
 #include <glad/glad.h>
@@ -13,6 +14,7 @@ Scene::Scene(ViewerConfig config)
 	: _config(std::move(config))
 	, _loader(_config.cpk) {
 
+	viewer::trace::stamp("Scene ctor: AssetLoader ready");
 	glEnable(GL_DEBUG_OUTPUT);
 	glDebugMessageCallback(&message_callback, NULL);
 
@@ -27,6 +29,7 @@ Scene::Scene(ViewerConfig config)
 	if (!_config.script.empty()) {
 		ImGui::GetIO().IniFilename = nullptr;
 		if (_config.runtime) {
+			viewer::trace::stamp("Scene ctor: RuntimeState begin");
 			RuntimeSceneConfig rc;
 			rc.entry = _config.script;
 			rc.func = _config.scene_func;
@@ -39,6 +42,7 @@ Scene::Scene(ViewerConfig config)
 			rc.fps = _config.scene_fps;
 			_runtime = std::make_unique<RuntimeState>(_loader, std::move(rc));
 			_mode = Mode::Runtime;
+			viewer::trace::stamp("Scene ctor: RuntimeState ready");
 		} else {
 			ScriptSceneConfig sc;
 			sc.entry = _config.script;
@@ -108,6 +112,11 @@ bool Scene::handle_inputs() {
 }
 
 void Scene::render() {
+	static bool traced = false;
+	if (!traced) {
+		traced = true;
+		viewer::trace::stamp("first frame: Scene::render()");
+	}
 	_ui.begin_frame();
 
 	if (_mode == Mode::Menu) {

@@ -18,6 +18,20 @@ public:
 	std::unique_ptr<SpriteLayer>
 	load_layer(const Job& job, uint32_t trackid, const std::string& class_name, const std::string& variant_name) const;
 
+	// Decoded-but-not-uploaded asset data. `prepare` does the CPU-heavy work
+	// (CPK extract + FTX decode) and is thread-safe; `make_layer` does the GL
+	// upload and must run on the GL thread.
+	struct PreparedLayer {
+		std::vector<char> mbs;
+		std::vector<FTX::Entry> ftx;
+	};
+	PreparedLayer prepare(const Job& job) const;
+	std::unique_ptr<SpriteLayer> make_layer(
+		PreparedLayer&& prepared,
+		uint32_t trackid,
+		const std::string& class_name,
+		const std::string& variant_name) const;
+
 	BackgroundScene load_background(const Job& job) const;
 
 	// Tolerant asset resolution: exact match first, then case-insensitive (the
