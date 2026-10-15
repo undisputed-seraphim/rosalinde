@@ -2,6 +2,7 @@
 #include "scene_layers.hpp"
 #include "scene_util.hpp"
 #include "screenshot.hpp"
+#include "trace.hpp"
 
 #include <criware/cpk.hpp>
 #include <scarlett/asb.hpp>
@@ -75,6 +76,7 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 
 	std::vector<char> buf;
 	cpk.extract(*entry, buf);
+	viewer::trace::stamp("RuntimeState: CPK entry extracted (%zu bytes)", buf.size());
 
 	asb::CharTable chars;
 	if (!_cfg.chara_table.empty())
@@ -86,11 +88,13 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 		host.set_char_table(chars);
 	host.set_track_frames([this](const std::string& mbs, int idx) { return mbs_track_frames(_loader, mbs, idx); });
 
+	viewer::trace::stamp("RuntimeState: VM run begin");
 	_timeline = asb::run_module(
 		host,
 		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()),
 		_cfg.entry,
 		_cfg.func);
+	viewer::trace::stamp("RuntimeState: VM run done (%zu keyframes)", _timeline.keyframes.size());
 	if (_timeline.keyframes.empty())
 		throw std::runtime_error("runtime produced no timeline for " + _cfg.entry);
 
@@ -125,6 +129,7 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	for (const auto& l : _layers)
 		if (l)
 			++loaded;
+	viewer::trace::stamp("RuntimeState: layers built (%zu loaded)", loaded);
 	fprintf(stderr, "[runtime] loaded %zu sprite layer(s)\n", loaded);
 	if (loaded == 0)
 		throw std::runtime_error("scene produced no loadable sprites: " + _cfg.entry);
@@ -168,6 +173,7 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	}
 
 	apply_keyframe();
+	viewer::trace::stamp("RuntimeState: ready (frame 0 applied)");
 }
 
 void RuntimeState::apply_keyframe() {
