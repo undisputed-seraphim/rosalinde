@@ -63,6 +63,7 @@ The build produces:
 | `criware_test` | executable | `libcriware/tests/*.cpp` |
 | `eltolinde` | static lib | `src/**/*.*` |
 | `scarlett` | static lib | `scarlett/src/*.cpp` |
+| `scarlett_test` | executable | `scarlett/tests/*.cpp` |
 | `rosalinde` | executable | `tools/extractor.cpp` |
 | `asb_harvest` / `asb_run` / `asb_record` | executable | `tools/asb/*.cpp` |
 | `imgui` | static lib | `thirdparty/imgui-1.91.3/*.cpp` |
@@ -136,6 +137,9 @@ cmake --build build -j 8
 
 # Run criware unit test
 ./build/libcriware/criware_test
+
+# Run scarlett unit test (the ASB decode/load/run test needs a CPK)
+UNICORN_CPK=~/Unicorn.CPK ./build/scarlett/scarlett_test
 
 # Run extractor integration test (requires Unicorn.CPK)
 ./build/rosalinde --cpk ~/Unicorn.CPK --list | wc -l
