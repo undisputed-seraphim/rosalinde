@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <glad/glad.h>
 #include <glm/ext.hpp>
 #include <span>
@@ -24,6 +25,18 @@ namespace {
 static bool scene_trace() {
 	static const bool on = std::getenv("SCENE_TRACE") != nullptr;
 	return on;
+}
+
+// Read the default framebuffer (the window / offscreen pbuffer) into a PNG.
+void write_framebuffer(const std::filesystem::path& path) {
+	int fb_w = 0, fb_h = 0;
+	SDL_GetWindowSizeInPixels(SDL_GL_GetCurrentWindow(), &fb_w, &fb_h);
+	if (fb_w <= 0 || fb_h <= 0)
+		return;
+	std::vector<uint8_t> pixels(static_cast<size_t>(fb_w) * fb_h * 4);
+	glReadPixels(0, 0, fb_w, fb_h, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+	const bool ok = screenshot::write(path, fb_w, fb_h, pixels);
+	fprintf(stderr, "%s: %s (%dx%d)\n", ok ? "capture" : "capture FAILED", path.c_str(), fb_w, fb_h);
 }
 
 // Length (in animation frames) of a track: the longest sub-animation (the MBS
@@ -74,6 +87,28 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	_projection = glm::ortho(-960.0f, 960.0f, 540.0f, -540.0f);
 	enable_blend(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 	enable_depth(GL_ALWAYS);
+
+	// Throwaway capture harness: VIEWER_CAPTURE=dir:from:to:every steps one
+	// scene frame per tick (deterministic) and writes each sampled frame.
+	if (const char* c = std::getenv("VIEWER_CAPTURE")) {
+		std::string s(c), part;
+		std::vector<std::string> parts;
+		for (char ch : s + ':') {
+			if (ch == ':') {
+				parts.push_back(part);
+				part.clear();
+			} else {
+				part += ch;
+			}
+		}
+		if (parts.size() >= 3) {
+			_cap_dir = parts[0];
+			_cap_from = std::atol(parts[1].c_str());
+			_cap_to = std::atol(parts[2].c_str());
+			_cap_every = parts.size() >= 4 && !parts[3].empty() ? std::max(1L, std::atol(parts[3].c_str())) : 1;
+			std::fprintf(stderr, "[capture] dir=%s frames=%ld..%ld every=%ld\n", _cap_dir.c_str(), _cap_from, _cap_to, _cap_every);
+		}
+	}
 
 	const CPKTable& cpk = _loader.cpk();
 	const auto slash = _cfg.entry.find_last_of('/');
@@ -281,6 +316,23 @@ bool RuntimeState::handle_inputs() {
 }
 
 void RuntimeState::update(float dt) {
+	if (_cap_from >= 0) {
+		// First tick: jump to _cap_from (the initial frame 0 is already applied).
+		// After that advance one sample step (_cap_every) at a time. Intermediate
+		// frames are ticked but not rendered, so sampling is cheap.
+		const long target = _cap_started ? std::min(_cap_to, _frame + _cap_every) : _cap_from;
+		if (_cap_started && _frame >= _cap_to) {
+			_done = true;
+			return;
+		}
+		while (_frame < target) {
+			++_frame;
+			apply_keyframe();
+			tick(1.0f / std::max(1.0f, _cfg.fps));
+		}
+		_cap_started = true;
+		return;
+	}
 	if (_cfg.frame >= 0) {
 		if (!_stepped) {
 			while (_frame < _cfg.frame) {
@@ -317,20 +369,15 @@ void RuntimeState::render() {
 	_fade.draw(glm::vec4(fade[0], fade[1], fade[2], fade[3]));
 
 	if (!_cfg.screenshot.empty() && !_captured && _render_count >= _cfg.frames) {
-		int fb_w = 0, fb_h = 0;
-		SDL_GetWindowSizeInPixels(SDL_GL_GetCurrentWindow(), &fb_w, &fb_h);
-		if (fb_w > 0 && fb_h > 0) {
-			std::vector<uint8_t> pixels(static_cast<size_t>(fb_w) * fb_h * 4);
-			glReadPixels(0, 0, fb_w, fb_h, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-			const bool ok = screenshot::write(_cfg.screenshot, fb_w, fb_h, pixels);
-			fprintf(
-				stderr,
-				"%s: %s (%dx%d)\n",
-				ok ? "screenshot written" : "screenshot FAILED",
-				_cfg.screenshot.c_str(),
-				fb_w,
-				fb_h);
-		}
+		write_framebuffer(_cfg.screenshot);
 		_captured = true;
+	}
+
+	if (_cap_from >= 0 && _frame >= _cap_from && _frame <= _cap_to && (_frame - _cap_from) % _cap_every == 0) {
+		std::error_code ec;
+		std::filesystem::create_directories(_cap_dir, ec);
+		char name[32];
+		std::snprintf(name, sizeof name, "f%06ld.png", _frame);
+		write_framebuffer(std::filesystem::path(_cap_dir) / name);
 	}
 }

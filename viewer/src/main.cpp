@@ -3,6 +3,8 @@
 #include "trace.hpp"
 
 #include <boost/program_options.hpp>
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -66,7 +68,16 @@ int main(int argc, char* argv[]) try {
 		throw;
 	}
 
-	uvw::Engine("Rosalinde").run([&] {
+	unsigned view_w = 1920, view_h = 1080;
+	if (const char* size = std::getenv("VIEWER_SIZE")) {
+		unsigned w = 0, h = 0;
+		if (std::sscanf(size, "%ux%u", &w, &h) == 2 && w && h) {
+			view_w = w;
+			view_h = h;
+		}
+	}
+
+	uvw::Engine("Rosalinde", view_w, view_h).run([&] {
 		viewer::trace::stamp("creating Scene");
 		auto scene = std::make_unique<Scene>(config);
 		viewer::trace::stamp("Scene constructed");

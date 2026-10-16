@@ -98,7 +98,7 @@ bool Scene::handle_inputs() {
 
 		if (_mode == Mode::Runtime && _runtime) {
 			_runtime->handle_inputs();
-			if (_runtime->should_quit())
+			if (_runtime->should_quit() || _runtime->is_done())
 				return true;
 		}
 	}
@@ -107,6 +107,8 @@ bool Scene::handle_inputs() {
 	if (!_config.screenshot.empty() && _script && _script->captured())
 		return true;
 	if (!_config.screenshot.empty() && _runtime && _runtime->captured())
+		return true;
+	if (_mode == Mode::Runtime && _runtime && (_runtime->is_done() || _runtime->should_quit()))
 		return true;
 	return false;
 }
