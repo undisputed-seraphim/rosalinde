@@ -62,6 +62,7 @@ private:
 	bool _cap_started = false;
 
 	int _focus = -1; // last entity to become active (camera "follow")
+	std::vector<std::pair<long, glm::vec2>> _cam_keys; // recorded DrSetCameraPosV keys
 
 	size_t _kf = 0;
 	long _frame = 0;
