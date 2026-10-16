@@ -1078,7 +1078,8 @@ CharTable load_char_table(const std::string& path) {
 	return t;
 }
 
-CharaSetTable load_chara_set(const std::string& charaset_tsv, const std::string& classes_tsv) {
+CharaSetTable load_chara_set(const std::string& charaset_tsv, const std::string& classes_tsv,
+	const std::string& charanpc_tsv) {
 	auto split = [](const std::string& line) {
 		std::vector<std::string> c;
 		size_t s = 0;
@@ -1129,6 +1130,29 @@ CharaSetTable load_chara_set(const std::string& charaset_tsv, const std::string&
 				out.by_key.emplace(label, it->second);
 			if (!name.empty())
 				out.by_key.emplace(name, it->second);
+		}
+	}
+	// CharaNpc (NPCTYPE) table: key both the JP display name (what
+	// `FUN_0011aac0` searches) and the enum name to the full CharaNpc/ asset.
+	// Resolves DrCreateNpc's def name.
+	if (!charanpc_tsv.empty()) {
+		if (std::ifstream f{charanpc_tsv}) {
+			std::string line;
+			while (std::getline(f, line)) {
+				if (line.empty() || line[0] == '#')
+					continue;
+				auto c = split(line);
+				if (c.size() < 5)
+					continue;
+				CharaInfo ci;
+				ci.disp_name = c[2];
+				ci.mbs = c[3];
+				ci.ftx = c[4];
+				if (!c[2].empty())
+					out.by_key.emplace(c[2], ci);
+				if (!c[1].empty())
+					out.by_key.emplace(c[1], ci);
+			}
 		}
 	}
 	return out;

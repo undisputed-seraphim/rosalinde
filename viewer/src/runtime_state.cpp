@@ -208,8 +208,10 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	asb::CharTable chars;
 	if (!_cfg.chara_table.empty())
 		chars = asb::load_char_table(_cfg.chara_table);
-	asb::CharaSetTable chara_sets =
-		asb::load_chara_set(viewer_data_dir() + "/charaset.tsv", viewer_data_dir() + "/classes.tsv");
+	asb::CharaSetTable chara_sets = asb::load_chara_set(
+		viewer_data_dir() + "/charaset.tsv",
+		viewer_data_dir() + "/classes.tsv",
+		viewer_data_dir() + "/charanpc_assets.tsv");
 
 	asb::Host host;
 	host.set_call_log([](const std::string&) {});

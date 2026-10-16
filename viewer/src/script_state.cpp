@@ -94,8 +94,10 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 	asb::CharTable chars;
 	if (!_cfg.chara_table.empty())
 		chars = asb::load_char_table(_cfg.chara_table);
-	asb::CharaSetTable chara_sets =
-		asb::load_chara_set(viewer_data_dir() + "/charaset.tsv", viewer_data_dir() + "/classes.tsv");
+	asb::CharaSetTable chara_sets = asb::load_chara_set(
+		viewer_data_dir() + "/charaset.tsv",
+		viewer_data_dir() + "/classes.tsv",
+		viewer_data_dir() + "/charanpc_assets.tsv");
 	asb::SceneIR ir =
 		asb::build_scene_ir(*fn, _cfg.entry, chars.empty() ? nullptr : &chars, &chara_sets);
 	fprintf(
