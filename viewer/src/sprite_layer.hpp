@@ -20,6 +20,7 @@ struct SpriteLayer {
 	// each with its own clock. When non-empty these are drawn in addition to
 	// `instance` (which stays unused for such layers).
 	std::vector<SpriteInstance> instances;
+	bool is_character = false; // Chara*/ asset (used by the auto camera to prefer actors)
 	SpriteRenderer renderer;
 	uint32_t default_flags = 0;
 	std::map<uint32_t, glm::vec4> layer_tints;
