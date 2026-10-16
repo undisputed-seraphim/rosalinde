@@ -464,7 +464,7 @@ void RuntimeState::render() {
 			k = &kk;
 		}
 		const float zg = k->zoom > 0.0f ? k->zoom : 1.0f;
-		float world_w = 1840.0f;
+		float world_w = 1920.0f; // design width (FUN_000c3380 uses 1920x1080)
 		if (const char* e = std::getenv("VIEWER_CAM_W"))
 			world_w = static_cast<float>(std::atof(e));
 		const float view_w = world_w / zg;
