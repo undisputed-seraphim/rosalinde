@@ -262,7 +262,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		}
 		return true;
 	}
-	if (name == "DrActionWait" || name == "ObjectSetupWait")
+	if (name == "DrActionWait" || name == "ObjectSetupWait" || name == "SetSkipDisable")
 		return true; // modelled as immediate while the engine action has no runtime
 
 	// Scene queries: answer from the recorded scene so branches/computed args
@@ -399,6 +399,57 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "IsLeader" || name == "StIsPartnerSelectCharaDefName" || name == "IsEmptyPlayerCharaList") {
 		gen->SetReturnByte((name == "IsEmptyPlayerCharaList" && _party.empty()) ? 1 : 0);
 		return true;
+	}
+
+	// Math add-on. The host has no scriptmath add-on, so the module's sin/cos/…
+	// imports are registered as generic stubs (return 0); compute real values.
+	if (name == "sin") {
+		gen->SetReturnFloat(std::sin(gen->GetArgFloat(0)));
+		return true;
+	}
+	if (name == "cos") {
+		gen->SetReturnFloat(std::cos(gen->GetArgFloat(0)));
+		return true;
+	}
+	if (name == "atan") {
+		gen->SetReturnFloat(std::atan(gen->GetArgFloat(0)));
+		return true;
+	}
+	if (name == "atan2") {
+		gen->SetReturnFloat(std::atan2(gen->GetArgFloat(0), gen->GetArgFloat(1)));
+		return true;
+	}
+	{
+		asITypeInfo* ot = fn->GetObjectType();
+		const bool vec2 = ot && std::string_view(ot->GetName()) == "FnVector2";
+		if (vec2 && name == "Length") {
+			const float* a = static_cast<const float*>(gen->GetObject());
+			gen->SetReturnFloat(a ? std::sqrt(a[0] * a[0] + a[1] * a[1]) : 0.0f);
+			return true;
+		}
+		if (vec2 && name == "Normalize") {
+			float* a = static_cast<float*>(gen->GetObject());
+			if (a) {
+				const float len = std::sqrt(a[0] * a[0] + a[1] * a[1]);
+				const float target = gen->GetArgFloat(0);
+				if (len > 1e-6f) {
+					a[0] = a[0] / len * target;
+					a[1] = a[1] / len * target;
+				}
+				gen->SetReturnFloat(len);
+			}
+			return true;
+		}
+		if (vec2 && name == "IncDegDistance") {
+			float* a = static_cast<float*>(gen->GetObject());
+			if (a) {
+				const float rad = gen->GetArgFloat(0) * 3.14159265358979323846f / 180.0f;
+				const float dist = gen->GetArgFloat(1);
+				a[0] += dist * std::cos(rad);
+				a[1] += dist * std::sin(rad);
+			}
+			return true;
+		}
 	}
 
 	if (name == "GetCameraPosV") {
@@ -618,7 +669,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
-	if (name == "DeleteSprite" || name == "DrUiDeleteChara" || name == "DrDeleteEffect" || name == "DeleteEffect") {
+	if (name == "DeleteSprite" || name == "DrUiDeleteChara" || name == "DrDeleteEffect" || name == "DeleteEffect" ||
+		name == "DeleteObject") {
 		if (RuntimeEntity* e = ent(0)) {
 			if (scene_trace())
 				std::fprintf(
@@ -658,7 +710,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 
 	// Whole-screen colour fades: ColorFadeAsync(FnColor, time) ramps the
 	// overlay to `color`; CrossFadeAsync(time) is modelled as a dip to black.
-	if (name == "ColorFadeAsync" || name == "ColorFade2" || name == "ColorFade") {
+	if (name == "ColorFadeAsync" || name == "ColorFade2" || name == "ColorFade" || name == "ColorFade2Async") {
 		float c[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 		read_color(gen, 0, c);
 		push_fade(c, I(1));
