@@ -300,7 +300,13 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	if (any && _cfg.camera == "fit")
 		_camera.fit_bounds(fit, 0.15f);
 
-	if (_cfg.camera != "fit" && _cfg.camera != "design" && _cfg.camera != "follow") {
+	if (_cfg.camera == "script") {
+		for (const auto& k : _timeline.keyframes)
+			if (k.camera.has_pos)
+				_cam_keys.emplace_back(k.frame, glm::vec2(k.camera.pos[0], k.camera.pos[1]));
+	}
+
+	if (_cfg.camera != "fit" && _cfg.camera != "design" && _cfg.camera != "follow" && _cfg.camera != "script") {
 		std::vector<const asb::RuntimeCamera*> keys;
 		for (const auto& k : _timeline.keyframes)
 			if (k.camera.has_pos)
@@ -423,6 +429,15 @@ void RuntimeState::render() {
 
 	if (_cfg.camera == "follow" && _focus >= 0 && _focus < static_cast<int>(_layers.size()) && _layers[_focus])
 		_camera.recenter(_layers[_focus]->position);
+	if (_cfg.camera == "script" && !_cam_keys.empty()) {
+		glm::vec2 p = _cam_keys.front().second;
+		for (const auto& [f, q] : _cam_keys) {
+			if (f > _frame)
+				break;
+			p = q;
+		}
+		_camera.recenter(p);
+	}
 
 	if (const char* fr = std::getenv("LAYER_DUMP")) {
 		static bool dumped = false;
