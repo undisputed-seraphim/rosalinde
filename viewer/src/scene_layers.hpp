@@ -15,6 +15,7 @@ struct LayerSpec {
 	std::string kind; // originating create call (used as the MBS variant name)
 	std::string mbs;
 	std::string ftx;
+	std::string track; // animation name (resolved when track_index < 0)
 	int track_index = -1;
 	glm::vec2 pos{0.0f, 0.0f};
 	float scale = 1.0f;

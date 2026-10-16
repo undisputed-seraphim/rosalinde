@@ -122,6 +122,37 @@ long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int tra
 	return n;
 }
 
+// Index of the MBS track named `name` for `mbs`, or -1 when unknown. Cached;
+// backs the hosted-VM animation-name resolver (DrSetIdleAnimation/DrAnimation*).
+int mbs_resolve_track(const AssetLoader& loader, const std::string& mbs, const std::string& name) {
+	if (mbs.empty() || name.empty())
+		return -1;
+	static std::unordered_map<std::string, int> cache;
+	const std::string key = mbs + '\x1f' + name;
+	if (auto it = cache.find(key); it != cache.end())
+		return it->second;
+
+	int idx = -1;
+	try {
+		if (auto p = loader.resolve(mbs)) {
+			const CPKTable& cpk = loader.cpk();
+			if (auto e = cpk.find_file(p->dir, p->path); e != cpk.end()) {
+				std::vector<char> buf;
+				cpk.extract(*e, buf);
+				SpriteData sd = SpriteData::load(
+					std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()), {});
+				const SpriteData::Track* t = sd.find_track(name);
+				if (t)
+					idx = static_cast<int>(t - sd.tracks.data());
+			}
+		}
+	} catch (...) {
+		idx = -1;
+	}
+	cache[key] = idx;
+	return idx;
+}
+
 } // namespace
 
 RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
@@ -182,6 +213,8 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	if (!chars.empty())
 		host.set_char_table(chars);
 	host.set_track_frames([this](const std::string& mbs, int idx) { return mbs_track_frames(_loader, mbs, idx); });
+	host.set_resolve_track(
+		[this](const std::string& mbs, const std::string& name) { return mbs_resolve_track(_loader, mbs, name); });
 
 	viewer::trace::stamp("RuntimeState: VM run begin");
 	_timeline = asb::run_module(
@@ -253,6 +286,7 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 		s.kind = e.kind;
 		s.mbs = e.mbs;
 		s.ftx = e.ftx;
+		s.track = e.track;
 		s.pos = glm::vec2(e.pos[0], e.pos[1]);
 		s.scale = e.scale;
 		s.visible = true; // per-frame apply_keyframe controls actual visibility
@@ -364,9 +398,14 @@ void RuntimeState::apply_keyframe() {
 		_layers[i]->position = pos;
 		_layers[i]->scale = e.scale > 0.0f ? e.scale : 1.0f;
 		const int tracks = static_cast<int>(_layers[i]->data.tracks.size());
-		if (e.track_index >= 0 && e.track_index != _track[i] && e.track_index < tracks) {
-			_layers[i]->instance.play(static_cast<uint32_t>(e.track_index));
-			_track[i] = e.track_index;
+		int ti = e.track_index;
+		if (ti < 0 && !e.track.empty()) {
+			if (const SpriteData::Track* t = _layers[i]->data.find_track(e.track))
+				ti = static_cast<int>(t - _layers[i]->data.tracks.data());
+		}
+		if (ti >= 0 && ti != _track[i] && ti < tracks) {
+			_layers[i]->instance.play(static_cast<uint32_t>(ti));
+			_track[i] = ti;
 		}
 	}
 }

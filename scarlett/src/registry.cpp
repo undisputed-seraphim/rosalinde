@@ -261,7 +261,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 
 	// Wait until a sprite's animation finishes. Only modelled when a length
 	// provider knows the track; otherwise it stays immediate.
-	if (name == "WaitSpriteMoneAnimationEnd") {
+	if (name == "WaitSpriteMoneAnimationEnd" || name == "DrAnimationWait") {
 		long n = 0;
 		RuntimeEntity* e = ent(0);
 		if (e && _track_frames)
@@ -362,6 +362,23 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
+	// Playback direction / SE / pre-render hints. The renderer has no reverse or
+	// per-frame list model yet, so record the direction and accept the rest.
+	if (name == "SetSpriteMoneReverse") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->reverse = I(1) != 0;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "SetSpriteMoneStopSE" || name == "SetSpriteMoneDispOffFrameList" || name == "SetSpriteMonePreRenderAll")
+		return true;
+
+	if (name == "GetSpriteMoneFindCallbackTiming") {
+		gen->SetReturnDWord(0);
+		return true;
+	}
+
 	if (name == "SetSpriteMoneAnimation" || name == "SetSpriteMoneAnimationPaused") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track_index = I(1);
@@ -380,9 +397,23 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		}
 		return true;
 	}
-	if (name == "DrSetIdleAnimation" || name == "DrAnimation" || name == "DrChangeAnimation") {
+	if (name == "DrSetIdleAnimation" || name == "DrAnimation" || name == "DrAnimationAsync" ||
+		name == "DrChangeAnimation") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track = S(1);
+			if (!e->track.empty() && _resolve_track) {
+				int ti = _resolve_track(e->mbs, e->track);
+				if (ti >= 0)
+					e->track_index = ti;
+			}
+			if (scene_trace())
+				std::fprintf(
+					stderr,
+					"[vm f=%ld] anim   \"%s\" track=\"%s\" idx=%d\n",
+					frame,
+					e->name.c_str(),
+					e->track.c_str(),
+					e->track_index);
 			_dirty = true;
 		}
 		return true;
