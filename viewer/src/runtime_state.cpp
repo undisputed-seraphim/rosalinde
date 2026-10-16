@@ -19,6 +19,7 @@
 #include <span>
 #include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace {
 
@@ -60,6 +61,24 @@ long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int tra
 				cpk.extract(*e, buf);
 				SpriteData sd = SpriteData::load(
 					std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()), {});
+				if (std::getenv("S8_ALL")) {
+					static std::unordered_set<std::string> dumped;
+					if (dumped.insert(mbs).second) {
+						for (uint32_t i = 0; i < sd.v77.s8.size(); ++i) {
+							const auto& e = sd.v77.s8[i];
+							std::fprintf(
+								stderr,
+								"[s8all %s] i=%u flags=%#x frames=%u loop=%u s6=%u s7=%u\n",
+								mbs.c_str(),
+								i,
+								e.flags,
+								e.frames,
+								e.loop_s8_id,
+								e.s6_id,
+								e.s7_id);
+						}
+					}
+				}
 				if (track_index < static_cast<int>(sd.tracks.size())) {
 					for (const auto& run : sd.tracks[track_index].runs) {
 						long run_len = 0;
@@ -77,6 +96,20 @@ long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int tra
 								run.once ? 1 : 0,
 								run.track_id,
 								run_len);
+						if (std::getenv("S8_DUMP"))
+							for (uint32_t k = 0; k < run.s8_count && run.s8_start + k < sd.v77.s8.size(); ++k) {
+								const auto& e = sd.v77.s8[run.s8_start + k];
+								std::fprintf(
+									stderr,
+									"[s8 %s idx=%d] k=%u flags=%#x frames=%u loop=%u s6=%u\n",
+									mbs.c_str(),
+									track_index,
+									k,
+									e.flags,
+									e.frames,
+									e.loop_s8_id,
+									e.s6_id);
+							}
 						n = std::max(n, run_len);
 					}
 				}
