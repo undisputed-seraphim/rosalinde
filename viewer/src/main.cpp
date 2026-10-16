@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) try {
 		"Runtime: advance the scene to this frame, then hold (-1 = real time)")(
 		"scene-fps",
 		::boost::program_options::value<float>(&config.scene_fps)->default_value(config.scene_fps),
-		"Runtime: frame step rate")(
+		"Runtime: frame step rate (60 matches the opening cinematic)")(
 		"scene-limit",
 		::boost::program_options::value<int>(&config.scene_limit)->default_value(config.scene_limit),
 		"Maximum sprite entities to load (0 = per-mode default)")(

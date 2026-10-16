@@ -22,7 +22,7 @@ struct RuntimeSceneConfig {
 	std::string screenshot;
 	uint32_t frames = 1; // rendered frames before capture
 	long frame = -1;	 // scene frame to advance to (-1 = real time)
-	float fps = 30.0f;
+	float fps = 60.0f;
 };
 
 // Plays a scene reconstructed by the hosted AngelScript VM: run the module to a
