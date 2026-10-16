@@ -266,6 +266,30 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		gen->SetReturnByte(exists ? 1 : 0);
 		return true;
 	}
+	if (name == "GetObjectNameByCharaDefName") {
+		// Reverse lookup over the live chara objects: find the one whose chara def
+		// name matches and return its object name; "NONE" when absent (as the
+		// engine does).
+		const std::string dn = read_string(gen, 0);
+		std::string res = "NONE";
+		for (const auto& e : _entities) {
+			if (!e.visible)
+				continue;
+			const bool is_chara =
+				e.kind == "DrCreateChara" || e.kind == "DrCreateNpc" || e.kind == "DrUiCreateChara";
+			bool match = e.name == dn;
+			for (const auto& a : e.aliases)
+				match = match || a == dn;
+			if (is_chara && match) {
+				res = e.aliases.empty() ? e.name : e.aliases.front();
+				break;
+			}
+		}
+		if (auto* out = static_cast<std::string*>(gen->GetAddressOfReturnLocation()))
+			*out = res;
+		return true;
+	}
+
 	if (name == "GetCameraPosV") {
 		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
 		if (r) {
