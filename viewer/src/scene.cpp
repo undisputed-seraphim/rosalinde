@@ -34,7 +34,7 @@ Scene::Scene(ViewerConfig config)
 			rc.entry = _config.script;
 			rc.func = _config.scene_func;
 			rc.limit = _config.scene_limit > 0 ? _config.scene_limit : 256;
-			rc.camera = _config.scene_camera.empty() ? "follow" : _config.scene_camera;
+			rc.camera = _config.scene_camera.empty() ? "auto" : _config.scene_camera;
 			rc.chara_table = _config.chara_table;
 			rc.screenshot = _config.screenshot;
 			rc.frames = _config.frames;

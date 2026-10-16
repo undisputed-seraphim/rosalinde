@@ -446,6 +446,41 @@ void RuntimeState::render() {
 		}
 		_camera.recenter(p);
 	}
+	if (_cfg.camera == "auto") {
+		// Frame the active content: prefer characters (close-ups during the
+		// parade), else the background. Bounds come from per-frame
+		// render_bounds() (s6 x s7), NOT track_bounds() which is the s9
+		// camera-framing hint. Pathological (huge effect) bounds are skipped.
+		glm::vec4 fit{INFINITY, INFINITY, -INFINITY, -INFINITY};
+		bool any = false;
+		auto add = [&](const SpriteLayer& l) {
+			auto acc = [&](const SpriteInstance& inst) {
+				const glm::vec4 b = inst.render_bounds();
+				if (!std::isfinite(b.x) || !std::isfinite(b.z) || b.z <= b.x || b.w <= b.y)
+					return;
+				const glm::vec4 w{b.x + l.position.x, b.y + l.position.y, b.z + l.position.x, b.w + l.position.y};
+				if (w.z - w.x > 4000.0f || w.w - w.y > 3000.0f)
+					return;
+				fit = {std::min(fit.x, w.x), std::min(fit.y, w.y), std::max(fit.z, w.z), std::max(fit.w, w.w)};
+				any = true;
+			};
+			if (l.instances.empty())
+				acc(l.instance);
+			else
+				for (const auto& inst : l.instances)
+					acc(inst);
+		};
+		// Frame active characters (close-ups in the parade); otherwise keep the
+		// fixed design view, which is where the cutscene cards (montage,
+		// sanctum) are composed.
+		for (size_t i = 0; i < _layers.size(); ++i)
+			if (_layers[i] && _active[i] && _layers[i]->is_character)
+				add(*_layers[i]);
+		if (any)
+			_camera.fit_bounds(fit, 0.12f);
+		else
+			_camera.recenter({0.0f, 0.0f});
+	}
 
 	if (const char* fr = std::getenv("LAYER_DUMP")) {
 		static bool dumped = false;
