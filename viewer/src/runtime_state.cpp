@@ -68,12 +68,14 @@ long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int tra
 						if (std::getenv("TRACK_DUMP"))
 							std::fprintf(
 								stderr,
-								"[track %s idx=%d] run s8_start=%u count=%u once=%d len=%ld\n",
+								"[track %s idx=%d main=%d] run s8_start=%u count=%u once=%d track_id=%u len=%ld\n",
 								mbs.c_str(),
 								track_index,
+								sd.tracks[track_index].sa_set_main,
 								run.s8_start,
 								run.s8_count,
 								run.once ? 1 : 0,
+								run.track_id,
 								run_len);
 						n = std::max(n, run_len);
 					}

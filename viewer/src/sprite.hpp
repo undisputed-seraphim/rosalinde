@@ -45,11 +45,14 @@ struct SpriteData {
 		uint8_t s8_st;
 		uint32_t loop_start;
 		bool once; // s8_sum_once < 0: play through once, then hold the last frame
+		uint16_t track_id;
 	};
 	struct Track {
 		std::string name;
 		std::vector<FrameRun> runs;
 		glm::vec4 bounds;
+		uint8_t sa_set_main = 0;
+		uint8_t disabled = 0;
 	};
 	std::vector<Track> tracks;
 	std::vector<CachedKeyframe> keyframes;
