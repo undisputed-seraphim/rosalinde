@@ -177,12 +177,12 @@ struct v77 {
 		// clang-format off
 		FLIPX  = 0x01,   // horizontal mirror
 		FLIPY  = 0x02,   // vertical mirror (rare)
-		JUMP   = 0x04,   // control-flow: next = current + loop_s8_id
-		ACTIVE = 0x20,   // frame is renderable (cleared on hitbox-only / transition frames)
-		POSE   = 0x80,   // non-idle body pose (GUARD, KNOCKBACK, DOWN, SIT)
-		HITBOX = 0x400,  // hitbox-only frame (no sprite layers)
-		LAST   = 0x800,  // end-of-sequence marker
-		//?    = 0x2000, // rarely set, purpose unclear (may be "no blend" / "hold")
+		JUMP   = 0x04,   // control-flow: next = current + loop_s8_id (relative)
+		ACTIVE = 0x20,   // frame is renderable (cleared on non-rendered frames)
+		POSE   = 0x80,   // unconfirmed (rare); legacy "non-idle pose" guess
+		HITBOX = 0x400,  // common modifier on normal frames -- NOT hitbox-only
+		LAST   = 0x800,  // end-of-sequence marker (loop point when also JUMP)
+		//?    = 0x2000, // rarely set, purpose unclear
 		// clang-format on
 	};
 };
