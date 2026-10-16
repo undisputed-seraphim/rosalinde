@@ -124,6 +124,8 @@ void SpriteData::preprocess() {
 		track.name = s9.name;
 		track.name = track.name.c_str();
 		track.bounds = {s9.left, s9.top, s9.right, s9.bottom};
+		track.sa_set_main = s9.sa_set_main;
+		track.disabled = s9.disabled;
 		track.runs.reserve(s9.sa_set_no);
 		for (uint32_t i = 0; i < s9.sa_set_no; ++i) {
 			const auto& sa = v77.sa[s9.sa_set_id + i];
@@ -140,7 +142,8 @@ void SpriteData::preprocess() {
 			}
 			// s8_sum_once < 0 == single-pass ("transitional"/background); play
 			// through once and hold the final frame instead of looping.
-			track.runs.push_back({sa.s8_id, sa.s8_no, sa.s8_st, loop_start, sa.s8_sum_once < 0 && once_mode() != 2});
+			track.runs.push_back(
+				{sa.s8_id, sa.s8_no, sa.s8_st, loop_start, sa.s8_sum_once < 0 && once_mode() != 2, sa.track_id});
 		}
 	}
 }
