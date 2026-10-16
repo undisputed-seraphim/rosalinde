@@ -314,7 +314,9 @@ struct CharaSetTable {
 
 // charaset.tsv: `idx name class gender variant charaImg label`
 // classes.tsv:  `key jp_name mbs ftx` (mbs/ftx are `Chara/`-relative)
-CharaSetTable load_chara_set(const std::string& charaset_tsv, const std::string& classes_tsv);
+// charanpc.tsv: `idx name jp mbs ftx` (from the engine NPCTYPE table; optional)
+CharaSetTable
+load_chara_set(const std::string& charaset_tsv, const std::string& classes_tsv, const std::string& charanpc_tsv = {});
 
 struct Module {
 	bool no_debug_info = false;
