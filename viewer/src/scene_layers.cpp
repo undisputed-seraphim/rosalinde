@@ -80,6 +80,7 @@ build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int
 			if (specs[i].track_index >= 0 && specs[i].track_index < static_cast<int>(layer->data.tracks.size()))
 				layer->instance.play(static_cast<uint32_t>(specs[i].track_index));
 			layer->position = specs[i].pos;
+			layer->scale = specs[i].scale;
 			layer->is_character = specs[i].mbs.rfind("Chara", 0) == 0;
 
 			// Backgrounds (non-character assets) are a set of independent tracks

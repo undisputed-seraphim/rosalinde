@@ -14,6 +14,7 @@ struct SpriteLayer {
 	std::string class_name;
 	std::string variant_name;
 	glm::vec2 position{0, 0};
+	float scale = 1.0f; // entity scale from the script (DrUiSetScale)
 	SpriteData data;
 	SpriteInstance instance;
 	// Backgrounds are a set of independent tracks that all animate at once,
