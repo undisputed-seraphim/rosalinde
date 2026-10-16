@@ -64,6 +64,13 @@ private:
 	int _focus = -1; // last entity to become active (camera "follow")
 	std::vector<std::pair<long, glm::vec2>> _cam_keys; // recorded DrSetCameraPosV keys
 
+	struct CamKey {
+		long frame;
+		glm::vec2 pos;
+		float zoom;
+	};
+	std::vector<CamKey> _cam_rec; // recorded camera keys (pos + zoom) for "record"
+
 	size_t _kf = 0;
 	long _frame = 0;
 	double _accum = 0.0;
