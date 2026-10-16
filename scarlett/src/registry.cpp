@@ -266,6 +266,15 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		gen->SetReturnByte(exists ? 1 : 0);
 		return true;
 	}
+	if (name == "GetCameraPosV") {
+		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
+		if (r) {
+			r[0] = _camera.pos[0];
+			r[1] = _camera.pos[1];
+		}
+		return true;
+	}
+
 	if (name == "GetPosV") {
 		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
 		if (r) {
@@ -455,7 +464,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
-	if (name == "DrUiSetDirX" || name == "SetSpriteDirX") {
+	if (name == "DrUiSetDirX" || name == "SetSpriteDirX" || name == "DrSetDirX") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->dir_x = I(1) < 0 ? -1.0f : 1.0f;
 			_dirty = true;
