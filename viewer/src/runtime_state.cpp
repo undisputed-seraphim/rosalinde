@@ -65,6 +65,16 @@ long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int tra
 						long run_len = 0;
 						for (uint32_t k = 0; k < run.s8_count && run.s8_start + k < sd.v77.s8.size(); ++k)
 							run_len += sd.v77.s8[run.s8_start + k].frames;
+						if (std::getenv("TRACK_DUMP"))
+							std::fprintf(
+								stderr,
+								"[track %s idx=%d] run s8_start=%u count=%u once=%d len=%ld\n",
+								mbs.c_str(),
+								track_index,
+								run.s8_start,
+								run.s8_count,
+								run.once ? 1 : 0,
+								run_len);
 						n = std::max(n, run_len);
 					}
 				}

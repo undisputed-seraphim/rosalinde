@@ -12,6 +12,11 @@ namespace asb {
 
 namespace {
 
+bool wait_trace() {
+	static const bool on = std::getenv("SCENE_TRACE") != nullptr;
+	return on;
+}
+
 std::string read_string(asIScriptGeneric* gen, int i) {
 	auto* p = static_cast<const std::string*>(gen->GetArgAddress(i));
 	return p ? *p : std::string();
@@ -219,6 +224,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "Wait") {
 		long n = static_cast<long>(gen->GetArgDWord(0));
 		pending_wait = std::max(1L, n);
+		if (wait_trace())
+			std::fprintf(stderr, "[wait f=%ld] Wait %ld -> end %ld\n", frame, pending_wait, frame + pending_wait);
 		if (asIScriptContext* ctx = asGetActiveContext())
 			ctx->Suspend();
 		return true;
@@ -227,6 +234,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		const long end = fade_end();
 		if (end > frame) {
 			pending_wait = end - frame;
+			if (wait_trace())
+				std::fprintf(stderr, "[wait f=%ld] FadeDone -> end %ld\n", frame, frame + pending_wait);
 			if (asIScriptContext* ctx = asGetActiveContext())
 				ctx->Suspend();
 		}
@@ -257,6 +266,16 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		RuntimeEntity* e = ent(0);
 		if (e && _track_frames)
 			n = _track_frames(e->mbs, e->track_index);
+		if (wait_trace())
+			std::fprintf(
+				stderr,
+				"[wait f=%ld] AnimEnd \"%s\" track=%d mbs=%s -> +%ld (end %ld)\n",
+				frame,
+				e ? e->name.c_str() : "?",
+				e ? e->track_index : -1,
+				e ? e->mbs.c_str() : "",
+				n,
+				frame + n);
 		if (n > 0) {
 			pending_wait = n;
 			if (asIScriptContext* ctx = asGetActiveContext())
