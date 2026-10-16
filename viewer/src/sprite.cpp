@@ -33,6 +33,13 @@ int once_mode() {
 	}();
 	return m;
 }
+
+// A track's runs are either parallel parts (default) or sequential phases
+// (VIEWER_RUNS=seq): in the latter only the current phase draws and advances.
+bool seq_runs() {
+	static const bool on = std::getenv("VIEWER_RUNS") && std::strcmp(std::getenv("VIEWER_RUNS"), "seq") == 0;
+	return on;
+}
 } // namespace
 
 static glm::mat4 s7_matrix_interp(const mbs::section_7& a, const mbs::section_7& b, float t, bool flipx, bool flipy) {
@@ -166,6 +173,8 @@ void SpriteInstance::play(uint32_t track_id) {
 	offsets.resize(track.runs.size());
 	prev_offsets.assign(track.runs.size(), UINT32_MAX);
 	done.assign(track.runs.size(), 0);
+	hide.assign(track.runs.size(), 0);
+	_phase = 0;
 	_accum = 0.0f;
 
 	for (uint32_t i = 0; i < track.runs.size(); ++i) {
@@ -205,7 +214,9 @@ void SpriteInstance::update(float dt_seconds) {
 
 	while (_accum >= 1.0f) {
 		_accum -= 1.0f;
-		for (uint32_t i = 0; i < track.runs.size(); ++i) {
+		const uint32_t first = seq_runs() ? std::min<uint32_t>(_phase, track.runs.size()) : 0;
+		const uint32_t last = seq_runs() ? std::min<uint32_t>(_phase + 1, track.runs.size()) : track.runs.size();
+		for (uint32_t i = first; i < last; ++i) {
 			const auto& run = track.runs[i];
 			if (run.s8_count == 0 || (i < done.size() && done[i]))
 				continue;
@@ -225,7 +236,6 @@ void SpriteInstance::update(float dt_seconds) {
 						}
 					}
 				} else if (run.once && offsets[i] + 1 >= run.s8_count) {
-					// Single-pass sequence: hold the final frame.
 					done[i] = 1;
 					offsets[i] = run.s8_count - 1;
 				} else {
@@ -233,8 +243,22 @@ void SpriteInstance::update(float dt_seconds) {
 					if (offsets[i] >= run.s8_count)
 						offsets[i] = run.loop_start;
 				}
+				// A finished single-pass part stops drawing only if its final
+				// frame is an end-of-sequence (LAST) marker; otherwise it holds.
+				if (done[i])
+					hide[i] = (data->v77.s8[run.s8_start + offsets[i]].flags & mbs::v77::s8flag::LAST) ? 1 : 0;
 				ticks[i] = data->v77.s8[run.s8_start + offsets[i]].frames;
 			}
+		}
+		// Sequential-runs mode: once a phase finishes, start the next one.
+		if (seq_runs() && _phase < track.runs.size() && done[_phase] && _phase + 1 < track.runs.size()) {
+			++_phase;
+			const auto& r = track.runs[_phase];
+			offsets[_phase] = r.s8_st;
+			if (r.s8_count && r.s8_start < data->v77.s8.size())
+				ticks[_phase] = data->v77.s8[r.s8_start + offsets[_phase]].frames;
+			hide[_phase] = 0;
+			advanced = true;
 		}
 	}
 
@@ -271,7 +295,9 @@ void SpriteInstance::build_vertices(
 	const auto& run = track.runs[sa_idx];
 	if (run.s8_count == 0)
 		return;
-	if (once_mode() == 0 && sa_idx < done.size() && done[sa_idx])
+	if (sa_idx < hide.size() && hide[sa_idx])
+		return;
+	if (seq_runs() && sa_idx != _phase)
 		return;
 
 	const auto& s8 = data->v77.s8[run.s8_start + offsets[sa_idx]];
