@@ -28,7 +28,7 @@ struct ViewerConfig {
 	std::string chara_table;  // generated character name -> asset table
 	bool runtime = false;	  // run the hosted VM instead of the static fold
 	long scene_frame = -1;	  // runtime: scene frame to advance to (-1 = real time)
-	float scene_fps = 30.0f;  // runtime: frame step rate
+	float scene_fps = 60.0f;  // runtime: frame step rate (the cinematic is 60fps)
 };
 
 class Scene final : public uvw::BaseGame {
