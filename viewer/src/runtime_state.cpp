@@ -306,7 +306,14 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 				_cam_keys.emplace_back(k.frame, glm::vec2(k.camera.pos[0], k.camera.pos[1]));
 	}
 
-	if (_cfg.camera != "fit" && _cfg.camera != "design" && _cfg.camera != "follow" && _cfg.camera != "script") {
+	if (_cfg.camera == "record") {
+		for (const auto& k : _timeline.keyframes)
+			if (k.camera.has_pos)
+				_cam_rec.push_back({k.frame, glm::vec2(k.camera.pos[0], k.camera.pos[1]), k.camera.zoom});
+	}
+
+	if (_cfg.camera != "fit" && _cfg.camera != "design" && _cfg.camera != "follow" &&
+		_cfg.camera != "script" && _cfg.camera != "record" && _cfg.camera != "auto") {
 		std::vector<const asb::RuntimeCamera*> keys;
 		for (const auto& k : _timeline.keyframes)
 			if (k.camera.has_pos)
@@ -446,6 +453,29 @@ void RuntimeState::render() {
 			p = q;
 		}
 		_camera.recenter(p);
+	}
+	if (_cfg.camera == "record" && !_cam_rec.empty()) {
+		// The game's view rect is centred on the camera pos with width 1840/zoom
+		// (docs/EXE.md §4); apply the recorded pos+zoom as our view.
+		const CamKey* k = &_cam_rec.front();
+		for (const auto& kk : _cam_rec) {
+			if (kk.frame > _frame)
+				break;
+			k = &kk;
+		}
+		const float zg = k->zoom > 0.0f ? k->zoom : 1.0f;
+		float world_w = 1840.0f;
+		if (const char* e = std::getenv("VIEWER_CAM_W"))
+			world_w = static_cast<float>(std::atof(e));
+		const float view_w = world_w / zg;
+		const float view_h = 1080.0f / zg;
+		_camera.fit_bounds(
+			glm::vec4(
+				k->pos.x - view_w * 0.5f,
+				k->pos.y - view_h * 0.5f,
+				k->pos.x + view_w * 0.5f,
+				k->pos.y + view_h * 0.5f),
+			0.0f);
 	}
 	if (_cfg.camera == "auto") {
 		// Content-driven framing. Bounds come from per-frame render_bounds()
