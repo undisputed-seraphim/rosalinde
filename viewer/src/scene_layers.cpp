@@ -79,6 +79,8 @@ build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int
 			}
 			if (specs[i].track_index >= 0 && specs[i].track_index < static_cast<int>(layer->data.tracks.size()))
 				layer->instance.play(static_cast<uint32_t>(specs[i].track_index));
+			else if (!specs[i].track.empty())
+				layer->instance.play(specs[i].track);
 			layer->position = specs[i].pos;
 			layer->scale = specs[i].scale;
 			layer->is_character = specs[i].mbs.rfind("Chara", 0) == 0;

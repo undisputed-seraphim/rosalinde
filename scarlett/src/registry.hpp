@@ -27,6 +27,13 @@ public:
 	// immediate.
 	void set_track_frames(std::function<long(const std::string&, int)> fn) { _track_frames = std::move(fn); }
 
+	// Optional: resolve an MBS track name to its index for an asset. When unset
+	// (or returning < 0) a name-based animation call records the name but leaves
+	// `track_index` at -1.
+	void set_resolve_track(std::function<int(const std::string&, const std::string&)> fn) {
+		_resolve_track = std::move(fn);
+	}
+
 	void reset(std::string source, std::string function);
 
 	// Model a native call. Returns true if recognised (and thus not handled by
@@ -65,6 +72,7 @@ private:
 
 	const CharTable* _chars = nullptr;
 	std::function<long(const std::string&, int)> _track_frames;
+	std::function<int(const std::string&, const std::string&)> _resolve_track;
 	Timeline _timeline;
 	std::vector<RuntimeEntity> _entities;
 	std::unordered_map<std::string, int> _by_name;

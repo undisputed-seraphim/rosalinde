@@ -110,6 +110,7 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 		s.kind = e.kind;
 		s.mbs = e.mbs;
 		s.ftx = e.ftx;
+		s.track = e.track;
 		s.track_index = e.track_index;
 		s.pos = glm::vec2(e.pos[0], e.pos[1]);
 		s.scale = e.scale;

@@ -27,6 +27,7 @@ struct RuntimeEntity {
 	int alpha = 255;	// 0-255, from DrUiSetColorA (0 = not yet faded in)
 	int layer = -1;
 	bool visible = true;
+	bool reverse = false; // SetSpriteMoneReverse: play the selected track backward
 	int order = 0;
 	Space space = Space::World;
 	std::string parent; // SetSpriteToAnchor target (empty = none); pos is relative

@@ -51,6 +51,11 @@ public:
 	// used to model `WaitSpriteMoneAnimationEnd` during run().
 	void set_track_frames(std::function<long(const std::string&, int)> fn);
 
+	// Optional animation-name resolver: maps an MBS track name (as passed to
+	// `DrSetIdleAnimation` / `DrAnimation*`) to its track index for the asset.
+	// Returns < 0 when unknown, leaving the entity with no selected track.
+	void set_resolve_track(std::function<int(const std::string&, const std::string&)> fn);
+
 	// Run a function under a virtual clock: `Wait(n)` parks the script for n
 	// frames, the scene-relevant natives populate a runtime scene, and a
 	// keyframe is recorded whenever it changes. Returns the resulting timeline.
