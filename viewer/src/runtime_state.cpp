@@ -95,6 +95,11 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	, _camera(1.0f) {
 
 	_projection = glm::ortho(-960.0f, 960.0f, 540.0f, -540.0f);
+	if (const char* o = std::getenv("VIEWER_ORTHO")) {
+		float a = 0, b = 0, c = 0, d = 0;
+		if (std::sscanf(o, "%f,%f,%f,%f", &a, &b, &c, &d) == 4)
+			_projection = glm::ortho(a, b, c, d);
+	}
 	enable_blend(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 	enable_depth(GL_ALWAYS);
 
@@ -177,6 +182,17 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 				f.to[2],
 				f.to[3]);
 		for (const auto& k : _timeline.keyframes) {
+			if (k.camera.has_pos)
+				std::fprintf(
+					stderr,
+					"[cam f=%ld] pos=(%.0f,%.0f,%.0f) zoom=%.3f\n",
+					k.frame,
+					k.camera.pos[0],
+					k.camera.pos[1],
+					k.camera.pos[2],
+					k.camera.zoom);
+		}
+		for (const auto& k : _timeline.keyframes) {
 			std::fprintf(stderr, "[kf %ld]", k.frame);
 			for (const auto& e : k.entities)
 				if (e.visible && e.alpha > 0)
@@ -249,7 +265,7 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	if (any && _cfg.camera == "fit")
 		_camera.fit_bounds(fit, 0.15f);
 
-	if (_cfg.camera != "fit" && _cfg.camera != "design") {
+	if (_cfg.camera != "fit" && _cfg.camera != "design" && _cfg.camera != "follow") {
 		std::vector<const asb::RuntimeCamera*> keys;
 		for (const auto& k : _timeline.keyframes)
 			if (k.camera.has_pos)
@@ -288,6 +304,8 @@ void RuntimeState::apply_keyframe() {
 		const bool on = i < n && k.entities[i].visible && k.entities[i].alpha > 0;
 		if (scene_trace() && on != static_cast<bool>(_active[i]))
 			std::fprintf(stderr, "[play f=%ld] %c %s\n", _frame, on ? '+' : '-', _layers[i]->class_name.c_str());
+		if (on && !_active[i])
+			_focus = static_cast<int>(i);
 		_active[i] = on ? 1 : 0;
 		if (i >= n)
 			continue;
@@ -367,6 +385,31 @@ void RuntimeState::update(float dt) {
 
 void RuntimeState::render() {
 	++_render_count;
+
+	if (_cfg.camera == "follow" && _focus >= 0 && _focus < static_cast<int>(_layers.size()) && _layers[_focus])
+		_camera.recenter(_layers[_focus]->position);
+
+	if (const char* fr = std::getenv("LAYER_DUMP")) {
+		static bool dumped = false;
+		if (!dumped && _frame >= std::atol(fr)) {
+			dumped = true;
+			for (size_t i = 0; i < _layers.size(); ++i)
+				if (_layers[i] && _active[i]) {
+					const glm::vec4 b = world_bounds(*_layers[i]);
+					std::fprintf(
+						stderr,
+						"[layer f=%ld] %-22s pos=(%.0f,%.0f) wb=(%.0f,%.0f,%.0f,%.0f)\n",
+						_frame,
+						_layers[i]->class_name.c_str(),
+						_layers[i]->position.x,
+						_layers[i]->position.y,
+						b.x,
+						b.y,
+						b.z,
+						b.w);
+				}
+		}
+	}
 
 	glClear(GL_DEPTH_BUFFER_BIT);
 	for (size_t i = 0; i < _layers.size(); ++i)

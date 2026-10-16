@@ -61,6 +61,8 @@ private:
 	std::string _cap_dir;
 	bool _cap_started = false;
 
+	int _focus = -1; // last entity to become active (camera "follow")
+
 	size_t _kf = 0;
 	long _frame = 0;
 	double _accum = 0.0;
