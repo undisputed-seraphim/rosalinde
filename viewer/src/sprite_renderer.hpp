@@ -27,7 +27,8 @@ public:
 		const Camera& cam,
 		const glm::vec2& offset = {},
 		const std::map<uint32_t, glm::vec4>* tints = nullptr,
-		bool apply_fog = false);
+		bool apply_fog = false,
+		float scale = 1.0f);
 
 private:
 	GLuint _texture_array = 0;

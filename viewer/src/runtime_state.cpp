@@ -355,6 +355,7 @@ void RuntimeState::apply_keyframe() {
 		if (_parent[i] >= 0 && _parent[i] < static_cast<int>(n))
 			pos += glm::vec2(k.entities[_parent[i]].pos[0], k.entities[_parent[i]].pos[1]);
 		_layers[i]->position = pos;
+		_layers[i]->scale = e.scale > 0.0f ? e.scale : 1.0f;
 		const int tracks = static_cast<int>(_layers[i]->data.tracks.size());
 		if (e.track_index >= 0 && e.track_index != _track[i] && e.track_index < tracks) {
 			_layers[i]->instance.play(static_cast<uint32_t>(e.track_index));
@@ -541,10 +542,10 @@ void RuntimeState::render() {
 			continue;
 		auto& l = *_layers[i];
 		if (l.instances.empty()) {
-			l.renderer.draw(l.instance, _projection, _camera, l.position, &l.layer_tints);
+			l.renderer.draw(l.instance, _projection, _camera, l.position, &l.layer_tints, false, l.scale);
 		} else {
 			for (auto& inst : l.instances)
-				l.renderer.draw(inst, _projection, _camera, l.position, &l.layer_tints);
+				l.renderer.draw(inst, _projection, _camera, l.position, &l.layer_tints, false, l.scale);
 		}
 	}
 

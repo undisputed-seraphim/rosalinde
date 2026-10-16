@@ -126,7 +126,8 @@ void SpriteRenderer::draw(
 	const Camera& cam,
 	const glm::vec2& offset,
 	const std::map<uint32_t, glm::vec4>* tints,
-	bool apply_fog) {
+	bool apply_fog,
+	float scale) {
 	const auto& shader = GetKeyframeShader().Use();
 
 	glActiveTexture(GL_TEXTURE0);
@@ -134,7 +135,10 @@ void SpriteRenderer::draw(
 	glBindVertexArray(_vao);
 	shader.SetUniform("u_tex", 0);
 
-	const glm::mat4 view_offset = cam.lookAt() * glm::translate(glm::mat4(1.0f), glm::vec3(offset, 0.0f));
+	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(offset, 0.0f));
+	if (scale != 1.0f)
+		model = glm::scale(model, glm::vec3(scale, scale, 1.0f));
+	const glm::mat4 view_offset = cam.lookAt() * model;
 	uint32_t n = inst.sa_count();
 	for (uint32_t i = 0; i < n; ++i) {
 		auto s7m = inst.transform_for_sa(i);
