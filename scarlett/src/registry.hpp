@@ -81,6 +81,11 @@ private:
 	// and the integer slot-flag store. Read back by the state getters.
 	std::unordered_set<std::string> _party;
 	std::unordered_map<int, int> _slots;
+	std::unordered_set<std::string> _class_changed;
+	std::unordered_set<std::string> _disabled;
+	std::unordered_map<int, int> _quests;			// quest id -> bits (1 open, 2 completed)
+	std::unordered_map<std::string, int> _unit_dir; // unit name -> direction/degree
+	std::unordered_set<int> _units;					// recruited unit ids (AddUnitSaveData)
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;
 	Timeline _timeline;

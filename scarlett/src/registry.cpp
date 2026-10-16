@@ -53,6 +53,11 @@ void Registry::reset(std::string source, std::string function) {
 	_by_name.clear();
 	_party.clear();
 	_slots.clear();
+	_class_changed.clear();
+	_disabled.clear();
+	_quests.clear();
+	_unit_dir.clear();
+	_units.clear();
 	_camera = RuntimeCamera{};
 	_dirty = false;
 	frame = 0;
@@ -318,6 +323,81 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "GetSlotBitFlag") {
 		auto it = _slots.find(static_cast<int>(gen->GetArgDWord(0)));
 		gen->SetReturnByte((it != _slots.end() && it->second) ? 1 : 0);
+		return true;
+	}
+
+	if (name == "SetSlotBitFlag") {
+		_slots[static_cast<int>(gen->GetArgDWord(0))] = gen->GetArgDWord(1) ? 1 : 0;
+		return true;
+	}
+	if (name == "GetStageBitFlag") {
+		auto it = _slots.find(static_cast<int>(gen->GetArgDWord(0)));
+		gen->SetReturnByte((it != _slots.end() && it->second) ? 1 : 0);
+		return true;
+	}
+	if (name == "ClassChangeChara") {
+		_class_changed.insert(read_string(gen, 0));
+		return true;
+	}
+	if (name == "IsClassChangeChara") {
+		gen->SetReturnByte(_class_changed.count(read_string(gen, 0)) ? 1 : 0);
+		return true;
+	}
+	if (name == "SetDisableChara") {
+		const std::string n = read_string(gen, 0);
+		if (gen->GetArgDWord(1))
+			_disabled.insert(n);
+		else
+			_disabled.erase(n);
+		return true;
+	}
+	if (name == "IsDisableChara") {
+		gen->SetReturnByte(_disabled.count(read_string(gen, 0)) ? 1 : 0);
+		return true;
+	}
+	if (name == "AddUnitSaveData") {
+		_units.insert(static_cast<int>(gen->GetArgDWord(0)));
+		return true;
+	}
+	{
+		const bool complete = name.find("Complete") != std::string_view::npos;
+		if (name == "QuestOpen" || name == "QuestComplete") {
+			_quests[static_cast<int>(gen->GetArgDWord(0))] |= complete ? 3 : 1;
+			return true;
+		}
+		if (name == "IsQuestOpened" || name == "IsQuestCompleted") {
+			auto it = _quests.find(static_cast<int>(gen->GetArgDWord(0)));
+			const int bit = complete ? 2 : 1;
+			gen->SetReturnByte((it != _quests.end() && (it->second & bit)) ? 1 : 0);
+			return true;
+		}
+	}
+	if (name == "SetUnitDir") {
+		_unit_dir[read_string(gen, 0)] = static_cast<int>(gen->GetArgDWord(1));
+		return true;
+	}
+	if (name == "GetUnitDegree") {
+		auto it = _unit_dir.find(read_string(gen, 0));
+		gen->SetReturnDWord(it == _unit_dir.end() ? 0u : static_cast<asDWORD>(it->second));
+		return true;
+	}
+	if (name == "CameraMoveWait")
+		return true; // immediate: the recorded camera already reflects the move
+	if (name == "ClearCamera") {
+		_camera = RuntimeCamera{};
+		_dirty = true;
+		return true;
+	}
+	// Save/party getters with no script-side mutator and no save file available:
+	// default to the stub's value. TODO(phase3): seed a save model so these (level,
+	// leader, army type, gold, items, fame) report real state.
+	if (name == "GetCharaLv" || name == "GetCharaAverageLv" || name == "GetArmyType" || name == "GetGold" ||
+		name == "GetItemNum" || name == "GetFameRank") {
+		gen->SetReturnDWord(0);
+		return true;
+	}
+	if (name == "IsLeader" || name == "StIsPartnerSelectCharaDefName" || name == "IsEmptyPlayerCharaList") {
+		gen->SetReturnByte((name == "IsEmptyPlayerCharaList" && _party.empty()) ? 1 : 0);
 		return true;
 	}
 
