@@ -447,35 +447,66 @@ void RuntimeState::render() {
 		_camera.recenter(p);
 	}
 	if (_cfg.camera == "auto") {
-		// Frame the active content: prefer characters (close-ups during the
-		// parade), else the background. Bounds come from per-frame
-		// render_bounds() (s6 x s7), NOT track_bounds() which is the s9
-		// camera-framing hint. Pathological (huge effect) bounds are skipped.
-		glm::vec4 fit{INFINITY, INFINITY, -INFINITY, -INFINITY};
-		bool any = false;
-		auto add = [&](const SpriteLayer& l) {
+		// Content-driven framing. Bounds come from per-frame render_bounds()
+		// (s6 x s7), NOT track_bounds() which is the s9 camera-framing hint.
+		// The view holds the active characters together with the largest
+		// background layer (the parade reads over the landscape, like the
+		// reference); with no character, the largest background layer alone.
+		struct Cand {
+			glm::vec4 b;
+			bool character;
+			float area;
+		};
+		std::vector<Cand> cands;
+		for (size_t i = 0; i < _layers.size(); ++i) {
+			if (!_layers[i] || !_active[i])
+				continue;
+			const SpriteLayer& l = *_layers[i];
+			glm::vec4 b{INFINITY, INFINITY, -INFINITY, -INFINITY};
+			bool got = false;
 			auto acc = [&](const SpriteInstance& inst) {
-				const glm::vec4 b = inst.render_bounds();
-				if (!std::isfinite(b.x) || !std::isfinite(b.z) || b.z <= b.x || b.w <= b.y)
+				const glm::vec4 r = inst.render_bounds();
+				if (!std::isfinite(r.x) || !std::isfinite(r.z) || r.z <= r.x || r.w <= r.y)
 					return;
-				const glm::vec4 w{b.x + l.position.x, b.y + l.position.y, b.z + l.position.x, b.w + l.position.y};
-				if (w.z - w.x > 4000.0f || w.w - w.y > 3000.0f)
-					return;
-				fit = {std::min(fit.x, w.x), std::min(fit.y, w.y), std::max(fit.z, w.z), std::max(fit.w, w.w)};
-				any = true;
+				const glm::vec4 w{r.x + l.position.x, r.y + l.position.y, r.z + l.position.x, r.w + l.position.y};
+				b = {std::min(b.x, w.x), std::min(b.y, w.y), std::max(b.z, w.z), std::max(b.w, w.w)};
+				got = true;
 			};
 			if (l.instances.empty())
 				acc(l.instance);
 			else
 				for (const auto& inst : l.instances)
 					acc(inst);
+			if (!got)
+				continue;
+			const float w = b.z - b.x, h = b.w - b.y;
+			if (w > 6000.0f || h > 4000.0f) // pathological / full-screen effect
+				continue;
+			cands.push_back({b, l.is_character, w * h});
+		}
+		glm::vec4 fit{INFINITY, INFINITY, -INFINITY, -INFINITY};
+		bool any = false;
+		auto merge = [&](const glm::vec4& b) {
+			fit = {std::min(fit.x, b.x), std::min(fit.y, b.y), std::max(fit.z, b.z), std::max(fit.w, b.w)};
+			any = true;
 		};
-		// Frame active characters (close-ups in the parade); otherwise keep the
-		// fixed design view, which is where the cutscene cards (montage,
-		// sanctum) are composed.
-		for (size_t i = 0; i < _layers.size(); ++i)
-			if (_layers[i] && _active[i] && _layers[i]->is_character)
-				add(*_layers[i]);
+		for (const auto& c : cands)
+			if (c.character)
+				merge(c.b);
+		if (any) {
+			// Include the largest background layer so the parade reads over the
+			// landscape; with no character, keep the fixed design view (where
+			// the cutscene cards are composed).
+			float best = -1.0f;
+			glm::vec4 bb{};
+			for (const auto& c : cands)
+				if (!c.character && c.area > best) {
+					best = c.area;
+					bb = c.b;
+				}
+			if (best > 0.0f)
+				merge(bb);
+		}
 		if (any)
 			_camera.fit_bounds(fit, 0.12f);
 		else
