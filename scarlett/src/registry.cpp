@@ -58,6 +58,9 @@ void Registry::reset(std::string source, std::string function) {
 	_quests.clear();
 	_unit_dir.clear();
 	_units.clear();
+	_moves.clear();
+	_db_params.clear();
+	_help.clear();
 	_camera = RuntimeCamera{};
 	_dirty = false;
 	frame = 0;
@@ -490,6 +493,110 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return it == _by_name.end() ? nullptr : &_entities[it->second];
 	};
 
+	// Movement tweens: Move (relative delta) / MoveAbs (absolute) + the drama
+	// DrMove* family set a position tween; MoveWait/MoveWaitAll park the script
+	// until it finishes. Easing (the trailing int) is ignored.
+	if (name == "Move" || name == "MoveAbs") {
+		float to[2] = {0.0f, 0.0f};
+		V(1, to, 2);
+		if (RuntimeEntity* e = ent(0)) {
+			Move m{};
+			for (int k = 0; k < 2; ++k) {
+				m.from[k] = e->pos[k];
+				m.to[k] = (name == "Move") ? e->pos[k] + to[k] : to[k];
+			}
+			m.from[2] = m.to[2] = e->pos[2];
+			m.f0 = frame;
+			m.f1 = frame + std::max(1, I(2));
+			_moves[e->name] = m;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrMoveAbs" || name == "DrMoveAbsAsync" || name == "DrMoveAsync" || name == "DrShortMoveAsync") {
+		float to[3] = {0.0f, 0.0f, 0.0f};
+		V(1, to, 3);
+		if (RuntimeEntity* e = ent(0)) {
+			Move m{};
+			for (int k = 0; k < 3; ++k) {
+				m.from[k] = e->pos[k];
+				m.to[k] = to[k];
+			}
+			int dur = I(4);
+			if (dur <= 0)
+				dur = 30;
+			m.f0 = frame;
+			m.f1 = frame + dur;
+			_moves[e->name] = m;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "MoveWait" || name == "MoveWaitAll") {
+		const std::string only = name == "MoveWait" ? S(0) : std::string();
+		long wait = 0;
+		for (const auto& [n, m] : _moves) {
+			if (!only.empty() && n != only)
+				continue;
+			wait = std::max(wait, m.f1 - frame);
+		}
+		if (wait > 0) {
+			pending_wait = wait;
+			if (asIScriptContext* ctx = asGetActiveContext())
+				ctx->Suspend();
+		}
+		return true;
+	}
+	if (name == "FollowDir" || name == "DrTurnAsync") {
+		if (RuntimeEntity* e = ent(0)) {
+			auto it = _by_name.find(S(1));
+			if (it != _by_name.end()) {
+				e->dir_x = _entities[it->second].pos[0] < e->pos[0] ? -1.0f : 1.0f;
+				_dirty = true;
+			}
+		}
+		return true;
+	}
+	// Scene reads.
+	if (name == "DrGetPosV" || name == "DrGetCollisionPosV") {
+		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
+		if (r) {
+			r[0] = r[1] = r[2] = 0.0f;
+			if (RuntimeEntity* e = ent(0))
+				for (int k = 0; k < 3; ++k)
+					r[k] = e->pos[k];
+		}
+		return true;
+	}
+	if (name == "DrGetDirX") {
+		int d = 1;
+		if (RuntimeEntity* e = ent(0))
+			d = e->dir_x < 0 ? -1 : 1;
+		gen->SetReturnDWord(static_cast<asDWORD>(d));
+		return true;
+	}
+	// State stores.
+	if (name == "DbSetDebugParam") {
+		_db_params[S(0)] = I(1);
+		return true;
+	}
+	if (name == "DbGetDebugParam") {
+		auto it = _db_params.find(S(0));
+		gen->SetReturnDWord(it == _db_params.end() ? 0u : static_cast<asDWORD>(it->second));
+		return true;
+	}
+	if (name == "DbGetLocalParam") {
+		auto it = _db_params.find(S(0));
+		gen->SetReturnFloat(it == _db_params.end() ? 0.0f : static_cast<float>(it->second));
+		return true;
+	}
+	if (name == "AddToHelpList") {
+		_help.insert(S(0));
+		return true;
+	}
+	if (name == "ShowTips")
+		return true; // UI tip hint: no runtime model
+
 	// Wait until a sprite's animation finishes. Only modelled when a length
 	// provider knows the track; otherwise it stays immediate.
 	if (name == "WaitSpriteMoneAnimationEnd" || name == "DrAnimationWait") {
@@ -736,6 +843,25 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
+	// TODO(blocked natives): the groups below fall through to the GenericStub,
+	// which returns the type's zero (never crashes). They are unimplemented
+	// on purpose, each blocked on a prerequisite subsystem:
+	//  - AI / strategy: StAddUnitAi*/Gambit/SearchEnemy, StIsLowerHpRate, StAdd*Zouen*
+	//    -> needs the battle/strategy behaviour engine (move/AI semantics un-RE'd).
+	//    Belongs with the deferred 3D work.
+	//  - Effects / lighting / spawns: DrCreateEffect, DrSetEffect*, DrCreatePointLight/
+	//    DeletePointLight, CreateItem/DeleteItem/CreateTreasure
+	//    -> needs an effect/item -> asset table AND an effect/lighting render model.
+	//  - Field / drama / render plumbing: DrCreateDrama, DrSetLayerMask, ReconstTown,
+	//    DbIsDebugDrama, DrIsArchiveMode
+	//    -> needs the field/drama systems plus per-layer visibility plumbing in the
+	//    viewer. Belongs with the deferred 3D work.
+	//  - Text rendering: CreateSpriteText, SpriteTextFinishWait, UcSpriteTextParam::*
+	//    -> needs world-space text rendering (Phase 4).
+	//  - Dialogue / balloons: Msg*, MsgAnm/MsgU_F, UcMsgBalloonParam::*, GetYNDialogResult
+	//    -> Phase 4.
+	//  - Time conversion: UC_SEC -> game-time formula unconfirmed.
+
 	// Unmodelled call. With ASB_CENSUS set, report it so a run can enumerate the
 	// natives a scene depends on (returns stay at their stub defaults).
 	if (std::getenv("ASB_CENSUS"))
@@ -766,6 +892,26 @@ void Registry::push_fade(const float* to, long time) {
 long Registry::fade_end() const { return _timeline.fades.empty() ? 0 : _timeline.fades.back().end; }
 
 void Registry::flush_keyframe() {
+	// Advance active movement tweens, driving the entity positions.
+	for (auto it = _moves.begin(); it != _moves.end();) {
+		auto bi = _by_name.find(it->first);
+		if (bi == _by_name.end()) {
+			it = _moves.erase(it);
+			continue;
+		}
+		Move& m = it->second;
+		const float t = m.f1 > m.f0
+							? std::clamp(static_cast<float>(frame - m.f0) / static_cast<float>(m.f1 - m.f0), 0.0f, 1.0f)
+							: 1.0f;
+		float* p = _entities[bi->second].pos;
+		for (int k = 0; k < 3; ++k)
+			p[k] = m.from[k] + (m.to[k] - m.from[k]) * t;
+		_dirty = true;
+		if (frame >= m.f1)
+			it = _moves.erase(it);
+		else
+			++it;
+	}
 	if (!_dirty && !_timeline.keyframes.empty())
 		return;
 	Keyframe k;
