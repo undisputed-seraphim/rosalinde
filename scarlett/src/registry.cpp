@@ -51,6 +51,8 @@ void Registry::reset(std::string source, std::string function) {
 	_timeline.function = std::move(function);
 	_entities.clear();
 	_by_name.clear();
+	_party.clear();
+	_slots.clear();
 	_camera = RuntimeCamera{};
 	_dirty = false;
 	frame = 0;
@@ -287,6 +289,35 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		}
 		if (auto* out = static_cast<std::string*>(gen->GetAddressOfReturnLocation()))
 			*out = res;
+		return true;
+	}
+
+	// Script-accumulated save/party state (Phase 3): the mutators populate the
+	// stores; the getters read them back.
+	if (name == "AddCharaSaveData") {
+		_party.insert(read_string(gen, 0));
+		return true;
+	}
+	if (name == "DeleteCharaSaveData" || name == "DeleteMobCharaSaveData") {
+		_party.erase(read_string(gen, 0));
+		return true;
+	}
+	if (name == "IsExistCharaSaveData") {
+		gen->SetReturnByte(_party.count(read_string(gen, 0)) ? 1 : 0);
+		return true;
+	}
+	if (name == "SetSlotFlag") {
+		_slots[static_cast<int>(gen->GetArgDWord(0))] = static_cast<int>(gen->GetArgDWord(1));
+		return true;
+	}
+	if (name == "GetSlotFlag") {
+		auto it = _slots.find(static_cast<int>(gen->GetArgDWord(0)));
+		gen->SetReturnDWord(it == _slots.end() ? 0u : static_cast<asDWORD>(it->second));
+		return true;
+	}
+	if (name == "GetSlotBitFlag") {
+		auto it = _slots.find(static_cast<int>(gen->GetArgDWord(0)));
+		gen->SetReturnByte((it != _slots.end() && it->second) ? 1 : 0);
 		return true;
 	}
 

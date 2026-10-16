@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <functional>
@@ -76,6 +77,10 @@ private:
 
 	const CharTable* _chars = nullptr;
 	const CharaSetTable* _chara_sets = nullptr;
+	// Script-accumulated save/party state (Phase 3): recruited chara def names
+	// and the integer slot-flag store. Read back by the state getters.
+	std::unordered_set<std::string> _party;
+	std::unordered_map<int, int> _slots;
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;
 	Timeline _timeline;
