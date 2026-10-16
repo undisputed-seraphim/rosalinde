@@ -164,16 +164,28 @@ bool ScriptState::handle_inputs() {
 }
 
 void ScriptState::update(float dt) {
-	for (auto& layer : _layers)
-		layer->instance.update(dt);
+	for (auto& layer : _layers) {
+		if (layer->instances.empty()) {
+			layer->instance.update(dt);
+		} else {
+			for (auto& inst : layer->instances)
+				inst.update(dt);
+		}
+	}
 }
 
 void ScriptState::render() {
 	++_frame;
 
 	glClear(GL_DEPTH_BUFFER_BIT);
-	for (auto& layer : _layers)
-		layer->renderer.draw(layer->instance, _projection, _camera, layer->position, &layer->layer_tints);
+	for (auto& layer : _layers) {
+		if (layer->instances.empty()) {
+			layer->renderer.draw(layer->instance, _projection, _camera, layer->position, &layer->layer_tints);
+		} else {
+			for (auto& inst : layer->instances)
+				layer->renderer.draw(inst, _projection, _camera, layer->position, &layer->layer_tints);
+		}
+	}
 
 	if (!_cfg.screenshot.empty() && !_captured && _frame >= _cfg.frames) {
 		int fb_w = 0, fb_h = 0;

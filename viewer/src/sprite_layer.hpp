@@ -16,6 +16,10 @@ struct SpriteLayer {
 	glm::vec2 position{0, 0};
 	SpriteData data;
 	SpriteInstance instance;
+	// Backgrounds are a set of independent tracks that all animate at once,
+	// each with its own clock. When non-empty these are drawn in addition to
+	// `instance` (which stays unused for such layers).
+	std::vector<SpriteInstance> instances;
 	SpriteRenderer renderer;
 	uint32_t default_flags = 0;
 	std::map<uint32_t, glm::vec4> layer_tints;
