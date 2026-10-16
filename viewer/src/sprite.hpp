@@ -44,6 +44,7 @@ struct SpriteData {
 		uint32_t s8_count;
 		uint8_t s8_st;
 		uint32_t loop_start;
+		bool once; // s8_sum_once < 0: play through once, then hold the last frame
 	};
 	struct Track {
 		std::string name;
@@ -70,6 +71,7 @@ struct SpriteInstance {
 	std::vector<uint32_t> ticks;
 	std::vector<uint32_t> offsets;
 	std::vector<uint32_t> prev_offsets;
+	std::vector<uint8_t> done; // per-run: a single-pass (once) run has finished
 	uint32_t _frame_counter = 0;
 
 	std::vector<mbs::section_7> _transition_src_s7;

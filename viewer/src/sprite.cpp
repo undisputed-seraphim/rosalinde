@@ -115,7 +115,9 @@ void SpriteData::preprocess() {
 					}
 				}
 			}
-			track.runs.push_back({sa.s8_id, sa.s8_no, sa.s8_st, loop_start});
+			// s8_sum_once < 0 == single-pass ("transitional"/background); play
+			// through once and hold the final frame instead of looping.
+			track.runs.push_back({sa.s8_id, sa.s8_no, sa.s8_st, loop_start, sa.s8_sum_once < 0});
 		}
 	}
 }
@@ -147,6 +149,7 @@ void SpriteInstance::play(uint32_t track_id) {
 	ticks.assign(track.runs.size(), 0);
 	offsets.resize(track.runs.size());
 	prev_offsets.assign(track.runs.size(), UINT32_MAX);
+	done.assign(track.runs.size(), 0);
 	_accum = 0.0f;
 
 	for (uint32_t i = 0; i < track.runs.size(); ++i) {
@@ -188,7 +191,7 @@ void SpriteInstance::update(float dt_seconds) {
 		_accum -= 1.0f;
 		for (uint32_t i = 0; i < track.runs.size(); ++i) {
 			const auto& run = track.runs[i];
-			if (run.s8_count == 0)
+			if (run.s8_count == 0 || (i < done.size() && done[i]))
 				continue;
 			if (--ticks[i] == 0) {
 				advanced = true;
@@ -198,8 +201,17 @@ void SpriteInstance::update(float dt_seconds) {
 					if (prev_s8.loop_s8_id != 0) {
 						offsets[i] = (offsets[i] + prev_s8.loop_s8_id) % run.s8_count;
 					} else if (prev_s8.flags & mbs::v77::s8flag::LAST) {
-						offsets[i] = 0;
+						if (run.once) {
+							done[i] = 1;
+							offsets[i] = run.s8_count - 1;
+						} else {
+							offsets[i] = 0;
+						}
 					}
+				} else if (run.once && offsets[i] + 1 >= run.s8_count) {
+					// Single-pass sequence: hold the final frame.
+					done[i] = 1;
+					offsets[i] = run.s8_count - 1;
 				} else {
 					++offsets[i];
 					if (offsets[i] >= run.s8_count)
