@@ -2,6 +2,7 @@
 #include "scene_layers.hpp"
 #include "scene_util.hpp"
 #include "screenshot.hpp"
+#include "tables.hpp"
 
 #include <criware/cpk.hpp>
 #include <scarlett/asb.hpp>
@@ -93,7 +94,10 @@ ScriptState::ScriptState(const AssetLoader& loader, DebugUI& ui, ScriptSceneConf
 	asb::CharTable chars;
 	if (!_cfg.chara_table.empty())
 		chars = asb::load_char_table(_cfg.chara_table);
-	asb::SceneIR ir = asb::build_scene_ir(*fn, _cfg.entry, chars.empty() ? nullptr : &chars);
+	asb::CharaSetTable chara_sets =
+		asb::load_chara_set(viewer_data_dir() + "/charaset.tsv", viewer_data_dir() + "/classes.tsv");
+	asb::SceneIR ir =
+		asb::build_scene_ir(*fn, _cfg.entry, chars.empty() ? nullptr : &chars, &chara_sets);
 	fprintf(
 		stderr,
 		"[script] %s :: %s  (entities=%zu camera=%zu)\n",

@@ -1078,6 +1078,62 @@ CharTable load_char_table(const std::string& path) {
 	return t;
 }
 
+CharaSetTable load_chara_set(const std::string& charaset_tsv, const std::string& classes_tsv) {
+	auto split = [](const std::string& line) {
+		std::vector<std::string> c;
+		size_t s = 0;
+		for (size_t i = 0; i <= line.size(); ++i)
+			if (i == line.size() || line[i] == '\t') {
+				c.push_back(line.substr(s, i - s));
+				s = i + 1;
+			}
+		return c;
+	};
+
+	std::unordered_map<std::string, CharaInfo> classes;
+	if (std::ifstream f{classes_tsv}) {
+		std::string line;
+		while (std::getline(f, line)) {
+			if (line.empty() || line[0] == '#')
+				continue;
+			auto c = split(line);
+			if (c.size() < 4)
+				continue;
+			CharaInfo ci;
+			ci.disp_name = c[1];
+			ci.mbs = c[2].find('/') == std::string::npos ? "Chara/" + c[2] : c[2];
+			ci.ftx = c[3].find('/') == std::string::npos ? "Chara/" + c[3] : c[3];
+			classes.emplace(c[0], std::move(ci));
+		}
+	}
+
+	CharaSetTable out;
+	if (std::ifstream f{charaset_tsv}) {
+		std::string line;
+		while (std::getline(f, line)) {
+			if (line.empty() || line[0] == '#')
+				continue;
+			auto c = split(line);
+			if (c.size() < 7)
+				continue;
+			const std::string& name = c[1];
+			const std::string& cls = c[2];
+			const std::string& gender = c[3];
+			const std::string& label = c[6];
+			if (cls.empty() || cls == "UNKNOWN")
+				continue;
+			auto it = classes.find(cls + "_" + gender);
+			if (it == classes.end())
+				continue;
+			if (!label.empty())
+				out.by_key.emplace(label, it->second);
+			if (!name.empty())
+				out.by_key.emplace(name, it->second);
+		}
+	}
+	return out;
+}
+
 // --- Formatting -------------------------------------------------------------
 std::string token_name(int token) {
 	switch (token) {
@@ -1467,7 +1523,7 @@ bool is_chara_create_call(std::string_view c) {
 
 bool is_entity_create_call(std::string_view c) { return is_sprite_create_call(c) || is_chara_create_call(c); }
 
-SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars) {
+SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars, const CharaSetTable* sets) {
 	SceneIR ir;
 	ir.source = source;
 	ir.function = fn.name;
@@ -1522,7 +1578,20 @@ SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const
 			ent.kind = c;
 			ent.aliases = e.strings;
 			ent.id = e.strings.size() >= 2 ? e.strings[1] : (e.strings.empty() ? std::string() : e.strings[0]);
-			if (chars) {
+			// World characters carry no asset in the call; resolve the engine's
+			// CharaSet table (keyed by the Japanese label) before the hand table.
+			if (sets) {
+				for (const auto& s : e.strings) {
+					if (s.empty())
+						continue;
+					if (const CharaInfo* ci = sets->resolve(s)) {
+						ent.mbs = ci->mbs;
+						ent.ftx = ci->ftx;
+						break;
+					}
+				}
+			}
+			if (ent.mbs.empty() && chars) {
 				auto it = chars->find(ent.id);
 				if (it == chars->end() && !e.strings.empty())
 					it = chars->find(e.strings[0]);

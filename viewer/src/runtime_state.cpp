@@ -2,6 +2,7 @@
 #include "scene_layers.hpp"
 #include "scene_util.hpp"
 #include "screenshot.hpp"
+#include "tables.hpp"
 #include "trace.hpp"
 
 #include <criware/cpk.hpp>
@@ -207,11 +208,14 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	asb::CharTable chars;
 	if (!_cfg.chara_table.empty())
 		chars = asb::load_char_table(_cfg.chara_table);
+	asb::CharaSetTable chara_sets =
+		asb::load_chara_set(viewer_data_dir() + "/charaset.tsv", viewer_data_dir() + "/classes.tsv");
 
 	asb::Host host;
 	host.set_call_log([](const std::string&) {});
 	if (!chars.empty())
 		host.set_char_table(chars);
+	host.set_chara_set_table(chara_sets);
 	host.set_track_frames([this](const std::string& mbs, int idx) { return mbs_track_frames(_loader, mbs, idx); });
 	host.set_resolve_track(
 		[this](const std::string& mbs, const std::string& name) { return mbs_resolve_track(_loader, mbs, name); });

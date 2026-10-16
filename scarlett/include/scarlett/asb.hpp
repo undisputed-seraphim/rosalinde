@@ -297,6 +297,25 @@ using CharTable = std::unordered_map<std::string, CharaInfo>;
 
 CharTable load_char_table(const std::string& path);
 
+// The engine's CharaSet appearance table (exe `.data` 0x2741bb8, stride 0x48)
+// joined with the class -> asset table. World characters (`DrCreateChara` /
+// `DrCreateNpc`) carry no asset in the call: the engine resolves the chara def
+// name through `FUN_0011a100`, which strcmp's the record's Japanese label
+// (record word 0), so the label is the primary key. The ASCII CharaSet `name`
+// (e.g. `PL_LORD_C0`) is indexed too. First insertion wins (as the engine's
+// linear scan does).
+struct CharaSetTable {
+	std::unordered_map<std::string, CharaInfo> by_key;
+	const CharaInfo* resolve(const std::string& key) const {
+		auto it = by_key.find(key);
+		return it == by_key.end() ? nullptr : &it->second;
+	}
+};
+
+// charaset.tsv: `idx name class gender variant charaImg label`
+// classes.tsv:  `key jp_name mbs ftx` (mbs/ftx are `Chara/`-relative)
+CharaSetTable load_chara_set(const std::string& charaset_tsv, const std::string& classes_tsv);
+
 struct Module {
 	bool no_debug_info = false;
 	std::vector<TypeInfoPtr> used_types;
@@ -329,7 +348,7 @@ struct Module {
 Module parse(std::span<const uint8_t> data);
 std::string disassemble(const Module& mod, const Function& fn);
 Scene extract_scene(const Module& mod);
-SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars = nullptr);
+SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars = nullptr, const CharaSetTable* sets = nullptr);
 
 // Choose the scene entry function: the named function when given, else
 // scene00/MAIN, else the first scene* that creates entities, else the function
