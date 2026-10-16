@@ -258,6 +258,28 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrActionWait" || name == "ObjectSetupWait")
 		return true; // modelled as immediate while the engine action has no runtime
 
+	// Scene queries: answer from the recorded scene so branches/computed args
+	// see real values instead of the stub's zero.
+	if (name == "IsObjectExist") {
+		auto it = _by_name.find(read_string(gen, 0));
+		const bool exists = it != _by_name.end() && _entities[it->second].visible;
+		gen->SetReturnByte(exists ? 1 : 0);
+		return true;
+	}
+	if (name == "GetPosV") {
+		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
+		if (r) {
+			r[0] = 0.0f;
+			r[1] = 0.0f;
+			auto it = _by_name.find(read_string(gen, 0));
+			if (it != _by_name.end()) {
+				r[0] = _entities[it->second].pos[0];
+				r[1] = _entities[it->second].pos[1];
+			}
+		}
+		return true;
+	}
+
 	if (name.size() >= 4 && name.substr(0, 4) == "$beh")
 		return construct_value(gen);
 
