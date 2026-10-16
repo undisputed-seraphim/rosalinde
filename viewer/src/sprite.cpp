@@ -304,9 +304,11 @@ void SpriteInstance::build_vertices(
 		return;
 
 	const auto& s8 = data->v77.s8[run.s8_start + offsets[sa_idx]];
-	if (s8.flags & mbs::v77::s8flag::HITBOX)
-		return;
-	if ((s8.flags & mbs::v77::s8flag::LAST) && !(s8.flags & mbs::v77::s8flag::ACTIVE))
+	// Draw only frames flagged ACTIVE (0x20). 0x400 is a common modifier bit
+	// that co-occurs with ACTIVE on normal frames (not a "hitbox-only" marker),
+	// and 0x800 without ACTIVE is a non-rendered end sentinel — both covered by
+	// the ACTIVE test.
+	if (!(s8.flags & mbs::v77::s8flag::ACTIVE))
 		return;
 
 	const auto& ck = data->keyframes[s8.s6_id];
