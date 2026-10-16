@@ -364,9 +364,17 @@ void RuntimeState::apply_keyframe() {
 }
 
 void RuntimeState::tick(float dt) {
-	for (size_t i = 0; i < _layers.size(); ++i)
-		if (_layers[i] && _active[i])
+	for (size_t i = 0; i < _layers.size(); ++i) {
+		if (!_layers[i] || !_active[i])
+			continue;
+		if (_layers[i]->instances.empty()) {
 			_layers[i]->instance.update(dt);
+		} else {
+			// Independent clocks: do NOT lockstep the background tracks.
+			for (auto& inst : _layers[i]->instances)
+				inst.update(dt);
+		}
+	}
 }
 
 bool RuntimeState::handle_inputs() {
@@ -462,10 +470,17 @@ void RuntimeState::render() {
 	}
 
 	glClear(GL_DEPTH_BUFFER_BIT);
-	for (size_t i = 0; i < _layers.size(); ++i)
-		if (_layers[i] && _active[i])
-			_layers[i]->renderer.draw(
-				_layers[i]->instance, _projection, _camera, _layers[i]->position, &_layers[i]->layer_tints);
+	for (size_t i = 0; i < _layers.size(); ++i) {
+		if (!_layers[i] || !_active[i])
+			continue;
+		auto& l = *_layers[i];
+		if (l.instances.empty()) {
+			l.renderer.draw(l.instance, _projection, _camera, l.position, &l.layer_tints);
+		} else {
+			for (auto& inst : l.instances)
+				l.renderer.draw(inst, _projection, _camera, l.position, &l.layer_tints);
+		}
+	}
 
 	float fade[4];
 	asb::fade_at(_timeline.fades, _frame, fade);

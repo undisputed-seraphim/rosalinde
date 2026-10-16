@@ -80,6 +80,24 @@ build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int
 			if (specs[i].track_index >= 0 && specs[i].track_index < static_cast<int>(layer->data.tracks.size()))
 				layer->instance.play(static_cast<uint32_t>(specs[i].track_index));
 			layer->position = specs[i].pos;
+
+			// Backgrounds (non-character assets) are a set of independent tracks
+			// that all animate at once, each with its own clock. Instantiate them
+			// all instead of only the script-selected track.
+			const bool landscape = specs[i].mbs.rfind("BattleBG/", 0) == 0 || specs[i].mbs.rfind("FieldBG/", 0) == 0;
+			if (landscape) {
+				const auto& v77 = layer->data.v77;
+				for (uint32_t t = 0; t < v77.s9.size(); ++t) {
+					const auto& s9 = v77.s9[t];
+					if (s9.disabled || s9.sa_set_no == 0)
+						continue;
+					if (s9.sa_set_id >= v77.sa.size() || v77.sa[s9.sa_set_id].s8_no == 0)
+						continue;
+					SpriteInstance inst{&layer->data, t, 0xFFFFFFFF};
+					inst.play(t);
+					layer->instances.push_back(std::move(inst));
+				}
+			}
 			layers[i] = std::move(layer);
 			if (scene_trace())
 				std::fprintf(
