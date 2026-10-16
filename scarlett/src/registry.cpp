@@ -260,7 +260,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 
 	// Scene queries: answer from the recorded scene so branches/computed args
 	// see real values instead of the stub's zero.
-	if (name == "IsObjectExist") {
+	if (name == "IsObjectExist" || name == "IsExistSprite") {
 		auto it = _by_name.find(read_string(gen, 0));
 		const bool exists = it != _by_name.end() && _entities[it->second].visible;
 		gen->SetReturnByte(exists ? 1 : 0);
