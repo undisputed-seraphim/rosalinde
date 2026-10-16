@@ -19,6 +19,22 @@ namespace mbs {
 glm::mat4 s7_matrix(const section_7& s7, bool flipx, bool flipy);
 }
 
+namespace {
+// How a finished single-pass (s8_sum_once < 0) sequence behaves:
+// 0 = hide the part (default), 1 = hold its final frame, 2 = loop (legacy).
+int once_mode() {
+	static const int m = [] {
+		const char* e = std::getenv("VIEWER_ONCE");
+		if (e && std::strcmp(e, "hold") == 0)
+			return 1;
+		if (e && std::strcmp(e, "loop") == 0)
+			return 2;
+		return 0;
+	}();
+	return m;
+}
+} // namespace
+
 static glm::mat4 s7_matrix_interp(const mbs::section_7& a, const mbs::section_7& b, float t, bool flipx, bool flipy) {
 	const int8_t x = flipx ? -1 : 1;
 	const int8_t y = flipy ? -1 : 1;
@@ -117,7 +133,7 @@ void SpriteData::preprocess() {
 			}
 			// s8_sum_once < 0 == single-pass ("transitional"/background); play
 			// through once and hold the final frame instead of looping.
-			track.runs.push_back({sa.s8_id, sa.s8_no, sa.s8_st, loop_start, sa.s8_sum_once < 0});
+			track.runs.push_back({sa.s8_id, sa.s8_no, sa.s8_st, loop_start, sa.s8_sum_once < 0 && once_mode() != 2});
 		}
 	}
 }
@@ -254,6 +270,8 @@ void SpriteInstance::build_vertices(
 
 	const auto& run = track.runs[sa_idx];
 	if (run.s8_count == 0)
+		return;
+	if (once_mode() == 0 && sa_idx < done.size() && done[sa_idx])
 		return;
 
 	const auto& s8 = data->v77.s8[run.s8_start + offsets[sa_idx]];
