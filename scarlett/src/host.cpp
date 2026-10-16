@@ -244,6 +244,7 @@ struct Host::Impl {
 	std::function<long(const std::string&, int)> track_frames;
 	std::function<int(const std::string&, const std::string&)> resolve_track;
 	const CharTable* chars = nullptr;
+	const CharaSetTable* chara_sets = nullptr;
 };
 
 Host::Host()
@@ -586,6 +587,8 @@ int Host::execute(asIScriptFunction* fn) {
 
 void Host::set_char_table(const CharTable& chars) { _impl->chars = &chars; }
 
+void Host::set_chara_set_table(const CharaSetTable& sets) { _impl->chara_sets = &sets; }
+
 void Host::set_track_frames(std::function<long(const std::string&, int)> fn) { _impl->track_frames = std::move(fn); }
 
 void Host::set_resolve_track(std::function<int(const std::string&, const std::string&)> fn) {
@@ -597,6 +600,8 @@ Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 
 	Registry reg;
 	reg.set_char_table(_impl->chars);
+	if (_impl->chara_sets)
+		reg.set_chara_set_table(_impl->chara_sets);
 	if (_impl->track_frames)
 		reg.set_track_frames(_impl->track_frames);
 	if (_impl->resolve_track)

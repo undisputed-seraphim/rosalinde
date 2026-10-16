@@ -3,16 +3,17 @@
 #include <cstdlib>
 #include <fstream>
 
-namespace {
-std::string data_dir() {
+std::string viewer_data_dir() {
 	if (const char* e = std::getenv("VIEWER_DATA"))
 		return e;
 	return VIEWER_DATA_DIR;
 }
 
+namespace {
+
 std::map<std::string, Job, std::less<>> load_characters() {
 	std::map<std::string, Job, std::less<>> out;
-	std::ifstream f(data_dir() + "/classes.tsv");
+	std::ifstream f(viewer_data_dir() + "/classes.tsv");
 	std::string line;
 	while (std::getline(f, line)) {
 		if (line.empty() || line[0] == '#')
@@ -31,7 +32,7 @@ std::map<std::string, Job, std::less<>> load_characters() {
 		j.ftx = {"Chara", c[3]};
 		out.emplace(c[0], std::move(j));
 	}
-	std::ifstream v(data_dir() + "/variants.tsv");
+	std::ifstream v(viewer_data_dir() + "/variants.tsv");
 	while (std::getline(v, line)) {
 		if (line.empty() || line[0] == '#')
 			continue;
@@ -54,7 +55,7 @@ std::map<std::string, Job, std::less<>> load_characters() {
 
 std::map<std::string, Job, std::less<>> load_battlebgs() {
 	std::map<std::string, Job, std::less<>> out;
-	std::ifstream f(data_dir() + "/battlebgs.tsv");
+	std::ifstream f(viewer_data_dir() + "/battlebgs.tsv");
 	std::string line;
 	while (std::getline(f, line)) {
 		if (line.empty() || line[0] == '#')

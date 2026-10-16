@@ -124,7 +124,21 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 	if (e.space == RuntimeEntity::Space::Ui)
 		e.alpha = 0;
 	e.aliases = names;
-	if (_chars) {
+	// World characters carry no asset in the call: the engine resolves the chara
+	// def name through its CharaSet appearance table (the Japanese label). Try
+	// that before the hand-maintained display-name table.
+	if (_chara_sets && kind != "DrUiCreateChara") {
+		for (const auto& n : names) {
+			if (n.empty())
+				continue;
+			if (const CharaInfo* ci = _chara_sets->resolve(n)) {
+				e.mbs = ci->mbs;
+				e.ftx = ci->ftx;
+				break;
+			}
+		}
+	}
+	if (e.mbs.empty() && _chars) {
 		auto it = _chars->find(id);
 		if (it == _chars->end() && !names.empty())
 			it = _chars->find(names[0]);

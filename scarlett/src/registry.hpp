@@ -22,6 +22,10 @@ public:
 	// Display-name -> asset table used to resolve chara creates. Not owned.
 	void set_char_table(const CharTable* chars) { _chars = chars; }
 
+	// Engine CharaSet appearance table, used for world characters whose create
+	// call carries no asset. Not owned.
+	void set_chara_set_table(const CharaSetTable* sets) { _chara_sets = sets; }
+
 	// Optional: animation length (in frames) for an asset/track, used to model
 	// `WaitSpriteMoneAnimationEnd`. When unset (or returning 0) such waits stay
 	// immediate.
@@ -71,6 +75,7 @@ private:
 	long fade_end() const;
 
 	const CharTable* _chars = nullptr;
+	const CharaSetTable* _chara_sets = nullptr;
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;
 	Timeline _timeline;

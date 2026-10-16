@@ -24,3 +24,6 @@ inline Job::dir_and_path split_path(std::string_view p) {
 
 extern const std::map<std::string, Job, std::less<>> BattleBGs;
 extern const std::map<std::string, Job, std::less<>> Characters;
+
+// Resolve the viewer data directory (VIEWER_DATA env, else the configured dir).
+std::string viewer_data_dir();

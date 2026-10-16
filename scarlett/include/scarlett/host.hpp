@@ -47,6 +47,10 @@ public:
 	// Display-name -> asset table used to resolve chara creates while recording.
 	void set_char_table(const CharTable& chars);
 
+	// Engine CharaSet appearance table, used to resolve world characters
+	// (DrCreateChara/DrCreateNpc), whose call carries no asset. Not owned.
+	void set_chara_set_table(const CharaSetTable& sets);
+
 	// Optional animation-length provider (frames) for an asset + track index,
 	// used to model `WaitSpriteMoneAnimationEnd` during run().
 	void set_track_frames(std::function<long(const std::string&, int)> fn);
