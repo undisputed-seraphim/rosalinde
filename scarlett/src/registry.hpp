@@ -86,6 +86,16 @@ private:
 	std::unordered_map<int, int> _quests;			// quest id -> bits (1 open, 2 completed)
 	std::unordered_map<std::string, int> _unit_dir; // unit name -> direction/degree
 	std::unordered_set<int> _units;					// recruited unit ids (AddUnitSaveData)
+	// Movement tweens (Move/MoveAbs/DrMove*): interpolate an entity's position
+	// from `from` to `to` over [f0, f1]; advanced in flush_keyframe.
+	struct Move {
+		float from[3];
+		float to[3];
+		long f0 = 0, f1 = 0;
+	};
+	std::unordered_map<std::string, Move> _moves;
+	std::unordered_map<std::string, int> _db_params; // DbSet/GetDebugParam + LocalParam
+	std::unordered_set<std::string> _help;			 // AddToHelpList
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;
 	Timeline _timeline;
