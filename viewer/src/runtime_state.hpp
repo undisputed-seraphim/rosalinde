@@ -55,6 +55,12 @@ private:
 	std::vector<int> _parent; // entity index this layer is anchored to, or -1
 	ScreenFadeOverlay _fade;
 
+	long _cap_from = -1;
+	long _cap_to = -1;
+	long _cap_every = 1;
+	std::string _cap_dir;
+	bool _cap_started = false;
+
 	size_t _kf = 0;
 	long _frame = 0;
 	double _accum = 0.0;
