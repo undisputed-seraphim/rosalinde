@@ -64,6 +64,12 @@ public:
 	// facility id/enum name to its localized name. Empty when unknown.
 	void set_facility_name(std::function<std::string(const std::string&)> fn);
 
+	// Stage base levels/cues and facility positions (engine `.data` dump).
+	void set_stage_table(const StageTable& stages);
+
+	// Drop tables (engine `.data` + DROPTABLE/ITEMID enums).
+	void set_drop_tables(const DropTables& drops);
+
 	// Run a function under a virtual clock: `Wait(n)` parks the script for n
 	// frames, the scene-relevant natives populate a runtime scene, and a
 	// keyframe is recorded whenever it changes. Returns the resulting timeline.

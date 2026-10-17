@@ -459,7 +459,9 @@ int main(int argc, char** argv) {
 		CPKTable table = TopLevelCpk(fs::absolute(cpk_path)).getTableOfContents();
 		std::ostringstream os;
 		os << "# kind\tname\tcomment (generated from Debug/_UcEnum_*.inc by asb_harvest --uc-enums)\n";
-		const char* files[] = {"_UcEnum_Class.inc", "_UcEnum_CharaSet.inc", "_UcEnum_CharaNpc.inc", "_UcEnum_Facility.inc"};
+		const char* files[] = {
+			"_UcEnum_Class.inc", "_UcEnum_CharaSet.inc", "_UcEnum_CharaNpc.inc",
+			"_UcEnum_Facility.inc", "_UcEnum_Item.inc", "_UcEnum_DropTable.inc"};
 		for (const char* file : files) {
 			std::vector<char> buf;
 			table.extract("Debug", file, buf);

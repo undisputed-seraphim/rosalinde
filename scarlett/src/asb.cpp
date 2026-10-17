@@ -1,7 +1,9 @@
 #include <scarlett/asb.hpp>
 
+#include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <memory>
@@ -1109,6 +1111,144 @@ FacilityNames load_facility_names(const std::string& uc_enums_tsv) {
 			continue;
 		out.by_name.emplace(name, label);
 		out.by_index.push_back(label);
+	}
+	return out;
+}
+
+const StageTable::Stage* StageTable::stage(const std::string& name) const {
+	auto it = stages.find(name);
+	if (it != stages.end())
+		return &it->second;
+	std::string up;
+	up.reserve(name.size());
+	for (char c : name)
+		up.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
+	it = stages.find(up);
+	return it == stages.end() ? nullptr : &it->second;
+}
+
+const StageTable::Facility* StageTable::facility(const std::string& name) const {
+	auto it = facilities.find(name);
+	return it == facilities.end() ? nullptr : &it->second;
+}
+
+StageTable load_stage_tables(const std::string& stages_tsv, const std::string& facility_tsv) {
+	auto split = [](const std::string& line) {
+		std::vector<std::string> c;
+		size_t s = 0;
+		for (size_t i = 0; i <= line.size(); ++i)
+			if (i == line.size() || line[i] == '\t') {
+				c.push_back(line.substr(s, i - s));
+				s = i + 1;
+			}
+		return c;
+	};
+
+	StageTable out;
+	if (std::ifstream f{stages_tsv}) {
+		std::string line;
+		while (std::getline(f, line)) {
+			if (line.empty() || line[0] == '#')
+				continue;
+			auto c = split(line);
+			if (c.size() < 2 || c[0].empty())
+				continue;
+			StageTable::Stage s;
+			s.base_lv = std::atoi(c[1].c_str());
+			s.cue = c.size() > 2 ? std::atoi(c[2].c_str()) : -1;
+			out.stages.emplace(c[0], s);
+		}
+	}
+	if (std::ifstream f{facility_tsv}) {
+		std::string line;
+		while (std::getline(f, line)) {
+			if (line.empty() || line[0] == '#')
+				continue;
+			auto c = split(line);
+			if (c.size() < 4)
+				continue;
+			StageTable::Facility fac;
+			fac.label = c[1];
+			fac.pos[0] = static_cast<float>(std::atof(c[2].c_str()));
+			fac.pos[1] = static_cast<float>(std::atof(c[3].c_str()));
+			if (!c[0].empty())
+				out.facilities.emplace(c[0], fac);
+			if (!fac.label.empty())
+				out.facilities.emplace(fac.label, fac);
+		}
+	}
+	return out;
+}
+
+const std::vector<DropTableEntry>* DropTables::resolve(int id) const {
+	return id >= 0 && static_cast<size_t>(id) < by_id.size() ? &by_id[static_cast<size_t>(id)] : nullptr;
+}
+
+std::string DropTables::name_at(int id) const {
+	return id >= 0 && static_cast<size_t>(id) < names.size() ? names[static_cast<size_t>(id)] : std::string();
+}
+
+std::string DropTables::item_name(int id) const {
+	return id >= 0 && static_cast<size_t>(id) < item_names.size() ? item_names[static_cast<size_t>(id)] : std::string();
+}
+
+DropTables load_drop_tables(const std::string& drop_tables_tsv, const std::string& uc_enums_tsv) {
+	DropTables out;
+	if (std::ifstream f{uc_enums_tsv}) {
+		std::string line;
+		while (std::getline(f, line)) {
+			if (line.empty() || line[0] == '#')
+				continue;
+			const size_t a = line.find('\t');
+			if (a == std::string::npos)
+				continue;
+			const size_t b = line.find('\t', a + 1);
+			if (b == std::string::npos)
+				continue;
+			const std::string kind = line.substr(0, a);
+			const std::string name = line.substr(a + 1, b - a - 1);
+			if (kind == "DROPTABLE") {
+				out.names.push_back(name);
+			} else if (kind == "ITEMID") {
+				out.item_ids.emplace(name, static_cast<int>(out.item_names.size()));
+				out.item_names.push_back(name);
+			}
+		}
+	}
+	out.by_id.resize(out.names.size());
+
+	std::unordered_map<std::string, int> drop_ids;
+	for (int i = 0; i < static_cast<int>(out.names.size()); ++i)
+		drop_ids.emplace(out.names[static_cast<size_t>(i)], i);
+
+	if (std::ifstream f{drop_tables_tsv}) {
+		std::string line;
+		while (std::getline(f, line)) {
+			if (line.empty() || line[0] == '#')
+				continue;
+			auto split = [&](const std::string& s) {
+				std::vector<std::string> c;
+				size_t p = 0;
+				for (size_t i = 0; i <= s.size(); ++i)
+					if (i == s.size() || s[i] == '\t') {
+						c.push_back(s.substr(p, i - p));
+						p = i + 1;
+					}
+				return c;
+			};
+			auto c = split(line);
+			if (c.size() < 2)
+				continue;
+			auto it = drop_ids.find(c[0]);
+			if (it == drop_ids.end())
+				continue;
+			DropTableEntry e;
+			e.item = c[1];
+			e.weight = c.size() > 2 ? std::atoi(c[2].c_str()) : 0;
+			e.count = c.size() > 3 ? std::atoi(c[3].c_str()) : 0;
+			e.add_index = c.size() > 4 ? std::atoi(c[4].c_str()) : 0;
+			out.by_id[static_cast<size_t>(it->second)].push_back(std::move(e));
+		}
 	}
 	return out;
 }
