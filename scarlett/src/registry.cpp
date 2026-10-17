@@ -1501,6 +1501,15 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 
 	if (name == "DeleteSprite" || name == "DrUiDeleteChara" || name == "DrDeleteEffect" || name == "DeleteEffect" ||
 		name == "DeleteObject") {
+		// Effects are not entities; record a delete event so the viewer's effect
+		// manager can drop the instance.
+		if (name == "DrDeleteEffect" || name == "DeleteEffect" || name == "DeleteSprite" || name == "DeleteObject") {
+			RuntimeEffect ev;
+			ev.frame = frame;
+			ev.kind = "delete";
+			ev.name = S(0);
+			_timeline.effects.push_back(ev);
+		}
 		if (RuntimeEntity* e = ent(0)) {
 			if (scene_trace())
 				std::fprintf(
@@ -1751,9 +1760,37 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		s.start = frame;
 		s.index = _shake_seq++;
 		if (gen->GetArgTypeId(0) == asTYPEID_INT32) {
-			// TODO(shake): the preset curve table (duration/amplitude) is engine-side.
-			s.type = I(0);
-			s.end = frame + std::max(1, I(1));
+			// Engine preset table 0x28a5388/0x28a5390 + the 14-type jump table at
+			// 0xaf24c0. The table supplies a direction (1,0)/(0,1), an amplitude
+			// (12/24/45/60) and a time (4/8/15/20); 11..13 use 2/5/8. The exact
+			// envelope is approximated here and refined by the viewer. TODO(shake).
+			const int type = I(0);
+			const int wait = gen->GetArgCount() > 1 ? I(1) : 0;
+			static const int amp[4] = {12, 24, 45, 60};
+			static const int dur[4] = {4, 8, 15, 20};
+			static const int short_dur[3] = {2, 5, 8};
+			s.type = type;
+			s.start = frame + std::max(0, wait);
+			s.att = 1.0f;
+			s.pow = 1.0f;
+			if (type >= 0 && type <= 3) {
+				s.shake[0] = static_cast<float>(amp[type]);
+				s.end = s.start + dur[type];
+			} else if (type >= 5 && type <= 8) {
+				s.shake[1] = static_cast<float>(amp[type - 5]);
+				s.end = s.start + dur[type - 5];
+			} else if (type == 4 || type == 9) {
+				const int k = type == 4 ? 0 : 3;
+				s.shake[0] = static_cast<float>(amp[k]);
+				s.end = s.start + dur[k];
+			} else if (type >= 11 && type <= 13) {
+				s.shake[0] = 1.0f;
+				s.end = s.start + short_dur[type - 11];
+			} else {
+				s.end = s.start + std::max(1, wait);
+			}
+			if (s.end <= s.start)
+				s.end = s.start + 1;
 		} else {
 			float v[2] = {0.0f, 0.0f};
 			V(0, v, 2);
@@ -2206,10 +2243,14 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "GetSoundLength") {
-		// TODO: return the real cue length in frames. The ACB/AFS2 parser
-		// (libcriware/src/acb.cpp) has the cue -> waveform mapping; scripts use
-		// Wait(GetSoundLength(cue) + 60). Returning 0 is a timing approximation.
-		gen->SetReturnDWord(0);
+		// Real cue length (frames) from the ACB cue/waveform tables when the host
+		// supplies a resolver; 0 is the timing fallback. Actual audio playback is
+		// still TODO (we only need the length for Wait(GetSoundLength(cue)+60)).
+		const int cue = I(0);
+		const int len = _sound_length ? _sound_length(cue) : 0;
+		if (std::getenv("SCENE_TRACE"))
+			std::fprintf(stderr, "[snd] GetSoundLength(%d)=%d\n", cue, len);
+		gen->SetReturnDWord(static_cast<asDWORD>(len));
 		return true;
 	}
 

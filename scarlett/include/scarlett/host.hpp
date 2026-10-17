@@ -70,6 +70,9 @@ public:
 	// Drop tables (engine `.data` + DROPTABLE/ITEMID enums).
 	void set_drop_tables(const DropTables& drops);
 
+	// Optional sound cue length resolver (frames), used by `GetSoundLength`.
+	void set_sound_length(std::function<int(int)> fn);
+
 	// Run a function under a virtual clock: `Wait(n)` parks the script for n
 	// frames, the scene-relevant natives populate a runtime scene, and a
 	// keyframe is recorded whenever it changes. Returns the resulting timeline.

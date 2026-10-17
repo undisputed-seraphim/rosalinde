@@ -248,6 +248,7 @@ struct Host::Impl {
 	const CharaSetTable* chara_sets = nullptr;
 	const StageTable* stages = nullptr;
 	const DropTables* drops = nullptr;
+	std::function<int(int)> sound_length;
 };
 
 Host::Host()
@@ -612,6 +613,8 @@ void Host::set_stage_table(const StageTable& stages) { _impl->stages = &stages; 
 
 void Host::set_drop_tables(const DropTables& drops) { _impl->drops = &drops; }
 
+void Host::set_sound_length(std::function<int(int)> fn) { _impl->sound_length = std::move(fn); }
+
 Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
 
@@ -629,6 +632,8 @@ Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 		reg.set_stage_table(*_impl->stages);
 	if (_impl->drops)
 		reg.set_drop_tables(*_impl->drops);
+	if (_impl->sound_length)
+		reg.set_sound_length(_impl->sound_length);
 	reg.reset(std::move(source), fn ? fn->GetName() : "");
 	g_scene_registry = &reg;
 

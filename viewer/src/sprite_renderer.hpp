@@ -28,7 +28,11 @@ public:
 		const glm::vec2& offset = {},
 		const std::map<uint32_t, glm::vec4>* tints = nullptr,
 		bool apply_fog = false,
-		float scale = 1.0f);
+		float scale = 1.0f,
+		float alpha = 1.0f,
+		bool flip_x = false,
+		float rotation = 0.0f,
+		uint32_t layer_mask = 0xFFFFFFFFu);
 
 private:
 	GLuint _texture_array = 0;

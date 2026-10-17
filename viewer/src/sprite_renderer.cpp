@@ -127,7 +127,11 @@ void SpriteRenderer::draw(
 	const glm::vec2& offset,
 	const std::map<uint32_t, glm::vec4>* tints,
 	bool apply_fog,
-	float scale) {
+	float scale,
+	float alpha,
+	bool flip_x,
+	float rotation,
+	uint32_t layer_mask) {
 	const auto& shader = GetKeyframeShader().Use();
 
 	glActiveTexture(GL_TEXTURE0);
@@ -136,8 +140,10 @@ void SpriteRenderer::draw(
 	shader.SetUniform("u_tex", 0);
 
 	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(offset, 0.0f));
-	if (scale != 1.0f)
-		model = glm::scale(model, glm::vec3(scale, scale, 1.0f));
+	if (rotation != 0.0f)
+		model = glm::rotate(model, rotation, glm::vec3(0.0f, 0.0f, 1.0f));
+	model = glm::scale(model, glm::vec3(flip_x ? -scale : scale, scale, 1.0f));
+	shader.SetUniform("u_alpha", alpha);
 	const glm::mat4 view_offset = cam.lookAt() * model;
 	uint32_t n = inst.sa_count();
 	for (uint32_t i = 0; i < n; ++i) {
@@ -146,7 +152,7 @@ void SpriteRenderer::draw(
 
 		for (uint8_t b = 0; b < 4; ++b) {
 			set_blend_mode(b);
-			inst.build_vertices(i, _verts, _indices, tints, apply_fog, b);
+			inst.build_vertices(i, _verts, _indices, tints, apply_fog, b, layer_mask);
 			if (_verts.empty())
 				continue;
 

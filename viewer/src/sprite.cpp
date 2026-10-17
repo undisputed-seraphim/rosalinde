@@ -287,7 +287,8 @@ void SpriteInstance::build_vertices(
 	std::vector<uint32_t>& indices,
 	const std::map<uint32_t, glm::vec4>* tints,
 	bool apply_fog,
-	int blend_filter) const {
+	int blend_filter,
+	uint32_t layer_mask) const {
 	verts.clear();
 	indices.clear();
 
@@ -317,7 +318,7 @@ void SpriteInstance::build_vertices(
 
 	uint32_t visible = 0;
 	for (const auto& layer : ck.layers) {
-		if ((layer.attributes & ~variant_flags) == 0)
+		if ((layer.attributes & ~variant_flags) == 0 && (layer.attributes & ~layer_mask) == 0)
 			visible++;
 	}
 	if (visible == 0)
@@ -328,7 +329,7 @@ void SpriteInstance::build_vertices(
 	uint32_t base = 0;
 
 	for (const auto& layer : ck.layers) {
-		if ((layer.attributes & ~variant_flags) != 0)
+		if ((layer.attributes & ~variant_flags) != 0 || (layer.attributes & ~layer_mask) != 0)
 			continue;
 		if (blend_filter >= 0 && layer.blend != blend_filter)
 			continue;

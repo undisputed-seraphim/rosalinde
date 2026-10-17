@@ -94,7 +94,8 @@ struct SpriteInstance {
 		std::vector<uint32_t>& indices,
 		const std::map<uint32_t, glm::vec4>* tints = nullptr,
 		bool apply_fog = false,
-		int blend_filter = -1) const;
+		int blend_filter = -1,
+		uint32_t layer_mask = 0xFFFFFFFFu) const;
 
 	glm::mat4 transform_for_sa(uint32_t sa_idx, bool* out_flipx = nullptr, bool* out_flipy = nullptr) const;
 	uint32_t sa_count() const;

@@ -46,6 +46,7 @@ public:
 	// Stage/facility + drop table data (engine `.data` dumps).
 	void set_stage_table(const StageTable& t) { _stages = &t; }
 	void set_drop_tables(const DropTables& d) { _drops = &d; }
+	void set_sound_length(std::function<int(int)> fn) { _sound_length = std::move(fn); }
 
 	void reset(std::string source, std::string function);
 
@@ -227,6 +228,7 @@ private:
 	std::function<std::string(const std::string&)> _facility_name;
 	const StageTable* _stages = nullptr;
 	const DropTables* _drops = nullptr;
+	std::function<int(int)> _sound_length;
 	Timeline _timeline;
 	std::vector<RuntimeEntity> _entities;
 	std::unordered_map<std::string, int> _by_name;
