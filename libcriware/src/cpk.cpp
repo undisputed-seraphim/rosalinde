@@ -2,13 +2,14 @@
 
 #include <cstring>
 #include <fstream>
+#include <istream>
 #include <limits>
-#include <memory>
 #include <stdexcept>
 
 // crilayla.cpp
 int64_t compress(const std::vector<char>& src, std::vector<char>& dst);
-int64_t decompress(std::span<char> in, std::span<char> out);
+int64_t decompress(std::span<const char> in, std::span<char> out);
+int64_t decompress(std::istream& in, uint64_t offset, uint64_t file_size, std::span<char> out);
 
 constexpr uint32_t CPK_magic = 0x204B5043;
 constexpr uint32_t TOC_magic = 0x20434F54;
@@ -103,15 +104,7 @@ void CPKTable::extract(const row_type& entry, std::span<char> out) const {
 		return;
 	}
 
-	// Local buffer (not the shared member) so concurrent extract() calls on the
-	// same table are safe.
-	auto raw = std::make_unique_for_overwrite<char[]>(static_cast<size_t>(file_size));
-	ifs.read(raw.get(), static_cast<std::streamsize>(file_size));
-	if (!ifs) {
-		throw std::runtime_error("Failed to read " + _path.string());
-	}
-
-	const auto ret = decompress(std::span<char>(raw.get(), static_cast<size_t>(file_size)), out);
+	const auto ret = decompress(ifs, file_offset + _offset, file_size, out);
 	if (ret < 0) {
 		throw std::runtime_error("Failed to decompress " + _path.string());
 	}

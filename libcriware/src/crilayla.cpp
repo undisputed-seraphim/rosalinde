@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <istream>
+#include <memory>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -104,41 +106,128 @@ unsigned int layla_compress(uint8_t* dest, uint32_t* const destLen, const uint8_
 	return *destLen;
 }
 
-void layla_decompress(const header& h, std::span<const char> in, std::span<char> out) {
-	uint32_t bit_pos = 0;
-	auto read_n = [&](uint8_t nbits) -> uint16_t {
-		uint16_t ans = 0;
-		while (bit_pos / 8 < h.compressed_size && nbits--) {
-			ans <<= 1;
-			ans |= ((in[bit_pos / 8] >> (7 - bit_pos % 8 /* LE */)) & 1);
-			bit_pos++;
-		}
-		return ans;
-	};
+struct span_byte_source {
+	std::span<const char> data;
+	size_t pos;
+	bool ok = true;
 
+	explicit span_byte_source(std::span<const char> d)
+		: data(d)
+		, pos(d.size()) {}
+
+	uint8_t next() {
+		if (pos == 0) {
+			ok = false;
+			return 0;
+		}
+		return static_cast<uint8_t>(data[--pos]);
+	}
+};
+
+struct stream_byte_source {
+	std::istream& in;
+	uint64_t start;
+	uint64_t pos;
+	std::unique_ptr<char[]> buf;
+	size_t buf_size;
+	size_t cur = 0;
+	size_t end = 0;
+	bool ok = true;
+
+	stream_byte_source(std::istream& in_, uint64_t start_, uint64_t size)
+		: in(in_)
+		, start(start_)
+		, pos(size)
+		, buf()
+		, buf_size(static_cast<size_t>(std::min<uint64_t>(size, 1ull << 20))) {
+		if (buf_size != 0)
+			buf = std::make_unique_for_overwrite<char[]>(buf_size);
+	}
+
+	uint8_t next() {
+		if (cur == end && !refill()) {
+			ok = false;
+			return 0;
+		}
+		return static_cast<uint8_t>(buf[cur++]);
+	}
+
+	bool refill() {
+		if (pos == 0 || buf_size == 0)
+			return false;
+		const size_t n = static_cast<size_t>(std::min<uint64_t>(pos, buf_size));
+		in.seekg(static_cast<std::streamoff>(start + pos - n), std::ios::beg);
+		if (!in) {
+			ok = false;
+			return false;
+		}
+		in.read(buf.get(), static_cast<std::streamsize>(n));
+		if (!in) {
+			ok = false;
+			return false;
+		}
+		std::reverse(buf.get(), buf.get() + n);
+		pos -= n;
+		cur = 0;
+		end = n;
+		return true;
+	}
+};
+
+template <typename Source>
+struct bit_reader {
+	Source& src;
+	uint32_t acc = 0;
+	uint8_t nbits = 0;
+
+	explicit bit_reader(Source& s)
+		: src(s) {}
+
+	uint32_t read(uint8_t n) {
+		while (nbits < n) {
+			acc = (acc << 8) | src.next();
+			nbits += 8;
+		}
+		nbits -= n;
+		const uint32_t value = (acc >> nbits) & ((1u << n) - 1);
+		acc &= (1u << nbits) - 1;
+		return value;
+	}
+};
+
+template <typename Source>
+void layla_decompress(const header& h, Source& src, std::span<char> out) {
+	bit_reader<Source> bits(src);
 	auto all_n_bits = [](uint16_t value, uint8_t n) -> bool { return value == (1 << n) - 1; };
 
 	const uint32_t data_size = h.decompress_size;
 	for (uint32_t data_written = 0; data_written < data_size;) {
-		if (read_n(1) == 0) {
-			uint8_t byte = read_n(8); // verbatim byte. into the back.
-			out[data_size - 1 - data_written] = byte;
+		if (bits.read(1) == 0) {
+			const uint8_t byte = static_cast<uint8_t>(bits.read(8));
+			out[data_size - 1 - data_written] = static_cast<char>(byte);
 			data_written++;
 		} else {
-			auto offset = read_n(13) + 3; // backwards from the *back* of the output stream
+			auto offset = static_cast<uint32_t>(bits.read(13)) + 3;
 
-			uint32_t ref_count = 3; // previous bytes referenced. 3 minimum
+			uint32_t ref_count = 3;
 			constexpr uint8_t vle_n_bits[]{2, 3, 5, 8};
 			for (uint16_t i = 0;; i = std::min(++i, (uint16_t)3)) {
 				const uint8_t n_bits = vle_n_bits[i];
-				const uint16_t vle_length = read_n(n_bits);
+				const uint16_t vle_length = static_cast<uint16_t>(bits.read(n_bits));
 				ref_count += vle_length;
 				if (!all_n_bits(vle_length, n_bits)) {
 					break;
 				}
 			}
-			// fill in the referenced bytes from the *back* of the output buffer
+			if (ref_count > data_size - data_written) {
+				src.ok = false;
+				return;
+			}
 			offset += data_size - 1 - data_written;
+			if (offset >= data_size || offset + 1 < ref_count) {
+				src.ok = false;
+				return;
+			}
 			while (ref_count--) {
 				out[data_size - 1 - data_written] = out[offset--];
 				data_written++;
@@ -153,7 +242,7 @@ int64_t compress(const std::vector<char>& src, std::vector<char>& dst) {
 	return layla_compress((uint8_t*)dst.data(), &size, (const uint8_t*)src.data(), src.size());
 }
 
-int64_t decompress(std::span<char> in, std::span<char> out) {
+int64_t decompress(std::span<const char> in, std::span<char> out) {
 	header h;
 	if (in.size() < sizeof(h)) {
 		return -1;
@@ -176,9 +265,53 @@ int64_t decompress(std::span<char> in, std::span<char> out) {
 	}
 
 	std::memcpy(out.data(), in.data() + in.size() - meta, meta);
-	in = in.subspan(sizeof(h), in.size() - meta - sizeof(h));
-	std::reverse(in.begin(), in.end());
-	layla_decompress(h, in, out.subspan(meta));
+	span_byte_source src(in.subspan(sizeof(h), h.compressed_size));
+	layla_decompress(h, src, out.subspan(meta));
+	if (!src.ok) {
+		return -1;
+	}
+
+	return static_cast<int64_t>(total);
+}
+
+int64_t decompress(std::istream& in, uint64_t offset, uint64_t file_size, std::span<char> out) {
+	header h;
+	in.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
+	if (!in) {
+		return -1;
+	}
+	in.read(reinterpret_cast<char*>(&h), sizeof(h));
+	if (!in) {
+		return -1;
+	}
+	if (std::string_view(h.magic, sizeof(h.magic)) != CRILAYLA) {
+		return -1;
+	}
+
+	static constexpr size_t meta = 256;
+	const uint64_t total = static_cast<uint64_t>(h.decompress_size) + meta;
+	if (out.size() != total) {
+		return -1;
+	}
+	if (static_cast<uint64_t>(h.compressed_size) + sizeof(h) + meta != file_size) {
+		return -1;
+	}
+
+	const uint64_t payload_start = offset + sizeof(h);
+	in.seekg(static_cast<std::streamoff>(payload_start + h.compressed_size), std::ios::beg);
+	if (!in) {
+		return -1;
+	}
+	in.read(out.data(), static_cast<std::streamsize>(meta));
+	if (!in) {
+		return -1;
+	}
+
+	stream_byte_source src(in, payload_start, h.compressed_size);
+	layla_decompress(h, src, out.subspan(meta));
+	if (!src.ok) {
+		return -1;
+	}
 
 	return static_cast<int64_t>(total);
 }
