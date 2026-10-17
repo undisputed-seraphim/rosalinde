@@ -322,6 +322,15 @@ struct CharaSetTable {
 CharaSetTable
 load_chara_set(const std::string& charaset_tsv, const std::string& classes_tsv, const std::string& charanpc_tsv = {});
 
+// Facility id/enum -> localized name (uc_enums.tsv rows with kind ST_FACILITYID,
+// generated from Debug/_UcEnum_Facility.inc). `GetStationFacilityName` uses it.
+struct FacilityNames {
+	std::vector<std::string> by_index;
+	std::unordered_map<std::string, std::string> by_name;
+	std::string resolve(const std::string& key) const;
+};
+FacilityNames load_facility_names(const std::string& uc_enums_tsv);
+
 struct Module {
 	bool no_debug_info = false;
 	std::vector<TypeInfoPtr> used_types;

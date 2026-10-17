@@ -40,6 +40,9 @@ public:
 		_resolve_track = std::move(fn);
 	}
 
+	// Optional facility display-name resolver (`GetStationFacilityName`).
+	void set_facility_name(std::function<std::string(const std::string&)> fn) { _facility_name = std::move(fn); }
+
 	void reset(std::string source, std::string function);
 
 	// Model a native call. Returns true if recognised (and thus not handled by
@@ -175,6 +178,7 @@ private:
 	int _stage_start_param = 0;
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;
+	std::function<std::string(const std::string&)> _facility_name;
 	Timeline _timeline;
 	std::vector<RuntimeEntity> _entities;
 	std::unordered_map<std::string, int> _by_name;

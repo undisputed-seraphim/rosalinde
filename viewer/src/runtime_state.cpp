@@ -221,6 +221,8 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	host.set_track_frames([this](const std::string& mbs, int idx) { return mbs_track_frames(_loader, mbs, idx); });
 	host.set_resolve_track(
 		[this](const std::string& mbs, const std::string& name) { return mbs_resolve_track(_loader, mbs, name); });
+	asb::FacilityNames facilities = asb::load_facility_names(viewer_data_dir() + "/uc_enums.tsv");
+	host.set_facility_name([facilities](const std::string& key) { return facilities.resolve(key); });
 
 	viewer::trace::stamp("RuntimeState: VM run begin");
 	_timeline = asb::run_module(

@@ -2417,9 +2417,13 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "GetStationFacilityName") {
-		// TODO: facility display names live in UcFacilityList.fms; echo the def name for now.
+		std::string res;
+		if (_facility_name)
+			res = _facility_name(S(0));
+		if (res.empty())
+			res = S(0);
 		if (auto* out = static_cast<std::string*>(gen->GetAddressOfReturnLocation()))
-			new (out) std::string(S(0));
+			new (out) std::string(std::move(res));
 		return true;
 	}
 	// Stage/country/window tables are not extracted yet; neutral values keep the
