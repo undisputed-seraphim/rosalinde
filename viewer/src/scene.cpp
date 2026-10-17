@@ -34,6 +34,11 @@ Scene::Scene(ViewerConfig config)
 	dc.frames = _config.frames;
 	dc.scene_frame = _config.scene_frame;
 	dc.fps = _config.scene_fps;
+	dc.trace = _config.trace;
+	dc.trace_categories = _config.trace_categories;
+	dc.capture_frames = _config.capture_frames;
+	dc.capture_dir = _config.capture_dir;
+	dc.capture_prefix = _config.capture_prefix;
 	_drama = std::make_unique<DramaPlayback>(_loader, std::move(dc));
 	viewer::trace::stamp("Scene ctor: DramaPlayback ready");
 }
@@ -50,6 +55,8 @@ bool Scene::handle_inputs() {
 	if (_drama && _drama->should_quit())
 		return true;
 	if (!_config.screenshot.empty() && _drama && _drama->captured())
+		return true;
+	if (!_config.capture_frames.empty() && _drama && _drama->captures_done())
 		return true;
 	return false;
 }

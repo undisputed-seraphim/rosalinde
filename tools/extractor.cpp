@@ -47,6 +47,9 @@ struct Args {
 	std::string extract_file;
 	std::string dump_file;
 	std::string mbs_dump;
+	std::string mbs_info;
+	int mbs_track = -1;
+	int mbs_run = -1;
 	std::string mbs_out = "mbs_dump";
 	std::string extract_all;
 	std::string skip_ext;
@@ -95,6 +98,136 @@ std::pair<std::string_view, std::string_view> split_path(std::string_view path) 
 
 void write_file(const fs::path& path, std::span<const char> data) {
 	std::ofstream(path, std::ios::binary).write(data.data(), data.size());
+}
+
+std::string json_quote(std::string_view value) {
+	std::string out;
+	out.reserve(value.size() + 8);
+	for (unsigned char c : value) {
+		switch (c) {
+		case '"':
+			out += "\\\"";
+			break;
+		case '\\':
+			out += "\\\\";
+			break;
+		case '\n':
+			out += "\\n";
+			break;
+		case '\r':
+			out += "\\r";
+			break;
+		case '\t':
+			out += "\\t";
+			break;
+		default:
+			if (c < 0x20) {
+				char buf[8];
+				std::snprintf(buf, sizeof(buf), "\\u%04x", c);
+				out += buf;
+			} else {
+				out += static_cast<char>(c);
+			}
+		}
+	}
+	return out;
+}
+
+std::string json_number(double value) {
+	char buf[64];
+	std::snprintf(buf, sizeof(buf), "%.7g", value);
+	return buf;
+}
+
+std::string json_bool(bool value) { return value ? "true" : "false"; }
+
+std::string mbs_name(const char (&name)[24]) {
+	size_t n = 0;
+	while (n < 24 && name[n] != '\0')
+		++n;
+	return std::string(name, n);
+}
+
+void dump_mbs_info(const mbs::v77& v, uint16_t version, std::string_view file, int only_track, int only_run) {
+	if (only_track >= static_cast<int>(v.s9.size()))
+		throw std::runtime_error("track index out of range");
+	if (only_run >= 0 && only_track < 0)
+		throw std::runtime_error("--mbs-run requires --mbs-track");
+
+	std::cout << "{\n";
+	std::cout << "  \"file\": \"" << json_quote(file) << "\",\n";
+	std::cout << "  \"version\": " << version << ",\n";
+	std::cout << "  \"track_count\": " << v.s9.size() << ",\n";
+	std::cout << "  \"tracks\": [";
+
+	bool first_track = true;
+	const int begin = only_track >= 0 ? only_track : 0;
+	const int end = only_track >= 0 ? only_track + 1 : static_cast<int>(v.s9.size());
+	for (int ti = begin; ti < end; ++ti) {
+		const auto& s9 = v.s9[ti];
+		std::cout << (first_track ? "\n" : ",\n");
+		first_track = false;
+		std::cout << "    {\n";
+		std::cout << "      \"index\": " << ti << ",\n";
+		std::cout << "      \"name\": \"" << json_quote(mbs_name(s9.name)) << "\",\n";
+		std::cout << "      \"bounds\": [" << json_number(s9.left) << ", " << json_number(s9.top) << ", "
+				  << json_number(s9.right) << ", " << json_number(s9.bottom) << "],\n";
+		std::cout << "      \"sa_set_id\": " << s9.sa_set_id << ",\n";
+		std::cout << "      \"sa_set_no\": " << static_cast<unsigned>(s9.sa_set_no) << ",\n";
+		std::cout << "      \"sa_set_main\": " << static_cast<unsigned>(s9.sa_set_main) << ",\n";
+		std::cout << "      \"sa_sb_set_id\": " << s9.sa_sb_set_id << ",\n";
+		std::cout << "      \"sa_sb_set_no\": " << static_cast<unsigned>(s9.sa_sb_set_no) << ",\n";
+		std::cout << "      \"disabled\": " << json_bool(s9.disabled != 0) << ",\n";
+		std::cout << "      \"runs\": [";
+
+		const int run_begin = only_run >= 0 && ti == only_track ? only_run : 0;
+		const int run_end = only_run >= 0 && ti == only_track ? only_run + 1 : static_cast<int>(s9.sa_set_no);
+		if (run_end > static_cast<int>(s9.sa_set_no))
+			throw std::runtime_error("run index out of range");
+		bool first_run = true;
+		for (int ri = run_begin; ri < run_end; ++ri) {
+			const auto& sa = v.sa[s9.sa_set_id + ri];
+			long total_frames = 0;
+			uint32_t loop_start = 0;
+			uint32_t acc = 0;
+			for (uint32_t j = 0; j < sa.s8_no && sa.s8_id + j < v.s8.size(); ++j) {
+				total_frames += v.s8[sa.s8_id + j].frames;
+				acc += v.s8[sa.s8_id + j].frames;
+				if (sa.s8_sum_once > 0 && loop_start == 0 && acc >= static_cast<uint32_t>(sa.s8_sum_once))
+					loop_start = j + 1;
+			}
+			std::cout << (first_run ? "\n" : ",\n");
+			first_run = false;
+			std::cout << "        {\n";
+			std::cout << "          \"index\": " << ri << ",\n";
+			std::cout << "          \"s8_start\": " << sa.s8_id << ",\n";
+			std::cout << "          \"s8_count\": " << sa.s8_no << ",\n";
+			std::cout << "          \"s8_start_offset\": " << static_cast<unsigned>(sa.s8_st) << ",\n";
+			std::cout << "          \"s8_sum\": " << sa.s8_sum << ",\n";
+			std::cout << "          \"s8_sum_once\": " << sa.s8_sum_once << ",\n";
+			std::cout << "          \"total_frames\": " << total_frames << ",\n";
+			std::cout << "          \"loop_start\": " << loop_start << ",\n";
+			std::cout << "          \"single_pass\": " << json_bool(sa.s8_sum_once < 0) << ",\n";
+			std::cout << "          \"track_id\": " << sa.track_id;
+			if (only_run >= 0 && ti == only_track) {
+				std::cout << ",\n          \"s8\": [";
+				bool first_s8 = true;
+				for (uint32_t j = 0; j < sa.s8_no && sa.s8_id + j < v.s8.size(); ++j) {
+					const auto& s8 = v.s8[sa.s8_id + j];
+					std::cout << (first_s8 ? "\n" : ",\n");
+					first_s8 = false;
+					std::cout << "            {\"index\": " << j << ", \"s8_id\": " << (sa.s8_id + j)
+							  << ", \"s7_id\": " << s8.s7_id << ", \"s6_id\": " << s8.s6_id
+							  << ", \"frames\": " << s8.frames << ", \"flags\": " << s8.flags
+							  << ", \"loop_s8_id\": " << s8.loop_s8_id << "}";
+				}
+				std::cout << "\n          ]";
+			}
+			std::cout << "\n        }";
+		}
+		std::cout << "\n      ]\n    }";
+	}
+	std::cout << "\n  ]\n}\n";
 }
 
 // ============================================================================
@@ -194,6 +327,11 @@ int main(int argc, char* argv[]) try {
 		"mbs-dump",
 		po::value<std::string>(&args.mbs_dump),
 		"Dump MBS sections to CSV (DirName/FileName of .mbs in CPK)")(
+		"mbs-info",
+		po::value<std::string>(&args.mbs_info),
+		"Dump interpreted MBS track/run metadata as JSON (DirName/FileName of .mbs in CPK)")(
+		"mbs-track", po::value<int>(&args.mbs_track), "Limit --mbs-info to one track index")(
+		"mbs-run", po::value<int>(&args.mbs_run), "Limit --mbs-info to one run index (requires --mbs-track)")(
 		"mbs-out", po::value<std::string>(&args.mbs_out), "Output directory for MBS CSV dump (default: mbs_dump)")(
 		"extract-all",
 		po::value<std::string>(&args.extract_all),
@@ -285,6 +423,31 @@ int main(int argc, char* argv[]) try {
 
 	if (!args.dump_file.empty()) {
 		dump_columns(table, args.dump_file);
+		return 0;
+	}
+
+	if (!args.mbs_info.empty()) {
+		auto [dir, name] = split_path(args.mbs_info);
+		auto data = extract_entry(table, dir, name);
+		auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+
+		byte_reader r(bytes);
+		const auto h = r.read<mbs::file_header>();
+		if (std::strncmp(h.magic, "FMBS", 4) != 0)
+			throw std::runtime_error("Not an FMBS file.");
+
+		mbs::v77 v;
+		switch (h.version) {
+		case 0x76:
+			mbs::parse_v76(bytes, v);
+			break;
+		case 0x77:
+			mbs::parse_v77(bytes, v);
+			break;
+		default:
+			throw std::runtime_error("Unsupported FMBS version.");
+		}
+		dump_mbs_info(v, h.version, args.mbs_info, args.mbs_track, args.mbs_run);
 		return 0;
 	}
 

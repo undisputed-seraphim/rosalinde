@@ -2,6 +2,7 @@
 
 #include <scarlett/asb.hpp>
 #include <scarlett/scene.hpp>
+#include <scarlett/trace.hpp>
 
 #include <cstdint>
 #include <functional>
@@ -84,6 +85,10 @@ public:
 
 	// Override the native call trace target; by default calls print to stdout.
 	void set_call_log(std::function<void(const std::string&)> cb);
+
+	// Optional structured runtime event sink shared by all sessions created
+	// from this host.
+	void set_trace(TraceCallback cb);
 
 private:
 	struct Impl;

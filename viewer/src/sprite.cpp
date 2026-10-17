@@ -177,7 +177,23 @@ void SpriteInstance::play(uint32_t track_id) {
 	prev_offsets.assign(track.runs.size(), UINT32_MAX);
 	done.assign(track.runs.size(), 0);
 	hide.assign(track.runs.size(), 0);
+	if (std::getenv("VIEWER_MAIN_ONLY")) {
+		for (uint32_t i = 0; i < hide.size(); ++i)
+			hide[i] = i != track.sa_set_main;
+	}
+	if (const char* only = std::getenv("VIEWER_RUN_ONLY")) {
+		const int k = std::atoi(only);
+		for (uint32_t i = 0; i < hide.size(); ++i)
+			hide[i] = static_cast<int>(i) != k;
+	}
+	if (const char* from = std::getenv("VIEWER_RUN_FROM")) {
+		const int k = std::atoi(from);
+		for (uint32_t i = 0; i < hide.size(); ++i)
+			hide[i] = static_cast<int>(i) < k;
+	}
 	_phase = 0;
+	if (seq_runs() && std::getenv("VIEWER_SEQ_MAIN"))
+		_phase = std::min<uint32_t>(track.sa_set_main, track.runs.size() ? track.runs.size() - 1 : 0);
 	_accum = 0.0f;
 
 	for (uint32_t i = 0; i < track.runs.size(); ++i) {
@@ -188,6 +204,8 @@ void SpriteInstance::play(uint32_t track_id) {
 		}
 	}
 	_frame_counter++;
+	if (const char* adv = std::getenv("VIEWER_ADVANCE"))
+		advance_frames(static_cast<uint32_t>(std::max(0, std::atoi(adv))));
 	if (std::getenv("SCENE_TRACE"))
 		fprintf(stderr, "[anim] play track %u \"%s\"\n", track_id, track.name.c_str());
 }
@@ -246,10 +264,12 @@ void SpriteInstance::update(float dt_seconds) {
 					if (offsets[i] >= run.s8_count)
 						offsets[i] = run.loop_start;
 				}
-				// A finished single-pass part stops drawing only if its final
-				// frame is an end-of-sequence (LAST) marker; otherwise it holds.
+				// Background layers are static plates: hold their final frame.
+				// Other single-pass parts hide when the last frame is an end marker.
 				if (done[i])
-					hide[i] = (data->v77.s8[run.s8_start + offsets[i]].flags & mbs::v77::s8flag::LAST) ? 1 : 0;
+					hide[i] = hold_finished
+								  ? 0
+								  : ((data->v77.s8[run.s8_start + offsets[i]].flags & mbs::v77::s8flag::LAST) ? 1 : 0);
 				ticks[i] = data->v77.s8[run.s8_start + offsets[i]].frames;
 			}
 		}

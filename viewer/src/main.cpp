@@ -8,6 +8,26 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
+
+namespace {
+
+std::vector<long> parse_frames(const std::string& text) {
+	std::vector<long> frames;
+	size_t start = 0;
+	while (start < text.size()) {
+		const size_t comma = text.find(',', start);
+		const std::string item = text.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+		if (!item.empty())
+			frames.push_back(std::stol(item));
+		if (comma == std::string::npos)
+			break;
+		start = comma + 1;
+	}
+	return frames;
+}
+
+} // namespace
 
 int main(int argc, char* argv[]) try {
 	viewer::trace::reset();
@@ -34,6 +54,21 @@ int main(int argc, char* argv[]) try {
 		"scene-fps",
 		::boost::program_options::value<float>(&config.scene_fps)->default_value(config.scene_fps),
 		"Playback frame step rate (60 matches the script clock)")(
+		"trace",
+		::boost::program_options::value<std::string>(&config.trace),
+		"Write structured NDJSON events to this file")(
+		"trace-categories",
+		::boost::program_options::value<std::string>(&config.trace_categories)->default_value("all"),
+		"Comma-separated trace categories: vm,stage,camera,asset,sprite,draw (default: all)")(
+		"capture-frames",
+		::boost::program_options::value<std::string>(),
+		"Capture comma-separated scene frames in one run (e.g. 0,60,480)")(
+		"capture-dir",
+		::boost::program_options::value<std::string>(&config.capture_dir),
+		"Directory for --capture-frames images")(
+		"capture-prefix",
+		::boost::program_options::value<std::string>(&config.capture_prefix)->default_value("frame"),
+		"Filename prefix for --capture-frames images")(
 		"chara-table",
 		::boost::program_options::value<std::string>(&config.chara_table),
 		"Generated character name -> asset table (see: asb_harvest --chara-table)");
@@ -52,6 +87,17 @@ int main(int argc, char* argv[]) try {
 	if (config.script.empty()) {
 		std::cerr << "viewer: --script is required\n";
 		return 1;
+	}
+	if (vm.count("capture-frames")) {
+		config.capture_frames = parse_frames(vm["capture-frames"].as<std::string>());
+		if (config.capture_frames.empty()) {
+			std::cerr << "viewer: --capture-frames is empty\n";
+			return 1;
+		}
+		if (config.capture_dir.empty()) {
+			std::cerr << "viewer: --capture-dir is required with --capture-frames\n";
+			return 1;
+		}
 	}
 
 	unsigned view_w = 1920, view_h = 1080;

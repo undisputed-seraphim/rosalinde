@@ -8,7 +8,7 @@ turns FMBS/FTX data into pixels, how to render headlessly, and the debug afforda
 
 | File | Role |
 |------|------|
-| `main.cpp` | CLI parsing (`--cpk`, `--script`, `--scene-frame`, `--screenshot`, `--frames`) → `ViewerConfig` → `Scene` |
+| `main.cpp` | CLI parsing (`--cpk`, `--script`, `--scene-frame`, `--screenshot`, `--capture-frames`, `--trace`) → `ViewerConfig` → `Scene` |
 | `scene.cpp/hpp` | SDL/ImGui shell; owns `AssetLoader`, `DebugUI`, and one `DramaPlayback` |
 | `drama_playback.cpp/hpp` | 60 Hz script playback loop; steps `asb::RuntimeSession` and draws the live scene |
 | `scene_renderer.cpp/hpp` | Reconciles live `SceneState` objects with cached sprite assets and draws them |
@@ -24,6 +24,7 @@ turns FMBS/FTX data into pixels, how to render headlessly, and the debug afforda
 | `shader.cpp/hpp` | Embedded GLSL 450 vertex/fragment |
 | `camera.cpp/hpp` | 2D camera (pan/zoom/fit/follow) |
 | `screenshot.cpp/hpp` | PNG (zlib) / PPM writer |
+| `trace_writer.cpp/hpp` | NDJSON trace sink with category filtering |
 | `engine/` | `Engine` game loop + `Window` (SDL3/OpenGL RAII) |
 | `glxx/` | Thin OpenGL RAII wrappers |
 
@@ -127,11 +128,23 @@ Flags: `--script` selects the drama and is required; `--scene-frame <n>` advance
 deterministically before capture; `--screenshot <png|ppm>` writes one frame and
 exits; `--frames <n>` controls how many rendered frames precede capture.
 
+For several deterministic frames in one process, use `--capture-frames`:
+
+```bash
+SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
+  ./build/viewer/viewer --cpk ~/Unicorn.CPK \
+      --script Script/Dr_OW_0_Opening.asb \
+      --capture-frames 0,60,420,480 --capture-dir /tmp/opening-ours
+```
+
+This reuses the asset cache and writes `<prefix>-<frame:06>.png` files. See
+[`TOOLS.md`](TOOLS.md) for structured tracing and MBS inspection.
+
 ## Debug environment variables
 
 | Var | Effect |
 |-----|--------|
-| `SCENE_TRACE=1` | Trace VM creates/waits and playback state |
+| `SCENE_TRACE=1` | Legacy stderr trace; prefer `--trace` |
 | `ASB_TEXT=1` | Trace dialogue/text events |
 | `VIEWER_FONT=<path>` | Override the ImGui CJK font |
 | `VIEWER_ORTHO=a,b,c,d` | Override the orthographic projection |

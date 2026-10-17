@@ -65,7 +65,7 @@ The build produces:
 | `scarlett` | static lib | `scarlett/src/*.cpp` |
 | `scarlett_test` | executable | `scarlett/tests/*.cpp` |
 | `rosalinde` | executable | `tools/extractor.cpp` |
-| `asb_harvest` / `asb_run` / `asb_record` | executable | `tools/asb/*.cpp` |
+| `asb_harvest` / `asb_run` / `asb_record` / `asb_trace` | executable | `tools/asb/*.cpp` |
 | `imgui` | static lib | `thirdparty/imgui-1.91.3/*.cpp` |
 | `viewer` | executable | `viewer/src/**/*.*` |
 
