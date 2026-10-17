@@ -67,3 +67,25 @@ Per-character appearance — the viewer's `variant_flags` mask over an MBS's
 scene scripts. It is most likely engine-side character data (and/or the `OTBM`
 part maps). Until it is found, that mask is the only part of the viewer's
 hand-written character table that cannot be generated.
+
+## Engine tables (exe `.data`, not the CPK)
+
+`tools/dump_stage_tables.py` reads these from `main2.elf` with `.rela.dyn`
+applied:
+
+- **Stage table** `0x28920d0`, stride `0x50`, 103 entries: name `+0`, base level
+  `+0xc`; **stage cue table** `0x285d9f8`, stride `0x10`, 103 entries: name `+0`,
+  cue `+8`. Names are `ST_OW_*` and match the 103 `St_OW_*.asb` scripts.
+  → `viewer/data/stages.tsv`
+- **Facility table** `0x27b31b0`, stride `0x90`, 485 entries: Japanese label `+8`,
+  position `+0x1c/+0x20`; index-aligned with `ST_FACILITYID` (485 entries).
+  → `viewer/data/facility_pos.tsv`
+- **Drop tables** `0x26e5d30`, stride `0x18`, 733 entries: `start/count` at
+  `+0x10/+0x14`; entries at `0xaee6d0`, stride `0x10`: item id `+0`, weight `+4`,
+  count `+8`, add index `+0xc`. Joined with `_UcEnum_DropTable.inc` (733) and
+  `_UcEnum_Item.inc` (983).
+  → `viewer/data/drop_tables.tsv`
+
+The field-BG window id is not a table (hardcoded lanes 0..3 → `0x116`, `0x117`,
+`0x118`, `0x11a`). `GetCountryByPos` uses a runtime country polygon list and
+`GetFieldCueId` a hardcoded nation-name map; both remain to be recovered.

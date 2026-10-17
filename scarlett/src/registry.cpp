@@ -2217,14 +2217,37 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		RuntimeItem it;
 		it.frame = frame;
 		it.kind = "create";
-		// TODO(drop-table): the numeric forms need the drop table -> item mapping.
 		if (gen->GetArgTypeId(0) == asTYPEID_INT32) {
-			it.id = I(0);
-			it.dialog = I(1) != 0;
+			// Two numeric overloads: (itemID, count, dialog) and (dropTableID, dialog).
+			const bool drop = gen->GetArgCount() >= 2 && gen->GetArgTypeId(1) == asTYPEID_BOOL;
+			if (drop) {
+				it.kind = "drop";
+				it.id = I(0);
+				it.dialog = I(1) != 0;
+				const auto* entries = _drops ? _drops->resolve(it.id) : nullptr;
+				if (entries && !entries->empty()) {
+					for (const auto& e : *entries) {
+						RuntimeItem di = it;
+						di.item = e.item;
+						di.count = e.count;
+						_items[di.item] += di.count;
+						_timeline.items.push_back(std::move(di));
+					}
+					return true;
+				}
+			} else {
+				it.id = I(0);
+				it.count = gen->GetArgCount() >= 2 ? I(1) : 1;
+				it.dialog = gen->GetArgCount() >= 3 ? I(2) != 0 : true;
+				if (_drops)
+					it.item = _drops->item_name(it.id);
+				if (!it.item.empty())
+					_items[it.item] += it.count;
+			}
 		} else {
 			it.item = S(0);
-			it.count = I(1);
-			it.dialog = I(2) != 0;
+			it.count = gen->GetArgCount() >= 2 ? I(1) : 1;
+			it.dialog = gen->GetArgCount() >= 3 ? I(2) != 0 : true;
 			_items[it.item] += it.count;
 		}
 		_timeline.items.push_back(it);
@@ -2234,15 +2257,18 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		RuntimeItem it;
 		it.frame = frame;
 		it.kind = "delete";
-		// TODO(drop-table): the numeric forms need the drop table -> item mapping.
 		if (gen->GetArgTypeId(0) == asTYPEID_INT32) {
 			it.id = I(0);
-			it.count = I(1);
-			it.dialog = I(2) != 0;
+			it.count = gen->GetArgCount() >= 2 ? I(1) : 1;
+			it.dialog = gen->GetArgCount() >= 3 ? I(2) != 0 : true;
+			if (_drops)
+				it.item = _drops->item_name(it.id);
 		} else {
 			it.item = S(0);
-			it.count = I(1);
-			it.dialog = I(2) != 0;
+			it.count = gen->GetArgCount() >= 2 ? I(1) : 1;
+			it.dialog = gen->GetArgCount() >= 3 ? I(2) != 0 : true;
+		}
+		if (!it.item.empty()) {
 			auto q = _items.find(it.item);
 			if (q != _items.end())
 				q->second = std::max(0, q->second - it.count);
@@ -2254,12 +2280,26 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		RuntimeItem it;
 		it.frame = frame;
 		it.kind = "db";
-		// TODO(drop-table): resolve the drop table to item ids/counts.
 		it.id = I(0);
 		const auto add = read_int_array(gen, 1);
 		it.add_count = static_cast<int>(std::min<size_t>(add.size(), 8));
 		for (int k = 0; k < it.add_count; ++k)
 			it.add[k] = add[k];
+		const auto* entries = _drops ? _drops->resolve(it.id) : nullptr;
+		if (entries && !entries->empty()) {
+			for (const auto& e : *entries) {
+				// `_aAddNum` is indexed by the entry's 1-based `add_index`.
+				const int idx = e.add_index - 1;
+				const int extra = idx >= 0 && static_cast<size_t>(idx) < add.size() ? add[idx] : 0;
+				RuntimeItem di = it;
+				di.item = e.item;
+				di.count = std::max(0, e.count + extra);
+				di.add_count = 0;
+				_items[di.item] += di.count;
+				_timeline.items.push_back(std::move(di));
+			}
+			return true;
+		}
 		_timeline.items.push_back(it);
 		return true;
 	}
@@ -2792,15 +2832,36 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			new (out) std::string(std::move(res));
 		return true;
 	}
-	// Stage/country/window tables are not extracted yet; neutral values keep the
-	// scripts running (they are used for scaling/flavour, not control flow).
-	if (name == "GetStageBaseLevel") { gen->SetReturnDWord(0); return true; }
-	if (name == "GetStageCueId" || name == "GetFieldCueId" || name == "GetCountryByPos" || name == "GetWinIDByFlBGLane") { gen->SetReturnDWord(0); return true; }
-	if (name == "GetStagePos") {
-		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
-		if (r) { r[0] = r[1] = 0.0f; }
+	// Stage/facility data from the engine `.data` dump.
+	if (name == "GetStageBaseLevel") {
+		const auto* s = _stages ? _stages->stage(S(0)) : nullptr;
+		gen->SetReturnDWord(s ? static_cast<asDWORD>(s->base_lv) : 0u);
 		return true;
 	}
+	if (name == "GetStageCueId") {
+		const auto* s = _stages ? _stages->stage(S(0)) : nullptr;
+		gen->SetReturnDWord(s && s->cue >= 0 ? static_cast<asDWORD>(s->cue) : 0u);
+		return true;
+	}
+	if (name == "GetStagePos") {
+		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
+		const auto* f = _stages ? _stages->facility(S(0)) : nullptr;
+		if (r) {
+			r[0] = f ? f->pos[0] : 0.0f;
+			r[1] = f ? f->pos[1] : 0.0f;
+		}
+		return true;
+	}
+	if (name == "GetWinIDByFlBGLane") {
+		// Hardcoded in the engine: lanes 0..3 map to 0x116/0x117/0x118/0x11a.
+		static const int ids[4] = {0x116, 0x117, 0x118, 0x11a};
+		const int lane = I(0);
+		gen->SetReturnDWord(lane >= 0 && lane < 4 ? static_cast<asDWORD>(ids[lane]) : 0xffffffffu);
+		return true;
+	}
+	// TODO(6c): GetFieldCueId (hardcoded nation map) and GetCountryByPos
+	// (country polygon list) still return neutral values.
+	if (name == "GetFieldCueId" || name == "GetCountryByPos") { gen->SetReturnDWord(0); return true; }
 
 	// Game-state stores.
 	if (name == "AddGold") { _gold += I(0); return true; }

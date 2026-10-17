@@ -331,6 +331,44 @@ struct FacilityNames {
 };
 FacilityNames load_facility_names(const std::string& uc_enums_tsv);
 
+// Stage base levels/cue ids and facility positions from the engine `.data`
+// (tools/dump_stage_tables.py). Stage keys are `ST_OW_*` (case-insensitive);
+// facility keys are the Japanese labels the scripts pass, plus the ASCII
+// `ST_FACILITYID` names.
+struct StageTable {
+	struct Stage {
+		int base_lv = 0;
+		int cue = -1;
+	};
+	struct Facility {
+		std::string label;
+		float pos[2] = {0.0f, 0.0f};
+	};
+	std::unordered_map<std::string, Stage> stages;
+	std::unordered_map<std::string, Facility> facilities;
+	const Stage* stage(const std::string& name) const;
+	const Facility* facility(const std::string& name) const;
+};
+StageTable load_stage_tables(const std::string& stages_tsv, const std::string& facility_tsv);
+
+// Drop tables from the engine `.data` joined with the DROPTABLE/ITEMID enums.
+struct DropTableEntry {
+	std::string item;
+	int weight = 0;
+	int count = 0;
+	int add_index = 0; // 1-based index into CreateDbItem's _aAddNum (0 = none)
+};
+struct DropTables {
+	std::vector<std::string> names;		// drop table id -> enum name
+	std::vector<std::string> item_names;	// item id -> enum name
+	std::unordered_map<std::string, int> item_ids;
+	std::vector<std::vector<DropTableEntry>> by_id;
+	const std::vector<DropTableEntry>* resolve(int id) const;
+	std::string name_at(int id) const;
+	std::string item_name(int id) const;
+};
+DropTables load_drop_tables(const std::string& drop_tables_tsv, const std::string& uc_enums_tsv);
+
 struct Module {
 	bool no_debug_info = false;
 	std::vector<TypeInfoPtr> used_types;
