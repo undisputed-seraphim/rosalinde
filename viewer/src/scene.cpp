@@ -2,6 +2,7 @@
 #include "trace.hpp"
 
 #include <SDL3/SDL.h>
+#include <spdlog/spdlog.h>
 #include <glad/glad.h>
 #include <glxx/error.hpp>
 #include <imgui_impl_opengl3.h>
@@ -17,10 +18,10 @@ Scene::Scene(ViewerConfig config)
 	glEnable(GL_DEBUG_OUTPUT);
 	glDebugMessageCallback(&message_callback, NULL);
 
-	printf(" Version: %s\n", glGetString(GL_VERSION));
-	printf("  Vendor: %s\n", glGetString(GL_VENDOR));
-	printf("Renderer: %s\n", glGetString(GL_RENDERER));
-	printf(" Shading: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+	spdlog::info("GL version: {}", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+	spdlog::info("GL vendor: {}", reinterpret_cast<const char*>(glGetString(GL_VENDOR)));
+	spdlog::info("GL renderer: {}", reinterpret_cast<const char*>(glGetString(GL_RENDERER)));
+	spdlog::info("GL shading language: {}", reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION)));
 
 	if (_config.script.empty())
 		throw std::runtime_error("--script is required");

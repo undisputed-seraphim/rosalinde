@@ -25,6 +25,7 @@ turns FMBS/FTX data into pixels, how to render headlessly, and the debug afforda
 | `camera.cpp/hpp` | 2D camera (pan/zoom/fit/follow) |
 | `screenshot.cpp/hpp` | PNG (zlib) / PPM writer |
 | `trace_writer.cpp/hpp` | NDJSON trace sink with category filtering |
+| `log.cpp/hpp` | spdlog initialization, level selection, and stderr formatting |
 | `engine/` | `Engine` game loop + `Window` (SDL3/OpenGL RAII) |
 | `glxx/` | Thin OpenGL RAII wrappers |
 
@@ -146,6 +147,7 @@ This reuses the asset cache and writes `<prefix>-<frame:06>.png` files. See
 |-----|--------|
 | `SCENE_TRACE=1` | Legacy stderr trace; prefer `--trace` |
 | `ASB_TEXT=1` | Trace dialogue/text events |
+| `VIEWER_LOG_LEVEL=<level>` | spdlog level: `trace`, `debug`, `info`, `warn`, `error`, `off` |
 | `VIEWER_FONT=<path>` | Override the ImGui CJK font |
 | `VIEWER_ORTHO=a,b,c,d` | Override the orthographic projection |
 

@@ -2,6 +2,8 @@
 #include "background_tracks.hpp"
 #include "scene_util.hpp"
 
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -56,26 +58,22 @@ void SceneRenderer::rebuild(Object& object, const asb::RuntimeEntity& e, SpriteA
 
 	if (object.background) {
 		const auto selected = select_background_tracks(object.asset->data.v77);
-		if (std::getenv("SCENE_TRACE"))
-			std::fprintf(
-				stderr,
-				"[bg] %s tracks=%zu selected=%zu\n",
-				e.mbs.c_str(),
-				object.asset->data.tracks.size(),
-				selected.size());
+		spdlog::debug(
+			"bg: {} tracks={} selected={}",
+			e.mbs,
+			object.asset->data.tracks.size(),
+			selected.size());
 		for (uint32_t i : selected) {
 			if (!track_usable(object.asset->data, static_cast<int>(i)))
 				continue;
 			object.instances.emplace_back(&object.asset->data, i, 0xFFFFFFFFu);
 			object.instances.back().hold_finished = object.background || e.name != "ヴァニラロゴ";
 			object.instances.back().play(i);
-			if (std::getenv("SCENE_TRACE"))
-				std::fprintf(
-					stderr,
-					"  [bg] track=%u name=%s runs=%zu\n",
-					i,
-					object.asset->data.tracks[i].name.c_str(),
-					object.asset->data.tracks[i].runs.size());
+			spdlog::debug(
+				"bg:   track={} name={} runs={}",
+				i,
+				object.asset->data.tracks[i].name,
+				object.asset->data.tracks[i].runs.size());
 		}
 	} else {
 		const int track = choose_track(*object.asset, e);
@@ -264,19 +262,12 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 		}
 
 		if (std::getenv("VIEWER_TRACE_SPRITES")) {
-			std::fprintf(
-				stderr,
-				"[draw] %s pos=(%.1f,%.1f) instances=%zu\n",
-				e.name.c_str(),
-				pos.x,
-				pos.y,
-				object->instances.size());
+			spdlog::debug("draw: {} pos=({:.1f},{:.1f}) instances={}", e.name, pos.x, pos.y, object->instances.size());
 			for (size_t i = 0; i < object->instances.size(); ++i) {
 				const auto& in = object->instances[i];
 				const auto b = in.render_bounds();
-				std::fprintf(
-					stderr,
-					"  [draw] %zu track=%u sa=%u bounds=(%.1f,%.1f,%.1f,%.1f)\n",
+				spdlog::debug(
+					"draw:   {} track={} sa={} bounds=({:.1f},{:.1f},{:.1f},{:.1f})",
 					i,
 					in.track_idx,
 					in.sa_count(),
