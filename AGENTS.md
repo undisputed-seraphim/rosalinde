@@ -93,7 +93,7 @@ The build produces:
 | **Hardcoded lookup tables** | `viewer/src/tables.cpp` | Character class + battle BG paths hardcoded (class→MBS/FTX/variants). Should move to external data (JSON). |
 | **CSV debug dumps** | `src/impl/mbs/v77.cpp`, `mbs_dump/` | Debug code writes CSVs to a hardcoded path. Should be behind a flag or removed. |
 | **Root-level test archive** | `Unicorn.CPK` | Test data in repo root. Should be under `testdata/`. |
-| **Incomplete parsers** | `src/impl/otm.cpp` | Mostly a stub. |
+| **OTM semantics partly open** | `src/impl/otm.cpp` | Audio timeline decoded (track = MBS s9, `cue_id` = ACB cue, `frame` = track frame); event/cue params and flags unknown. |
 | **Boost iostreams legacy** | `CMakeLists.txt` | `eltolinde` still links Boost::iostreams, but no `src/` file uses it any more. |
 | **No CI** | — | Builds are local-only. No GitHub Actions or similar. |
 | **Test coverage is minimal** | `libcriware/tests/` | Only one Catch2 test (`substream.t.cpp`). No tests for CPK, UTF, MBS, FTX, or the viewer. |

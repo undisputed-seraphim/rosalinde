@@ -6,6 +6,8 @@
 #include <impl/mbs/csv_dump.hpp>
 #include <impl/mbs/detail.hpp>
 #include <impl/mbs/sections.hpp>
+#include <impl/otm.hpp>
+#include <impl/otm_dump.hpp>
 
 #include <array>
 #include <cctype>
@@ -51,6 +53,9 @@ struct Args {
 	int mbs_track = -1;
 	int mbs_run = -1;
 	std::string mbs_out = "mbs_dump";
+	std::string otm_dump;
+	std::string otm_out = "otm_dump";
+	bool otm_check = false;
 	std::string extract_all;
 	std::string skip_ext;
 	uint64_t max_size_mb = 0;
@@ -333,6 +338,13 @@ int main(int argc, char* argv[]) try {
 		"mbs-track", po::value<int>(&args.mbs_track), "Limit --mbs-info to one track index")(
 		"mbs-run", po::value<int>(&args.mbs_run), "Limit --mbs-info to one run index (requires --mbs-track)")(
 		"mbs-out", po::value<std::string>(&args.mbs_out), "Output directory for MBS CSV dump (default: mbs_dump)")(
+		"otm-dump",
+		po::value<std::string>(&args.otm_dump),
+		"Dump OTM header/tracks/events/cues to CSV (DirName/FileName of .otm in CPK)")(
+		"otm-out",
+		po::value<std::string>(&args.otm_out),
+		"Output directory for OTM CSV dump (default: otm_dump)")(
+		"otm-check", po::bool_switch(&args.otm_check), "Parse every OTM in the CPK and report failures")(
 		"extract-all",
 		po::value<std::string>(&args.extract_all),
 		"Extract every entry into DIR (preserving DirName/FileName)")(
@@ -479,6 +491,49 @@ int main(int argc, char* argv[]) try {
 		std::cout << "Dumped " << dir << "/" << name << " (v" << std::hex << h.version << std::dec << ", "
 				  << v.s9.size() << " tracks) -> " << outdir << "/\n";
 		return 0;
+	}
+
+	if (!args.otm_dump.empty()) {
+		auto [dir, name] = split_path(args.otm_dump);
+		auto data = extract_entry(table, dir, name);
+		auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+
+		auto f = otm::parse(bytes);
+		if (!f)
+			throw std::runtime_error("Not a valid OTBM file.");
+
+		fs::path outdir = fs::path(args.otm_out) / name;
+		otm::dump_csv(*f, outdir);
+		std::cout << "Dumped " << dir << "/" << name << " (" << f->mbs_name << ", v" << f->hdr.version << ", "
+				  << f->tracks.size() << " tracks, " << f->events.size() << " events, " << f->cues.size()
+				  << " cues) -> " << outdir << "/\n";
+		return 0;
+	}
+
+	if (args.otm_check) {
+		size_t ok = 0;
+		size_t failed = 0;
+		for (const auto& e : list_entries(table)) {
+			if (e.name.size() < 4)
+				continue;
+			auto ext = e.name.substr(e.name.size() - 4);
+			for (char& c : ext)
+				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+			if (ext != ".otm")
+				continue;
+
+			std::vector<char> data;
+			table.extract(e.dir, e.name, data);
+			auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+			if (otm::parse(bytes)) {
+				++ok;
+			} else {
+				++failed;
+				std::cout << "FAIL " << e.dir << "/" << e.name << "\n";
+			}
+		}
+		std::cout << "Parsed " << ok << " OTM files (" << failed << " failed)\n";
+		return failed == 0 ? 0 : 1;
 	}
 
 	std::cout << desc << '\n';
