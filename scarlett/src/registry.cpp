@@ -2979,9 +2979,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (dispatch_battle(name, gen))
 		return true;
 
-	// TODO(blocked natives): only DrSetShake(int)'s preset curve table remains
-	// (Phase 8, visual/timing only). The battle/AI native surface is handled by
-	// dispatch_battle (structural state only; the simulation is TODO(phase7)).
+	// All native API names are matched. The battle/AI simulation itself is
+	// TODO(phase7) inside dispatch_battle (low-priority backlog in HANDOVER.md).
 
 	// Unmodelled call. With ASB_CENSUS set, report it so a run can enumerate the
 	// natives a scene depends on (returns stay at their stub defaults).
