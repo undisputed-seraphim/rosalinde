@@ -72,7 +72,7 @@ long text_duration(const std::string& s) {
 	for (unsigned char c : s)
 		if ((c & 0xC0) != 0x80)
 			++chars;
-	return 30 + static_cast<long>(chars);
+	return 30 + static_cast<long>(chars); // TODO(timing): estimate
 }
 
 // DrSetLayerMask / DrSetVariationType take a hexadecimal bitmask string.
@@ -560,6 +560,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	// by this shim), so the plan is to invent our own save format and seed these
 	// from it. TODO(save): define that format and wire it up; until then, report
 	// defaults.
+	// TODO(save): save-derived; defaults for now.
 	if (name == "GetCharaLv" || name == "GetCharaAverageLv" || name == "GetArmyType") {
 		gen->SetReturnDWord(0);
 		return true;
@@ -571,6 +572,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		gen->SetReturnDWord(it == _items.end() ? 0u : static_cast<asDWORD>(it->second));
 		return true;
 	}
+	// TODO(save): IsLeader is save-derived.
 	if (name == "IsLeader" || name == "StIsPartnerSelectCharaDefName" || name == "IsEmptyPlayerCharaList") {
 		gen->SetReturnByte((name == "IsEmptyPlayerCharaList" && _party.empty()) ? 1 : 0);
 		return true;
@@ -1249,6 +1251,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "DrSetLayerMask") {
+		// The bit -> MBS/OTBM part mapping is render-side (deferred).
 		const unsigned mask = parse_hex(S(1));
 		// Verified from DrLib::DrFacial/DrClearFacial bytecode: the flag is
 		// `!show` — true clears (hides) the masked layers, false shows them.
@@ -1358,6 +1361,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			const int dur = speed > 1e-3f ? static_cast<int>(std::ceil(std::abs(move) / speed)) : 30;
 			m.f0 = frame;
 			m.f1 = frame + std::max(1, dur);
+			// TODO(anim): the arc is applied to pos[2]; the up axis is assumed.
 			m.arc = std::abs(height);
 			_moves[e->name] = m;
 			_dirty = true;
@@ -1408,6 +1412,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		s.start = frame;
 		s.index = _shake_seq++;
 		if (gen->GetArgTypeId(0) == asTYPEID_INT32) {
+			// TODO(shake): the preset curve table (duration/amplitude) is engine-side.
 			s.type = I(0);
 			s.end = frame + std::max(1, I(1));
 		} else {
@@ -1444,7 +1449,10 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 
 	// --- 5A residuals: non-`Dr` aliases and synchronous movement/camera variants.
 	if (name == "SetDemoCameraPosY") {
+		// TODO(demo-camera): the value is an absolute Y (FlDemoCameraStart); apply
+		// it to the recorded camera, but the engine may layer it differently.
 		_camera.demo_y = F(0);
+		_camera.pos[1] = F(0);
 		_dirty = true;
 		return true;
 	}
@@ -1514,6 +1522,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 				s.end = frame;
 		return true;
 	}
+	// TODO: src/dst direction assumed.
 	if (name == "DrCopyCharaInfo") {
 		if (RuntimeEntity* dst = ent(1)) {
 			if (RuntimeEntity* src = ent(0)) {
@@ -1546,8 +1555,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
-	// Synchronous 2D movement variants. `MoveBack` is modelled as a negative
-	// relative delta; the rest are absolute. `ByTime` variants block.
+	// TODO(move): MoveBack semantics approximated as a negative relative delta;
+	// the rest are absolute. `ByTime` variants block.
 	auto move2 = [&](int pos_arg, int time_arg, bool absolute, bool negative) -> bool {
 		float to[3] = {0.0f, 0.0f, 0.0f};
 		V(pos_arg, to, 2);
@@ -1853,7 +1862,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return push_audio("battle_bgm", 0, S(0), I(1), 0, -1, 0.0f);
 	}
 	if (name == "UC_SEC") {
-		// seconds -> frames at 60 fps (scripts use it as Wait(UC_SEC(x))).
+		// TODO(timing): seconds -> frames at 60 fps (inferred from sound padding).
 		gen->SetReturnDWord(static_cast<asDWORD>(static_cast<int>(F(0) * 60.0f)));
 		return true;
 	}
@@ -1869,6 +1878,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		RuntimeItem it;
 		it.frame = frame;
 		it.kind = "create";
+		// TODO(drop-table): the numeric forms need the drop table -> item mapping.
 		if (gen->GetArgTypeId(0) == asTYPEID_INT32) {
 			it.id = I(0);
 			it.dialog = I(1) != 0;
@@ -1876,6 +1886,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			it.item = S(0);
 			it.count = I(1);
 			it.dialog = I(2) != 0;
+			_items[it.item] += it.count;
 		}
 		_timeline.items.push_back(it);
 		return true;
@@ -1884,6 +1895,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		RuntimeItem it;
 		it.frame = frame;
 		it.kind = "delete";
+		// TODO(drop-table): the numeric forms need the drop table -> item mapping.
 		if (gen->GetArgTypeId(0) == asTYPEID_INT32) {
 			it.id = I(0);
 			it.count = I(1);
@@ -1892,6 +1904,9 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			it.item = S(0);
 			it.count = I(1);
 			it.dialog = I(2) != 0;
+			auto q = _items.find(it.item);
+			if (q != _items.end())
+				q->second = std::max(0, q->second - it.count);
 		}
 		_timeline.items.push_back(it);
 		return true;
@@ -1900,6 +1915,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		RuntimeItem it;
 		it.frame = frame;
 		it.kind = "db";
+		// TODO(drop-table): resolve the drop table to item ids/counts.
 		it.id = I(0);
 		const auto add = read_int_array(gen, 1);
 		it.add_count = static_cast<int>(std::min<size_t>(add.size(), 8));
@@ -2001,6 +2017,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "CreateStaffRoll") {
+		// TODO(staff-roll): scroll timing not modelled.
 		push_ui("staff_roll", S(0), I(1), 0, 0, nullptr, 0.0f, false);
 		return true;
 	}
@@ -2011,10 +2028,12 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "GetOfflineRank") {
+		// TODO(save): rank is save-derived; default.
 		gen->SetReturnDWord(0);
 		return true;
 	}
 	if (name == "IsSecondRanking") {
+		// TODO(save): save-derived; default.
 		gen->SetReturnByte(0);
 		return true;
 	}
@@ -2270,6 +2289,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "FlAddSymbolAiMove") {
+		// TODO(field-ai): one-shot tween; the engine's symbol AI is persistent.
 		float p[2] = {0.0f, 0.0f};
 		V(1, p, 2);
 		if (auto* e = ent(0)) {
@@ -2292,6 +2312,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "FlAddSymbolAiMoveWait") { push_field("symbol_wait", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlAddSymbolAiMoveTurn") { if (auto* e = ent(0)) { e->dir_x = I(1) >= 0 ? 1.0f : -1.0f; _dirty = true; } return true; }
 	if (name == "FlSetMoveAiPatRolType") { push_field("symbol_ai", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
+	// TODO(field-ai): mapped to paused.
 	if (name == "FlSetMoveAiPermissionInDemo") { if (auto* e = ent(0)) { e->paused = I(1) == 0; _dirty = true; } return true; }
 	if (name == "FlSetDemoMoveSpeed") { push_field("demo_speed", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
 
@@ -2379,6 +2400,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "FlAllTownLvMax") { for (auto& [k, v] : _town_lv) v = 99; push_field("town_max_all", {}, {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlAddTownLvUpEvent") { push_field("town_lv_event", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlSetStageStartParam") { _stage_start_param = I(1); push_field("stage_start", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
+	// TODO: state-dependent; 0 for now.
 	if (name == "FlGetBreakthroughRate") { gen->SetReturnFloat(0.0f); return true; }
 	if (name == "FlGetTownLv") { auto it = _town_lv.find(S(0)); gen->SetReturnDWord(it == _town_lv.end() ? 0u : static_cast<asDWORD>(it->second)); return true; }
 	if (name == "FlGetItemChangeShopLevel") { gen->SetReturnDWord(static_cast<asDWORD>(_item_change_shop_level)); return true; }
@@ -2447,7 +2469,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "SetStageFlag") { _stage_flags[I(0)] = I(1); return true; }
 	if (name == "AddStageFlag") { _stage_flags[I(0)] = I(1); return true; }
 	if (name == "GetStageFlag") { auto it = _stage_flags.find(I(0)); gen->SetReturnDWord(it == _stage_flags.end() ? 0u : static_cast<asDWORD>(it->second)); return true; }
-	if (name == "GetClearedStageNum") { gen->SetReturnDWord(static_cast<asDWORD>(_stage_bits.size())); return true; }
+	if (name == "GetClearedStageNum") {
+		// TODO(save): save-derived cleared-stage count; proxy = stage bit count.
+		gen->SetReturnDWord(static_cast<asDWORD>(_stage_bits.size()));
+		return true;
+	}
 	if (name == "SetGlobalFlag") { _global_flags[I(0)] = I(1); return true; }
 	if (name == "GetGlobalFlag") { auto it = _global_flags.find(I(0)); gen->SetReturnDWord(it == _global_flags.end() ? 0u : static_cast<asDWORD>(it->second)); return true; }
 	if (name == "AddGlobalBitFlag") { _global_flags[I(0)] = 1; return true; }
@@ -2460,6 +2486,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "RegisterFacilityToWM") { _facilities.insert(S(0)); return true; }
 	if (name == "IsFacilityRegisteredToWM") { gen->SetReturnByte(_facilities.count(S(0)) ? 1 : 0); return true; }
 	if (name == "AddFriendshipPoint") { _friendship[S(0) + "|" + S(1)] += I(2); return true; }
+	// TODO(save): the level formula (points / 100) is invented.
 	if (name == "GetFriendshipLV") { auto it = _friendship.find(S(0) + "|" + S(1)); gen->SetReturnDWord(it == _friendship.end() ? 0u : static_cast<asDWORD>(it->second / 100)); return true; }
 	if (name == "RemoveEquipItem") { auto it = _items.find(S(1)); if (it != _items.end() && it->second > 0) --it->second; return true; }
 	if (name == "IsEmptyPlayerUnitList") { gen->SetReturnByte(_units.empty() ? 1 : 0); return true; }
@@ -2482,20 +2509,10 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "IsVeryHardDie") { gen->SetReturnByte(0); return true; }
 	if (name == "DeleteVeryHardDie") return true;
 
-	// TODO(blocked natives): the groups below fall through to the GenericStub,
-	// which returns the type's zero (never crashes). They are unimplemented
-	// on purpose, each blocked on a prerequisite subsystem:
+	// TODO(blocked natives): only the AI/strategy group still falls through.
 	//  - AI / strategy: StAddUnitAi*/Gambit/SearchEnemy, StIsLowerHpRate, StAdd*Zouen*
 	//    -> Phase 7: coarse RE for the gist, then invent the battle simulation.
-	//  - Effects / audio / spawns: DrCreateEffect, DrSetEffect*, DrCreatePointLight/
-	//    DeletePointLight, PlayBGM/StopBGM/PlaySE*, CreateItem/DeleteItem/CreateTreasure
-	//    -> Phase 5B (record) and Phase 8 (effect/lighting render model).
-	//  - Field plumbing: DrCreateDrama, ReconstTown -> Phase 6.
-	//  - DrSetShake(int) preset table -> Phase 8 (visual/timing only; the
-	//    structured overload and the int-overload handle are modelled).
-	//  - UI / archive / HUD: OpenArchive, ShowFacilityInfo, ShowFieldInfo,
-	//    SetClassPedia_ByDefName, ... -> Phase 5C.
-	//  - Time conversion: UC_SEC -> game-time formula unconfirmed.
+	//  - DrSetShake(int) preset curve table -> Phase 8 (visual/timing only).
 
 	// Unmodelled call. With ASB_CENSUS set, report it so a run can enumerate the
 	// natives a scene depends on (returns stay at their stub defaults).
