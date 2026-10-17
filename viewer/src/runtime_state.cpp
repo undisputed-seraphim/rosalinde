@@ -224,7 +224,9 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	asb::FacilityNames facilities = asb::load_facility_names(viewer_data_dir() + "/uc_enums.tsv");
 	host.set_facility_name([facilities](const std::string& key) { return facilities.resolve(key); });
 	asb::StageTable stages = asb::load_stage_tables(
-		viewer_data_dir() + "/stages.tsv", viewer_data_dir() + "/facility_pos.tsv");
+		viewer_data_dir() + "/stages.tsv",
+		viewer_data_dir() + "/facility_pos.tsv",
+		viewer_data_dir() + "/country_regions.tsv");
 	host.set_stage_table(stages);
 	asb::DropTables drops = asb::load_drop_tables(
 		viewer_data_dir() + "/drop_tables.tsv", viewer_data_dir() + "/uc_enums.tsv");

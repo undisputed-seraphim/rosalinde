@@ -2859,9 +2859,30 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		gen->SetReturnDWord(lane >= 0 && lane < 4 ? static_cast<asDWORD>(ids[lane]) : 0xffffffffu);
 		return true;
 	}
-	// TODO(6c): GetFieldCueId (hardcoded nation map) and GetCountryByPos
-	// (country polygon list) still return neutral values.
-	if (name == "GetFieldCueId" || name == "GetCountryByPos") { gen->SetReturnDWord(0); return true; }
+	if (name == "GetFieldCueId") {
+		// Engine 0x2f8620: a string-length switch over the nation name; the four
+		// explicit names map to nation ids, everything else (lengths other than
+		// 12/15/18/21) to nation 1. Nation id -> (day, night) cue comes from the
+		// engine table at 0x2400478 (stride 0x14, fields +4/+8).
+		const std::string& n = S(0);
+		const bool night = gen->GetArgCount() > 1 && I(1) != 0;
+		int cue = 0;
+		switch (n.size()) {
+		case 12: cue = n == "ゼノイラ" ? (night ? 111 : 110) : 0; break;
+		case 15: cue = n == "エルヘイム" ? 112 : 0; break;
+		case 18: cue = n == "バストリアス" ? (night ? 107 : 106) : 0; break;
+		case 21: cue = n == "ドラケンガルド" ? (night ? 109 : 108) : 0; break;
+		default: cue = night ? 105 : 104; break;
+		}
+		gen->SetReturnDWord(static_cast<asDWORD>(cue));
+		return true;
+	}
+	if (name == "GetCountryByPos") {
+		float p[2] = {0.0f, 0.0f};
+		V(0, p, 2);
+		gen->SetReturnDWord(_stages ? static_cast<asDWORD>(_stages->country_at(p)) : 0u);
+		return true;
+	}
 
 	// Game-state stores.
 	if (name == "AddGold") { _gold += I(0); return true; }

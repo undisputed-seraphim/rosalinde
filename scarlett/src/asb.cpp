@@ -1132,7 +1132,30 @@ const StageTable::Facility* StageTable::facility(const std::string& name) const 
 	return it == facilities.end() ? nullptr : &it->second;
 }
 
-StageTable load_stage_tables(const std::string& stages_tsv, const std::string& facility_tsv) {
+int StageTable::country_at(const float p[2]) const {
+	static const int map[5] = {3, 4, 1, 0, 0};
+	for (const auto& r : countries) {
+		bool inside = true;
+		int sign = 0;
+		for (int i = 0; i < 4 && inside; ++i) {
+			const float ax = r.p[2 * i], ay = r.p[2 * i + 1];
+			const float bx = r.p[(2 * i + 2) % 8], by = r.p[(2 * i + 3) % 8];
+			const float cross = (bx - ax) * (p[1] - ay) - (by - ay) * (p[0] - ax);
+			const int s = cross > 1e-4f ? 1 : cross < -1e-4f ? -1 : 0;
+			if (s) {
+				if (sign && s != sign)
+					inside = false;
+				sign = s;
+			}
+		}
+		if (inside)
+			return r.id >= 0 && r.id < 5 ? map[r.id] : r.id;
+	}
+	return 2;
+}
+
+StageTable load_stage_tables(const std::string& stages_tsv, const std::string& facility_tsv,
+	const std::string& country_tsv) {
 	auto split = [](const std::string& line) {
 		std::vector<std::string> c;
 		size_t s = 0;
@@ -1175,6 +1198,21 @@ StageTable load_stage_tables(const std::string& stages_tsv, const std::string& f
 				out.facilities.emplace(c[0], fac);
 			if (!fac.label.empty())
 				out.facilities.emplace(fac.label, fac);
+		}
+	}
+	if (std::ifstream f{country_tsv}; !country_tsv.empty() && f) {
+		std::string line;
+		while (std::getline(f, line)) {
+			if (line.empty() || line[0] == '#')
+				continue;
+			auto c = split(line);
+			if (c.size() < 9)
+				continue;
+			StageTable::CountryRegion r;
+			r.id = std::atoi(c[0].c_str());
+			for (int k = 0; k < 8; ++k)
+				r.p[k] = static_cast<float>(std::atof(c[static_cast<size_t>(k) + 1].c_str()));
+			out.countries.push_back(r);
 		}
 	}
 	return out;

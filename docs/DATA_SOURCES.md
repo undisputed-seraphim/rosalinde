@@ -87,5 +87,14 @@ applied:
   → `viewer/data/drop_tables.tsv`
 
 The field-BG window id is not a table (hardcoded lanes 0..3 → `0x116`, `0x117`,
-`0x118`, `0x11a`). `GetCountryByPos` uses a runtime country polygon list and
-`GetFieldCueId` a hardcoded nation-name map; both remain to be recovered.
+`0x118`, `0x11a`).
+
+**Country regions** are 22 quads built by the field-manager constructor
+`0x202d00` (record stride `0x64`: country id `+0`, points `+0x44..+0x60`).
+`tools/dump_country_regions.py` emulates the constructor (requires `unicorn`)
+into `viewer/data/country_regions.tsv`; the engine's 5-entry id map is
+`3,4,1,0,0` and an unmatched point returns `2`.
+
+**Field cues** are a hardcoded nation map in `0x2f8620`
+(`ゼノイラ`/`エルヘイム`/`バストリアス`/`ドラケンガルド`; default `104/105`),
+backed by the cue table at `0x2400478` (stride `0x14`; day `+4`, night `+8`).
