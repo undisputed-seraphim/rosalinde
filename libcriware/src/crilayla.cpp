@@ -104,7 +104,7 @@ unsigned int layla_compress(uint8_t* dest, uint32_t* const destLen, const uint8_
 	return *destLen;
 }
 
-void layla_decompress(const header& h, const std::span<const char>& in, std::span<char> out) {
+void layla_decompress(const header& h, std::span<const char> in, std::span<char> out) {
 	uint32_t bit_pos = 0;
 	auto read_n = [&](uint8_t nbits) -> uint16_t {
 		uint16_t ans = 0;
@@ -153,21 +153,32 @@ int64_t compress(const std::vector<char>& src, std::vector<char>& dst) {
 	return layla_compress((uint8_t*)dst.data(), &size, (const uint8_t*)src.data(), src.size());
 }
 
-int64_t decompress(std::span<char> in, std::vector<char>& out) {
+int64_t decompress(std::span<char> in, std::span<char> out) {
 	header h;
+	if (in.size() < sizeof(h)) {
+		return -1;
+	}
 	std::memcpy((char*)&h, in.data(), sizeof(h));
 	if (std::string_view(h.magic, sizeof(h.magic)) != CRILAYLA) {
 		return -1;
 	}
 
-	static constexpr int meta = 256;
-	out.resize(h.decompress_size + meta);
+	static constexpr size_t meta = 256;
+	const uint64_t total = static_cast<uint64_t>(h.decompress_size) + meta;
+	if (out.size() != total) {
+		return -1;
+	}
+	if (in.size() < sizeof(h) + meta) {
+		return -1;
+	}
+	if (static_cast<uint64_t>(h.compressed_size) + sizeof(h) + meta != in.size()) {
+		return -1;
+	}
 
-	// TODO We can optimize here.
 	std::memcpy(out.data(), in.data() + in.size() - meta, meta);
 	in = in.subspan(sizeof(h), in.size() - meta - sizeof(h));
 	std::reverse(in.begin(), in.end());
-	layla_decompress(h, in, std::span(out).subspan(meta));
+	layla_decompress(h, in, out.subspan(meta));
 
-	return h.decompress_size;
+	return static_cast<int64_t>(total);
 }

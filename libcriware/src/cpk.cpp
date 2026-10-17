@@ -2,11 +2,13 @@
 
 #include <cstring>
 #include <fstream>
+#include <limits>
+#include <memory>
 #include <stdexcept>
 
 // crilayla.cpp
 int64_t compress(const std::vector<char>& src, std::vector<char>& dst);
-int64_t decompress(std::span<char> in, std::vector<char>& out);
+int64_t decompress(std::span<char> in, std::span<char> out);
 
 constexpr uint32_t CPK_magic = 0x204B5043;
 constexpr uint32_t TOC_magic = 0x20434F54;
@@ -65,27 +67,68 @@ CPKTable::CPKTable(std::filesystem::path path, uint64_t offset)
 void CPKTable::parse_toc(std::span<const uint8_t> data) { _table = table_type::parse(data); }
 
 void CPKTable::extract(const row_type& entry, std::vector<char>& out) const {
-	extract(get<"DirName">(entry), get<"FileName">(entry), out);
+	out.resize(static_cast<size_t>(get<"ExtractSize">(entry)));
+	extract(entry, std::span<char>(out));
+}
+
+void CPKTable::extract(const row_type& entry, std::span<char> out) const {
+	const uint64_t file_size = get<"FileSize">(entry);
+	const uint64_t extract_size = get<"ExtractSize">(entry);
+	const uint64_t file_offset = get<"FileOffset">(entry);
+	if (file_size > static_cast<uint64_t>(std::numeric_limits<size_t>::max()) ||
+		extract_size > static_cast<uint64_t>(std::numeric_limits<size_t>::max()) ||
+		file_size > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max()) ||
+		extract_size > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max())) {
+		throw std::runtime_error("CPK entry is too large");
+	}
+	if (out.size() < extract_size) {
+		throw std::runtime_error("CPK output buffer is too small");
+	}
+	out = out.first(static_cast<size_t>(extract_size));
+
+	std::ifstream ifs(_path, std::ios::binary);
+	if (!ifs) {
+		throw std::runtime_error("Failed to open " + _path.string());
+	}
+	ifs.seekg(static_cast<std::streamoff>(file_offset + _offset), std::ios::beg);
+	if (!ifs) {
+		throw std::runtime_error("Failed to seek in " + _path.string());
+	}
+
+	if (extract_size == file_size) {
+		ifs.read(out.data(), static_cast<std::streamsize>(extract_size));
+		if (!ifs) {
+			throw std::runtime_error("Failed to read " + _path.string());
+		}
+		return;
+	}
+
+	// Local buffer (not the shared member) so concurrent extract() calls on the
+	// same table are safe.
+	auto raw = std::make_unique_for_overwrite<char[]>(static_cast<size_t>(file_size));
+	ifs.read(raw.get(), static_cast<std::streamsize>(file_size));
+	if (!ifs) {
+		throw std::runtime_error("Failed to read " + _path.string());
+	}
+
+	const auto ret = decompress(std::span<char>(raw.get(), static_cast<size_t>(file_size)), out);
+	if (ret < 0) {
+		throw std::runtime_error("Failed to decompress " + _path.string());
+	}
 }
 
 void CPKTable::extract(std::string_view dir, std::string_view file, std::vector<char>& out) const {
 	auto it = find_file(dir, file);
 	if (it == end())
 		return;
-	const auto& [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] = *it;
+	extract(*it, out);
+}
 
-	// Local buffer (not the shared member) so concurrent extract() calls on the
-	// same table are safe.
-	std::vector<char> raw(static_cast<size_t>(FileSize));
-	std::ifstream(_path, std::ios::binary)
-		.seekg(static_cast<std::streamoff>(FileOffset + _offset), std::ios::beg)
-		.read(raw.data(), static_cast<std::streamsize>(FileSize));
-	if (ExtractSize == FileSize) {
-		out = std::move(raw);
+void CPKTable::extract(std::string_view dir, std::string_view file, std::span<char> out) const {
+	auto it = find_file(dir, file);
+	if (it == end())
 		return;
-	}
-	out.resize(static_cast<size_t>(ExtractSize));
-	[[maybe_unused]] const auto ret = decompress(raw, out);
+	extract(*it, out);
 }
 
 CPKTable::iterator CPKTable::find_file(std::string_view dir, std::string_view file) const {

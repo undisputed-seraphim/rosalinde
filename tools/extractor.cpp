@@ -18,6 +18,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <set>
 #include <span>
 #include <string_view>
@@ -42,6 +43,19 @@ struct Entry {
 		if (file_size == 0)
 			return 0.0;
 		return static_cast<double>(extract_size) / static_cast<double>(file_size);
+	}
+};
+
+struct ExtractBuffer {
+	std::unique_ptr<char[]> data;
+	size_t capacity = 0;
+
+	std::span<char> get(size_t size) {
+		if (size > capacity) {
+			data = std::make_unique_for_overwrite<char[]>(size);
+			capacity = size;
+		}
+		return {data.get(), size};
 	}
 };
 
@@ -412,23 +426,27 @@ int main(int argc, char* argv[]) try {
 
 		const uint64_t max_bytes = args.max_size_mb * 1024ull * 1024ull;
 		size_t done = 0, skipped = 0;
-		for (const auto& e : list_entries(table)) {
-			auto dot = e.name.find_last_of('.');
-			std::string ext = dot == std::string::npos ? std::string() : lower(e.name.substr(dot + 1));
+		ExtractBuffer scratch;
+		for (auto it = table.begin(); it != table.end(); ++it) {
+			const auto e = *it;
+			const auto& name = get<"FileName">(e);
+			auto dot = name.find_last_of('.');
+			std::string ext = dot == std::string::npos ? std::string() : lower(name.substr(dot + 1));
 			if (skip.count(ext)) {
 				++skipped;
 				continue;
 			}
-			if (max_bytes != 0 && e.extract_size > max_bytes) {
+			const uint64_t extract_size = get<"ExtractSize">(e);
+			if (max_bytes != 0 && extract_size > max_bytes) {
 				++skipped;
 				continue;
 			}
 
-			fs::path out_path = fs::path(args.extract_all) / e.dir / e.name;
+			fs::path out_path = fs::path(args.extract_all) / get<"DirName">(e) / name;
 			fs::create_directories(out_path.parent_path());
 
-			std::vector<char> data;
-			table.extract(e.dir, e.name, data);
+			auto data = scratch.get(static_cast<size_t>(extract_size));
+			table.extract(e, data);
 			write_file(out_path, data);
 			++done;
 		}
@@ -525,23 +543,26 @@ int main(int argc, char* argv[]) try {
 	if (args.otm_check) {
 		size_t ok = 0;
 		size_t failed = 0;
-		for (const auto& e : list_entries(table)) {
-			if (e.name.size() < 4)
+		ExtractBuffer scratch;
+		for (auto it = table.begin(); it != table.end(); ++it) {
+			const auto e = *it;
+			const auto& name = get<"FileName">(e);
+			if (name.size() < 4)
 				continue;
-			auto ext = e.name.substr(e.name.size() - 4);
+			auto ext = name.substr(name.size() - 4);
 			for (char& c : ext)
 				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 			if (ext != ".otm")
 				continue;
 
-			std::vector<char> data;
-			table.extract(e.dir, e.name, data);
+			auto data = scratch.get(static_cast<size_t>(get<"ExtractSize">(e)));
+			table.extract(e, data);
 			auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
 			if (otm::parse(bytes)) {
 				++ok;
 			} else {
 				++failed;
-				std::cout << "FAIL " << e.dir << "/" << e.name << "\n";
+				std::cout << "FAIL " << get<"DirName">(e) << "/" << name << "\n";
 			}
 		}
 		std::cout << "Parsed " << ok << " OTM files (" << failed << " failed)\n";
@@ -575,23 +596,26 @@ int main(int argc, char* argv[]) try {
 	if (args.nnd_check) {
 		size_t ok = 0;
 		size_t failed = 0;
-		for (const auto& e : list_entries(table)) {
-			if (e.name.size() < 4)
+		ExtractBuffer scratch;
+		for (auto it = table.begin(); it != table.end(); ++it) {
+			const auto e = *it;
+			const auto& name = get<"FileName">(e);
+			if (name.size() < 4)
 				continue;
-			auto ext = e.name.substr(e.name.size() - 4);
+			auto ext = name.substr(name.size() - 4);
 			for (char& c : ext)
 				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 			if (ext != ".nnd")
 				continue;
 
-			std::vector<char> data;
-			table.extract(e.dir, e.name, data);
+			auto data = scratch.get(static_cast<size_t>(get<"ExtractSize">(e)));
+			table.extract(e, data);
 			auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
 			if (nnd::parse(bytes)) {
 				++ok;
 			} else {
 				++failed;
-				std::cout << "FAIL " << e.dir << "/" << e.name << "\n";
+				std::cout << "FAIL " << get<"DirName">(e) << "/" << name << "\n";
 			}
 		}
 		std::cout << "Parsed " << ok << " NND files (" << failed << " failed)\n";

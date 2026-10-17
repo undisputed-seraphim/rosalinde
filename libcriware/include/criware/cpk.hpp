@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -30,7 +31,9 @@ public:
 	void parse_toc(std::span<const uint8_t> data);
 
 	void extract(const row_type& entry, std::vector<char>& out) const;
+	void extract(const row_type& entry, std::span<char> out) const;
 	void extract(std::string_view dir, std::string_view name, std::vector<char>& out) const;
+	void extract(std::string_view dir, std::string_view name, std::span<char> out) const;
 	iterator find_file(std::string_view dir, std::string_view file) const;
 	size_t size() const noexcept { return _table.size(); }
 
