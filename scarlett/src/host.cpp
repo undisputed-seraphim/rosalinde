@@ -580,6 +580,12 @@ int Host::execute(asIScriptFunction* fn) {
 	ctx->SetLineCallback(asFUNCTION(AbortCallback), &steps, asCALL_CDECL);
 	int er = ctx->Execute();
 	std::fprintf(stderr, "[as] Execute r=%d (%s)\n", er, er == asEXECUTION_FINISHED ? "finished" : "other");
+	if (er == asEXECUTION_EXCEPTION) {
+		std::fprintf(stderr, "[as] exception: %s\n", ctx->GetExceptionString());
+		if (asIScriptFunction* ef = ctx->GetExceptionFunction())
+			std::fprintf(
+				stderr, "[as]   in %s line %d\n", ef->GetDeclaration(), ctx->GetExceptionLineNumber());
+	}
 	ctx->Release();
 	g_call_log = nullptr;
 	return er;
@@ -627,8 +633,18 @@ Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 			wake = frame + std::max(1L, reg.pending_wait);
 		} else {
 			done = true;
-			if (er != asEXECUTION_FINISHED)
+			if (er != asEXECUTION_FINISHED) {
 				std::fprintf(stderr, "[as] run r=%d\n", er);
+				if (er == asEXECUTION_EXCEPTION) {
+					std::fprintf(stderr, "[as] exception: %s\n", ctx->GetExceptionString());
+					if (asIScriptFunction* ef = ctx->GetExceptionFunction())
+						std::fprintf(
+							stderr,
+							"[as]   in %s line %d\n",
+							ef->GetDeclaration(),
+							ctx->GetExceptionLineNumber());
+				}
+			}
 		}
 		reg.pending_wait = -1;
 		reg.flush_keyframe();

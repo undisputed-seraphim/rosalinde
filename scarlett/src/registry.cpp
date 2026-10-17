@@ -1,11 +1,14 @@
 #include "registry.hpp"
 
 #include <angelscript.h>
+#include <scriptarray/scriptarray.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <new>
 #include <string_view>
 
 namespace asb {
@@ -43,6 +46,34 @@ bool scene_trace() {
 	return on;
 }
 
+// Opt-in trace (ASB_TEXT) of the dialogue/balloon messages a script emits.
+bool text_trace() {
+	static const bool on = std::getenv("ASB_TEXT") != nullptr || std::getenv("SCENE_TRACE") != nullptr;
+	return on;
+}
+
+std::vector<int> read_int_array(asIScriptGeneric* gen, int i) {
+	std::vector<int> out;
+	auto* arr = static_cast<CScriptArray*>(gen->GetArgObject(i));
+	if (!arr)
+		return out;
+	const asUINT n = std::min<asUINT>(arr->GetSize(), 64);
+	out.reserve(n);
+	for (asUINT k = 0; k < n; ++k)
+		out.push_back(*static_cast<const int*>(arr->At(k)));
+	return out;
+}
+
+// Estimated on-screen time of a message in frames (60 fps): a base plus roughly
+// one frame per UTF-8 code point, so a scene's lines advance visibly.
+long text_duration(const std::string& s) {
+	size_t chars = 0;
+	for (unsigned char c : s)
+		if ((c & 0xC0) != 0x80)
+			++chars;
+	return 30 + static_cast<long>(chars);
+}
+
 } // namespace
 
 void Registry::reset(std::string source, std::string function) {
@@ -61,6 +92,13 @@ void Registry::reset(std::string source, std::string function) {
 	_moves.clear();
 	_db_params.clear();
 	_help.clear();
+	_balloons.clear();
+	_sprite_texts.clear();
+	_balloon_owner.clear();
+	_sprite_text_owner.clear();
+	_opaque_owner.clear();
+	_select_result = 0;
+	_sprite_text_handle = 0;
 	_camera = RuntimeCamera{};
 	_dirty = false;
 	frame = 0;
@@ -164,7 +202,66 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 
 bool Registry::construct_value(asIScriptGeneric* gen) {
 	asIScriptFunction* fn = gen->GetFunction();
-	asITypeInfo* ot = fn ? fn->GetObjectType() : nullptr;
+	if (!fn)
+		return false;
+	// Factories for the engine's opaque reference types ($beh3 / $fact) must
+	// return a real handle: a null handle is what a script dereferences. Allocate
+	// the shim object and hand its pointer back (the setters key off it).
+	const std::string_view fname = fn->GetName() ? fn->GetName() : "";
+	if (fname == "$beh3" || fname == "$fact") {
+		asITypeInfo* rt = gen->GetEngine()->GetTypeInfoById(fn->GetReturnTypeId() & ~asTYPEID_OBJHANDLE);
+		const std::string rn = (rt && rt->GetName()) ? rt->GetName() : "";
+		if (rn == "array") {
+			const int argc = static_cast<int>(gen->GetArgCount());
+			const int first = argc >= 2 ? 1 : 0; // arg 0 is the `int&in` type id when present
+			const asUINT length = gen->GetArgDWord(first);
+			const void* fill = argc > first + 1 ? gen->GetArgAddress(first + 1) : nullptr;
+			asITypeInfo* arr = (rt && rt->GetSubType()) ? rt : nullptr;
+			if (!arr) {
+				// The factory's return type is the array *template*; these scripts
+				// build array<int>, so recover the concrete instantiation.
+				arr = gen->GetEngine()->GetTypeInfoByDecl("array<int>");
+			}
+			if (arr) {
+				CScriptArray* a = fill ? CScriptArray::Create(arr, length, const_cast<void*>(fill))
+									   : CScriptArray::Create(arr, length);
+				if (a) {
+					gen->SetReturnObject(a);
+					return true;
+				}
+			}
+			return false;
+		}
+		if (rn == "UcMsgBalloonParam") {
+			auto p = std::make_unique<BalloonParam>();
+			void* raw = p.get();
+			_balloon_owner.push_back(std::move(p));
+			_balloons[raw] = BalloonParam{};
+			gen->SetReturnObject(raw);
+			return true;
+		}
+		if (rn == "UcSpriteTextParam") {
+			auto p = std::make_unique<SpriteTextParam>();
+			void* raw = p.get();
+			_sprite_text_owner.push_back(std::move(p));
+			_sprite_texts[raw] = SpriteTextParam{};
+			gen->SetReturnObject(raw);
+			return true;
+		}
+		// Any other engine reference type (UcStObject, UcStChaseParam, ...):
+		// hand out a zeroed opaque object rather than a null handle, which scripts
+		// null-check (and crash on) after the factory call.
+		if (rt) {
+			auto p = std::make_unique<char[]>(256);
+			std::memset(p.get(), 0, 256);
+			void* raw = p.get();
+			gen->SetReturnObject(raw);
+			_opaque_owner.push_back(std::move(p));
+			return true;
+		}
+		return false;
+	}
+	asITypeInfo* ot = fn->GetObjectType();
 	void* obj = gen->GetObject();
 	if (!ot || !obj)
 		return false;
@@ -295,13 +392,15 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 				break;
 			}
 		}
+		// Returning true skips the stub's default return construction, so the
+		// value-type return slot must be constructed here (not assigned to).
 		if (auto* out = static_cast<std::string*>(gen->GetAddressOfReturnLocation()))
-			*out = res;
+			new (out) std::string(std::move(res));
 		return true;
 	}
 
-	// Script-accumulated save/party state (Phase 3): the mutators populate the
-	// stores; the getters read them back.
+	// Script-accumulated save/party state: the mutators populate the stores; the
+	// getters read them back.
 	if (name == "AddCharaSaveData") {
 		_party.insert(read_string(gen, 0));
 		return true;
@@ -391,9 +490,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		_dirty = true;
 		return true;
 	}
-	// Save/party getters with no script-side mutator and no save file available:
-	// default to the stub's value. TODO(phase3): seed a save model so these (level,
-	// leader, army type, gold, items, fame) report real state.
+	// Save/party getters with no script-side mutator. There is no save file and
+	// none is required: the script-facing state API is entirely in-memory (owned
+	// by this shim), so the plan is to invent our own save format and seed these
+	// from it. TODO(save): define that format and wire it up; until then, report
+	// defaults.
 	if (name == "GetCharaLv" || name == "GetCharaAverageLv" || name == "GetArmyType" || name == "GetGold" ||
 		name == "GetItemNum" || name == "GetFameRank") {
 		gen->SetReturnDWord(0);
@@ -492,6 +593,192 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		auto it = _by_name.find(read_string(gen, i));
 		return it == _by_name.end() ? nullptr : &_entities[it->second];
 	};
+
+	// --- Dialogue / text (Phase 4a). Scripts pass the message text literally,
+	// so record it (with speaker, balloon style and position) and model the
+	// UcMsgBalloonParam / UcSpriteTextParam objects the setters mutate. Pixel
+	// rendering is deferred (4b); `ASB_TEXT`/`SCENE_TRACE` logs the text.
+	asITypeInfo* ot = fn->GetObjectType();
+	const std::string otn = (ot && ot->GetName()) ? ot->GetName() : "";
+	void* self = gen->GetObject();
+
+	auto balloon_of = [&](int arg) -> BalloonParam* {
+		void* p = gen->GetArgObject(arg);
+		if (!p)
+			p = gen->GetArgAddress(arg);
+		auto it = _balloons.find(p);
+		return it == _balloons.end() ? nullptr : &it->second;
+	};
+
+	auto emit = [&](RuntimeText::Kind kind, std::string speaker, std::string text, int ids_arg, int balloon_arg, int pos_arg) -> RuntimeText& {
+		RuntimeText t;
+		t.frame = frame;
+		t.kind = kind;
+		t.speaker = std::move(speaker);
+		t.text = std::move(text);
+		if (ids_arg >= 0) {
+			// The Msg ID array is engine-internal (voice ids); the large ones are
+			// uninitialised in our model, so only record compact arrays.
+			if (auto* a = static_cast<CScriptArray*>(gen->GetArgObject(ids_arg)))
+				if (a->GetSize() <= 64)
+					t.ids = read_int_array(gen, ids_arg);
+		}
+		if (balloon_arg >= 0) {
+			if (BalloonParam* b = balloon_of(balloon_arg)) {
+				t.disp_type = b->disp_type;
+				t.disp_name = b->disp_name;
+				t.face_dir_x = b->face_dir_x;
+				t.flags = b->flags;
+			}
+		}
+		if (pos_arg >= 0)
+			V(pos_arg, t.pos, 2);
+		t.end = frame + text_duration(t.text);
+		if (text_trace()) {
+			std::fprintf(
+				stderr,
+				"[text f=%ld] kind=%d speaker=\"%s\" disp=%d name=%d dir=%d flags=%x pos=(%.1f,%.1f): %s\n",
+				frame,
+				static_cast<int>(kind),
+				t.speaker.c_str(),
+				t.disp_type,
+				t.disp_name,
+				t.face_dir_x,
+				t.flags,
+				t.pos[0],
+				t.pos[1],
+				t.text.c_str());
+		}
+		_timeline.texts.push_back(std::move(t));
+		return _timeline.texts.back();
+	};
+
+	// Msg/Dialog/Select block until the message has been read; park the script
+	// for the estimated display time and let the scheduler resume it.
+	auto block_text = [&]() -> bool {
+		if (_timeline.texts.empty())
+			return true;
+		const long end = _timeline.texts.back().end;
+		const long d = std::max(1L, end - frame);
+		pending_wait = d;
+		if (wait_trace())
+			std::fprintf(stderr, "[wait f=%ld] text -> end %ld\n", frame, end);
+		if (asIScriptContext* ctx = asGetActiveContext())
+			ctx->Suspend();
+		return true;
+	};
+
+	if (otn == "UcMsgBalloonParam") {
+		if (name == "SetDispType")
+			_balloons[self].disp_type = I(0);
+		else if (name == "SetDispName")
+			_balloons[self].disp_name = I(0);
+		else if (name == "SetFaceDirX")
+			_balloons[self].face_dir_x = I(0);
+		else if (name == "AddBalloonFlag")
+			_balloons[self].flags |= static_cast<unsigned>(I(0));
+		else if (name == "DelBalloonFlag")
+			_balloons[self].flags &= ~static_cast<unsigned>(I(0));
+		else if (name == "opAssign") {
+			if (BalloonParam* src = balloon_of(0))
+				_balloons[self] = *src;
+			gen->SetReturnAddress(self);
+		}
+		return true;
+	}
+	if (otn == "UcSpriteTextParam") {
+		SpriteTextParam& p = _sprite_texts[self];
+		if (name == "SetAlign")
+			p.align = I(0);
+		else if (name == "SetFontType")
+			p.font_type = I(0);
+		else if (name == "SetOutline")
+			p.outline = I(0);
+		else if (name == "SetColorR")
+			p.color[0] = I(0);
+		else if (name == "SetColorG")
+			p.color[1] = I(0);
+		else if (name == "SetColorB")
+			p.color[2] = I(0);
+		else if (name == "SetScale")
+			p.scale = F(0);
+		else if (name == "SetBaseLine")
+			p.base_line = F(0);
+		else if (name == "SetForceInstant")
+			p.force_instant = I(0) != 0;
+		else if (name == "opAssign") {
+			void* src = gen->GetArgObject(0);
+			if (!src)
+				src = gen->GetArgAddress(0);
+			auto it = _sprite_texts.find(src);
+			if (it != _sprite_texts.end())
+				p = it->second;
+			gen->SetReturnAddress(self);
+		}
+		return true;
+	}
+
+	if (name == "Msg" || name == "MsgScreen") {
+		const bool screen = name == "MsgScreen";
+		emit(screen ? RuntimeText::Kind::Screen : RuntimeText::Kind::Msg, S(0), S(1), 2, 3, 4);
+		return block_text();
+	}
+	if (name == "MsgAsync" || name == "MsgScreenAsync") {
+		emit(name == "MsgScreenAsync" ? RuntimeText::Kind::Screen : RuntimeText::Kind::Msg, S(0), S(1), 2, 3, 4);
+		return true;
+	}
+	if (name == "SelectMsg" || name == "SelectMsgScreen") {
+		emit(RuntimeText::Kind::Select, S(0), S(1), 2, 3, 4);
+		_select_result = 0; // deterministic default: first option
+		return block_text();
+	}
+	if (name == "MsgStageVoice") {
+		emit(RuntimeText::Kind::Msg, S(0), {}, -1, 2, 3);
+		return block_text();
+	}
+	if (name == "Dialog" || name == "YNDialog") {
+		emit(name == "YNDialog" ? RuntimeText::Kind::YesNo : RuntimeText::Kind::Dialog, {}, S(0), -1, -1, -1);
+		if (name == "YNDialog")
+			_select_result = 0;
+		return block_text();
+	}
+	if (name == "CommonMsg") {
+		emit(RuntimeText::Kind::Msg, {}, S(0), -1, -1, -1);
+		return block_text();
+	}
+	if (name == "StShowTutorialMsg") {
+		emit(RuntimeText::Kind::Msg, {}, S(1), -1, -1, -1);
+		return true;
+	}
+	if (name == "MsgFinishWait") {
+		// Async messages finish here: park until the last one's display ends.
+		if (!_timeline.texts.empty() && _timeline.texts.back().end > frame) {
+			pending_wait = _timeline.texts.back().end - frame;
+			if (asIScriptContext* ctx = asGetActiveContext())
+				ctx->Suspend();
+		}
+		return true;
+	}
+	if (name == "CloseMsg") {
+		if (!_timeline.texts.empty())
+			_timeline.texts.back().end = frame;
+		return true;
+	}
+	if (name == "StCloseTutorialMsg" || name == "DrAlwaysUpdateMsgPos")
+		return true;
+	if (name == "GetResultSelectMsg" || name == "GetYNDialogResult") {
+		gen->SetReturnDWord(static_cast<asDWORD>(_select_result));
+		return true;
+	}
+	if (name == "CreateSpriteText") {
+		emit(RuntimeText::Kind::Msg, S(0), S(1), -1, -1, 3);
+		gen->SetReturnDWord(static_cast<asDWORD>(_sprite_text_handle++));
+		return true;
+	}
+	if (name == "SpriteTextFinishWait" || name == "MulSpriteTextOffsetY")
+		return true;
+	if (name == "SetMsgFaceAnimation" || name == "SetMsgFaceLayerMask" || name == "ShowAddCharaDialog")
+		return true;
 
 	// Movement tweens: Move (relative delta) / MoveAbs (absolute) + the drama
 	// DrMove* family set a position tween; MoveWait/MoveWaitAll park the script

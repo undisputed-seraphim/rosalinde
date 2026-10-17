@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <functional>
+#include <memory>
 
 class asIScriptGeneric;
 
@@ -77,8 +78,8 @@ private:
 
 	const CharTable* _chars = nullptr;
 	const CharaSetTable* _chara_sets = nullptr;
-	// Script-accumulated save/party state (Phase 3): recruited chara def names
-	// and the integer slot-flag store. Read back by the state getters.
+	// Script-accumulated save/party state: recruited chara def names and the
+	// integer slot-flag store. Read back by the state getters.
 	std::unordered_set<std::string> _party;
 	std::unordered_map<int, int> _slots;
 	std::unordered_set<std::string> _class_changed;
@@ -96,6 +97,36 @@ private:
 	std::unordered_map<std::string, Move> _moves;
 	std::unordered_map<std::string, int> _db_params; // DbSet/GetDebugParam + LocalParam
 	std::unordered_set<std::string> _help;			 // AddToHelpList
+
+	// Dialogue / text (Phase 4a). UcMsgBalloonParam and UcSpriteTextParam are
+	// engine reference objects: scripts mutate them through native setters and
+	// then pass them to Msg/CreateSpriteText, so their state is kept per object.
+	struct BalloonParam {
+		int disp_type = -1;
+		int disp_name = -1;
+		int face_dir_x = 0;
+		unsigned flags = 0;
+	};
+	struct SpriteTextParam {
+		int align = 0;
+		int font_type = 0;
+		int outline = 0;
+		int color[3] = {255, 255, 255};
+		float scale = 1.0f;
+		float base_line = 0.0f;
+		bool force_instant = false;
+	};
+	std::unordered_map<const void*, BalloonParam> _balloons;
+	std::unordered_map<const void*, SpriteTextParam> _sprite_texts;
+	// Factories for the engine's opaque reference types return handles, so the
+	// allocated shim objects are owned here (they must outlive the script).
+	std::vector<std::unique_ptr<BalloonParam>> _balloon_owner;
+	std::vector<std::unique_ptr<SpriteTextParam>> _sprite_text_owner;
+	// Opaque storage for engine reference-type factories we don't model yet
+	// (UcStObject, UcStChaseParam, ...): scripts get a non-null handle.
+	std::vector<std::unique_ptr<char[]>> _opaque_owner;
+	int _select_result = 0; // last GetResultSelectMsg / GetYNDialogResult
+	int _sprite_text_handle = 0;
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;
 	Timeline _timeline;

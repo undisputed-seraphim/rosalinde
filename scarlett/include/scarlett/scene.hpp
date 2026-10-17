@@ -51,6 +51,26 @@ struct ScreenFade {
 	float to[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 };
 
+// A dialogue / balloon message emitted by the Msg / Dialog / Select family.
+// `speaker` is the object name (Msg arg 0); `text` is the literal message text
+// the script itself passes (Msg arg 1). `ids` is the _nMsgIDArray argument.
+struct RuntimeText {
+	enum class Kind { Msg, Screen, Dialog, Select, YesNo };
+
+	long frame = 0;
+	long end = 0; // frame the message is dismissed (0 = immediate)
+	Kind kind = Kind::Msg;
+	std::string speaker;
+	std::string text;
+	std::vector<int> ids;
+	float pos[2] = {0.0f, 0.0f};
+	int disp_type = -1; // UcMsgBalloonParam
+	int disp_name = -1;
+	int face_dir_x = 0;
+	unsigned flags = 0;
+	int result = -1; // chosen index for Select/YesNo
+};
+
 // DrCreateStage(stageType, weatherType, coaPreset, flagColorIndex).
 struct StageConfig {
 	long frame = 0;
@@ -73,6 +93,7 @@ struct Timeline {
 	std::vector<Keyframe> keyframes;
 	std::vector<ScreenFade> fades;
 	std::vector<StageConfig> stages;
+	std::vector<RuntimeText> texts;
 };
 
 // Overlay colour (linear RGBA) produced by the fades list at `frame`.
