@@ -133,6 +133,31 @@ void Registry::reset(std::string source, std::string function) {
 	_add_class_pedia_flag = false;
 	_staff_roll_scroll = false;
 	_staff_roll_speed = 0.0f;
+	_gold = 0;
+	_fame = 0;
+	_stage_flags.clear();
+	_stage_bits.clear();
+	_global_flags.clear();
+	_items.clear();
+	_facilities.clear();
+	_friendship.clear();
+	_treasures.clear();
+	_quest_pinned.clear();
+	_quest_preopened.clear();
+	_town_lv.clear();
+	_clock_hour = _clock_minute = _clock_second = 0;
+	_clock_paused = false;
+	_demo_mode = false;
+	_world_map_disabled = false;
+	_battle_mode = false;
+	_battle_after.clear();
+	_battle_die_after.clear();
+	_player_symbol.clear();
+	_revive_pos[0] = _revive_pos[1] = 0.0f;
+	_item_change_shop_level = 0;
+	_item_change_num = 0;
+	_ex_stage_dialog_result = 0;
+	_stage_start_param = 0;
 	_camera = RuntimeCamera{};
 	_dirty = false;
 	frame = 0;
@@ -474,8 +499,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "GetStageBitFlag") {
-		auto it = _slots.find(static_cast<int>(gen->GetArgDWord(0)));
-		gen->SetReturnByte((it != _slots.end() && it->second) ? 1 : 0);
+		gen->SetReturnByte(_stage_bits.count(static_cast<int>(gen->GetArgDWord(0))) ? 1 : 0);
 		return true;
 	}
 	if (name == "ClassChangeChara") {
@@ -536,9 +560,15 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	// by this shim), so the plan is to invent our own save format and seed these
 	// from it. TODO(save): define that format and wire it up; until then, report
 	// defaults.
-	if (name == "GetCharaLv" || name == "GetCharaAverageLv" || name == "GetArmyType" || name == "GetGold" ||
-		name == "GetItemNum" || name == "GetFameRank") {
+	if (name == "GetCharaLv" || name == "GetCharaAverageLv" || name == "GetArmyType") {
 		gen->SetReturnDWord(0);
+		return true;
+	}
+	if (name == "GetGold") { gen->SetReturnDWord(static_cast<asDWORD>(_gold)); return true; }
+	if (name == "GetFameRank") { gen->SetReturnDWord(static_cast<asDWORD>(_fame)); return true; }
+	if (name == "GetItemNum") {
+		auto it = _items.find(read_string(gen, 0));
+		gen->SetReturnDWord(it == _items.end() ? 0u : static_cast<asDWORD>(it->second));
 		return true;
 	}
 	if (name == "IsLeader" || name == "StIsPartnerSelectCharaDefName" || name == "IsEmptyPlayerCharaList") {
@@ -2136,6 +2166,317 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			new (out) std::string();
 		return true;
 	}
+
+	// --- Phase 6: field / overworld / game-state.
+	auto push_field = [&](std::string kind, std::string fname, std::string text, int i0, int i1, int i2, float f0, const float* pos, bool flag) -> RuntimeField& {
+		RuntimeField f;
+		f.frame = frame;
+		f.kind = std::move(kind);
+		f.name = std::move(fname);
+		f.text = std::move(text);
+		f.i0 = i0;
+		f.i1 = i1;
+		f.i2 = i2;
+		f.f0 = f0;
+		if (pos) {
+			f.pos[0] = pos[0];
+			f.pos[1] = pos[1];
+		}
+		f.flag = flag;
+		_timeline.field.push_back(std::move(f));
+		return _timeline.field.back();
+	};
+	auto field_object = [&](const char* kind, const std::string& obj, const float* pos, const std::string& mbs = {}, const std::string& ftx = {}) -> RuntimeEntity* {
+		if (obj.empty())
+			return nullptr;
+		const int idx = ensure(obj);
+		auto& e = _entities[idx];
+		e.kind = kind;
+		e.space = RuntimeEntity::Space::World;
+		alias(idx, obj);
+		if (!mbs.empty())
+			e.mbs = mbs;
+		if (!ftx.empty())
+			e.ftx = ftx;
+		if (pos) {
+			e.pos[0] = pos[0];
+			e.pos[1] = pos[1];
+		}
+		_dirty = true;
+		return &e;
+	};
+
+	// Field state / clock / weather.
+	if (name == "FlSetState") { if (auto* e = ent(0)) { e->state = I(1); _dirty = true; } return true; }
+	if (name == "FlGetState") { auto* e = ent(0); gen->SetReturnDWord(e ? static_cast<asDWORD>(e->state) : 0); return true; }
+	if (name == "FlAddState") { if (auto* e = ent(0)) { e->state |= I(1); _dirty = true; } return true; }
+	if (name == "FlSetStateIcon") { if (auto* e = ent(0)) { e->state_icon = I(1); _dirty = true; } return true; }
+	if (name == "FlClearStateIcon") { if (auto* e = ent(0)) { e->state_icon = 0; _dirty = true; } return true; }
+	if (name == "FlSetClock") { _clock_hour = I(0); _clock_minute = I(1); _clock_second = I(2); push_field("clock", {}, {}, _clock_hour, _clock_minute, _clock_second, 0.0f, nullptr, false); return true; }
+	if (name == "FlSetClockHour") { _clock_hour = I(0); push_field("clock", {}, {}, _clock_hour, _clock_minute, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlSetClockMinute") { _clock_minute = I(0); push_field("clock", {}, {}, _clock_hour, _clock_minute, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlGetClockHour") { gen->SetReturnDWord(static_cast<asDWORD>(_clock_hour)); return true; }
+	if (name == "FlGetClockMinute") { gen->SetReturnDWord(static_cast<asDWORD>(_clock_minute)); return true; }
+	if (name == "FlPauseClock") { _clock_paused = I(0) != 0; push_field("clock_pause", {}, {}, _clock_paused ? 1 : 0, 0, 0, 0.0f, nullptr, _clock_paused); return true; }
+	if (name == "FlSetupWeatherByCamera") { push_field("weather_camera", {}, {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlAddWeatherRegion") { auto pts = read_int_array(gen, 0); push_field("weather_region", {}, S(2), static_cast<int>(pts.size()), I(1), 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlDelWeatherRegion") { push_field("weather_region_del", S(0), {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlWeatherFade") { push_field("weather_fade", {}, {}, I(0), I(1), 0, 0.0f, nullptr, false); return true; }
+	if (name == "SetFieldStageAllEnvSE") { push_field("field_env_se", {}, {}, I(0), 0, 0, 0.0f, nullptr, I(0) != 0); return true; }
+
+	// Symbols.
+	if (name == "FlCreateCharaSymbol") {
+		float p[2] = {0.0f, 0.0f};
+		V(3, p, 2);
+		field_object("FlCreateCharaSymbol", S(0), p, S(1), S(2));
+		return true;
+	}
+	if (name == "FlGetPlayerSymbolName") {
+		if (auto* out = static_cast<std::string*>(gen->GetAddressOfReturnLocation()))
+			new (out) std::string(_player_symbol);
+		return true;
+	}
+	if (name == "FlGetPlayerSymbolPosV") {
+		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
+		if (r) {
+			r[0] = r[1] = 0.0f;
+			auto it = _by_name.find(_player_symbol);
+			if (it != _by_name.end()) {
+				r[0] = _entities[it->second].pos[0];
+				r[1] = _entities[it->second].pos[1];
+			}
+		}
+		return true;
+	}
+	if (name == "FlChangeCharaSymbolPlayer") { _player_symbol = S(0); return true; }
+	if (name == "FlBackHomeSymbol") { push_field("back_home", S(0), {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlPauseSymbol") { if (auto* e = ent(0)) { e->paused = true; _dirty = true; } return true; }
+	if (name == "FlUnpauseSymbol") { if (auto* e = ent(0)) { e->paused = false; _dirty = true; } return true; }
+	if (name == "FlSetAutoDirOff") { if (auto* e = ent(0)) { e->auto_dir_off = I(1) != 0; _dirty = true; } return true; }
+	if (name == "FlSetAnimation") { if (auto* e = ent(0)) { e->track_index = I(1); e->reverse = I(2) != 0; _dirty = true; } return true; }
+	if (name == "FlSetReverseX") { if (auto* e = ent(0)) { e->reverse_x = I(1) != 0; _dirty = true; } return true; }
+	if (name == "FlSetHeight") { if (auto* e = ent(0)) { e->height = F(1); _dirty = true; } return true; }
+	if (name == "FlEmote") { if (auto* e = ent(0)) { e->emote = I(1); _dirty = true; } push_field("emote", S(0), {}, I(1), I(2), 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlIsSymbolInCircle") {
+		float p[2] = {0.0f, 0.0f};
+		V(1, p, 2);
+		bool inside = false;
+		if (auto* e = ent(0)) {
+			const float dx = e->pos[0] - p[0], dy = e->pos[1] - p[1];
+			const float r = static_cast<float>(I(2));
+			inside = dx * dx + dy * dy <= r * r;
+		}
+		gen->SetReturnByte(inside ? 1 : 0);
+		return true;
+	}
+	if (name == "FlAddSymbolAiMove") {
+		float p[2] = {0.0f, 0.0f};
+		V(1, p, 2);
+		if (auto* e = ent(0)) {
+			Move m{};
+			for (int k = 0; k < 3; ++k) {
+				m.from[k] = e->pos[k];
+				m.to[k] = e->pos[k];
+			}
+			m.to[0] = p[0];
+			m.to[1] = p[1];
+			const float dist = std::hypot(m.to[0] - m.from[0], m.to[1] - m.from[1]);
+			m.f0 = frame;
+			m.f1 = frame + std::max(1, static_cast<int>(std::ceil(dist / 2.0f)));
+			_moves[e->name] = m;
+			_dirty = true;
+		}
+		push_field("symbol_move", S(0), {}, 0, 0, 0, 0.0f, p, false);
+		return true;
+	}
+	if (name == "FlAddSymbolAiMoveWait") { push_field("symbol_wait", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlAddSymbolAiMoveTurn") { if (auto* e = ent(0)) { e->dir_x = I(1) >= 0 ? 1.0f : -1.0f; _dirty = true; } return true; }
+	if (name == "FlSetMoveAiPatRolType") { push_field("symbol_ai", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlSetMoveAiPermissionInDemo") { if (auto* e = ent(0)) { e->paused = I(1) == 0; _dirty = true; } return true; }
+	if (name == "FlSetDemoMoveSpeed") { push_field("demo_speed", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
+
+	// Field objects / regions / portals.
+	if (name == "FlCreateEnemy") {
+		float p[2] = {0.0f, 0.0f};
+		V(3, p, 2);
+		field_object("FlCreateEnemy", S(0), p, S(1));
+		return true;
+	}
+	if (name == "FlCreateChaseEnemy") {
+		float p[2] = {0.0f, 0.0f};
+		V(2, p, 2);
+		field_object("FlCreateChaseEnemy", S(0), p);
+		push_field("chase_enemy", S(0), S(5), I(1), I(3), I(4), 0.0f, p, false);
+		return true;
+	}
+	if (name == "FlCreateChaseChara" || name == "FlCreateFleeChara") {
+		float p[2] = {0.0f, 0.0f};
+		V(3, p, 2);
+		field_object(name == "FlCreateChaseChara" ? "FlCreateChaseChara" : "FlCreateFleeChara", S(0), p, S(1), S(2));
+		return true;
+	}
+	if (name == "FlDeleteEnemy" || name == "FlDelRegionChaseEnemy" || name == "FlDeleteTalkPoint") {
+		if (auto* e = ent(0)) { e->visible = false; _dirty = true; }
+		return true;
+	}
+	if (name == "FlDeleteEnemyNotify") return true;
+	if (name == "FlCreateVehicle") {
+		float p[2] = {0.0f, 0.0f};
+		V(2, p, 2);
+		field_object("FlCreateVehicle", S(0), p);
+		return true;
+	}
+	if (name == "FlCreateCollision") { auto pts = read_int_array(gen, 1); push_field("collision", S(0), {}, static_cast<int>(pts.size()), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlDeleteCollision") { push_field("collision_del", S(0), {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlRebuildAreaCollision" || name == "FlRebuildAreaCollisionWait" || name == "FlRebuildAreaCollisionAsync") return true;
+	if (name == "FlCreatePortal") {
+		float a[2] = {0.0f, 0.0f}, b[2] = {0.0f, 0.0f};
+		V(1, a, 2);
+		V(2, b, 2);
+		RuntimeField& f = push_field("portal", S(0), S(5), I(3), I(4), 0, 0.0f, a, false);
+		f.i1 = I(4);
+		f.text2 = S(6);
+		f.pos[0] = b[0];
+		f.pos[1] = b[1];
+		return true;
+	}
+	if (name == "FlCreateTalkPoint") { float p[2]; V(1, p, 2); push_field("talk_point", S(0), {}, I(2), 0, 0, 0.0f, p, false); return true; }
+	if (name == "FlCreateSearchPoint") { float p[2]; V(2, p, 2); push_field("search_point", S(0), S(1), 0, 0, 0, F(3), p, false); return true; }
+	if (name == "FlCreateGatheringSpot") { float p[2]; V(1, p, 2); push_field("gathering", S(0), S(3), I(2), 0, 0, 0.0f, p, false); return true; }
+	if (name == "FlCreateBonFire") { float p[2]; V(1, p, 2); push_field("bonfire", S(0), {}, 0, 0, 0, 0.0f, p, false); return true; }
+	if (name == "FlCreateFreeMap") { float p[2]; V(1, p, 2); push_field("free_map", S(0), S(2), I(3), 0, 0, 0.0f, p, false); return true; }
+	if (name == "FlCreateStage") { push_field("stage", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlCreateExStage") { float p[2]; V(1, p, 2); push_field("ex_stage", S(0), S(2), I(3), 0, 0, 0.0f, p, false); return true; }
+	if (name == "FlAddPort") { push_field("port", S(0), S(1), I(2), 0, 0, 0.0f, nullptr, false).text2 = S(3); return true; }
+	if (name == "FlSetRevivePosV") { float p[2]; V(0, p, 2); _revive_pos[0] = p[0]; _revive_pos[1] = p[1]; return true; }
+	if (name == "FlDeleteMarker") { push_field("marker_del", S(0), {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlCreateGradientMapRegion") { auto pts = read_int_array(gen, 1); push_field("gradient_region", S(0), {}, static_cast<int>(pts.size()), I(2), 0, F(3), nullptr, false); return true; }
+	if (name == "FlDeleteGradientMapRegion") { push_field("gradient_region_del", S(0), {}, 0, 0, 0, 0.0f, nullptr, I(1) != 0); return true; }
+	if (name == "FlSetGradientMap") { push_field("gradient", {}, {}, I(0), I(2), 0, F(1), nullptr, false); return true; }
+	if (name == "DrCreateDrama") { push_field("drama", S(0), {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "ReconstTown") return true;
+	if (name == "FlRemoveDeliveryCamera") { push_field("delivery_camera", {}, {}, I(0), 0, 0, 0.0f, nullptr, I(0) != 0); return true; }
+	if (name == "FlStartDigGame") { float p[2]; V(0, p, 2); push_field("dig_game", S(1), S(2), 0, 0, 0, 0.0f, p, I(3) != 0); return true; }
+	if (name == "FlCatchChicken") { push_field("chicken", {}, {}, I(0), 0, 0, 0.0f, nullptr, I(0) != 0); return true; }
+
+	// Field flags / UI.
+	if (name == "FlSetDemoMode") { _demo_mode = I(0) != 0; push_field("demo_mode", {}, {}, _demo_mode ? 1 : 0, 0, 0, 0.0f, nullptr, _demo_mode); return true; }
+	if (name == "FlSetBattleMode") { _battle_mode = I(1) != 0; push_field("battle_mode", S(0), {}, _battle_mode ? 1 : 0, 0, 0, 0.0f, nullptr, _battle_mode); return true; }
+	if (name == "FlSetBattleAfter") { _battle_after = S(1); push_field("battle_after", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlSetBattleDieAfter") { _battle_die_after = S(1); push_field("battle_die_after", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlDisableWorldMap") { _world_map_disabled = I(0) != 0; push_field("world_map", {}, {}, _world_map_disabled ? 1 : 0, 0, 0, 0.0f, nullptr, _world_map_disabled); return true; }
+	if (name == "FlSetDispGrid") { push_field("disp_grid", {}, {}, I(0), I(1), I(2), static_cast<float>(I(3)), nullptr, false); return true; }
+	if (name == "FlSetChipClip") { push_field("chip_clip", {}, {}, I(0), 0, 0, 0.0f, nullptr, I(0) != 0); return true; }
+	if (name == "FlSetScreenFilterDisplay") { push_field("screen_filter", S(0), {}, I(2), 0, 0, 0.0f, nullptr, I(1) != 0); return true; }
+	if (name == "FlSetAreaObjectDisplay") { push_field("area_object", S(0), {}, I(2), 0, 0, 0.0f, nullptr, I(1) != 0); return true; }
+	if (name == "FlSetAreaObjectAnimeOffset") { push_field("area_anime", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlSetAreaCollisionEnabled") { push_field("area_collision", S(0), {}, 0, 0, 0, 0.0f, nullptr, I(1) != 0); return true; }
+	if (name == "FlSetGateOpenSettingToAreaCollision") { push_field("gate_open", S(0), {}, 0, 0, 0, 0.0f, nullptr, I(1) != 0); return true; }
+	if (name == "FlSetFacilityAfter") { push_field("facility_after", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlSetFacilityDisable") { push_field("facility_disable", S(0), {}, 0, 0, 0, 0.0f, nullptr, I(1) != 0); return true; }
+	if (name == "FlSetSearchFlag") { if (auto* e = ent(0)) { e->search_flag = I(1) != 0; _dirty = true; } return true; }
+	if (name == "FlOnlyOneTownLvMax") { _town_lv[S(0)] = 99; push_field("town_max", S(0), {}, 99, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlAllTownLvMax") { for (auto& [k, v] : _town_lv) v = 99; push_field("town_max_all", {}, {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlAddTownLvUpEvent") { push_field("town_lv_event", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlSetStageStartParam") { _stage_start_param = I(1); push_field("stage_start", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlGetBreakthroughRate") { gen->SetReturnFloat(0.0f); return true; }
+	if (name == "FlGetTownLv") { auto it = _town_lv.find(S(0)); gen->SetReturnDWord(it == _town_lv.end() ? 0u : static_cast<asDWORD>(it->second)); return true; }
+	if (name == "FlGetItemChangeShopLevel") { gen->SetReturnDWord(static_cast<asDWORD>(_item_change_shop_level)); return true; }
+	if (name == "FlGetItemChangeNum") { gen->SetReturnDWord(static_cast<asDWORD>(_item_change_num)); return true; }
+	if (name == "FlOpenItemChangeShop") { push_field("item_shop", {}, {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlGetResultExStageStartDialog") { gen->SetReturnDWord(static_cast<asDWORD>(_ex_stage_dialog_result)); return true; }
+	if (name == "FlOpenExStageStartDialog") { push_field("ex_stage_dialog", {}, S(1), I(0), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "GetFacilityFieldPosV") {
+		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
+		if (r) {
+			r[0] = r[1] = 0.0f;
+			if (auto* e = ent(0)) {
+				r[0] = e->pos[0];
+				r[1] = e->pos[1];
+			}
+		}
+		return true;
+	}
+
+	// Data getters (existing tables).
+	if (name == "GetCharaDefNameByCharaSet") {
+		std::string res;
+		if (_chara_sets)
+			res = _chara_sets->name_at(I(0));
+		if (auto* out = static_cast<std::string*>(gen->GetAddressOfReturnLocation()))
+			new (out) std::string(res);
+		return true;
+	}
+	if (name == "GetCharaNameByCharaDefName") {
+		std::string res = S(0);
+		if (_chara_sets)
+			if (const CharaInfo* ci = _chara_sets->resolve(S(0)))
+				res = ci->disp_name;
+		if (auto* out = static_cast<std::string*>(gen->GetAddressOfReturnLocation()))
+			new (out) std::string(res);
+		return true;
+	}
+	if (name == "GetStationFacilityName") {
+		// TODO: facility display names live in UcFacilityList.fms; echo the def name for now.
+		if (auto* out = static_cast<std::string*>(gen->GetAddressOfReturnLocation()))
+			new (out) std::string(S(0));
+		return true;
+	}
+	// Stage/country/window tables are not extracted yet; neutral values keep the
+	// scripts running (they are used for scaling/flavour, not control flow).
+	if (name == "GetStageBaseLevel") { gen->SetReturnDWord(0); return true; }
+	if (name == "GetStageCueId" || name == "GetFieldCueId" || name == "GetCountryByPos" || name == "GetWinIDByFlBGLane") { gen->SetReturnDWord(0); return true; }
+	if (name == "GetStagePos") {
+		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
+		if (r) { r[0] = r[1] = 0.0f; }
+		return true;
+	}
+
+	// Game-state stores.
+	if (name == "AddGold") { _gold += I(0); return true; }
+	if (name == "SetGold") { _gold = I(0); return true; }
+	if (name == "AddFame") { _fame += I(0); return true; }
+	if (name == "AddSlotBitFlag") { _slots[I(0)] = 1; return true; }
+	if (name == "DelSlotBitFlag") { _slots[I(0)] = 0; return true; }
+	if (name == "AddStageBitFlag") { _stage_bits.insert(I(0)); return true; }
+	if (name == "SetStageBitFlag") { if (I(1)) _stage_bits.insert(I(0)); else _stage_bits.erase(I(0)); return true; }
+	if (name == "SetStageFlag") { _stage_flags[I(0)] = I(1); return true; }
+	if (name == "AddStageFlag") { _stage_flags[I(0)] = I(1); return true; }
+	if (name == "GetStageFlag") { auto it = _stage_flags.find(I(0)); gen->SetReturnDWord(it == _stage_flags.end() ? 0u : static_cast<asDWORD>(it->second)); return true; }
+	if (name == "GetClearedStageNum") { gen->SetReturnDWord(static_cast<asDWORD>(_stage_bits.size())); return true; }
+	if (name == "SetGlobalFlag") { _global_flags[I(0)] = I(1); return true; }
+	if (name == "GetGlobalFlag") { auto it = _global_flags.find(I(0)); gen->SetReturnDWord(it == _global_flags.end() ? 0u : static_cast<asDWORD>(it->second)); return true; }
+	if (name == "AddGlobalBitFlag") { _global_flags[I(0)] = 1; return true; }
+	if (name == "GetGlobalBitFlag") { gen->SetReturnByte(_global_flags.count(I(0)) && _global_flags[I(0)] ? 1 : 0); return true; }
+	if (name == "QuestPreOpen") { _quests[I(0)] |= 1; _quest_preopened.insert(I(0)); return true; }
+	if (name == "IsQuestPreOpened") { gen->SetReturnByte(_quest_preopened.count(I(0)) ? 1 : 0); return true; }
+	if (name == "QuestFailed") { _quests[I(0)] |= 8; return true; }
+	if (name == "SetQuestPin") { _quest_pinned.insert(I(0)); return true; }
+	if (name == "IsExistPinnedQuest") { gen->SetReturnByte(_quest_pinned.empty() ? 0 : 1); return true; }
+	if (name == "RegisterFacilityToWM") { _facilities.insert(S(0)); return true; }
+	if (name == "IsFacilityRegisteredToWM") { gen->SetReturnByte(_facilities.count(S(0)) ? 1 : 0); return true; }
+	if (name == "AddFriendshipPoint") { _friendship[S(0) + "|" + S(1)] += I(2); return true; }
+	if (name == "GetFriendshipLV") { auto it = _friendship.find(S(0) + "|" + S(1)); gen->SetReturnDWord(it == _friendship.end() ? 0u : static_cast<asDWORD>(it->second / 100)); return true; }
+	if (name == "RemoveEquipItem") { auto it = _items.find(S(1)); if (it != _items.end() && it->second > 0) --it->second; return true; }
+	if (name == "IsEmptyPlayerUnitList") { gen->SetReturnByte(_units.empty() ? 1 : 0); return true; }
+	if (name == "IsTreasureOpenedAny") { gen->SetReturnByte(_treasures.empty() ? 0 : 1); return true; }
+	if (name == "SetQuestTargetText" || name == "AddQuestTargetText") { push_field("quest_text", {}, S(1) + " " + S(2), I(0), I(3), 0, 0.0f, nullptr, false); return true; }
+	if (name == "UpdateQuestText") { push_field("quest_update", {}, {}, I(0), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "SetQuestMarker" || name == "AddQuestMarker") { float p[2] = {0.0f, 0.0f}; V(2, p, 2); push_field("quest_marker", S(0), {}, I(1), 0, 0, 0.0f, p, false); return true; }
+	if (name == "DeleteQuestMarker") { push_field("quest_marker_del", S(0), {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "ClearQuestMarker") { push_field("quest_marker_clear", {}, {}, I(0), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "SetQuestTargetStage" || name == "AddQuestTargetStage") { push_field("quest_stage", S(1), {}, I(0), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "SetQuestTargetTalkTo" || name == "AddQuestTargetTalkTo") { push_field("quest_talk", S(1), {}, I(0), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "SetQuestTargetBattle") { push_field("quest_battle", S(1), {}, I(0), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "SetQuestTargetDestination") { push_field("quest_dest", S(1), {}, I(0), 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "ClearQuestTarget") { push_field("quest_target_clear", {}, {}, I(0), 0, 0, 0.0f, nullptr, false); return true; }
+
+	if (name == "StDbClearStage") { push_field("st_db_clear", S(0), {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "StGetStageStartParam") { gen->SetReturnDWord(static_cast<asDWORD>(_stage_start_param)); return true; }
+	if (name == "SetUnitDirAsync") { if (auto* e = ent(0)) { e->dir_x = I(1) >= 0 ? 1.0f : -1.0f; _dirty = true; } return true; }
+	if (name == "StopShakeFadeoutAll") { for (auto& sh : _timeline.shakes) if (sh.end > frame) sh.end = frame; return true; }
+	if (name == "IsVeryHardDie") { gen->SetReturnByte(0); return true; }
+	if (name == "DeleteVeryHardDie") return true;
 
 	// TODO(blocked natives): the groups below fall through to the GenericStub,
 	// which returns the type's zero (never crashes). They are unimplemented

@@ -306,9 +306,13 @@ CharTable load_char_table(const std::string& path);
 // linear scan does).
 struct CharaSetTable {
 	std::unordered_map<std::string, CharaInfo> by_key;
+	std::vector<std::string> names; // charaset.tsv idx -> ASCII CharaSet name
 	const CharaInfo* resolve(const std::string& key) const {
 		auto it = by_key.find(key);
 		return it == by_key.end() ? nullptr : &it->second;
+	}
+	std::string name_at(int idx) const {
+		return idx >= 0 && static_cast<size_t>(idx) < names.size() ? names[idx] : std::string();
 	}
 };
 

@@ -37,6 +37,14 @@ struct RuntimeEntity {
 	int window_id_offset = 0;		   // DrSetWindowIDOffset
 	bool prerender_force = false;	   // DrSetPrerenderOnForce
 	int color[4] = {-1, -1, -1, -1};   // DrSetCharaColor (common/hair/main/sub)
+	int state = 0;					   // FlSetState / FlAddState
+	int state_icon = 0;				   // FlSetStateIcon / FlClearStateIcon
+	float height = 0.0f;			   // FlSetHeight
+	int emote = 0;					   // FlEmote
+	bool search_flag = false;		   // FlSetSearchFlag
+	bool paused = false;			   // FlPauseSymbol / FlUnpauseSymbol
+	bool auto_dir_off = false;		   // FlSetAutoDirOff
+	bool reverse_x = false;			   // FlSetReverseX
 	int order = 0;
 	Space space = Space::World;
 	std::string parent; // SetSpriteToAnchor target (empty = none); pos is relative
@@ -207,6 +215,20 @@ struct RuntimeUi {
 	std::vector<int> ints; // archive pages, etc.
 };
 
+// Phase 6 field/overworld event (record-only where visual).
+struct RuntimeField {
+	long frame = 0;
+	std::string kind;
+	std::string name;
+	std::string text;
+	std::string text2;
+	int i0 = 0, i1 = 0, i2 = 0;
+	float f0 = 0.0f;
+	float pos[2] = {0.0f, 0.0f};
+	bool flag = false;
+	std::vector<int> ints;
+};
+
 // The whole scene at one frame. Only emitted when something changed.
 struct Keyframe {
 	long frame = 0;
@@ -231,6 +253,7 @@ struct Timeline {
 	std::vector<RuntimeFog> fog;
 	std::vector<RuntimeGradient> gradients;
 	std::vector<RuntimeUi> ui;
+	std::vector<RuntimeField> field;
 };
 
 // Overlay colour (linear RGBA) produced by the fades list at `frame`.
