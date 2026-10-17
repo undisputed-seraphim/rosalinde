@@ -1,4 +1,5 @@
 #include "scene_renderer.hpp"
+#include "background_tracks.hpp"
 #include "scene_util.hpp"
 
 #include <algorithm>
@@ -38,11 +39,11 @@ void SceneRenderer::rebuild(Object& object, const asb::RuntimeEntity& e, SpriteA
 		return;
 
 	if (object.background) {
-		for (size_t i = 0; i < object.asset->data.tracks.size(); ++i) {
+		for (uint32_t i : select_background_tracks(object.asset->data.v77)) {
 			if (!track_usable(object.asset->data, static_cast<int>(i)))
 				continue;
-			object.instances.emplace_back(&object.asset->data, static_cast<uint32_t>(i), 0xFFFFFFFFu);
-			object.instances.back().play(static_cast<uint32_t>(i));
+			object.instances.emplace_back(&object.asset->data, i, 0xFFFFFFFFu);
+			object.instances.back().play(i);
 		}
 	} else {
 		const int track = choose_track(*object.asset, e);
