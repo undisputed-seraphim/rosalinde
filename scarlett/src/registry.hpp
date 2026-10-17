@@ -76,8 +76,20 @@ public:
 	// the fallback stub). `gen` is the AngelScript generic call context.
 	bool dispatch(asIScriptGeneric* gen);
 
+	// Advance frame-driven state (movement tweens) without recording.
+	void advance();
+
 	// Snapshot the current state into a keyframe if it changed since the last.
 	void flush_keyframe();
+
+	// Set the current scene frame.
+	void set_frame(long f) {
+		frame = f;
+		_timeline.frame = f;
+	}
+
+	SceneState& state() { return _timeline; }
+	const SceneState& state() const { return _timeline; }
 
 	// Callback bookkeeping. Registrations are retained in the timeline for
 	// inspection; `fire_script_event` is a stub until combat/field events exist.
@@ -128,7 +140,7 @@ private:
 	std::unordered_map<std::string, int> _unit_dir; // unit name -> direction/degree
 	std::unordered_set<int> _units;					// recruited unit ids (AddUnitSaveData)
 	// Movement tweens (Move/MoveAbs/DrMove*): interpolate an entity's position
-	// from `from` to `to` over [f0, f1]; advanced in flush_keyframe.
+	// from `from` to `to` over [f0, f1]; advanced in advance().
 	struct Move {
 		float from[3];
 		float to[3];
@@ -265,10 +277,13 @@ private:
 	const DropTables* _drops = nullptr;
 	std::function<int(int)> _sound_length;
 	Timeline _timeline;
-	std::vector<RuntimeEntity> _entities;
 	std::unordered_map<std::string, int> _by_name;
-	RuntimeCamera _camera;
 	bool _dirty = false;
+
+	void mark_dirty() {
+		_dirty = true;
+		++_timeline.revision;
+	}
 };
 
 } // namespace asb
