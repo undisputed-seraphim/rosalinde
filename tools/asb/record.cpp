@@ -368,6 +368,32 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 			g.time,
 			i + 1 < tl.gradients.size() ? "," : "");
 	}
+	std::fprintf(out, "\t],\n\t\"ui\": [\n");
+	for (size_t i = 0; i < tl.ui.size(); ++i) {
+		const asb::RuntimeUi& u = tl.ui[i];
+		std::string ints;
+		for (size_t k = 0; k < u.ints.size(); ++k) {
+			if (k)
+				ints += ", ";
+			ints += std::to_string(u.ints[k]);
+		}
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"kind\": \"%s\", \"text\": \"%s\", \"id\": %d, \"i0\": %d, \"i1\": %d, "
+			"\"pos\": [%g, %g], \"rate\": %g, \"flag\": %s, \"ints\": [%s]}%s\n",
+			u.frame,
+			json_escape(u.kind).c_str(),
+			json_escape(u.text).c_str(),
+			u.id,
+			u.i0,
+			u.i1,
+			u.pos[0],
+			u.pos[1],
+			u.rate,
+			u.flag ? "true" : "false",
+			ints.c_str(),
+			i + 1 < tl.ui.size() ? "," : "");
+	}
 	std::fprintf(out, "\t]\n}\n");
 }
 

@@ -137,6 +137,16 @@ private:
 	float _follow_offset[2] = {0.0f, 0.0f}; // FollowOffsetV
 	bool _balcony_bru = false;	  // DrEnableBalconyFlagBRU / DrGetBalconyFlagBRU
 	bool _balcony_scr = false;	  // DrEnableBalconyFlagSCR / DrGetBalconyFlagSCR
+	// 5C UI / archive / HUD state.
+	bool _partner_select_open = false;
+	bool _disable_backlog = false;
+	bool _disable_option = false;
+	bool _title_library = false;
+	bool _class_pedia_open = false;
+	bool _all_class_pedia_bg = false;
+	bool _add_class_pedia_flag = false;
+	bool _staff_roll_scroll = false;
+	float _staff_roll_speed = 0.0f;
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;
 	Timeline _timeline;

@@ -123,6 +123,15 @@ void Registry::reset(std::string source, std::string function) {
 	_follow_offset[0] = _follow_offset[1] = 0.0f;
 	_balcony_bru = false;
 	_balcony_scr = false;
+	_partner_select_open = false;
+	_disable_backlog = false;
+	_disable_option = false;
+	_title_library = false;
+	_class_pedia_open = false;
+	_all_class_pedia_bg = false;
+	_add_class_pedia_flag = false;
+	_staff_roll_scroll = false;
+	_staff_roll_speed = 0.0f;
 	_camera = RuntimeCamera{};
 	_dirty = false;
 	frame = 0;
@@ -1885,6 +1894,162 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 				it.callback = S(4);
 		}
 		_timeline.items.push_back(it);
+		return true;
+	}
+
+	// --- 5C: UI / archive / HUD (record-only; rendering deferred).
+	auto push_ui = [&](std::string kind, std::string text, int id, int i0, int i1, const float* pos, float rate, bool flag) -> RuntimeUi& {
+		RuntimeUi u;
+		u.frame = frame;
+		u.kind = std::move(kind);
+		u.text = std::move(text);
+		u.id = id;
+		u.i0 = i0;
+		u.i1 = i1;
+		if (pos) {
+			u.pos[0] = pos[0];
+			u.pos[1] = pos[1];
+		}
+		u.rate = rate;
+		u.flag = flag;
+		_timeline.ui.push_back(std::move(u));
+		return _timeline.ui.back();
+	};
+
+	if (name == "OpenArchive" || name == "CloseArchive") {
+		RuntimeUi& u =
+			push_ui(name == "OpenArchive" ? "archive_open" : "archive_close", S(0), 0, 0, 0, nullptr, 0.0f, false);
+		u.ints = read_int_array(gen, 1);
+		return true;
+	}
+	if (name == "CreateFacilityName") {
+		float p[2] = {0.0f, 0.0f};
+		V(2, p, 2);
+		push_ui("facility_name", S(0), I(1), I(3), 0, p, 0.0f, I(4) != 0);
+		return true;
+	}
+	if (name == "DeleteFacilityName") {
+		push_ui("facility_name_delete", {}, 0, I(0), 0, nullptr, 0.0f, false);
+		return true;
+	}
+	if (name == "ShowFieldInfo") {
+		push_ui("field_info", {}, 0, 0, 0, nullptr, 0.0f, false);
+		return true;
+	}
+	if (name == "ShowFacilityInfo") {
+		push_ui("facility_info", S(1), I(0), I(2), I(3), nullptr, 0.0f, false);
+		const long wait = std::max(0, I(3));
+		if (wait > 0) {
+			pending_wait = wait;
+			if (asIScriptContext* ctx = asGetActiveContext())
+				ctx->Suspend();
+		}
+		return true;
+	}
+	if (name == "ShowExStageTitle") {
+		push_ui("ex_stage_title", {}, I(0), I(1), 0, nullptr, 0.0f, false);
+		return true;
+	}
+	if (name == "SetClassPedia_ByDefName") {
+		push_ui("class_pedia", S(0), 0, 0, 0, nullptr, 0.0f, false);
+		return true;
+	}
+	if (name == "OpenClassPedia") {
+		_class_pedia_open = I(0) != 0;
+		push_ui("class_pedia_open", {}, 0, 0, 0, nullptr, 0.0f, _class_pedia_open);
+		return true;
+	}
+	if (name == "SetAllOpenClassPediaBG") {
+		_all_class_pedia_bg = true;
+		push_ui("class_pedia_bg", {}, 0, 0, 0, nullptr, 0.0f, true);
+		return true;
+	}
+	if (name == "SetAddClassPediaFlag") {
+		_add_class_pedia_flag = I(0) != 0;
+		push_ui("class_pedia_flag", {}, 0, 0, 0, nullptr, 0.0f, _add_class_pedia_flag);
+		return true;
+	}
+	if (name == "CreateStaffRoll") {
+		push_ui("staff_roll", S(0), I(1), 0, 0, nullptr, 0.0f, false);
+		return true;
+	}
+	if (name == "SetScrollStaffRollFlag") {
+		_staff_roll_scroll = I(0) != 0;
+		_staff_roll_speed = F(1);
+		push_ui("staff_roll_scroll", {}, 0, 0, 0, nullptr, _staff_roll_speed, _staff_roll_scroll);
+		return true;
+	}
+	if (name == "GetOfflineRank") {
+		gen->SetReturnDWord(0);
+		return true;
+	}
+	if (name == "IsSecondRanking") {
+		gen->SetReturnByte(0);
+		return true;
+	}
+	if (name == "StOpenPartnerSelect") {
+		_partner_select_open = true;
+		push_ui("partner_select_open", {}, 0, 0, 0, nullptr, 0.0f, true);
+		return true;
+	}
+	if (name == "StIsPartnerSelect") {
+		gen->SetReturnByte(_partner_select_open ? 1 : 0);
+		return true;
+	}
+	if (name == "StClearPartnerSelect") {
+		_partner_select_open = false;
+		push_ui("partner_select_close", {}, 0, 0, 0, nullptr, 0.0f, false);
+		return true;
+	}
+	if (name == "StIsPartnerSelectRequired" || name == "StIsEnableOpenPartnerSelect") {
+		// Returning false skips the partner-select UI. This is a headless-playback
+		// choice, not verified engine behaviour; revisit when fine-tuning.
+		gen->SetReturnByte(0);
+		return true;
+	}
+	if (name == "OpenUpgradeEquipUI") {
+		push_ui("upgrade_equip", {}, 0, 0, 0, nullptr, 0.0f, false);
+		return true;
+	}
+	if (name == "OpenUnitInfoUI") {
+		push_ui("unit_info", {}, 0, 0, 0, nullptr, 0.0f, false);
+		return true;
+	}
+	if (name == "OpenDifficultyChoiceUI") {
+		push_ui("difficulty", {}, 0, 0, 0, nullptr, 0.0f, false);
+		return true;
+	}
+	if (name == "OpenShopUI") {
+		push_ui("shop", {}, I(0), 0, 0, nullptr, 0.0f, false);
+		return true;
+	}
+	if (name == "SetDisableBackLog") {
+		_disable_backlog = I(0) != 0;
+		push_ui("disable_backlog", {}, 0, 0, 0, nullptr, 0.0f, _disable_backlog);
+		return true;
+	}
+	if (name == "SetDisableOption") {
+		_disable_option = I(0) != 0;
+		push_ui("disable_option", {}, 0, 0, 0, nullptr, 0.0f, _disable_option);
+		return true;
+	}
+	if (name == "EnableTitleLibrary") {
+		_title_library = true;
+		push_ui("title_library", {}, 0, 0, 0, nullptr, 0.0f, true);
+		return true;
+	}
+	if (name == "UnlockTrophy") {
+		push_ui("trophy", {}, I(0), I(1), 0, nullptr, 0.0f, false);
+		const long wait = std::max(0, I(1));
+		if (wait > 0) {
+			pending_wait = wait;
+			if (asIScriptContext* ctx = asGetActiveContext())
+				ctx->Suspend();
+		}
+		return true;
+	}
+	if (name == "UnlockTrophyAllDelivery") {
+		push_ui("trophy_all", {}, 0, 0, 0, nullptr, 0.0f, false);
 		return true;
 	}
 
