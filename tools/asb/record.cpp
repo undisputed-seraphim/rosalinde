@@ -35,6 +35,39 @@ std::vector<uint8_t> extract_entry(const std::string& cpk, const std::string& en
 	return std::vector<uint8_t>(buf.begin(), buf.end());
 }
 
+std::string json_escape(const std::string& s) {
+	std::string o;
+	o.reserve(s.size() + 8);
+	for (unsigned char c : s) {
+		switch (c) {
+		case '"':
+			o += "\\\"";
+			break;
+		case '\\':
+			o += "\\\\";
+			break;
+		case '\n':
+			o += "\\n";
+			break;
+		case '\r':
+			o += "\\r";
+			break;
+		case '\t':
+			o += "\\t";
+			break;
+		default:
+			if (c < 0x20) {
+				char b[8];
+				std::snprintf(b, sizeof b, "\\u%04x", c);
+				o += b;
+			} else {
+				o += static_cast<char>(c);
+			}
+		}
+	}
+	return o;
+}
+
 void write_json(FILE* out, const asb::Timeline& tl) {
 	std::fprintf(out, "{\n\t\"source\": \"%s\",\n\t\"function\": \"%s\",\n", tl.source.c_str(), tl.function.c_str());
 	std::fprintf(out, "\t\"keyframes\": [\n");
@@ -122,6 +155,35 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 			s.flag_color,
 			i + 1 < tl.stages.size() ? "," : "");
 	}
+	std::fprintf(out, "\t],\n\t\"texts\": [\n");
+	for (size_t i = 0; i < tl.texts.size(); ++i) {
+		const asb::RuntimeText& t = tl.texts[i];
+		std::string ids;
+		for (size_t j = 0; j < t.ids.size(); ++j) {
+			if (j)
+				ids += ", ";
+			ids += std::to_string(t.ids[j]);
+		}
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"end\": %ld, \"kind\": %d, \"speaker\": \"%s\", \"text\": \"%s\", "
+			"\"pos\": [%g, %g], \"disp_type\": %d, \"disp_name\": %d, \"face_dir_x\": %d, \"flags\": %u, "
+			"\"result\": %d, \"ids\": [%s]}%s\n",
+			t.frame,
+			t.end,
+			static_cast<int>(t.kind),
+			json_escape(t.speaker).c_str(),
+			json_escape(t.text).c_str(),
+			t.pos[0],
+			t.pos[1],
+			t.disp_type,
+			t.disp_name,
+			t.face_dir_x,
+			t.flags,
+			t.result,
+			ids.c_str(),
+			i + 1 < tl.texts.size() ? "," : "");
+	}
 	std::fprintf(out, "\t]\n}\n");
 }
 
@@ -161,7 +223,10 @@ int main(int argc, char** argv) try {
 
 	asb::Host host;
 	host.register_module(mod);
-	host.set_call_log([](const std::string&) {});
+	if (std::getenv("ASB_TEXT") || std::getenv("SCENE_TRACE"))
+		host.set_call_log([](const std::string& s) { std::fprintf(stderr, "[call] %s\n", s.c_str()); });
+	else
+		host.set_call_log([](const std::string&) {});
 	if (!host.load(bytes))
 		return 3;
 

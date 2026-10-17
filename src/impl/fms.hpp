@@ -1,37 +1,39 @@
 #pragma once
 
-#include <criware/utils.hpp>
-#include <cstring>
-#include <iostream>
-#include <string_view>
+#include <cstdint>
+#include <istream>
+#include <optional>
+#include <span>
+#include <string>
 #include <vector>
 
-inline std::vector<std::string> parse_fms(std::istream& is) {
-#pragma pack(push, 1)
-	struct FMS {
-		char fmsb[4];
-		uint32_t size;
-		uint32_t _unk0;
-		uint32_t _pad0;
-		uint32_t _pad1;
-		uint32_t rows;
-		uint32_t sections_maybe;
-	};
-#pragma pack(pop)
-	static constexpr std::string_view MAGIC = "FMSB";
+namespace fms {
 
-	const auto header = read_value<FMS>(is);
-	if (::strncmp(header.fmsb, MAGIC.data(), sizeof(header.fmsb)) != 0) {
-		return {};
-	}
+struct string_entry {
+	uint32_t prop1 = 0;
+	uint32_t prop2 = 0;
+	std::string text;
+};
 
-	while (is.peek() == 0) {
-		is.seekg(1, std::ios::cur);
-	}
+struct table {
+	uint32_t data_size = 0;
+	uint32_t header_size = 0;
+	uint32_t unknown1 = 0;
+	uint32_t unknown2 = 0;
+	uint32_t unknown3 = 0;
+	uint32_t unknown4 = 0;
+	uint32_t footer_size = 0;
+	uint32_t unknown5 = 0;
+	uint32_t unknown6 = 0;
+	std::vector<string_entry> strings;
 
-	std::vector<std::string> out(header.rows);
-	for (uint32_t i = 0; i < header.rows; ++i) {
-		std::getline(is, out[i], char(0));
+	const std::string& at(size_t index) const {
+		static const std::string empty;
+		return index < strings.size() ? strings[index].text : empty;
 	}
-	return out;
+};
+
+std::optional<table> parse_fms(std::span<const uint8_t> data);
+std::optional<table> parse_fms(std::istream& is);
+
 }
