@@ -22,36 +22,18 @@ int main(int argc, char* argv[]) try {
 		"frames",
 		::boost::program_options::value<uint32_t>(&config.frames)->default_value(1),
 		"Frames to render before taking the screenshot")(
-		"class",
-		::boost::program_options::value<std::string>(&config.left_class)->default_value(config.left_class),
-		"Left character class (screenshot mode)")(
-		"class2",
-		::boost::program_options::value<std::string>(&config.right_class)->default_value(config.right_class),
-		"Right character class (screenshot mode)")(
-		"bg",
-		::boost::program_options::value<std::string>(&config.background)->default_value(config.background),
-		"Battle background/stage name (screenshot mode)")(
 		"script",
 		::boost::program_options::value<std::string>(&config.script),
-		"Render a script-composed scene from a CPK script (e.g. Script/Dr_OW_0_Opening.asb)")(
+		"Drama script to play (e.g. Script/Dr_OW_0_Opening.asb)")(
 		"scene-func",
 		::boost::program_options::value<std::string>(&config.scene_func),
-		"Scene function to build (default: scene00, then MAIN)")(
-		"runtime",
-		::boost::program_options::bool_switch(&config.runtime),
-		"Reconstruct the scene by running the hosted AngelScript VM (playback)")(
+		"Scene entry function (default: auto-pick)")(
 		"scene-frame",
 		::boost::program_options::value<long>(&config.scene_frame)->default_value(config.scene_frame),
-		"Runtime: advance the scene to this frame, then hold (-1 = real time)")(
+		"Advance to this scene frame, then hold (-1 = real time)")(
 		"scene-fps",
 		::boost::program_options::value<float>(&config.scene_fps)->default_value(config.scene_fps),
-		"Runtime: frame step rate (60 matches the opening cinematic)")(
-		"scene-limit",
-		::boost::program_options::value<int>(&config.scene_limit)->default_value(config.scene_limit),
-		"Maximum sprite entities to load (0 = per-mode default)")(
-		"scene-camera",
-		::boost::program_options::value<std::string>(&config.scene_camera)->default_value(config.scene_camera),
-		"Scene camera: auto (default) | design | fit | follow | record (game pos+zoom) | first | last | <index>")(
+		"Playback frame step rate (60 matches the script clock)")(
 		"chara-table",
 		::boost::program_options::value<std::string>(&config.chara_table),
 		"Generated character name -> asset table (see: asb_harvest --chara-table)");
@@ -66,6 +48,10 @@ int main(int argc, char* argv[]) try {
 	} catch (const ::boost::program_options::required_option& e) {
 		std::cout << desc << '\n';
 		throw;
+	}
+	if (config.script.empty()) {
+		std::cerr << "viewer: --script is required\n";
+		return 1;
 	}
 
 	unsigned view_w = 1920, view_h = 1080;
