@@ -81,7 +81,7 @@ public:
 	// the fallback stub). `gen` is the AngelScript generic call context.
 	bool dispatch(asIScriptGeneric* gen);
 
-	// Advance frame-driven state (movement tweens) without recording.
+	// Advance frame-driven state (movement and camera tweens) without recording.
 	void advance();
 
 	// Snapshot the current state into a keyframe if it changed since the last.
@@ -126,6 +126,8 @@ private:
 		int layer,
 		float scale);
 	void create_chara(const std::string& kind, const std::vector<std::string>& names);
+	void advance_camera();
+	void set_camera_ease(CameraTween& tween, long duration) const;
 	void trace_event(std::string_view kind, std::string_view event, std::string_view fields = {});
 
 	// Screen-fade overlay colour (linear RGBA) at `frame`, and start a fade

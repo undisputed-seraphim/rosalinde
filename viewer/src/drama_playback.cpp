@@ -286,7 +286,7 @@ void DramaPlayback::apply_camera() {
 		float oy = 0.0f;
 		if (const char* e = std::getenv("VIEWER_CAM_Y"))
 			oy = static_cast<float>(std::atof(e));
-		_camera.recenter({cam.pos[0] / zoom, cam.pos[1] / zoom + oy});
+		_camera.recenter({cam.pos[0], cam.pos[1] + oy});
 	}
 	if (cam.has_zoom && cam.zoom > 0.0f)
 		_camera.set_zoom(cam.zoom);
@@ -294,7 +294,8 @@ void DramaPlayback::apply_camera() {
 		{static_cast<long>(_session->scene().frame),
 		 "camera",
 		 "eval",
-		 "\"target\":" + asb::trace::vec3(cam.pos) + ",\"zoom\":" + asb::trace::number(zoom)});
+		 "\"pos\":" + asb::trace::vec3(cam.pos) + ",\"zoom\":" + asb::trace::number(zoom) +
+			 ",\"origin\":" + asb::trace::vec3(cam.origin)});
 }
 
 void DramaPlayback::draw_text() {

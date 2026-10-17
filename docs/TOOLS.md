@@ -61,8 +61,8 @@ Behavior:
 - `--scene-frame` is still used for a single deterministic screenshot via `--screenshot`.
 - `--trace` writes one JSON object per line. Each line has `frame`, `kind` and `event`.
   Categories are `vm`, `stage`, `camera`, `asset`, `sprite` and `draw`.
-- `camera` events include both the script target (`pos`, `duration`, `mode`) and the
-  per-frame evaluated camera state.
+- `camera` events include both the script request (`pos`, `duration`, `delay`) and
+  the per-frame evaluated camera state, including tween progress and ease ramps.
 - `asset` events include cache hits, load mode, path and elapsed milliseconds.
 - `sprite` events cover create/chara/animation/rebuild/track changes.
 - `draw` events contain the final per-frame object order, instance count and bounds.
