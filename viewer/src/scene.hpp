@@ -3,6 +3,7 @@
 #include "asset_loader.hpp"
 #include "battle_state.hpp"
 #include "debug_ui.hpp"
+#include "drama_playback.hpp"
 #include "engine/Engine.hpp"
 #include "menu_state.hpp"
 #include "runtime_state.hpp"
@@ -44,7 +45,7 @@ private:
 	AssetLoader _loader;
 	DebugUI _ui;
 
-	enum class Mode { Menu, Battle, Script, Runtime };
+	enum class Mode { Menu, Battle, Script, Runtime, Drama };
 	Mode _mode = Mode::Menu;
 
 	std::vector<std::string> _bg_names;
@@ -52,6 +53,7 @@ private:
 	std::unique_ptr<BattleState> _battle;
 	std::unique_ptr<ScriptState> _script;
 	std::unique_ptr<RuntimeState> _runtime;
+	std::unique_ptr<DramaPlayback> _drama;
 
 	void start_battle(const MenuSelection& selection);
 };
