@@ -28,33 +28,17 @@ Scene::Scene(ViewerConfig config)
 
 	if (!_config.script.empty()) {
 		ImGui::GetIO().IniFilename = nullptr;
-		if (_config.runtime) {
-			viewer::trace::stamp("Scene ctor: RuntimeState begin");
-			RuntimeSceneConfig rc;
-			rc.entry = _config.script;
-			rc.func = _config.scene_func;
-			rc.limit = _config.scene_limit > 0 ? _config.scene_limit : 256;
-			rc.camera = _config.scene_camera.empty() ? "auto" : _config.scene_camera;
-			rc.chara_table = _config.chara_table;
-			rc.screenshot = _config.screenshot;
-			rc.frames = _config.frames;
-			rc.frame = _config.scene_frame;
-			rc.fps = _config.scene_fps;
-			_runtime = std::make_unique<RuntimeState>(_loader, std::move(rc));
-			_mode = Mode::Runtime;
-			viewer::trace::stamp("Scene ctor: RuntimeState ready");
-		} else {
-			ScriptSceneConfig sc;
-			sc.entry = _config.script;
-			sc.func = _config.scene_func;
-			sc.limit = _config.scene_limit > 0 ? _config.scene_limit : 8;
-			sc.camera = _config.scene_camera.empty() ? "fit" : _config.scene_camera;
-			sc.chara_table = _config.chara_table;
-			sc.screenshot = _config.screenshot;
-			sc.frames = _config.frames;
-			_script = std::make_unique<ScriptState>(_loader, _ui, std::move(sc));
-			_mode = Mode::Script;
-		}
+		DramaPlaybackConfig dc;
+		dc.entry = _config.script;
+		dc.func = _config.scene_func;
+		dc.chara_table = _config.chara_table;
+		dc.screenshot = _config.screenshot;
+		dc.frames = _config.frames;
+		dc.scene_frame = _config.scene_frame;
+		dc.fps = _config.scene_fps;
+		_drama = std::make_unique<DramaPlayback>(_loader, std::move(dc));
+		_mode = Mode::Drama;
+		viewer::trace::stamp("Scene ctor: DramaPlayback ready");
 	} else if (!_config.screenshot.empty()) {
 		ImGui::GetIO().IniFilename = nullptr;
 		MenuSelection selection;
@@ -101,6 +85,13 @@ bool Scene::handle_inputs() {
 			if (_runtime->should_quit() || _runtime->is_done())
 				return true;
 		}
+
+		if (_mode == Mode::Drama && _drama) {
+			if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)
+				_drama->request_quit();
+			if (_drama->should_quit())
+				return true;
+		}
 	}
 	if (!_config.screenshot.empty() && _battle && _battle->captured())
 		return true;
@@ -108,7 +99,11 @@ bool Scene::handle_inputs() {
 		return true;
 	if (!_config.screenshot.empty() && _runtime && _runtime->captured())
 		return true;
+	if (!_config.screenshot.empty() && _drama && _drama->captured())
+		return true;
 	if (_mode == Mode::Runtime && _runtime && (_runtime->is_done() || _runtime->should_quit()))
+		return true;
+	if (_mode == Mode::Drama && _drama && _drama->should_quit())
 		return true;
 	return false;
 }
@@ -132,10 +127,14 @@ void Scene::render() {
 		_script->render();
 	} else if (_mode == Mode::Runtime && _runtime) {
 		_runtime->render();
+	} else if (_mode == Mode::Drama && _drama) {
+		_drama->render();
 	}
 
 	_ui.end_frame();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	if (_mode == Mode::Drama && _drama)
+		_drama->capture();
 }
 
 void Scene::update(float dt) {
@@ -145,6 +144,8 @@ void Scene::update(float dt) {
 		_script->update(dt);
 	} else if (_mode == Mode::Runtime && _runtime) {
 		_runtime->update(dt);
+	} else if (_mode == Mode::Drama && _drama) {
+		_drama->update(dt);
 	}
 }
 
