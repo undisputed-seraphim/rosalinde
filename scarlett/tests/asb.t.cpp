@@ -1,5 +1,6 @@
 #include <scarlett/asb.hpp>
 #include <scarlett/host.hpp>
+#include <scarlett/runtime.hpp>
 
 #include <criware/cpk.hpp>
 
@@ -236,4 +237,55 @@ TEST_CASE("decode, load and run a real script") {
 			if (std::abs(e.pos[0]) > 0.5f || std::abs(e.pos[1]) > 0.5f)
 				placed = true;
 	CHECK(placed);
+}
+
+TEST_CASE("runtime session advances a live scene") {
+	const std::filesystem::path cpk = find_cpk();
+	if (cpk.empty()) {
+		WARN("no Unicorn.CPK found (set UNICORN_CPK); skipping live runtime test");
+		return;
+	}
+
+	const std::string entry = "Script/Dr_OW_0_Opening.asb";
+	std::vector<uint8_t> bytes = extract_entry(cpk, entry);
+	REQUIRE_FALSE(bytes.empty());
+
+	asb::Module mod = asb::parse(bytes);
+	REQUIRE(mod.error.empty());
+
+	asb::Host host;
+	host.register_module(mod);
+	host.set_call_log([](const std::string&) {});
+	REQUIRE(host.load(bytes));
+
+	asIScriptFunction* fn = host.find_function({"scene00"});
+	REQUIRE(fn);
+
+	asb::RuntimeSession session(host, entry);
+	session.set_max_frames(5);
+	REQUIRE(session.start(fn));
+	CHECK(session.frame() == 0);
+	CHECK(session.scene().frame == 0);
+	CHECK_FALSE(session.scene().entities.empty());
+	CHECK(session.scene().find_entity(session.scene().entities.front().name));
+
+	const size_t initial = session.scene().entities.size();
+	for (int i = 1; i <= 3; ++i) {
+		const auto r = session.advance();
+		CHECK(r != asb::RuntimeSession::StepResult::Error);
+		CHECK(session.frame() == i);
+		CHECK(session.scene().frame == i);
+	}
+	CHECK(session.scene().entities.size() >= initial);
+	CHECK_FALSE(session.finished());
+
+	bool finished = session.finished();
+	while (!finished && !session.limit_reached()) {
+		const auto r = session.advance();
+		finished = r == asb::RuntimeSession::StepResult::Finished;
+		if (r == asb::RuntimeSession::StepResult::Error)
+			break;
+	}
+	CHECK(session.error().empty());
+	CHECK((session.finished() || session.limit_reached()));
 }

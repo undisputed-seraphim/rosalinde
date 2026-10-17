@@ -15,11 +15,15 @@ class asIScriptFunction;
 
 namespace asb {
 
+class RuntimeSession;
+
 // Hosts a decoded module inside a stock AngelScript 2.34 engine: it registers
 // the engine setup and the module's imports, loads the compiled bytecode and
 // runs scene functions. The imported natives are generic stubs for now.
 class Host {
 public:
+	friend class RuntimeSession;
+
 	Host();
 	~Host();
 	Host(const Host&) = delete;

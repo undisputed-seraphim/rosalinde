@@ -98,7 +98,6 @@ void Registry::reset(std::string source, std::string function) {
 	_timeline = Timeline{};
 	_timeline.source = std::move(source);
 	_timeline.function = std::move(function);
-	_entities.clear();
 	_by_name.clear();
 	_party.clear();
 	_slots.clear();
@@ -175,7 +174,6 @@ void Registry::reset(std::string source, std::string function) {
 	_battle_found_last.clear();
 	_partner_defs.clear();
 	_battle_unit_order.clear();
-	_camera = RuntimeCamera{};
 	_dirty = false;
 	_talk_move_back = false;
 	frame = 0;
@@ -300,11 +298,11 @@ int Registry::ensure(const std::string& name) {
 	auto it = _by_name.find(name);
 	if (it != _by_name.end())
 		return it->second;
-	int idx = static_cast<int>(_entities.size());
+	int idx = static_cast<int>(_timeline.entities.size());
 	RuntimeEntity e;
 	e.name = name;
 	e.order = idx;
-	_entities.push_back(std::move(e));
+	_timeline.entities.push_back(std::move(e));
 	if (!name.empty())
 		_by_name[name] = idx;
 	return idx;
@@ -326,7 +324,7 @@ void Registry::create_sprite(
 	if (scene_trace())
 		std::fprintf(stderr, "[vm f=%ld] create %-22s \"%s\" mbs=%s\n", frame, kind.c_str(), id.c_str(), mbs.c_str());
 	int idx = ensure(id);
-	auto& e = _entities[idx];
+	auto& e = _timeline.entities[idx];
 	e.kind = kind;
 	e.space = RuntimeEntity::Space::World;
 	if (!id.empty() && e.aliases.empty())
@@ -341,7 +339,7 @@ void Registry::create_sprite(
 	e.layer = layer;
 	if (plausible_scale(scale))
 		e.scale = scale;
-	_dirty = true;
+	mark_dirty();
 }
 
 void Registry::create_chara(const std::string& kind, const std::vector<std::string>& names) {
@@ -355,7 +353,7 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 		std::fprintf(stderr, "\n");
 	}
 	int idx = ensure(id);
-	auto& e = _entities[idx];
+	auto& e = _timeline.entities[idx];
 	e.kind = kind;
 	e.space = kind == "DrUiCreateChara" ? RuntimeEntity::Space::Ui : RuntimeEntity::Space::World;
 	// UI chara are created hidden and faded in later by DrUiSetColorA; world
@@ -388,7 +386,7 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 	}
 	for (const auto& n : names)
 		alias(idx, n);
-	_dirty = true;
+	mark_dirty();
 }
 
 bool Registry::construct_value(asIScriptGeneric* gen) {
@@ -905,7 +903,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	// see real values instead of the stub's zero.
 	if (name == "IsObjectExist" || name == "IsExistSprite") {
 		auto it = _by_name.find(read_string(gen, 0));
-		const bool exists = it != _by_name.end() && _entities[it->second].visible;
+		const bool exists = it != _by_name.end() && _timeline.entities[it->second].visible;
 		gen->SetReturnByte(exists ? 1 : 0);
 		return true;
 	}
@@ -915,7 +913,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		// engine does).
 		const std::string dn = read_string(gen, 0);
 		std::string res = "NONE";
-		for (const auto& e : _entities) {
+		for (const auto& e : _timeline.entities) {
 			if (!e.visible)
 				continue;
 			const bool is_chara =
@@ -1021,8 +1019,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "CameraMoveWait")
 		return true; // immediate: the recorded camera already reflects the move
 	if (name == "ClearCamera" || name == "DrClearCamera") {
-		_camera = RuntimeCamera{};
-		_dirty = true;
+		mark_dirty();
 		return true;
 	}
 	// Save/party getters with no script-side mutator. There is no save file and
@@ -1102,8 +1099,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "GetCameraPosV") {
 		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
 		if (r) {
-			r[0] = _camera.pos[0];
-			r[1] = _camera.pos[1];
+			r[0] = _timeline.camera.pos[0];
+			r[1] = _timeline.camera.pos[1];
 		}
 		return true;
 	}
@@ -1115,8 +1112,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			r[1] = 0.0f;
 			auto it = _by_name.find(read_string(gen, 0));
 			if (it != _by_name.end()) {
-				r[0] = _entities[it->second].pos[0];
-				r[1] = _entities[it->second].pos[1];
+				r[0] = _timeline.entities[it->second].pos[0];
+				r[1] = _timeline.entities[it->second].pos[1];
 			}
 		}
 		return true;
@@ -1136,7 +1133,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	auto V = [&](int i, float* o, int n) { read_vec(gen, i, o, n); };
 	auto ent = [&](int i) -> RuntimeEntity* {
 		auto it = _by_name.find(read_string(gen, i));
-		return it == _by_name.end() ? nullptr : &_entities[it->second];
+		return it == _by_name.end() ? nullptr : &_timeline.entities[it->second];
 	};
 
 	// --- Dialogue / text (Phase 4a). Scripts pass the message text literally,
@@ -1357,7 +1354,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			m.f0 = frame;
 			m.f1 = frame + std::max(1, I(2));
 			_moves[e->name] = m;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1377,7 +1374,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			m.f0 = frame;
 			m.f1 = frame + dur;
 			_moves[e->name] = m;
-			_dirty = true;
+			mark_dirty();
 			if (name == "DrMove") {
 				pending_wait = dur;
 				if (asIScriptContext* ctx = asGetActiveContext())
@@ -1405,8 +1402,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		if (RuntimeEntity* e = ent(0)) {
 			auto it = _by_name.find(S(1));
 			if (it != _by_name.end()) {
-				e->dir_x = _entities[it->second].pos[0] < e->pos[0] ? -1.0f : 1.0f;
-				_dirty = true;
+				e->dir_x = _timeline.entities[it->second].pos[0] < e->pos[0] ? -1.0f : 1.0f;
+				mark_dirty();
 			}
 		}
 		return true;
@@ -1528,7 +1525,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			e->pos[0] = p[0];
 			e->pos[1] = p[1];
 			e->pos[2] = p[2];
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1538,7 +1535,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "SetSpriteToAnchor") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->parent = S(1);
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1548,7 +1545,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			float s = F(1);
 			if (plausible_scale(s)) {
 				e->scale = s;
-				_dirty = true;
+				mark_dirty();
 			}
 		}
 		return true;
@@ -1559,7 +1556,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "SetSpriteMoneReverse") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->reverse = I(1) != 0;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1584,7 +1581,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 					e->name.c_str(),
 					e->track_index,
 					e->anim_paused ? 1 : 0);
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1593,7 +1590,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			e->track_index = I(1);
 			if (scene_trace())
 				std::fprintf(stderr, "[vm f=%ld] anim   \"%s\" track=%d\n", frame, e->name.c_str(), e->track_index);
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1614,7 +1611,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 					e->name.c_str(),
 					e->track.c_str(),
 					e->track_index);
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1622,7 +1619,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrUiSetDirX" || name == "SetSpriteDirX" || name == "DrSetDirX") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->dir_x = I(1) < 0 ? -1.0f : 1.0f;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1633,7 +1630,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrUiSetColorA" || name == "SetSpriteColorA" || name == "DrSetColorA" || name == "SetColorA") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->alpha = I(1) & 0xff;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1654,7 +1651,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 				std::fprintf(
 					stderr, "[vm f=%ld] delete %-22s \"%s\"\n", frame, std::string(name).c_str(), e->name.c_str());
 			e->visible = false;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1663,7 +1660,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
 		if (r)
 			for (int k = 0; k < 3; ++k)
-				r[k] = _camera.pos[k];
+				r[k] = _timeline.camera.pos[k];
 		return true;
 	}
 
@@ -1671,28 +1668,28 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		name == "SetCameraTargetPosVBySpeed") {
 		float p[3] = {0.0f, 0.0f, 0.0f};
 		V(0, p, 3);
-		_camera.pos[0] = p[0];
-		_camera.pos[1] = p[1];
-		_camera.pos[2] = p[2];
-		_camera.has_pos = true;
+		_timeline.camera.pos[0] = p[0];
+		_timeline.camera.pos[1] = p[1];
+		_timeline.camera.pos[2] = p[2];
+		_timeline.camera.has_pos = true;
 		if (name == "DrSetCameraPosV")
 			_camera_move_end = frame + std::max(0, I(1));
-		_dirty = true;
+		mark_dirty();
 		return true;
 	}
 	if (name == "DrSetCameraZoom") {
 		float z = F(0);
 		if (plausible_scale(z)) {
-			_camera.zoom = z;
-			_camera.has_zoom = true;
-			_dirty = true;
+			_timeline.camera.zoom = z;
+			_timeline.camera.has_zoom = true;
+			mark_dirty();
 		}
 		return true;
 	}
 	if (name == "DrSetCameraParam" || name == "SetCameraParam") {
-		_camera.accel = F(0);
-		_camera.decel = F(1);
-		_dirty = true;
+		_timeline.camera.accel = F(0);
+		_timeline.camera.decel = F(1);
+		mark_dirty();
 		return true;
 	}
 
@@ -1747,7 +1744,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 				e->layer_mask &= ~mask;
 			else
 				e->layer_mask |= mask;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1758,20 +1755,20 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		else
 			_variation &= ~mask;
 		_timeline.variations.push_back(VariationEvent{frame, _variation});
-		_dirty = true;
+		mark_dirty();
 		return true;
 	}
 	if (name == "DrSetBreathOff") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->breath_off = I(1) != 0;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
 	if (name == "DrSetLipSync") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->lipsync = I(1) != 0;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1784,7 +1781,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 				if (ti >= 0)
 					e->track_index = ti;
 			}
-			_dirty = true;
+			mark_dirty();
 			const long dur = _track_frames ? _track_frames(e->mbs, e->track_index) : 0;
 			if (dur > 0) {
 				pending_wait = dur;
@@ -1806,7 +1803,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			m.f0 = frame;
 			m.f1 = frame + std::max(1, I(3));
 			_moves[e->name] = m;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -1827,7 +1824,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			m.f0 = frame;
 			m.f1 = frame + std::max(1, dur);
 			_moves[e->name] = m;
-			_dirty = true;
+			mark_dirty();
 			if (name == "DrShortMove") {
 				pending_wait = std::max(1, dur);
 				if (asIScriptContext* ctx = asGetActiveContext())
@@ -1851,7 +1848,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			// TODO(anim): the arc is applied to pos[2]; the up axis is assumed.
 			m.arc = std::abs(height);
 			_moves[e->name] = m;
-			_dirty = true;
+			mark_dirty();
 			if (name == "DrJump") {
 				pending_wait = std::max(1, dur);
 				if (asIScriptContext* ctx = asGetActiveContext())
@@ -1861,22 +1858,22 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "DrTebureCamera") {
-		_camera.tebure = I(0) != 0;
-		_dirty = true;
+		_timeline.camera.tebure = I(0) != 0;
+		mark_dirty();
 		return true;
 	}
 	if (name == "DrResetCameraParam") {
-		_camera.accel = 0.0f;
-		_camera.decel = 0.0f;
-		_dirty = true;
+		_timeline.camera.accel = 0.0f;
+		_timeline.camera.decel = 0.0f;
+		mark_dirty();
 		return true;
 	}
 	if (name == "DrFollowCamera") {
 		if (RuntimeEntity* e = ent(0)) {
 			for (int k = 0; k < 3; ++k)
-				_camera.pos[k] = e->pos[k];
-			_camera.has_pos = true;
-			_dirty = true;
+				_timeline.camera.pos[k] = e->pos[k];
+			_timeline.camera.has_pos = true;
+			mark_dirty();
 		}
 		const long wait = std::max(0, I(2));
 		if (wait > 0) {
@@ -1966,32 +1963,32 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "SetDemoCameraPosY") {
 		// TODO(demo-camera): the value is an absolute Y (FlDemoCameraStart); apply
 		// it to the recorded camera, but the engine may layer it differently.
-		_camera.demo_y = F(0);
-		_camera.pos[1] = F(0);
-		_dirty = true;
+		_timeline.camera.demo_y = F(0);
+		_timeline.camera.pos[1] = F(0);
+		mark_dirty();
 		return true;
 	}
 	if (name == "ResetDemoCameraPosY") {
-		_camera.demo_y = 0.0f;
-		_dirty = true;
+		_timeline.camera.demo_y = 0.0f;
+		mark_dirty();
 		return true;
 	}
 	if (name == "ResetDemoCameraPosXZ") {
-		_camera.demo_xz[0] = _camera.demo_xz[1] = 0.0f;
-		_dirty = true;
+		_timeline.camera.demo_xz[0] = _timeline.camera.demo_xz[1] = 0.0f;
+		mark_dirty();
 		return true;
 	}
 	if (name == "SetCameraDegreeOffset") {
-		_camera.degree_offset = F(0);
-		_dirty = true;
+		_timeline.camera.degree_offset = F(0);
+		mark_dirty();
 		return true;
 	}
 	if (name == "FollowCamera" || name == "FollowCameraBySpeed") {
 		if (RuntimeEntity* e = ent(0)) {
 			for (int k = 0; k < 3; ++k)
-				_camera.pos[k] = e->pos[k];
-			_camera.has_pos = true;
-			_dirty = true;
+				_timeline.camera.pos[k] = e->pos[k];
+			_timeline.camera.has_pos = true;
+			mark_dirty();
 		}
 		const long wait = std::max(0, I(2));
 		if (wait > 0) {
@@ -2004,7 +2001,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "FollowDirClear") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->dir_x = 1.0f;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -2016,8 +2013,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "ResetCameraParam") {
-		_camera.accel = _camera.decel = 0.0f;
-		_dirty = true;
+		_timeline.camera.accel = _timeline.camera.decel = 0.0f;
+		mark_dirty();
 		return true;
 	}
 	if (name == "DrCameraStop") {
@@ -2025,8 +2022,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "DrWaveCamera") {
-		_camera.wave = I(0) != 0;
-		_dirty = true;
+		_timeline.camera.wave = I(0) != 0;
+		mark_dirty();
 		return true;
 	}
 	if (name == "DrResetCameraZoomParam")
@@ -2044,7 +2041,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 				dst->mbs = src->mbs;
 				dst->ftx = src->ftx;
 				dst->kind = src->kind;
-				_dirty = true;
+				mark_dirty();
 			}
 		}
 		return true;
@@ -2085,7 +2082,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			m.f0 = frame;
 			m.f1 = frame + std::max(1, I(time_arg));
 			_moves[e->name] = m;
-			_dirty = true;
+			mark_dirty();
 			pending_wait = m.f1 - frame;
 			if (asIScriptContext* ctx = asGetActiveContext())
 				ctx->Suspend();
@@ -2274,35 +2271,35 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrSetShadowOff") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->shadow_off = I(1) != 0;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
 	if (name == "DrSetSortIDOffset") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->sort_id_offset = I(1);
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
 	if (name == "DrSetDLPrio") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->dlprio = I(1);
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
 	if (name == "DrSetWindowIDOffset") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->window_id_offset = I(1);
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
 	if (name == "DrSetPrerenderOnForce") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->prerender_force = I(1) != 0;
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -2310,7 +2307,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		if (RuntimeEntity* e = ent(0)) {
 			for (int k = 0; k < 4; ++k)
 				e->color[k] = I(1 + k);
-			_dirty = true;
+			mark_dirty();
 		}
 		return true;
 	}
@@ -2779,7 +2776,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		if (obj.empty())
 			return nullptr;
 		const int idx = ensure(obj);
-		auto& e = _entities[idx];
+		auto& e = _timeline.entities[idx];
 		e.kind = kind;
 		e.space = RuntimeEntity::Space::World;
 		alias(idx, obj);
@@ -2817,16 +2814,16 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			e.pos[0] = pos[0];
 			e.pos[1] = pos[1];
 		}
-		_dirty = true;
+		mark_dirty();
 		return &e;
 	};
 
 	// Field state / clock / weather.
-	if (name == "FlSetState") { if (auto* e = ent(0)) { e->state = I(1); _dirty = true; } return true; }
+	if (name == "FlSetState") { if (auto* e = ent(0)) { e->state = I(1); mark_dirty(); } return true; }
 	if (name == "FlGetState") { auto* e = ent(0); gen->SetReturnDWord(e ? static_cast<asDWORD>(e->state) : 0); return true; }
-	if (name == "FlAddState") { if (auto* e = ent(0)) { e->state |= I(1); _dirty = true; } return true; }
-	if (name == "FlSetStateIcon") { if (auto* e = ent(0)) { e->state_icon = I(1); _dirty = true; } return true; }
-	if (name == "FlClearStateIcon") { if (auto* e = ent(0)) { e->state_icon = 0; _dirty = true; } return true; }
+	if (name == "FlAddState") { if (auto* e = ent(0)) { e->state |= I(1); mark_dirty(); } return true; }
+	if (name == "FlSetStateIcon") { if (auto* e = ent(0)) { e->state_icon = I(1); mark_dirty(); } return true; }
+	if (name == "FlClearStateIcon") { if (auto* e = ent(0)) { e->state_icon = 0; mark_dirty(); } return true; }
 	if (name == "FlSetClock") { _clock_hour = I(0); _clock_minute = I(1); _clock_second = I(2); push_field("clock", {}, {}, _clock_hour, _clock_minute, _clock_second, 0.0f, nullptr, false); return true; }
 	if (name == "FlSetClockHour") { _clock_hour = I(0); push_field("clock", {}, {}, _clock_hour, _clock_minute, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlSetClockMinute") { _clock_minute = I(0); push_field("clock", {}, {}, _clock_hour, _clock_minute, 0, 0.0f, nullptr, false); return true; }
@@ -2857,22 +2854,22 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			r[0] = r[1] = 0.0f;
 			auto it = _by_name.find(_player_symbol);
 			if (it != _by_name.end()) {
-				r[0] = _entities[it->second].pos[0];
-				r[1] = _entities[it->second].pos[1];
+				r[0] = _timeline.entities[it->second].pos[0];
+				r[1] = _timeline.entities[it->second].pos[1];
 			}
 		}
 		return true;
 	}
 	if (name == "FlChangeCharaSymbolPlayer") { _player_symbol = S(0); return true; }
 	if (name == "FlBackHomeSymbol") { push_field("back_home", S(0), {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
-	if (name == "FlPauseSymbol") { if (auto* e = ent(0)) { e->paused = true; _dirty = true; } return true; }
-	if (name == "FlUnpauseSymbol") { if (auto* e = ent(0)) { e->paused = false; _dirty = true; } return true; }
+	if (name == "FlPauseSymbol") { if (auto* e = ent(0)) { e->paused = true; mark_dirty(); } return true; }
+	if (name == "FlUnpauseSymbol") { if (auto* e = ent(0)) { e->paused = false; mark_dirty(); } return true; }
 	// TODO(field): auto-facing on movement is not simulated; state is retained.
-	if (name == "FlSetAutoDirOff") { if (auto* e = ent(0)) { e->auto_dir_off = I(1) != 0; _dirty = true; } return true; }
-	if (name == "FlSetAnimation") { if (auto* e = ent(0)) { e->track_index = I(1); e->reverse = I(2) != 0; _dirty = true; } return true; }
-	if (name == "FlSetReverseX") { if (auto* e = ent(0)) { e->reverse_x = I(1) != 0; _dirty = true; } return true; }
-	if (name == "FlSetHeight") { if (auto* e = ent(0)) { e->height = F(1); _dirty = true; } return true; }
-	if (name == "FlEmote") { if (auto* e = ent(0)) { e->emote = I(1); _dirty = true; } push_field("emote", S(0), {}, I(1), I(2), 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlSetAutoDirOff") { if (auto* e = ent(0)) { e->auto_dir_off = I(1) != 0; mark_dirty(); } return true; }
+	if (name == "FlSetAnimation") { if (auto* e = ent(0)) { e->track_index = I(1); e->reverse = I(2) != 0; mark_dirty(); } return true; }
+	if (name == "FlSetReverseX") { if (auto* e = ent(0)) { e->reverse_x = I(1) != 0; mark_dirty(); } return true; }
+	if (name == "FlSetHeight") { if (auto* e = ent(0)) { e->height = F(1); mark_dirty(); } return true; }
+	if (name == "FlEmote") { if (auto* e = ent(0)) { e->emote = I(1); mark_dirty(); } push_field("emote", S(0), {}, I(1), I(2), 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlIsSymbolInCircle") {
 		float p[2] = {0.0f, 0.0f};
 		V(1, p, 2);
@@ -2901,16 +2898,16 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			m.f0 = frame;
 			m.f1 = frame + std::max(1, static_cast<int>(std::ceil(dist / 2.0f)));
 			_moves[e->name] = m;
-			_dirty = true;
+			mark_dirty();
 		}
 		push_field("symbol_move", S(0), {}, 0, 0, 0, 0.0f, p, false);
 		return true;
 	}
 	if (name == "FlAddSymbolAiMoveWait") { push_field("symbol_wait", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
-	if (name == "FlAddSymbolAiMoveTurn") { if (auto* e = ent(0)) { e->dir_x = I(1) >= 0 ? 1.0f : -1.0f; _dirty = true; } return true; }
+	if (name == "FlAddSymbolAiMoveTurn") { if (auto* e = ent(0)) { e->dir_x = I(1) >= 0 ? 1.0f : -1.0f; mark_dirty(); } return true; }
 	if (name == "FlSetMoveAiPatRolType") { push_field("symbol_ai", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
 	// TODO(field): consume ai_paused once field AI/movement exists.
-	if (name == "FlSetMoveAiPermissionInDemo") { if (auto* e = ent(0)) { e->ai_paused = I(1) == 0; _dirty = true; } return true; }
+	if (name == "FlSetMoveAiPermissionInDemo") { if (auto* e = ent(0)) { e->ai_paused = I(1) == 0; mark_dirty(); } return true; }
 	if (name == "FlSetDemoMoveSpeed") { push_field("demo_speed", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
 
 	// Field objects / regions / portals.
@@ -2935,7 +2932,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "FlDeleteEnemy" || name == "FlDelRegionChaseEnemy" || name == "FlDeleteTalkPoint") {
-		if (auto* e = ent(0)) { e->visible = false; _dirty = true; }
+		if (auto* e = ent(0)) { e->visible = false; mark_dirty(); }
 		return true;
 	}
 	if (name == "FlDeleteEnemyNotify") return true;
@@ -3013,7 +3010,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "FlSetFacilityDisable") { push_field("facility_disable", S(0), {}, 0, 0, 0, 0.0f, nullptr, I(1) != 0); return true; }
-	if (name == "FlSetSearchFlag") { if (auto* e = ent(0)) { e->search_flag = I(1) != 0; _dirty = true; } return true; }
+	if (name == "FlSetSearchFlag") { if (auto* e = ent(0)) { e->search_flag = I(1) != 0; mark_dirty(); } return true; }
 	if (name == "FlOnlyOneTownLvMax") { _town_lv[S(0)] = 99; push_field("town_max", S(0), {}, 99, 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlAllTownLvMax") { for (auto& [k, v] : _town_lv) v = 99; push_field("town_max_all", {}, {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlAddTownLvUpEvent") {
@@ -3173,7 +3170,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 
 	if (name == "StDbClearStage") { push_field("st_db_clear", S(0), {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "StGetStageStartParam") { gen->SetReturnDWord(static_cast<asDWORD>(_stage_start_param)); return true; }
-	if (name == "SetUnitDirAsync") { if (auto* e = ent(0)) { e->dir_x = I(1) >= 0 ? 1.0f : -1.0f; _dirty = true; } return true; }
+	if (name == "SetUnitDirAsync") { if (auto* e = ent(0)) { e->dir_x = I(1) >= 0 ? 1.0f : -1.0f; mark_dirty(); } return true; }
 	if (name == "StopShakeFadeoutAll") { for (auto& sh : _timeline.shakes) if (sh.end > frame) sh.end = frame; return true; }
 	if (name == "IsVeryHardDie") { gen->SetReturnByte(0); return true; }
 	if (name == "DeleteVeryHardDie") return true;
@@ -3213,8 +3210,8 @@ void Registry::push_fade(const float* to, long time) {
 
 long Registry::fade_end() const { return _timeline.fades.empty() ? 0 : _timeline.fades.back().end; }
 
-void Registry::flush_keyframe() {
-	// Advance active movement tweens, driving the entity positions.
+void Registry::advance() {
+	_timeline.frame = frame;
 	for (auto it = _moves.begin(); it != _moves.end();) {
 		auto bi = _by_name.find(it->first);
 		if (bi == _by_name.end()) {
@@ -3225,23 +3222,27 @@ void Registry::flush_keyframe() {
 		const float t = m.f1 > m.f0
 							? std::clamp(static_cast<float>(frame - m.f0) / static_cast<float>(m.f1 - m.f0), 0.0f, 1.0f)
 							: 1.0f;
-		float* p = _entities[bi->second].pos;
+		float* p = _timeline.entities[bi->second].pos;
 		for (int k = 0; k < 3; ++k)
 			p[k] = m.from[k] + (m.to[k] - m.from[k]) * t;
 		if (m.arc != 0.0f)
 			p[2] += m.arc * 4.0f * t * (1.0f - t);
-		_dirty = true;
+		mark_dirty();
 		if (frame >= m.f1)
 			it = _moves.erase(it);
 		else
 			++it;
 	}
+}
+
+void Registry::flush_keyframe() {
+	advance();
 	if (!_dirty && !_timeline.keyframes.empty())
 		return;
 	Keyframe k;
 	k.frame = frame;
-	k.entities = _entities;
-	k.camera = _camera;
+	k.entities = _timeline.entities;
+	k.camera = _timeline.camera;
 	_timeline.keyframes.push_back(std::move(k));
 	_dirty = false;
 }

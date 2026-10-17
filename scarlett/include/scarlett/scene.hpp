@@ -1,7 +1,9 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace asb {
@@ -248,10 +250,15 @@ struct Keyframe {
 	RuntimeCamera camera;
 };
 
-struct Timeline {
+// Live scene state owned by the runtime. The native shim mutates this in place;
+// renderers and tools read it. `Timeline` adds the offline keyframe recording.
+struct SceneState {
 	std::string source;
 	std::string function;
-	std::vector<Keyframe> keyframes;
+	long frame = 0;
+	uint64_t revision = 0;
+	std::vector<RuntimeEntity> entities;
+	RuntimeCamera camera;
 	std::vector<ScreenFade> fades;
 	std::vector<StageConfig> stages;
 	std::vector<RuntimeText> texts;
@@ -267,6 +274,21 @@ struct Timeline {
 	std::vector<RuntimeGradient> gradients;
 	std::vector<RuntimeUi> ui;
 	std::vector<RuntimeField> field;
+
+	const RuntimeEntity* find_entity(std::string_view name) const {
+		for (const auto& e : entities) {
+			if (e.name == name)
+				return &e;
+			for (const auto& a : e.aliases)
+				if (a == name)
+					return &e;
+		}
+		return nullptr;
+	}
+};
+
+struct Timeline : SceneState {
+	std::vector<Keyframe> keyframes;
 };
 
 // Overlay colour (linear RGBA) produced by the fades list at `frame`.

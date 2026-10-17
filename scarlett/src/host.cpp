@@ -1,4 +1,5 @@
 #include <scarlett/host.hpp>
+#include <scarlett/runtime.hpp>
 
 #include "registry.hpp"
 
@@ -615,84 +616,174 @@ void Host::set_drop_tables(const DropTables& drops) { _impl->drops = &drops; }
 
 void Host::set_sound_length(std::function<int(int)> fn) { _impl->sound_length = std::move(fn); }
 
-Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
-	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
-
+struct RuntimeSession::Impl {
+	asIScriptEngine* engine = nullptr;
+	asIScriptModule* module = nullptr;
+	asIScriptContext* ctx = nullptr;
 	Registry reg;
-	reg.set_char_table(_impl->chars);
-	if (_impl->chara_sets)
-		reg.set_chara_set_table(_impl->chara_sets);
-	if (_impl->track_frames)
-		reg.set_track_frames(_impl->track_frames);
-	if (_impl->resolve_track)
-		reg.set_resolve_track(_impl->resolve_track);
-	if (_impl->facility_name)
-		reg.set_facility_name(_impl->facility_name);
-	if (_impl->stages)
-		reg.set_stage_table(*_impl->stages);
-	if (_impl->drops)
-		reg.set_drop_tables(*_impl->drops);
-	if (_impl->sound_length)
-		reg.set_sound_length(_impl->sound_length);
-	reg.reset(std::move(source), fn ? fn->GetName() : "");
-	reg.set_module(_impl->module);
-	g_scene_registry = &reg;
-
-	asIScriptContext* ctx = _impl->engine->CreateContext();
-	ctx->Prepare(fn);
-
-	unsigned long steps = 0;
-	ctx->SetLineCallback(asFUNCTION(AbortCallback), &steps, asCALL_CDECL);
-
-	long frame = 0;
+	std::function<void(const std::string&)> call_log;
 	long wake = 0;
-	bool done = false;
+	unsigned long steps = 0;
+};
 
-	auto burst = [&]() {
-		reg.frame = frame;
-		steps = 0;
-		int er = ctx->Execute();
-		if (er == asEXECUTION_SUSPENDED) {
-			wake = frame + std::max(1L, reg.pending_wait);
-		} else {
-			done = true;
-			if (er != asEXECUTION_FINISHED) {
-				std::fprintf(stderr, "[as] run r=%d\n", er);
-				if (er == asEXECUTION_EXCEPTION) {
-					std::fprintf(stderr, "[as] exception: %s\n", ctx->GetExceptionString());
-					if (asIScriptFunction* ef = ctx->GetExceptionFunction())
-						std::fprintf(
-							stderr,
-							"[as]   in %s line %d\n",
-							ef->GetDeclaration(),
-							ctx->GetExceptionLineNumber());
-				}
+RuntimeSession::RuntimeSession(Host& host, std::string source)
+	: _host(host)
+	, _source(std::move(source))
+	, _impl(std::make_unique<Impl>()) {
+	auto* h = host._impl;
+	_impl->engine = h->engine;
+	_impl->module = h->module;
+	_impl->call_log = h->call_log;
+	if (h->chars)
+		_impl->reg.set_char_table(h->chars);
+	if (h->chara_sets)
+		_impl->reg.set_chara_set_table(h->chara_sets);
+	if (h->track_frames)
+		_impl->reg.set_track_frames(h->track_frames);
+	if (h->resolve_track)
+		_impl->reg.set_resolve_track(h->resolve_track);
+	if (h->facility_name)
+		_impl->reg.set_facility_name(h->facility_name);
+	if (h->stages)
+		_impl->reg.set_stage_table(*h->stages);
+	if (h->drops)
+		_impl->reg.set_drop_tables(*h->drops);
+	if (h->sound_length)
+		_impl->reg.set_sound_length(h->sound_length);
+}
+
+RuntimeSession::~RuntimeSession() {
+	if (_impl && _impl->ctx)
+		_impl->ctx->Release();
+}
+
+bool RuntimeSession::start(asIScriptFunction* fn) {
+	if (!fn) {
+		_error = "null entry function";
+		return false;
+	}
+	if (_impl->ctx) {
+		_impl->ctx->Release();
+		_impl->ctx = nullptr;
+	}
+	_fn = fn;
+	_impl->ctx = _impl->engine->CreateContext();
+	if (!_impl->ctx) {
+		_error = "could not create script context";
+		return false;
+	}
+	_impl->reg.reset(_source, fn->GetName());
+	_impl->reg.set_module(_impl->module);
+	_impl->reg.set_frame(0);
+	_impl->wake = 0;
+	_impl->steps = 0;
+	_impl->ctx->Prepare(fn);
+	_impl->ctx->SetLineCallback(asFUNCTION(AbortCallback), &_impl->steps, asCALL_CDECL);
+	_frame = 0;
+	_started = true;
+	_finished = false;
+	_limit = false;
+	_error.clear();
+	burst();
+	return _error.empty();
+}
+
+void RuntimeSession::burst() {
+	_impl->reg.set_frame(_frame);
+	_impl->steps = 0;
+	g_scene_registry = &_impl->reg;
+	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
+	const int er = _impl->ctx->Execute();
+	if (er == asEXECUTION_SUSPENDED) {
+		_impl->wake = _frame + std::max(1L, _impl->reg.pending_wait);
+	} else {
+		_finished = true;
+		if (er != asEXECUTION_FINISHED) {
+			char buf[128];
+			std::snprintf(buf, sizeof(buf), "script execution failed (%d)", er);
+			_error = buf;
+			std::fprintf(stderr, "[as] run r=%d\n", er);
+			if (er == asEXECUTION_EXCEPTION) {
+				std::fprintf(
+					stderr,
+					"[as] exception: %s\n",
+					_impl->ctx->GetExceptionString());
+				if (asIScriptFunction* ef = _impl->ctx->GetExceptionFunction())
+					std::fprintf(
+						stderr,
+						"[as]   in %s line %d\n",
+						ef->GetDeclaration(),
+						_impl->ctx->GetExceptionLineNumber());
 			}
 		}
-		reg.pending_wait = -1;
-		reg.flush_keyframe();
-	};
+	}
+	_impl->reg.pending_wait = -1;
+	if (_record_keyframes)
+		_impl->reg.flush_keyframe();
+	g_scene_registry = nullptr;
+	g_call_log = nullptr;
+}
 
-	burst();
-	while (!done) {
-		long next = std::max(wake, frame + 1);
-		if (next > max_frames)
-			break;
-		frame = next;
-		burst();
+RuntimeSession::StepResult RuntimeSession::advance() {
+	if (!_started) {
+		_error = "runtime session not started";
+		return StepResult::Error;
+	}
+	if (_finished)
+		return StepResult::Finished;
+	if (_limit)
+		return StepResult::Limit;
+	if (_frame >= _max_frames) {
+		_limit = true;
+		return StepResult::Limit;
 	}
 
+	++_frame;
+	_impl->reg.set_frame(_frame);
+	_impl->reg.advance();
+	if (_frame >= _impl->wake && !_finished)
+		burst();
+
+	if (_finished)
+		return StepResult::Finished;
+	if (_limit)
+		return StepResult::Limit;
+	return StepResult::Advanced;
+}
+
+const SceneState& RuntimeSession::scene() const { return _impl->reg.state(); }
+
+Timeline RuntimeSession::take_timeline() { return std::move(_impl->reg.timeline()); }
+
+asIScriptFunction* RuntimeSession::resolve_callback(std::string_view name) const {
+	return _impl->reg.resolve_callback(name);
+}
+
+Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
+	RuntimeSession session(*this, std::move(source));
+	session.set_max_frames(max_frames);
+	session.set_record_keyframes(true);
+	if (!session.start(fn)) {
+		std::fprintf(stderr, "[as] run failed: %s\n", session.error().c_str());
+		return Timeline{};
+	}
+	while (!session.finished() && !session.limit_reached()) {
+		if (session.advance() == RuntimeSession::StepResult::Error)
+			break;
+	}
+
+	Timeline tl = session.take_timeline();
 	std::fprintf(
 		stderr,
 		"[as] run %s: %zu keyframe(s), %zu entit(ies), last frame %ld\n",
 		fn ? fn->GetName() : "?",
-		reg.timeline().keyframes.size(),
-		reg.timeline().keyframes.empty() ? 0 : reg.timeline().keyframes.back().entities.size(),
-		frame);
+		tl.keyframes.size(),
+		tl.keyframes.empty() ? 0 : tl.keyframes.back().entities.size(),
+		session.frame());
 
 	if (std::getenv("ASB_CALLBACKS")) {
-		for (const auto& cb : reg.timeline().callbacks) {
-			asIScriptFunction* fn = reg.resolve_callback(cb.function);
+		for (const auto& cb : tl.callbacks) {
+			asIScriptFunction* cbf = session.resolve_callback(cb.function);
 			std::fprintf(
 				stderr,
 				"[callback] %s key=\"%s\"%s%s -> %s (%s; dispatch deferred)\n",
@@ -701,14 +792,13 @@ Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 				cb.slot.empty() ? "" : " slot=",
 				cb.slot.c_str(),
 				cb.function.c_str(),
-				fn ? "resolved" : "MISSING");
+				cbf ? "resolved" : "MISSING");
 		}
 	}
 
 	g_scene_registry = nullptr;
 	g_call_log = nullptr;
-	ctx->Release();
-	return std::move(reg.timeline());
+	return tl;
 }
 
 Timeline run_module(
