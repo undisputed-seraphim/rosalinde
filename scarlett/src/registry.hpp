@@ -134,6 +134,9 @@ private:
 	bool _skip_mode = false;	  // IsSkipMode / CancelSkipMode
 	long _camera_move_end = 0;	  // DrCameraMoveWait
 	int _shake_seq = 0;			  // DrSetShake handle counter
+	float _follow_offset[2] = {0.0f, 0.0f}; // FollowOffsetV
+	bool _balcony_bru = false;	  // DrEnableBalconyFlagBRU / DrGetBalconyFlagBRU
+	bool _balcony_scr = false;	  // DrEnableBalconyFlagSCR / DrGetBalconyFlagSCR
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;
 	Timeline _timeline;

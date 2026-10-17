@@ -31,6 +31,12 @@ struct RuntimeEntity {
 	unsigned layer_mask = 0xFFFFFFFFu; // DrSetLayerMask: visible layer bits
 	bool breath_off = false;		   // DrSetBreathOff
 	bool lipsync = false;			   // DrSetLipSync
+	bool shadow_off = false;		   // DrSetShadowOff
+	int sort_id_offset = 0;			   // DrSetSortIDOffset
+	int dlprio = 0;					   // DrSetDLPrio
+	int window_id_offset = 0;		   // DrSetWindowIDOffset
+	bool prerender_force = false;	   // DrSetPrerenderOnForce
+	int color[4] = {-1, -1, -1, -1};   // DrSetCharaColor (common/hair/main/sub)
 	int order = 0;
 	Space space = Space::World;
 	std::string parent; // SetSpriteToAnchor target (empty = none); pos is relative
@@ -43,7 +49,11 @@ struct RuntimeCamera {
 	bool has_zoom = false;
 	float accel = 0.0f;
 	float decel = 0.0f;
-	bool tebure = false; // DrTebureCamera (hand-held offset; rendering deferred)
+	bool tebure = false;	   // DrTebureCamera (hand-held offset; rendering deferred)
+	bool wave = false;		   // DrWaveCamera
+	float demo_y = 0.0f;	   // SetDemoCameraPosY / ResetDemoCameraPosY
+	float demo_xz[2] = {0.0f, 0.0f}; // ResetDemoCameraPosXZ
+	float degree_offset = 0.0f;		 // SetCameraDegreeOffset
 };
 
 // A whole-screen colour fade (CrossFadeAsync/ColorFadeAsync). The overlay
@@ -112,6 +122,78 @@ struct VariationEvent {
 	unsigned mask = 0;
 };
 
+// Record-only effect spawn/mutation (DrCreateEffect/DrSetEffect*/DrMoveEffect/
+// DrScaleEffect/DrRotateEffect). Rendering is Phase 8.
+struct RuntimeEffect {
+	long frame = 0;
+	std::string kind;
+	std::string name;
+	std::string mbs;
+	std::string ftx;
+	std::string attached;
+	int anime = 0;
+	float pos[3] = {0.0f, 0.0f, 0.0f};
+	int i0 = 0, i1 = 0, i2 = 0;
+	float f0 = 0.0f;
+	bool flag = false;
+};
+
+struct RuntimePointLight {
+	long frame = 0;
+	bool remove = false;
+	std::string name;
+	float pos[3] = {0.0f, 0.0f, 0.0f};
+	unsigned char light[4] = {0, 0, 0, 0};
+	unsigned char shadow[4] = {0, 0, 0, 0};
+	unsigned char godray[4] = {0, 0, 0, 0};
+	float power = 0.0f;
+	float bloom = 0.0f;
+	float f2 = 0.0f, f3 = 0.0f, f4 = 0.0f, f5 = 0.0f;
+	std::string attached;
+	int index = 0;
+};
+
+// Record-only audio event (BGM/SE/voice/ambience/volume). No playback.
+struct RuntimeAudio {
+	long frame = 0;
+	std::string kind;
+	int cue = 0;
+	std::string target;
+	int fade = 0;
+	int wait = 0;
+	int index = -1;
+	float volume = 0.0f;
+};
+
+// Item/treasure record. The inventory count side is Phase 6; the dialog popup
+// is Phase 5C; this is the event itself.
+struct RuntimeItem {
+	long frame = 0;
+	std::string kind;
+	std::string object;
+	std::string item;
+	int id = 0;
+	int count = 0;
+	float pos[2] = {0.0f, 0.0f};
+	bool dialog = false;
+	std::string callback;
+	int add[8] = {0};
+	int add_count = 0;
+};
+
+struct RuntimeFog {
+	long frame = 0;
+	std::string name;
+	unsigned char color[4] = {0, 0, 0, 0};
+};
+
+struct RuntimeGradient {
+	long frame = 0;
+	int index = 0;
+	float rate = 0.0f;
+	int time = 0;
+};
+
 // The whole scene at one frame. Only emitted when something changed.
 struct Keyframe {
 	long frame = 0;
@@ -129,6 +211,12 @@ struct Timeline {
 	std::vector<RuntimeShake> shakes;
 	std::vector<RuntimeBokashi> bokashi;
 	std::vector<VariationEvent> variations;
+	std::vector<RuntimeEffect> effects;
+	std::vector<RuntimePointLight> point_lights;
+	std::vector<RuntimeAudio> audio;
+	std::vector<RuntimeItem> items;
+	std::vector<RuntimeFog> fog;
+	std::vector<RuntimeGradient> gradients;
 };
 
 // Overlay colour (linear RGBA) produced by the fades list at `frame`.

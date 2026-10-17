@@ -77,7 +77,8 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 		std::fprintf(
 			out,
 			"\t\t\t\"camera\": {\"pos\": [%g, %g, %g], \"has_pos\": %s, \"zoom\": %g, \"has_zoom\": %s, "
-			"\"accel\": %g, \"decel\": %g, \"tebure\": %s},\n",
+			"\"accel\": %g, \"decel\": %g, \"tebure\": %s, \"wave\": %s, \"demo_y\": %g, "
+			"\"degree_offset\": %g},\n",
 			f.camera.pos[0],
 			f.camera.pos[1],
 			f.camera.pos[2],
@@ -86,7 +87,10 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 			f.camera.has_zoom ? "true" : "false",
 			f.camera.accel,
 			f.camera.decel,
-			f.camera.tebure ? "true" : "false");
+			f.camera.tebure ? "true" : "false",
+			f.camera.wave ? "true" : "false",
+			f.camera.demo_y,
+			f.camera.degree_offset);
 		std::fprintf(out, "\t\t\t\"entities\": [\n");
 		for (size_t i = 0; i < f.entities.size(); ++i) {
 			const asb::RuntimeEntity& e = f.entities[i];
@@ -102,6 +106,8 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 				"\"track\": \"%s\", "
 				"\"track_index\": %d, \"pos\": [%g, %g, %g], \"scale\": %g, \"dir_x\": %g, \"alpha\": %d, "
 				"\"layer\": %d, \"visible\": %s, \"layer_mask\": %u, \"breath_off\": %s, \"lipsync\": %s, "
+				"\"shadow_off\": %s, \"sort_id_offset\": %d, \"dlprio\": %d, \"window_id_offset\": %d, "
+				"\"prerender_force\": %s, \"color\": [%d, %d, %d, %d], "
 				"\"order\": %d, \"aliases\": [%s]}%s\n",
 				e.name.c_str(),
 				e.kind.c_str(),
@@ -121,6 +127,12 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 				e.layer_mask,
 				e.breath_off ? "true" : "false",
 				e.lipsync ? "true" : "false",
+				e.shadow_off ? "true" : "false",
+				e.sort_id_offset,
+				e.dlprio,
+				e.window_id_offset,
+				e.prerender_force ? "true" : "false",
+				e.color[0], e.color[1], e.color[2], e.color[3],
 				e.order,
 				aliases.c_str(),
 				i + 1 < f.entities.size() ? "," : "");
@@ -224,6 +236,137 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 		const asb::VariationEvent& v = tl.variations[i];
 		std::fprintf(
 			out, "\t\t{\"frame\": %ld, \"mask\": %u}%s\n", v.frame, v.mask, i + 1 < tl.variations.size() ? "," : "");
+	}
+	std::fprintf(out, "\t],\n\t\"effects\": [\n");
+	for (size_t i = 0; i < tl.effects.size(); ++i) {
+		const asb::RuntimeEffect& e = tl.effects[i];
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"kind\": \"%s\", \"name\": \"%s\", \"mbs\": \"%s\", \"ftx\": \"%s\", "
+			"\"attached\": \"%s\", \"anime\": %d, \"pos\": [%g, %g, %g], \"i0\": %d, \"i1\": %d, \"i2\": %d, "
+			"\"f0\": %g, \"flag\": %s}%s\n",
+			e.frame,
+			json_escape(e.kind).c_str(),
+			json_escape(e.name).c_str(),
+			json_escape(e.mbs).c_str(),
+			json_escape(e.ftx).c_str(),
+			json_escape(e.attached).c_str(),
+			e.anime,
+			e.pos[0],
+			e.pos[1],
+			e.pos[2],
+			e.i0,
+			e.i1,
+			e.i2,
+			e.f0,
+			e.flag ? "true" : "false",
+			i + 1 < tl.effects.size() ? "," : "");
+	}
+	std::fprintf(out, "\t],\n\t\"point_lights\": [\n");
+	for (size_t i = 0; i < tl.point_lights.size(); ++i) {
+		const asb::RuntimePointLight& l = tl.point_lights[i];
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"remove\": %s, \"name\": \"%s\", \"pos\": [%g, %g, %g], "
+			"\"light\": [%u, %u, %u, %u], \"shadow\": [%u, %u, %u, %u], \"godray\": [%u, %u, %u, %u], "
+			"\"power\": %g, \"bloom\": %g, \"f2\": %g, \"f3\": %g, \"f4\": %g, \"f5\": %g, "
+			"\"attached\": \"%s\", \"index\": %d}%s\n",
+			l.frame,
+			l.remove ? "true" : "false",
+			json_escape(l.name).c_str(),
+			l.pos[0],
+			l.pos[1],
+			l.pos[2],
+			l.light[0],
+			l.light[1],
+			l.light[2],
+			l.light[3],
+			l.shadow[0],
+			l.shadow[1],
+			l.shadow[2],
+			l.shadow[3],
+			l.godray[0],
+			l.godray[1],
+			l.godray[2],
+			l.godray[3],
+			l.power,
+			l.bloom,
+			l.f2,
+			l.f3,
+			l.f4,
+			l.f5,
+			json_escape(l.attached).c_str(),
+			l.index,
+			i + 1 < tl.point_lights.size() ? "," : "");
+	}
+	std::fprintf(out, "\t],\n\t\"audio\": [\n");
+	for (size_t i = 0; i < tl.audio.size(); ++i) {
+		const asb::RuntimeAudio& a = tl.audio[i];
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"kind\": \"%s\", \"cue\": %d, \"target\": \"%s\", \"fade\": %d, "
+			"\"wait\": %d, \"index\": %d, \"volume\": %g}%s\n",
+			a.frame,
+			json_escape(a.kind).c_str(),
+			a.cue,
+			json_escape(a.target).c_str(),
+			a.fade,
+			a.wait,
+			a.index,
+			a.volume,
+			i + 1 < tl.audio.size() ? "," : "");
+	}
+	std::fprintf(out, "\t],\n\t\"items\": [\n");
+	for (size_t i = 0; i < tl.items.size(); ++i) {
+		const asb::RuntimeItem& it = tl.items[i];
+		std::string add;
+		for (int k = 0; k < it.add_count; ++k) {
+			if (k)
+				add += ", ";
+			add += std::to_string(it.add[k]);
+		}
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"kind\": \"%s\", \"object\": \"%s\", \"item\": \"%s\", \"id\": %d, "
+			"\"count\": %d, \"pos\": [%g, %g], \"dialog\": %s, \"callback\": \"%s\", \"add\": [%s]}%s\n",
+			it.frame,
+			json_escape(it.kind).c_str(),
+			json_escape(it.object).c_str(),
+			json_escape(it.item).c_str(),
+			it.id,
+			it.count,
+			it.pos[0],
+			it.pos[1],
+			it.dialog ? "true" : "false",
+			json_escape(it.callback).c_str(),
+			add.c_str(),
+			i + 1 < tl.items.size() ? "," : "");
+	}
+	std::fprintf(out, "\t],\n\t\"fog\": [\n");
+	for (size_t i = 0; i < tl.fog.size(); ++i) {
+		const asb::RuntimeFog& f = tl.fog[i];
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"name\": \"%s\", \"color\": [%u, %u, %u, %u]}%s\n",
+			f.frame,
+			json_escape(f.name).c_str(),
+			f.color[0],
+			f.color[1],
+			f.color[2],
+			f.color[3],
+			i + 1 < tl.fog.size() ? "," : "");
+	}
+	std::fprintf(out, "\t],\n\t\"gradients\": [\n");
+	for (size_t i = 0; i < tl.gradients.size(); ++i) {
+		const asb::RuntimeGradient& g = tl.gradients[i];
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"index\": %d, \"rate\": %g, \"time\": %d}%s\n",
+			g.frame,
+			g.index,
+			g.rate,
+			g.time,
+			i + 1 < tl.gradients.size() ? "," : "");
 	}
 	std::fprintf(out, "\t]\n}\n");
 }
