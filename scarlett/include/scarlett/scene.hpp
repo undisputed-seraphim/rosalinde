@@ -55,6 +55,19 @@ struct RuntimeEntity {
 	std::string parent; // SetSpriteToAnchor target (empty = none); pos is relative
 };
 
+struct CameraTween {
+	bool active = false;
+	bool zoom_active = false;
+	long start_frame = 0;
+	long end_frame = 0;
+	float start_pos[3] = {0.0f, 0.0f, 0.0f};
+	float target_pos[3] = {0.0f, 0.0f, 0.0f};
+	float start_zoom = 1.0f;
+	float target_zoom = 1.0f;
+	float ease_in = 0.0f;
+	float ease_out = 0.0f;
+};
+
 struct RuntimeCamera {
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	bool has_pos = false;
@@ -62,6 +75,9 @@ struct RuntimeCamera {
 	bool has_zoom = false;
 	float accel = 0.0f;
 	float decel = 0.0f;
+	bool param_set = false;
+	float origin[3] = {0.0f, 0.0f, 0.0f}; // cam+0xd0 base offset
+	CameraTween tween;
 	bool tebure = false;	   // DrTebureCamera (hand-held offset; rendering deferred)
 	bool wave = false;		   // DrWaveCamera
 	float demo_y = 0.0f;	   // SetDemoCameraPosY / ResetDemoCameraPosY

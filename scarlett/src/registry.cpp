@@ -92,6 +92,29 @@ unsigned parse_hex(const std::string& s) {
 	return v;
 }
 
+float camera_tween_progress(long elapsed, long duration, float ease_in, float ease_out) {
+	if (duration <= 0 || elapsed >= duration)
+		return 1.0f;
+	if (elapsed <= 0)
+		return 0.0f;
+	const float d = static_cast<float>(duration);
+	const float in = std::clamp(ease_in, 0.0f, d);
+	const float out = std::clamp(ease_out, 0.0f, d);
+	const float denom = 2.0f * d - in - out;
+	if (denom <= 0.0f)
+		return static_cast<float>(elapsed) / d;
+	const float scale = 1.0f / denom;
+	if (in > 0.0f && static_cast<float>(elapsed) <= in)
+		return std::min(1.0f, scale * static_cast<float>(elapsed) * static_cast<float>(elapsed) / in);
+	const float decel_start = d - out;
+	if (static_cast<float>(elapsed) <= decel_start)
+		return std::min(1.0f, scale * (2.0f * static_cast<float>(elapsed) - in));
+	if (out <= 0.0f)
+		return 1.0f;
+	const float remaining = d - static_cast<float>(elapsed);
+	return std::min(1.0f, scale * (2.0f * d - in - out - remaining * remaining / out));
+}
+
 } // namespace
 
 void Registry::reset(std::string source, std::string function) {
@@ -119,6 +142,7 @@ void Registry::reset(std::string source, std::string function) {
 	_variation = 0;
 	_skip_mode = false;
 	_camera_move_end = 0;
+	_timeline.camera = RuntimeCamera{};
 	_shake_seq = 0;
 	_follow_offset[0] = _follow_offset[1] = 0.0f;
 	_balcony_bru = false;
@@ -1713,30 +1737,66 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		name == "SetCameraTargetPosVBySpeed") {
 		float p[3] = {0.0f, 0.0f, 0.0f};
 		V(0, p, 3);
-		_timeline.camera.pos[0] = p[0];
-		_timeline.camera.pos[1] = p[1];
-		_timeline.camera.pos[2] = p[2];
-		_timeline.camera.has_pos = true;
-		if (name == "DrSetCameraPosV")
-			_camera_move_end = frame + std::max(0, I(1));
+		auto& cam = _timeline.camera;
+		const long duration = std::max(0L, static_cast<long>(I(1)));
+		const long delay = std::max(0L, static_cast<long>(I(2)));
+		cam.has_pos = true;
+		if (name == "DrSetCameraPosV" && duration > 0) {
+			cam.tween.start_frame = frame + delay;
+			cam.tween.end_frame = cam.tween.start_frame + duration;
+			cam.tween.start_pos[0] = cam.pos[0];
+			cam.tween.start_pos[1] = cam.pos[1];
+			cam.tween.start_pos[2] = cam.pos[2];
+			const float zoom = cam.has_zoom && cam.zoom > 0.0f ? cam.zoom : 1.0f;
+			for (int k = 0; k < 3; ++k)
+				cam.tween.target_pos[k] = p[k] / zoom + cam.origin[k];
+			cam.tween.active = true;
+			set_camera_ease(cam.tween, duration);
+			cam.pos[0] = cam.tween.start_pos[0];
+			cam.pos[1] = cam.tween.start_pos[1];
+			cam.pos[2] = cam.tween.start_pos[2];
+			_camera_move_end = cam.tween.end_frame;
+		} else {
+			for (int k = 0; k < 3; ++k)
+				cam.pos[k] = p[k];
+			cam.tween.active = false;
+			cam.tween.zoom_active = false;
+			_camera_move_end = frame;
+		}
 		trace_event(
 			"camera",
 			"pos",
-			"\"pos\":" + trace::vec3(p) + ",\"duration\":" + trace::integer(I(1)) +
-				",\"mode\":" + trace::integer(I(2)) + ",\"end\":" + trace::integer(_camera_move_end));
+			"\"pos\":" + trace::vec3(p) + ",\"duration\":" + trace::integer(duration) +
+				",\"delay\":" + trace::integer(delay) + ",\"end\":" + trace::integer(cam.tween.end_frame) +
+				",\"target\":" + trace::vec3(duration > 0 ? cam.tween.target_pos : p));
 		mark_dirty();
 		return true;
 	}
 	if (name == "DrSetCameraZoom") {
 		float z = F(0);
 		if (plausible_scale(z)) {
-			_timeline.camera.zoom = z;
-			_timeline.camera.has_zoom = true;
+			auto& cam = _timeline.camera;
+			const long duration = std::max(0L, static_cast<long>(I(1)));
+			const long delay = std::max(0L, static_cast<long>(I(2)));
+			if (duration > 0) {
+				cam.tween.start_frame = frame + delay;
+				cam.tween.end_frame = cam.tween.start_frame + duration;
+				cam.tween.start_zoom = cam.has_zoom && cam.zoom > 0.0f ? cam.zoom : 1.0f;
+				cam.tween.target_zoom = z;
+				cam.tween.zoom_active = true;
+				set_camera_ease(cam.tween, duration);
+				cam.zoom = cam.tween.start_zoom;
+				cam.has_zoom = true;
+			} else {
+				cam.zoom = z;
+				cam.has_zoom = true;
+				cam.tween.zoom_active = false;
+			}
 			trace_event(
 				"camera",
 				"zoom",
-				"\"zoom\":" + trace::number(z) + ",\"duration\":" + trace::integer(I(1)) +
-					",\"mode\":" + trace::integer(I(2)));
+				"\"zoom\":" + trace::number(z) + ",\"duration\":" + trace::integer(duration) +
+					",\"delay\":" + trace::integer(delay));
 			mark_dirty();
 		}
 		return true;
@@ -1744,6 +1804,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrSetCameraParam" || name == "SetCameraParam") {
 		_timeline.camera.accel = F(0);
 		_timeline.camera.decel = F(1);
+		_timeline.camera.param_set = true;
 		trace_event(
 			"camera",
 			"param",
@@ -1930,6 +1991,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrResetCameraParam") {
 		_timeline.camera.accel = 0.0f;
 		_timeline.camera.decel = 0.0f;
+		_timeline.camera.param_set = false;
 		mark_dirty();
 		return true;
 	}
@@ -1938,6 +2000,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			for (int k = 0; k < 3; ++k)
 				_timeline.camera.pos[k] = e->pos[k];
 			_timeline.camera.has_pos = true;
+			_timeline.camera.tween.active = false;
+			_timeline.camera.tween.zoom_active = false;
 			mark_dirty();
 		}
 		const long wait = std::max(0, I(2));
@@ -2083,6 +2147,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "DrCameraStop") {
+		_timeline.camera.tween.active = false;
+		_timeline.camera.tween.zoom_active = false;
 		_camera_move_end = frame;
 		return true;
 	}
@@ -3283,6 +3349,68 @@ void Registry::push_fade(const float* to, long time) {
 
 long Registry::fade_end() const { return _timeline.fades.empty() ? 0 : _timeline.fades.back().end; }
 
+void Registry::set_camera_ease(CameraTween& tween, long duration) const {
+	const float d = static_cast<float>(std::max(0L, duration));
+	if (_timeline.camera.param_set) {
+		tween.ease_in = std::clamp(_timeline.camera.accel * d, 0.0f, d);
+		tween.ease_out = std::clamp(_timeline.camera.decel * d, 0.0f, d);
+	} else {
+		tween.ease_in = std::clamp(d * 0.1f, 0.0f, 60.0f);
+		tween.ease_out = std::clamp(d * 0.9f, 0.0f, 120.0f);
+	}
+}
+
+void Registry::advance_camera() {
+	auto& cam = _timeline.camera;
+	auto& tween = cam.tween;
+	if (tween.active) {
+		const long elapsed = frame - tween.start_frame;
+		if (elapsed <= 0) {
+			for (int k = 0; k < 3; ++k)
+				cam.pos[k] = tween.start_pos[k];
+		} else if (frame >= tween.end_frame) {
+			for (int k = 0; k < 3; ++k)
+				cam.pos[k] = tween.target_pos[k];
+			tween.active = false;
+			mark_dirty();
+		} else {
+			const float t =
+				camera_tween_progress(elapsed, tween.end_frame - tween.start_frame, tween.ease_in, tween.ease_out);
+			for (int k = 0; k < 3; ++k)
+				cam.pos[k] = tween.start_pos[k] + (tween.target_pos[k] - tween.start_pos[k]) * t;
+			mark_dirty();
+		}
+	}
+	if (tween.zoom_active) {
+		const long elapsed = frame - tween.start_frame;
+		if (elapsed <= 0) {
+			cam.zoom = tween.start_zoom;
+		} else if (frame >= tween.end_frame) {
+			cam.zoom = tween.target_zoom;
+			tween.zoom_active = false;
+			mark_dirty();
+		} else {
+			const float t =
+				camera_tween_progress(elapsed, tween.end_frame - tween.start_frame, tween.ease_in, tween.ease_out);
+			cam.zoom = tween.start_zoom + (tween.target_zoom - tween.start_zoom) * t;
+			mark_dirty();
+		}
+	}
+	if (_trace && (tween.active || tween.zoom_active)) {
+		const long elapsed = frame - tween.start_frame;
+		const long duration = std::max(0L, tween.end_frame - tween.start_frame);
+		const float progress =
+			duration > 0 ? camera_tween_progress(elapsed, duration, tween.ease_in, tween.ease_out) : 1.0f;
+		trace_event(
+			"camera",
+			"eval",
+			"\"pos\":" + trace::vec3(cam.pos) + ",\"zoom\":" + trace::number(cam.zoom) +
+				",\"start\":" + trace::integer(tween.start_frame) + ",\"end\":" + trace::integer(tween.end_frame) +
+				",\"progress\":" + trace::number(progress) + ",\"ease_in\":" + trace::number(tween.ease_in) +
+				",\"ease_out\":" + trace::number(tween.ease_out));
+	}
+}
+
 void Registry::advance() {
 	_timeline.frame = frame;
 	for (auto it = _moves.begin(); it != _moves.end();) {
@@ -3306,6 +3434,7 @@ void Registry::advance() {
 		else
 			++it;
 	}
+	advance_camera();
 }
 
 void Registry::flush_keyframe() {
