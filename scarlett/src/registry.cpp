@@ -74,6 +74,23 @@ long text_duration(const std::string& s) {
 	return 30 + static_cast<long>(chars);
 }
 
+// DrSetLayerMask / DrSetVariationType take a hexadecimal bitmask string.
+unsigned parse_hex(const std::string& s) {
+	unsigned v = 0;
+	size_t i = (s.size() > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) ? 2 : 0;
+	for (; i < s.size(); ++i) {
+		const char c = s[i];
+		int d = (c >= '0' && c <= '9') ? c - '0'
+			  : (c >= 'a' && c <= 'f') ? c - 'a' + 10
+			  : (c >= 'A' && c <= 'F') ? c - 'A' + 10
+									   : -1;
+		if (d < 0)
+			break;
+		v = (v << 4) | static_cast<unsigned>(d);
+	}
+	return v;
+}
+
 } // namespace
 
 void Registry::reset(std::string source, std::string function) {
@@ -99,6 +116,10 @@ void Registry::reset(std::string source, std::string function) {
 	_opaque_owner.clear();
 	_select_result = 0;
 	_sprite_text_handle = 0;
+	_variation = 0;
+	_skip_mode = false;
+	_camera_move_end = 0;
+	_shake_seq = 0;
 	_camera = RuntimeCamera{};
 	_dirty = false;
 	frame = 0;
@@ -316,23 +337,30 @@ bool Registry::vec_binary(asIScriptGeneric* gen, std::string_view op) {
 	if (!comps)
 		return false;
 	const float* a = static_cast<const float*>(gen->GetObject());
-	float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
-	if (!a || !r)
+	if (!a)
+		return false;
+	// op*Assign modifies `this` in place and returns it; the plain operators
+	// return into caller storage.
+	const bool assign = op.size() > 6 && op.substr(op.size() - 6) == "Assign";
+	float* r = assign ? const_cast<float*>(a) : static_cast<float*>(gen->GetAddressOfReturnLocation());
+	if (!r)
 		return false;
 	const bool scalar = gen->GetArgTypeId(0) == asTYPEID_FLOAT;
 	const float s = scalar ? gen->GetArgFloat(0) : 0.0f;
 	const float* b = scalar ? nullptr : static_cast<const float*>(gen->GetArgAddress(0));
 	for (int i = 0; i < comps; ++i) {
 		const float y = scalar ? s : (b ? b[i] : 0.0f);
-		if (op == "opAdd")
+		if (op.rfind("opAdd", 0) == 0)
 			r[i] = a[i] + y;
-		else if (op == "opSub")
+		else if (op.rfind("opSub", 0) == 0)
 			r[i] = a[i] - y;
-		else if (op == "opMul")
+		else if (op.rfind("opMul", 0) == 0)
 			r[i] = a[i] * y;
-		else if (op == "opDiv")
+		else if (op.rfind("opDiv", 0) == 0)
 			r[i] = y != 0.0f ? a[i] / y : 0.0f;
 	}
+	if (assign)
+		gen->SetReturnAddress(const_cast<float*>(a));
 	return true;
 }
 
@@ -485,7 +513,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	}
 	if (name == "CameraMoveWait")
 		return true; // immediate: the recorded camera already reflects the move
-	if (name == "ClearCamera") {
+	if (name == "ClearCamera" || name == "DrClearCamera") {
 		_camera = RuntimeCamera{};
 		_dirty = true;
 		return true;
@@ -582,7 +610,9 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name.size() >= 4 && name.substr(0, 4) == "$beh")
 		return construct_value(gen);
 
-	if ((name == "opAdd" || name == "opSub" || name == "opMul" || name == "opDiv") && vec_binary(gen, name))
+	if ((name == "opAdd" || name == "opSub" || name == "opMul" || name == "opDiv" || name == "opAddAssign" ||
+			name == "opSubAssign" || name == "opMulAssign" || name == "opDivAssign") &&
+		vec_binary(gen, name))
 		return true;
 
 	auto S = [&](int i) { return read_string(gen, i); };
@@ -1055,7 +1085,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	// DrUiSetColorA(name, value, time): the value is the target grey/alpha (0 at
 	// creation, 255 when fully faded in); fade time is ignored. Track the low
 	// byte so a not-yet-faded-in sprite stays hidden.
-	if (name == "DrUiSetColorA" || name == "SetSpriteColorA" || name == "DrSetColorA") {
+	if (name == "DrUiSetColorA" || name == "SetSpriteColorA" || name == "DrSetColorA" || name == "SetColorA") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->alpha = I(1) & 0xff;
 			_dirty = true;
@@ -1075,6 +1105,14 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
+	if (name == "DrGetCameraPosV") {
+		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
+		if (r)
+			for (int k = 0; k < 3; ++k)
+				r[k] = _camera.pos[k];
+		return true;
+	}
+
 	if (name == "DrSetCameraPosV" || name == "SetCameraPosV" || name == "SetCameraTargetPosV" ||
 		name == "SetCameraTargetPosVBySpeed") {
 		float p[3] = {0.0f, 0.0f, 0.0f};
@@ -1083,6 +1121,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		_camera.pos[1] = p[1];
 		_camera.pos[2] = p[2];
 		_camera.has_pos = true;
+		if (name == "DrSetCameraPosV")
+			_camera_move_end = frame + std::max(0, I(1));
 		_dirty = true;
 		return true;
 	}
@@ -1130,23 +1170,216 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
+	// --- Phase 5A: drama playback (behaviour + record only; rendering deferred).
+	if (name == "IsSkipMode") {
+		gen->SetReturnByte(_skip_mode ? 1 : 0);
+		return true;
+	}
+	if (name == "CancelSkipMode") {
+		_skip_mode = false;
+		return true;
+	}
+	if (name == "DbIsDebugDrama" || name == "DrIsArchiveMode" || name == "FlIsNightTime") {
+		gen->SetReturnByte(0);
+		return true;
+	}
+	if (name == "DrSetLayerMask") {
+		const unsigned mask = parse_hex(S(1));
+		// Verified from DrLib::DrFacial/DrClearFacial bytecode: the flag is
+		// `!show` — true clears (hides) the masked layers, false shows them.
+		if (RuntimeEntity* e = ent(0)) {
+			if (I(2))
+				e->layer_mask &= ~mask;
+			else
+				e->layer_mask |= mask;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrSetVariationType") {
+		const unsigned mask = parse_hex(S(0));
+		if (I(1))
+			_variation |= mask;
+		else
+			_variation &= ~mask;
+		_timeline.variations.push_back(VariationEvent{frame, _variation});
+		_dirty = true;
+		return true;
+	}
+	if (name == "DrSetBreathOff") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->breath_off = I(1) != 0;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrSetLipSync") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->lipsync = I(1) != 0;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrTurn") {
+		if (RuntimeEntity* e = ent(0)) {
+			const std::string anim = S(1);
+			e->track = anim;
+			if (_resolve_track) {
+				const int ti = _resolve_track(e->mbs, anim);
+				if (ti >= 0)
+					e->track_index = ti;
+			}
+			_dirty = true;
+			const long dur = _track_frames ? _track_frames(e->mbs, e->track_index) : 0;
+			if (dur > 0) {
+				pending_wait = dur;
+				if (asIScriptContext* ctx = asGetActiveContext())
+					ctx->Suspend();
+			}
+		}
+		return true;
+	}
+	if (name == "DrMoveAbsByTimeAsync") {
+		float to[3] = {0.0f, 0.0f, 0.0f};
+		V(1, to, 3);
+		if (RuntimeEntity* e = ent(0)) {
+			Move m{};
+			for (int k = 0; k < 3; ++k) {
+				m.from[k] = e->pos[k];
+				m.to[k] = to[k];
+			}
+			m.f0 = frame;
+			m.f1 = frame + std::max(1, I(3));
+			_moves[e->name] = m;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrShortMoveAbsAsync") {
+		float to[3] = {0.0f, 0.0f, 0.0f};
+		V(1, to, 3);
+		if (RuntimeEntity* e = ent(0)) {
+			Move m{};
+			float dist2 = 0.0f;
+			for (int k = 0; k < 3; ++k) {
+				m.from[k] = e->pos[k];
+				m.to[k] = to[k];
+				const float d = to[k] - e->pos[k];
+				dist2 += d * d;
+			}
+			const float speed = F(3);
+			const int dur = speed > 1e-3f ? static_cast<int>(std::ceil(std::sqrt(dist2) / speed)) : 30;
+			m.f0 = frame;
+			m.f1 = frame + std::max(1, dur);
+			_moves[e->name] = m;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrJumpAsync") {
+		if (RuntimeEntity* e = ent(0)) {
+			const float move = F(1), height = F(2), speed = F(4);
+			Move m{};
+			for (int k = 0; k < 3; ++k) {
+				m.from[k] = e->pos[k];
+				m.to[k] = e->pos[k];
+			}
+			m.to[0] += e->dir_x * move;
+			const int dur = speed > 1e-3f ? static_cast<int>(std::ceil(std::abs(move) / speed)) : 30;
+			m.f0 = frame;
+			m.f1 = frame + std::max(1, dur);
+			m.arc = std::abs(height);
+			_moves[e->name] = m;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrTebureCamera") {
+		_camera.tebure = I(0) != 0;
+		_dirty = true;
+		return true;
+	}
+	if (name == "DrResetCameraParam") {
+		_camera.accel = 0.0f;
+		_camera.decel = 0.0f;
+		_dirty = true;
+		return true;
+	}
+	if (name == "DrFollowCamera") {
+		if (RuntimeEntity* e = ent(0)) {
+			for (int k = 0; k < 3; ++k)
+				_camera.pos[k] = e->pos[k];
+			_camera.has_pos = true;
+			_dirty = true;
+		}
+		const long wait = std::max(0, I(2));
+		if (wait > 0) {
+			pending_wait = wait;
+			if (asIScriptContext* ctx = asGetActiveContext())
+				ctx->Suspend();
+		}
+		return true;
+	}
+	if (name == "DrCameraMoveWait") {
+		if (_camera_move_end > frame) {
+			pending_wait = _camera_move_end - frame;
+			if (asIScriptContext* ctx = asGetActiveContext())
+				ctx->Suspend();
+		}
+		return true;
+	}
+	if (name == "DrSetShake") {
+		RuntimeShake s;
+		s.start = frame;
+		s.index = _shake_seq++;
+		if (gen->GetArgTypeId(0) == asTYPEID_INT32) {
+			s.type = I(0);
+			s.end = frame + std::max(1, I(1));
+		} else {
+			float v[2] = {0.0f, 0.0f};
+			V(0, v, 2);
+			s.shake[0] = v[0];
+			s.shake[1] = v[1];
+			s.end = frame + std::max(1, I(1));
+			s.angle = F(2);
+			s.att = F(4);
+			s.pow = F(6);
+		}
+		_timeline.shakes.push_back(s);
+		gen->SetReturnDWord(static_cast<asDWORD>(s.index));
+		return true;
+	}
+	if (name == "DrStopShake") {
+		const int idx = I(0);
+		for (auto& s : _timeline.shakes)
+			if (s.index == idx && s.end > frame)
+				s.end = frame;
+		return true;
+	}
+	if (name == "BokashiFadeAsync") {
+		RuntimeBokashi b;
+		b.start = frame;
+		b.end = frame + std::max(1, I(2));
+		b.bokashi = I(0) != 0;
+		b.freeze = I(1) != 0;
+		b.max_rate = F(3);
+		_timeline.bokashi.push_back(b);
+		return true;
+	}
+
 	// TODO(blocked natives): the groups below fall through to the GenericStub,
 	// which returns the type's zero (never crashes). They are unimplemented
 	// on purpose, each blocked on a prerequisite subsystem:
 	//  - AI / strategy: StAddUnitAi*/Gambit/SearchEnemy, StIsLowerHpRate, StAdd*Zouen*
-	//    -> needs the battle/strategy behaviour engine (move/AI semantics un-RE'd).
-	//    Belongs with the deferred 3D work.
-	//  - Effects / lighting / spawns: DrCreateEffect, DrSetEffect*, DrCreatePointLight/
-	//    DeletePointLight, CreateItem/DeleteItem/CreateTreasure
-	//    -> needs an effect/item -> asset table AND an effect/lighting render model.
-	//  - Field / drama / render plumbing: DrCreateDrama, DrSetLayerMask, ReconstTown,
-	//    DbIsDebugDrama, DrIsArchiveMode
-	//    -> needs the field/drama systems plus per-layer visibility plumbing in the
-	//    viewer. Belongs with the deferred 3D work.
-	//  - Text rendering: CreateSpriteText, SpriteTextFinishWait, UcSpriteTextParam::*
-	//    -> needs world-space text rendering (Phase 4).
-	//  - Dialogue / balloons: Msg*, MsgAnm/MsgU_F, UcMsgBalloonParam::*, GetYNDialogResult
-	//    -> Phase 4.
+	//    -> Phase 7: coarse RE for the gist, then invent the battle simulation.
+	//  - Effects / audio / spawns: DrCreateEffect, DrSetEffect*, DrCreatePointLight/
+	//    DeletePointLight, PlayBGM/StopBGM/PlaySE*, CreateItem/DeleteItem/CreateTreasure
+	//    -> Phase 5B (record) and Phase 8 (effect/lighting render model).
+	//  - Field plumbing: DrCreateDrama, ReconstTown -> Phase 6.
+	//  - DrSetShake(int) preset table -> Phase 8 (visual/timing only; the
+	//    structured overload and the int-overload handle are modelled).
+	//  - UI / archive / HUD: OpenArchive, ShowFacilityInfo, ShowFieldInfo,
+	//    SetClassPedia_ByDefName, ... -> Phase 5C.
 	//  - Time conversion: UC_SEC -> game-time formula unconfirmed.
 
 	// Unmodelled call. With ASB_CENSUS set, report it so a run can enumerate the
@@ -1193,6 +1426,8 @@ void Registry::flush_keyframe() {
 		float* p = _entities[bi->second].pos;
 		for (int k = 0; k < 3; ++k)
 			p[k] = m.from[k] + (m.to[k] - m.from[k]) * t;
+		if (m.arc != 0.0f)
+			p[2] += m.arc * 4.0f * t * (1.0f - t);
 		_dirty = true;
 		if (frame >= m.f1)
 			it = _moves.erase(it);

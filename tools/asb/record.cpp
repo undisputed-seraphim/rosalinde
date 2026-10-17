@@ -77,7 +77,7 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 		std::fprintf(
 			out,
 			"\t\t\t\"camera\": {\"pos\": [%g, %g, %g], \"has_pos\": %s, \"zoom\": %g, \"has_zoom\": %s, "
-			"\"accel\": %g, \"decel\": %g},\n",
+			"\"accel\": %g, \"decel\": %g, \"tebure\": %s},\n",
 			f.camera.pos[0],
 			f.camera.pos[1],
 			f.camera.pos[2],
@@ -85,7 +85,8 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 			f.camera.zoom,
 			f.camera.has_zoom ? "true" : "false",
 			f.camera.accel,
-			f.camera.decel);
+			f.camera.decel,
+			f.camera.tebure ? "true" : "false");
 		std::fprintf(out, "\t\t\t\"entities\": [\n");
 		for (size_t i = 0; i < f.entities.size(); ++i) {
 			const asb::RuntimeEntity& e = f.entities[i];
@@ -100,7 +101,7 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 				"\t\t\t\t{\"name\": \"%s\", \"kind\": \"%s\", \"space\": \"%s\", \"mbs\": \"%s\", \"ftx\": \"%s\", "
 				"\"track\": \"%s\", "
 				"\"track_index\": %d, \"pos\": [%g, %g, %g], \"scale\": %g, \"dir_x\": %g, \"alpha\": %d, "
-				"\"layer\": %d, \"visible\": %s, "
+				"\"layer\": %d, \"visible\": %s, \"layer_mask\": %u, \"breath_off\": %s, \"lipsync\": %s, "
 				"\"order\": %d, \"aliases\": [%s]}%s\n",
 				e.name.c_str(),
 				e.kind.c_str(),
@@ -117,6 +118,9 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 				e.alpha,
 				e.layer,
 				e.visible ? "true" : "false",
+				e.layer_mask,
+				e.breath_off ? "true" : "false",
+				e.lipsync ? "true" : "false",
 				e.order,
 				aliases.c_str(),
 				i + 1 < f.entities.size() ? "," : "");
@@ -183,6 +187,43 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 			t.result,
 			ids.c_str(),
 			i + 1 < tl.texts.size() ? "," : "");
+	}
+	std::fprintf(out, "\t],\n\t\"shakes\": [\n");
+	for (size_t i = 0; i < tl.shakes.size(); ++i) {
+		const asb::RuntimeShake& s = tl.shakes[i];
+		std::fprintf(
+			out,
+			"\t\t{\"start\": %ld, \"end\": %ld, \"index\": %d, \"type\": %d, \"shake\": [%g, %g], "
+			"\"angle\": %g, \"att\": %g, \"pow\": %g}%s\n",
+			s.start,
+			s.end,
+			s.index,
+			s.type,
+			s.shake[0],
+			s.shake[1],
+			s.angle,
+			s.att,
+			s.pow,
+			i + 1 < tl.shakes.size() ? "," : "");
+	}
+	std::fprintf(out, "\t],\n\t\"bokashi\": [\n");
+	for (size_t i = 0; i < tl.bokashi.size(); ++i) {
+		const asb::RuntimeBokashi& b = tl.bokashi[i];
+		std::fprintf(
+			out,
+			"\t\t{\"start\": %ld, \"end\": %ld, \"bokashi\": %s, \"freeze\": %s, \"max_rate\": %g}%s\n",
+			b.start,
+			b.end,
+			b.bokashi ? "true" : "false",
+			b.freeze ? "true" : "false",
+			b.max_rate,
+			i + 1 < tl.bokashi.size() ? "," : "");
+	}
+	std::fprintf(out, "\t],\n\t\"variations\": [\n");
+	for (size_t i = 0; i < tl.variations.size(); ++i) {
+		const asb::VariationEvent& v = tl.variations[i];
+		std::fprintf(
+			out, "\t\t{\"frame\": %ld, \"mask\": %u}%s\n", v.frame, v.mask, i + 1 < tl.variations.size() ? "," : "");
 	}
 	std::fprintf(out, "\t]\n}\n");
 }

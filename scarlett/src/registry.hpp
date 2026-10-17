@@ -93,6 +93,7 @@ private:
 		float from[3];
 		float to[3];
 		long f0 = 0, f1 = 0;
+		float arc = 0.0f; // DrJumpAsync: height added as a parabola over the tween
 	};
 	std::unordered_map<std::string, Move> _moves;
 	std::unordered_map<std::string, int> _db_params; // DbSet/GetDebugParam + LocalParam
@@ -127,6 +128,12 @@ private:
 	std::vector<std::unique_ptr<char[]>> _opaque_owner;
 	int _select_result = 0; // last GetResultSelectMsg / GetYNDialogResult
 	int _sprite_text_handle = 0;
+
+	// Drama playback state (Phase 5A).
+	unsigned _variation = 0;	  // DrSetVariationType (global bitmask)
+	bool _skip_mode = false;	  // IsSkipMode / CancelSkipMode
+	long _camera_move_end = 0;	  // DrCameraMoveWait
+	int _shake_seq = 0;			  // DrSetShake handle counter
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;
 	Timeline _timeline;

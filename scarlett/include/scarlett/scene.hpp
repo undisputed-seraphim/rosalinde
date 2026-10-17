@@ -28,6 +28,9 @@ struct RuntimeEntity {
 	int layer = -1;
 	bool visible = true;
 	bool reverse = false; // SetSpriteMoneReverse: play the selected track backward
+	unsigned layer_mask = 0xFFFFFFFFu; // DrSetLayerMask: visible layer bits
+	bool breath_off = false;		   // DrSetBreathOff
+	bool lipsync = false;			   // DrSetLipSync
 	int order = 0;
 	Space space = Space::World;
 	std::string parent; // SetSpriteToAnchor target (empty = none); pos is relative
@@ -40,6 +43,7 @@ struct RuntimeCamera {
 	bool has_zoom = false;
 	float accel = 0.0f;
 	float decel = 0.0f;
+	bool tebure = false; // DrTebureCamera (hand-held offset; rendering deferred)
 };
 
 // A whole-screen colour fade (CrossFadeAsync/ColorFadeAsync). The overlay
@@ -80,6 +84,34 @@ struct StageConfig {
 	int flag_color = 0;
 };
 
+// DrSetShake / DrStopShake. The structured overload carries the full curve
+// parameters; the int overload selects an engine preset.
+struct RuntimeShake {
+	long start = 0;
+	long end = 0;
+	int index = 0;
+	int type = -1; // int-overload preset
+	float shake[2] = {0.0f, 0.0f};
+	float angle = 0.0f;
+	float att = 0.0f;
+	float pow = 0.0f;
+};
+
+// BokashiFadeAsync: a gradation/freeze fade.
+struct RuntimeBokashi {
+	long start = 0;
+	long end = 0;
+	bool bokashi = true;
+	bool freeze = true;
+	float max_rate = 1.0f;
+};
+
+// DrSetVariationType: a global variation bitmask change.
+struct VariationEvent {
+	long frame = 0;
+	unsigned mask = 0;
+};
+
 // The whole scene at one frame. Only emitted when something changed.
 struct Keyframe {
 	long frame = 0;
@@ -94,6 +126,9 @@ struct Timeline {
 	std::vector<ScreenFade> fades;
 	std::vector<StageConfig> stages;
 	std::vector<RuntimeText> texts;
+	std::vector<RuntimeShake> shakes;
+	std::vector<RuntimeBokashi> bokashi;
+	std::vector<VariationEvent> variations;
 };
 
 // Overlay colour (linear RGBA) produced by the fades list at `frame`.
