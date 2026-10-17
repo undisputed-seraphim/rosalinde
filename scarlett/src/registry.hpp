@@ -147,6 +147,32 @@ private:
 	bool _add_class_pedia_flag = false;
 	bool _staff_roll_scroll = false;
 	float _staff_roll_speed = 0.0f;
+
+	// Phase 6 field/overworld + game-state.
+	int _gold = 0;
+	int _fame = 0;
+	std::unordered_map<int, int> _stage_flags;
+	std::unordered_set<int> _stage_bits;
+	std::unordered_map<int, int> _global_flags;
+	std::unordered_map<std::string, int> _items;
+	std::unordered_set<std::string> _facilities;
+	std::unordered_map<std::string, int> _friendship;
+	std::unordered_set<int> _treasures;
+	std::unordered_set<int> _quest_pinned;
+	std::unordered_set<int> _quest_preopened;
+	std::unordered_map<std::string, int> _town_lv;
+	int _clock_hour = 0, _clock_minute = 0, _clock_second = 0;
+	bool _clock_paused = false;
+	bool _demo_mode = false;
+	bool _world_map_disabled = false;
+	bool _battle_mode = false;
+	std::string _battle_after, _battle_die_after;
+	std::string _player_symbol;
+	float _revive_pos[2] = {0.0f, 0.0f};
+	int _item_change_shop_level = 0;
+	int _item_change_num = 0;
+	int _ex_stage_dialog_result = 0;
+	int _stage_start_param = 0;
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;
 	Timeline _timeline;

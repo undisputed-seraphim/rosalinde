@@ -394,6 +394,64 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 			ints.c_str(),
 			i + 1 < tl.ui.size() ? "," : "");
 	}
+	std::fprintf(out, "\t],\n\t\"field\": [\n");
+	for (size_t i = 0; i < tl.field.size(); ++i) {
+		const asb::RuntimeField& f = tl.field[i];
+		std::string ints;
+		for (size_t k = 0; k < f.ints.size(); ++k) {
+			if (k)
+				ints += ", ";
+			ints += std::to_string(f.ints[k]);
+		}
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"kind\": \"%s\", \"name\": \"%s\", \"text\": \"%s\", "
+			"\"text2\": \"%s\", \"i0\": %d, \"i1\": %d, \"i2\": %d, \"f0\": %g, "
+			"\"pos\": [%g, %g], \"flag\": %s, \"ints\": [%s]}%s\n",
+			f.frame,
+			json_escape(f.kind).c_str(),
+			json_escape(f.name).c_str(),
+			json_escape(f.text).c_str(),
+			json_escape(f.text2).c_str(),
+			f.i0,
+			f.i1,
+			f.i2,
+			f.f0,
+			f.pos[0],
+			f.pos[1],
+			f.flag ? "true" : "false",
+			ints.c_str(),
+			i + 1 < tl.field.size() ? "," : "");
+	}
+	std::fprintf(out, "\t],\n\t\"field\": [\n");
+	for (size_t i = 0; i < tl.field.size(); ++i) {
+		const asb::RuntimeField& f = tl.field[i];
+		std::string ints;
+		for (size_t k = 0; k < f.ints.size(); ++k) {
+			if (k)
+				ints += ", ";
+			ints += std::to_string(f.ints[k]);
+		}
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"kind\": \"%s\", \"name\": \"%s\", \"text\": \"%s\", "
+			"\"text2\": \"%s\", \"i0\": %d, \"i1\": %d, \"i2\": %d, \"f0\": %g, "
+			"\"pos\": [%g, %g], \"flag\": %s, \"ints\": [%s]}%s\n",
+			f.frame,
+			json_escape(f.kind).c_str(),
+			json_escape(f.name).c_str(),
+			json_escape(f.text).c_str(),
+			json_escape(f.text2).c_str(),
+			f.i0,
+			f.i1,
+			f.i2,
+			f.f0,
+			f.pos[0],
+			f.pos[1],
+			f.flag ? "true" : "false",
+			ints.c_str(),
+			i + 1 < tl.field.size() ? "," : "");
+	}
 	std::fprintf(out, "\t]\n}\n");
 }
 
@@ -444,6 +502,18 @@ int main(int argc, char** argv) try {
 	if (!chara_table.empty()) {
 		chars = asb::load_char_table(chara_table);
 		host.set_char_table(chars);
+	}
+
+	asb::CharaSetTable sets;
+	const std::filesystem::path set_path = "viewer/data/charaset.tsv";
+	const std::filesystem::path cls_path = "viewer/data/classes.tsv";
+	if (std::filesystem::exists(set_path) && std::filesystem::exists(cls_path)) {
+		const std::filesystem::path npc_path = "viewer/data/charanpc_assets.tsv";
+		sets = asb::load_chara_set(
+			set_path.string(),
+			cls_path.string(),
+			std::filesystem::exists(npc_path) ? npc_path.string() : std::string());
+		host.set_chara_set_table(sets);
 	}
 
 	std::vector<std::string> candidates;

@@ -1118,6 +1118,12 @@ CharaSetTable load_chara_set(const std::string& charaset_tsv, const std::string&
 			if (c.size() < 7)
 				continue;
 			const std::string& name = c[1];
+			const int set_idx = std::atoi(c[0].c_str());
+			if (set_idx >= 0) {
+				if (static_cast<size_t>(set_idx) >= out.names.size())
+					out.names.resize(static_cast<size_t>(set_idx) + 1);
+				out.names[static_cast<size_t>(set_idx)] = name;
+			}
 			const std::string& cls = c[2];
 			const std::string& gender = c[3];
 			const std::string& label = c[6];
