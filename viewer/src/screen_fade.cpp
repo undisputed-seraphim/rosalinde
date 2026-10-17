@@ -1,6 +1,6 @@
 #include "screen_fade.hpp"
 
-#include <cstdio>
+#include <spdlog/spdlog.h>
 
 namespace {
 
@@ -22,7 +22,7 @@ GLuint compile(GLenum type, const char* src) {
 	if (ok != GL_TRUE) {
 		char log[1024] = {};
 		glGetShaderInfoLog(s, sizeof(log) - 1, nullptr, log);
-		std::fprintf(stderr, "[screen_fade] shader compile failed: %s\n", log);
+		spdlog::error("screen_fade: shader compile failed: {}", log);
 	}
 	return s;
 }
@@ -54,7 +54,7 @@ ScreenFadeOverlay::ScreenFadeOverlay() {
 	if (ok != GL_TRUE) {
 		char log[1024] = {};
 		glGetProgramInfoLog(_program, sizeof(log) - 1, nullptr, log);
-		std::fprintf(stderr, "[screen_fade] program link failed: %s\n", log);
+		spdlog::error("screen_fade: program link failed: {}", log);
 	}
 	_u_color = glGetUniformLocation(_program, "u_color");
 }

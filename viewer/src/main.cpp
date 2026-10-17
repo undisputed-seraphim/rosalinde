@@ -1,4 +1,5 @@
 #include "engine/Engine.hpp"
+#include "log.hpp"
 #include "scene.hpp"
 #include "trace.hpp"
 
@@ -30,6 +31,7 @@ std::vector<long> parse_frames(const std::string& text) {
 } // namespace
 
 int main(int argc, char* argv[]) try {
+	viewer::log::init();
 	viewer::trace::reset();
 	viewer::trace::stamp("main() enter");
 	ViewerConfig config;
@@ -85,17 +87,17 @@ int main(int argc, char* argv[]) try {
 		throw;
 	}
 	if (config.script.empty()) {
-		std::cerr << "viewer: --script is required\n";
+		spdlog::error("--script is required");
 		return 1;
 	}
 	if (vm.count("capture-frames")) {
 		config.capture_frames = parse_frames(vm["capture-frames"].as<std::string>());
 		if (config.capture_frames.empty()) {
-			std::cerr << "viewer: --capture-frames is empty\n";
+			spdlog::error("--capture-frames is empty");
 			return 1;
 		}
 		if (config.capture_dir.empty()) {
-			std::cerr << "viewer: --capture-dir is required with --capture-frames\n";
+			spdlog::error("--capture-dir is required with --capture-frames");
 			return 1;
 		}
 	}
@@ -116,7 +118,8 @@ int main(int argc, char* argv[]) try {
 		return scene;
 	});
 	viewer::trace::stamp("Engine::run returned");
+	viewer::log::shutdown();
 } catch (const std::exception& e) {
-	std::cout << e.what() << std::endl;
+	spdlog::error("{}", e.what());
 	return 1;
 }

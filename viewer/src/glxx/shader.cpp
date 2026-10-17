@@ -1,6 +1,7 @@
 #include <glad/glad.h>
 #include <glm/ext.hpp>
 #include <iostream>
+#include <spdlog/spdlog.h>
 
 #include "glxx/error.hpp"
 #include "glxx/shader.hpp"
@@ -118,7 +119,7 @@ void checkCompileErrors(GLuint object) {
 	glGetShaderiv(object, GL_COMPILE_STATUS, &success);
 	if (success != GL_TRUE) {
 		glGetShaderInfoLog(object, sizeof(infoLog), NULL, infoLog);
-		std::cout << "| ERROR::Shader: Compile-time error:\n" << infoLog << std::endl;
+		spdlog::error("shader compile error: {}", infoLog);
 	}
 }
 
@@ -128,6 +129,6 @@ void checkLinkErrors(GLuint object) {
 	glGetProgramiv(object, GL_LINK_STATUS, &success);
 	if (success != GL_TRUE) {
 		glGetProgramInfoLog(object, sizeof(infoLog), NULL, infoLog);
-		std::cout << "| ERROR::Shader: Link-time error:\n" << infoLog << std::endl;
+		spdlog::error("shader link error: {}", infoLog);
 	}
 }

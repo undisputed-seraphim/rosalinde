@@ -3,6 +3,8 @@
 #include "tables.hpp"
 #include "trace.hpp"
 
+#include <spdlog/spdlog.h>
+
 #include <criware/cpk.hpp>
 #include <scarlett/asb.hpp>
 
@@ -195,15 +197,14 @@ void DramaPlayback::step() {
 	const long trace_frame = static_cast<long>(_session->scene().frame);
 	const auto result = _session->advance();
 	if (result == asb::RuntimeSession::StepResult::Error) {
-		fprintf(stderr, "[drama] %s\n", _session->error().c_str());
+		spdlog::error("drama: {}", _session->error());
 		_quit = true;
 		return;
 	}
 	_frame = _session->frame();
-	if (std::getenv("SCENE_TRACE") && (trace_frame % 60) == 0)
-		std::fprintf(
-			stderr,
-			"[play] frame=%ld entities=%zu stage=%d cam=(%.1f,%.1f) zoom=%.3f\n",
+	if ((trace_frame % 60) == 0)
+		spdlog::debug(
+			"play: frame={} entities={} stage={} cam=({:.1f},{:.1f}) zoom={:.3f}",
 			trace_frame,
 			_session->scene().entities.size(),
 			_session->scene().stage.stage_type,
@@ -232,7 +233,7 @@ void DramaPlayback::update(float dt) {
 			while (_frame < target && !_session->finished())
 				step();
 			if (_session->finished() && _frame < target) {
-				std::fprintf(stderr, "[capture] scene ended at frame %ld before requested frame %ld\n", _frame, target);
+				spdlog::warn("capture: scene ended at frame {} before requested frame {}", _frame, target);
 				_captures_done = true;
 			}
 			return;
@@ -259,13 +260,7 @@ void DramaPlayback::sync_stage() {
 		return;
 	_stage_type = type;
 	const std::string name = stage_background_name(type);
-	if (std::getenv("SCENE_TRACE"))
-		std::fprintf(
-			stderr,
-			"[stage] frame=%ld type=%d -> %s\n",
-			static_cast<long>(_session->scene().frame),
-			type,
-			name.c_str());
+	spdlog::debug("stage: frame={} type={} -> {}", _session->scene().frame, type, name);
 	auto it = BattleBGs.find(name);
 	if (it == BattleBGs.end()) {
 		_renderer.set_stage({}, {});
@@ -333,7 +328,10 @@ bool DramaPlayback::write_screenshot(const std::string& path) {
 	std::vector<uint8_t> pixels(static_cast<size_t>(fb_w) * fb_h * 4);
 	glReadPixels(0, 0, fb_w, fb_h, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
 	const bool ok = screenshot::write(path, fb_w, fb_h, pixels);
-	fprintf(stderr, "%s: %s (%dx%d)\n", ok ? "screenshot written" : "screenshot FAILED", path.c_str(), fb_w, fb_h);
+	if (ok)
+		spdlog::info("screenshot written: {} ({}x{})", path, fb_w, fb_h);
+	else
+		spdlog::error("screenshot FAILED: {} ({}x{})", path, fb_w, fb_h);
 	return ok;
 }
 

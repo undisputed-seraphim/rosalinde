@@ -1,7 +1,7 @@
 #include "light_renderer.hpp"
 
 #include <algorithm>
-#include <cstdio>
+#include <spdlog/spdlog.h>
 
 namespace {
 
@@ -38,7 +38,7 @@ GLuint compile(GLenum type, const char* src) {
 	if (ok != GL_TRUE) {
 		char log[1024] = {};
 		glGetShaderInfoLog(s, sizeof(log) - 1, nullptr, log);
-		std::fprintf(stderr, "[light] shader compile failed: %s\n", log);
+		spdlog::error("light: shader compile failed: {}", log);
 	}
 	return s;
 }
@@ -70,7 +70,7 @@ LightRenderer::LightRenderer() {
 	if (ok != GL_TRUE) {
 		char log[1024] = {};
 		glGetProgramInfoLog(_program, sizeof(log) - 1, nullptr, log);
-		std::fprintf(stderr, "[light] program link failed: %s\n", log);
+		spdlog::error("light: program link failed: {}", log);
 	}
 	_u_light = glGetUniformLocation(_program, "u_light");
 	_u_color = glGetUniformLocation(_program, "u_color");

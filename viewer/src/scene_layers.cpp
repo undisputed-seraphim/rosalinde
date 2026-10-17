@@ -1,17 +1,13 @@
 #include "scene_layers.hpp"
 #include "trace.hpp"
 
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <atomic>
-#include <cstdio>
 #include <cstdlib>
 #include <thread>
 #include <vector>
-
-static bool scene_trace() {
-	static const bool on = std::getenv("SCENE_TRACE") != nullptr;
-	return on;
-}
 
 std::vector<std::unique_ptr<SpriteLayer>>
 build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int limit) {
@@ -30,7 +26,7 @@ build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int
 		auto m = loader.resolve(s.mbs);
 		auto fx = loader.resolve_ftx(s.ftx, s.mbs);
 		if (!m || !fx) {
-			std::fprintf(stderr, "[scene] miss %-24s %s\n", s.id.c_str(), s.mbs.c_str());
+			spdlog::debug("scene: miss {} {}", s.id, s.mbs);
 			continue;
 		}
 		jobs[i].mbs = *m;
@@ -52,7 +48,7 @@ build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int
 				try {
 					prepared[i] = loader.prepare(jobs[i]);
 				} catch (const std::exception& ex) {
-					std::fprintf(stderr, "[scene] skip %s: %s\n", specs[i].id.c_str(), ex.what());
+					spdlog::warn("scene: skip {}: {}", specs[i].id, ex.what());
 				}
 			}
 		};
@@ -74,7 +70,7 @@ build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int
 			try {
 				layer = loader.make_layer(std::move(prepared[i]), 0, specs[i].id, specs[i].kind);
 			} catch (const std::exception& ex) {
-				std::fprintf(stderr, "[scene] skip %s: %s\n", specs[i].id.c_str(), ex.what());
+				spdlog::warn("scene: skip {}: {}", specs[i].id, ex.what());
 				continue;
 			}
 			if (specs[i].track_index >= 0 && specs[i].track_index < static_cast<int>(layer->data.tracks.size()))
@@ -103,13 +99,7 @@ build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int
 				}
 			}
 			layers[i] = std::move(layer);
-			if (scene_trace())
-				std::fprintf(
-					stderr,
-					"[scene] load %-24s %-40s %zu tracks\n",
-					specs[i].id.c_str(),
-					specs[i].mbs.c_str(),
-					layers[i]->data.tracks.size());
+			spdlog::debug("scene: load {} {} ({} tracks)", specs[i].id, specs[i].mbs, layers[i]->data.tracks.size());
 		}
 	}
 	return layers;

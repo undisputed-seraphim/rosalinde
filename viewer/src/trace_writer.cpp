@@ -1,6 +1,7 @@
 #include "trace_writer.hpp"
 
-#include <cstdio>
+#include <spdlog/spdlog.h>
+
 #include <filesystem>
 
 namespace {
@@ -21,7 +22,7 @@ bool TraceWriter::open(const std::string& path, std::string_view categories) {
 		std::filesystem::create_directories(parent);
 	_out.open(path, std::ios::binary | std::ios::trunc);
 	if (!_out) {
-		std::fprintf(stderr, "[trace] cannot open %s\n", path.c_str());
+		spdlog::error("cannot open trace file: {}", path);
 		return false;
 	}
 	_categories.clear();

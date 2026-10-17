@@ -1,7 +1,7 @@
 #include "sprite_renderer.hpp"
+#include <spdlog/spdlog.h>
 #include "shader.hpp"
 
-#include <cstdio>
 #include <glm/ext.hpp>
 #include <span>
 #include <utility>
@@ -103,9 +103,8 @@ void SpriteRenderer::upload_textures(const SpriteData& data) {
 		const auto& t = data.textures[i];
 		const size_t need = static_cast<size_t>(t.compressed_size) + t.uncompressed_size;
 		if (t.width == 0 || t.height == 0 || t.rgba.size() < need) {
-			std::fprintf(
-				stderr,
-				"[tex] skip malformed texture %zu (%ux%u, %zu bytes, need %zu)\n",
+			spdlog::warn(
+				"tex: skip malformed texture {} ({}x{}, {} bytes, need {})",
 				i,
 				t.width,
 				t.height,

@@ -1,7 +1,8 @@
 #include "asset_library.hpp"
 
+#include <spdlog/spdlog.h>
+
 #include <chrono>
-#include <cstdio>
 #include <cstdlib>
 #include <utility>
 
@@ -43,9 +44,7 @@ SpriteAssetPtr AssetLibrary::get(const std::string& mbs, const std::string& ftx)
 		return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 	};
 	auto log_load = [&](const char* what) {
-		if (!std::getenv("SCENE_TRACE"))
-			return;
-		std::fprintf(stderr, "[asset] %s %s ftx=%s %.1fms\n", what, key.c_str(), ftx.c_str(), elapsed_ms());
+		spdlog::debug("asset: {} {} ftx={} {:.1f}ms", what, key, ftx, elapsed_ms());
 	};
 	if (auto it = _pending.find(key); it != _pending.end()) {
 		try {
@@ -63,7 +62,7 @@ SpriteAssetPtr AssetLibrary::get(const std::string& mbs, const std::string& ftx)
 						 asb::trace::quote(mbs) + "\",\"ftx\":\"" + asb::trace::quote(ftx) + "\""});
 			return asset;
 		} catch (const std::exception& e) {
-			std::fprintf(stderr, "[asset] %s: %s\n", key.c_str(), e.what());
+			spdlog::error("asset: {}: {}", key, e.what());
 			_pending.erase(it);
 			_failed[key] = true;
 			return {};
@@ -88,7 +87,7 @@ SpriteAssetPtr AssetLibrary::get(const std::string& mbs, const std::string& ftx)
 					 "\",\"ftx\":\"" + asb::trace::quote(ftx) + "\",\"ms\":" + asb::trace::number(elapsed_ms())});
 		return asset;
 	} catch (const std::exception& e) {
-		std::fprintf(stderr, "[asset] %s: %s\n", key.c_str(), e.what());
+		spdlog::error("asset: {}: {}", key, e.what());
 		_failed[key] = true;
 		return {};
 	}
@@ -109,7 +108,7 @@ SpriteAssetPtr AssetLibrary::try_get(const std::string& mbs, const std::string& 
 		_pending.erase(it);
 		return upload(std::move(prepared), pending.mbs, pending.ftx);
 	} catch (const std::exception& e) {
-		std::fprintf(stderr, "[asset] %s: %s\n", key.c_str(), e.what());
+		spdlog::error("asset: {}: {}", key, e.what());
 		_pending.erase(it);
 		_failed[key] = true;
 		return {};

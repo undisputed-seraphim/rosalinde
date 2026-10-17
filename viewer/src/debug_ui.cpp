@@ -2,6 +2,7 @@
 #include "tables.hpp"
 
 #include <SDL3/SDL.h>
+#include <spdlog/spdlog.h>
 #include <cstdlib>
 #include <filesystem>
 #include <glad/glad.h>
@@ -137,8 +138,7 @@ void DebugUI::draw(
 			flags = layer->default_flags;
 			for (auto& [_, tint] : layer->layer_tints)
 				tint = {1.0f, 1.0f, 1.0f, 1.0f};
-			fprintf(stdout, "%s: flags = 0x%08X\n", layer->name.c_str(), flags);
-			fflush(stdout);
+			spdlog::info("{}: flags = 0x{:08X}", layer->name, flags);
 		}
 
 		for (uint32_t bit : layer->data.attribute_bits) {

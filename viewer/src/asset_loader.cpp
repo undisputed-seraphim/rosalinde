@@ -3,9 +3,10 @@
 #include "screenshot.hpp"
 #include "trace.hpp"
 
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <cctype>
-#include <cstdio>
 #include <cstdlib>
 #include <eltolinde.hpp>
 #include <glad/glad.h>
@@ -176,7 +177,7 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 		glGetTexLevelParameteriv(GL_TEXTURE_2D_ARRAY, 0, GL_TEXTURE_WIDTH, &w);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D_ARRAY, 0, GL_TEXTURE_HEIGHT, &h);
 		glGetTexLevelParameteriv(GL_TEXTURE_2D_ARRAY, 0, GL_TEXTURE_DEPTH, &d);
-		fprintf(stderr, "[gpu tex] %dx%dx%d\n", w, h, d);
+		spdlog::info("gpu tex: {}x{}x{}", w, h, d);
 		std::vector<uint8_t> pix(static_cast<size_t>(w) * h * d * 4);
 		glGetTexImage(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA, GL_UNSIGNED_BYTE, pix.data());
 		screenshot::write("/tmp/opencode/gpu_tex.png", w, h * d, pix);
@@ -186,12 +187,11 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 	static const bool dump = std::getenv("BG_DUMP") != nullptr;
 	static const int layers_idx = std::getenv("BG_LAYERS") ? std::atoi(std::getenv("BG_LAYERS")) : -1;
 	if (dump) {
-		fprintf(stderr, "=== all s9 tracks (%zu) ===\n", v77.s9.size());
+		spdlog::info("all s9 tracks ({})", v77.s9.size());
 		for (uint32_t i = 0; i < v77.s9.size(); ++i) {
 			const auto& s9 = v77.s9[i];
-			fprintf(
-				stderr,
-				"[s9 %2u] %-26s disabled=%u sa_set_id=%u sa_set_no=%u\n",
+			spdlog::info(
+				"[s9 {:>2}] {:<26} disabled={} sa_set_id={} sa_set_no={}",
 				i,
 				s9.name,
 				s9.disabled,
@@ -202,7 +202,7 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 		for (const auto& s4 : v77.s4)
 			hist[{s4.flags, s4.blend_id}]++;
 		for (const auto& [k, v] : hist) {
-			fprintf(stderr, "s4 flags=0x%02X blend=%u count=%d\n", k.first, k.second, v);
+			spdlog::info("s4 flags=0x{:02X} blend={} count={}", k.first, k.second, v);
 		}
 	}
 	for (uint32_t i : select_background_tracks(v77)) {
@@ -213,10 +213,9 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 		bool is_far = ((s7.fog >> 24) & 0xFF) == 0xFF;
 
 		if (dump)
-			fprintf(
-				stderr,
-				"[bg %2u] %-16s far=%d s9=(%.0f,%.0f,%.0f,%.0f) move=(%.1f,%.1f,%.1f) scale=(%.2f,%.2f) "
-				"rot=(%.2f,%.2f,%.2f) fog=%08X\n",
+			spdlog::info(
+				"[bg {:>2}] {:<16} far={} s9=({:.0f},{:.0f},{:.0f},{:.0f}) move=({:.1f},{:.1f},{:.1f}) "
+				"scale=({:.2f},{:.2f}) rot=({:.2f},{:.2f},{:.2f}) fog=0x{:08X}",
 				i,
 				s9.name,
 				is_far,
@@ -240,7 +239,7 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 
 		if (dump) {
 			const glm::vec4 cb = el.instance.content_bounds();
-			fprintf(stderr, "        content=(%.0f,%.0f,%.0f,%.0f)\n", cb.x, cb.y, cb.z, cb.w);
+			spdlog::info("        content=({:.0f},{:.0f},{:.0f},{:.0f})", cb.x, cb.y, cb.z, cb.w);
 
 			const auto& tr = bg.data.tracks[i];
 			for (size_t r = 0; r < tr.runs.size(); ++r) {
@@ -249,10 +248,9 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 					continue;
 				const auto& s8b = bg.data.v77.s8[run.s8_start + el.instance.offsets[r]];
 				const auto& s7b = bg.data.v77.s7[s8b.s7_id];
-				fprintf(
-					stderr,
-					"          run %zu/%zu s8_st=%u count=%u s6=%u s7.move=(%.1f,%.1f,%.1f) scale=(%.2f,%.2f) "
-					"fog=%08X\n",
+				spdlog::info(
+					"          run {}/{} s8_st={} count={} s6={} s7.move=({:.1f},{:.1f},{:.1f}) "
+					"scale=({:.2f},{:.2f}) fog=0x{:08X}",
 					r,
 					tr.runs.size(),
 					run.s8_st,
@@ -269,10 +267,9 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 					const auto& ck = bg.data.keyframes[s8b.s6_id];
 					for (size_t li = 0; li < ck.layers.size(); ++li) {
 						const auto& L = ck.layers[li];
-						fprintf(
-							stderr,
-							"              layer %zu tex=%u blend=%u col0=%08X uv0=(%.1f,%.1f) uv2=(%.1f,%.1f) "
-							"xy0=(%.0f,%.0f) xy2=(%.0f,%.0f)\n",
+						spdlog::info(
+							"              layer {} tex={} blend={} col0=0x{:08X} uv0=({:.1f},{:.1f}) "
+							"uv2=({:.1f},{:.1f}) xy0=({:.0f},{:.0f}) xy2=({:.0f},{:.0f})",
 							li,
 							L.tex_id,
 							L.blend,
@@ -293,10 +290,9 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 				const auto& ck = bg.data.keyframes[s8.s6_id];
 				for (size_t li = 0; li < ck.layers.size(); ++li) {
 					const auto& L = ck.layers[li];
-					fprintf(
-						stderr,
-						"            layer %zu tex=%u blend=%u attr=%08X col0=%08X uv0=(%.1f,%.1f) uv2=(%.1f,%.1f) "
-						"xy0=(%.1f,%.1f) xy2=(%.1f,%.1f)\n",
+					spdlog::info(
+						"            layer {} tex={} blend={} attr=0x{:08X} col0=0x{:08X} uv0=({:.1f},{:.1f}) "
+						"uv2=({:.1f},{:.1f}) xy0=({:.1f},{:.1f}) xy2=({:.1f},{:.1f})",
 						li,
 						L.tex_id,
 						L.blend,

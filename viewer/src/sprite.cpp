@@ -5,11 +5,11 @@
 
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
+#include <spdlog/spdlog.h>
 #include <glm/gtx/euler_angles.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <span>
@@ -206,8 +206,7 @@ void SpriteInstance::play(uint32_t track_id) {
 	_frame_counter++;
 	if (const char* adv = std::getenv("VIEWER_ADVANCE"))
 		advance_frames(static_cast<uint32_t>(std::max(0, std::atoi(adv))));
-	if (std::getenv("SCENE_TRACE"))
-		fprintf(stderr, "[anim] play track %u \"%s\"\n", track_id, track.name.c_str());
+	spdlog::debug("anim: play track {} \"{}\"", track_id, track.name);
 }
 
 void SpriteInstance::play(const std::string& name) {

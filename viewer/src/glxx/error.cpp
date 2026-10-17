@@ -1,6 +1,7 @@
 #include "glxx/error.hpp"
+#include <spdlog/spdlog.h>
+
 #include <cstdlib>
-#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -87,8 +88,16 @@ void message_callback(
 	static const bool verbose = std::getenv("VIEWER_GL_DEBUG") != nullptr;
 	if (!verbose && severity == GL_DEBUG_SEVERITY_NOTIFICATION)
 		return;
-	std::cout << '[' << gl_debug_severity_str(severity) << "] [" << gl_debug_type_string(type) << "]\t"
-			  << std::string_view(message, length) << std::endl;
+	const std::string_view text(message, length);
+	const char* type_name = gl_debug_type_string(type).data();
+	if (severity == GL_DEBUG_SEVERITY_HIGH)
+		spdlog::error("[GL] [{}] {}", type_name, text);
+	else if (severity == GL_DEBUG_SEVERITY_MEDIUM)
+		spdlog::warn("[GL] [{}] {}", type_name, text);
+	else if (severity == GL_DEBUG_SEVERITY_LOW)
+		spdlog::info("[GL] [{}] {}", type_name, text);
+	else
+		spdlog::debug("[GL] [{}] {}", type_name, text);
 }
 
 #include <map>

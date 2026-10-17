@@ -1,5 +1,7 @@
 #pragma once
 
+#include <spdlog/spdlog.h>
+
 #include <chrono>
 #include <cstdarg>
 #include <cstdio>
@@ -29,12 +31,12 @@ inline double ms_since_origin() {
 }
 
 inline void stamp(const char* fmt, ...) {
-	std::fprintf(stderr, "[trace +%9.1fms] ", ms_since_origin());
+	char message[1024];
 	va_list ap;
 	va_start(ap, fmt);
-	std::vfprintf(stderr, fmt, ap);
+	std::vsnprintf(message, sizeof(message), fmt, ap);
 	va_end(ap);
-	std::fprintf(stderr, "\n");
+	spdlog::info("[trace +{:9.1f}ms] {}", ms_since_origin(), message);
 }
 
 // Prints the elapsed time of its scope, e.g. "[trace +  123.4ms] label: 12.3ms".
@@ -51,11 +53,10 @@ public:
 		if (!detail_enabled())
 			return;
 		const auto d = std::chrono::steady_clock::now() - _t0;
-		std::fprintf(
-			stderr,
-			"[trace +%9.1fms]   %s: %.1fms\n",
+		spdlog::debug(
+			"[trace +{:9.1f}ms]   {}: {:.1f}ms",
 			ms_since_origin(),
-			_label.c_str(),
+			_label,
 			std::chrono::duration<double, std::milli>(d).count());
 	}
 

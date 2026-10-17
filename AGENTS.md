@@ -54,7 +54,7 @@ See [`docs/VIEWER.md`](docs/VIEWER.md) for rendering internals, headless capture
 - CMake 3.28+
 - A C++23 compiler (MSVC 2022 `/std:c++latest`, or GCC 14 / Clang 19)
 - Boost 1.88 (system, iostreams, program_options)
-- SDL3 3.4, ZLIB 1.3.1, glm 1.0, EnTT 3.14+, OpenGL, Catch2 3.12+
+- SDL3 3.4, ZLIB 1.3.1, glm 1.0, EnTT 3.14+, spdlog 1.17, OpenGL, Catch2 3.12+
 
 The build produces:
 | Target | Type | Source |
