@@ -783,6 +783,22 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		emit(RuntimeText::Kind::Msg, {}, S(1), -1, -1, -1);
 		return true;
 	}
+	if (name == "Message") {
+		RuntimeText& t = emit(RuntimeText::Kind::Message, {}, S(0), -1, -1, -1);
+		t.end = 0; // banner is open until CloseMessage()
+		if (I(1) >= 0)
+			t.ids.push_back(I(1));
+		return true;
+	}
+	if (name == "CloseMessage") {
+		for (auto it = _timeline.texts.rbegin(); it != _timeline.texts.rend(); ++it) {
+			if (it->kind == RuntimeText::Kind::Message && it->end == 0) {
+				it->end = frame;
+				break;
+			}
+		}
+		return true;
+	}
 	if (name == "MsgFinishWait") {
 		// Async messages finish here: park until the last one's display ends.
 		if (!_timeline.texts.empty() && _timeline.texts.back().end > frame) {
