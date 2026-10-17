@@ -1521,7 +1521,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	}
 
 	if (name == "DrSetPosV" || name == "SetSpritePosV" || name == "SetPosV" || name == "DrUiSetPosV" ||
-		name == "DrSetOffsetPosV" || name == "DrSetEffectPosV" || name == "DrSetEffectOffsetV") {
+		name == "DrSetOffsetPosV") {
 		if (RuntimeEntity* e = ent(0)) {
 			float p[3] = {0.0f, 0.0f, 0.0f};
 			V(1, p, 3);
@@ -1567,6 +1567,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 
 	if (name == "GetSpriteMoneFindCallbackTiming") {
+		// TODO(anim): callback timing table is not recovered yet.
 		gen->SetReturnDWord(0);
 		return true;
 	}
@@ -1574,8 +1575,15 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "SetSpriteMoneAnimation" || name == "SetSpriteMoneAnimationPaused") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track_index = I(1);
+			e->anim_paused = name == "SetSpriteMoneAnimationPaused" ? I(2) != 0 : false;
 			if (scene_trace())
-				std::fprintf(stderr, "[vm f=%ld] anim   \"%s\" track=%d\n", frame, e->name.c_str(), e->track_index);
+				std::fprintf(
+					stderr,
+					"[vm f=%ld] anim   \"%s\" track=%d paused=%d\n",
+					frame,
+					e->name.c_str(),
+					e->track_index,
+					e->anim_paused ? 1 : 0);
 			_dirty = true;
 		}
 		return true;
@@ -2109,6 +2117,15 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			o[k] = static_cast<unsigned char>(std::clamp(c[k], 0.0f, 1.0f) * 255.0f);
 	};
 
+	if (name == "DrSetEffectPosV" || name == "DrSetEffectOffsetV") {
+		RuntimeEffect e;
+		e.frame = frame;
+		e.kind = name == "DrSetEffectPosV" ? "pos" : "offset";
+		e.name = S(0);
+		V(1, e.pos, 3);
+		_timeline.effects.push_back(e);
+		return true;
+	}
 	if (name == "DrCreateEffect") {
 		RuntimeEffect e;
 		e.frame = frame;
@@ -2770,6 +2787,32 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			e.mbs = mbs;
 		if (!ftx.empty())
 			e.ftx = ftx;
+		// Field symbols sometimes pass a chara display/label name instead of
+		// asset paths (`FlCreateCharaSymbol`/chase variants); resolve through
+		// the same CharaSet/display tables as world chara creation.
+		auto resolve_name = [&](const std::string& key) {
+			if (key.empty())
+				return false;
+			if (_chara_sets)
+				if (const CharaInfo* ci = _chara_sets->resolve(key)) {
+					e.mbs = ci->mbs;
+					e.ftx = ci->ftx;
+					return true;
+				}
+			if (_chars) {
+				auto it = _chars->find(key);
+				if (it != _chars->end()) {
+					e.mbs = it->second.mbs;
+					e.ftx = it->second.ftx;
+					return true;
+				}
+			}
+			return false;
+		};
+		const bool mbs_asset = mbs.find('/') != std::string::npos || mbs.ends_with(".mbs");
+		const bool ftx_asset = ftx.find('/') != std::string::npos || ftx.ends_with(".ftx");
+		if (!mbs_asset && !resolve_name(mbs) && !ftx_asset)
+			resolve_name(ftx);
 		if (pos) {
 			e.pos[0] = pos[0];
 			e.pos[1] = pos[1];
@@ -2824,6 +2867,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "FlBackHomeSymbol") { push_field("back_home", S(0), {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlPauseSymbol") { if (auto* e = ent(0)) { e->paused = true; _dirty = true; } return true; }
 	if (name == "FlUnpauseSymbol") { if (auto* e = ent(0)) { e->paused = false; _dirty = true; } return true; }
+	// TODO(field): auto-facing on movement is not simulated; state is retained.
 	if (name == "FlSetAutoDirOff") { if (auto* e = ent(0)) { e->auto_dir_off = I(1) != 0; _dirty = true; } return true; }
 	if (name == "FlSetAnimation") { if (auto* e = ent(0)) { e->track_index = I(1); e->reverse = I(2) != 0; _dirty = true; } return true; }
 	if (name == "FlSetReverseX") { if (auto* e = ent(0)) { e->reverse_x = I(1) != 0; _dirty = true; } return true; }
@@ -2865,8 +2909,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "FlAddSymbolAiMoveWait") { push_field("symbol_wait", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlAddSymbolAiMoveTurn") { if (auto* e = ent(0)) { e->dir_x = I(1) >= 0 ? 1.0f : -1.0f; _dirty = true; } return true; }
 	if (name == "FlSetMoveAiPatRolType") { push_field("symbol_ai", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
-	// TODO(field-ai): mapped to paused.
-	if (name == "FlSetMoveAiPermissionInDemo") { if (auto* e = ent(0)) { e->paused = I(1) == 0; _dirty = true; } return true; }
+	// TODO(field): consume ai_paused once field AI/movement exists.
+	if (name == "FlSetMoveAiPermissionInDemo") { if (auto* e = ent(0)) { e->ai_paused = I(1) == 0; _dirty = true; } return true; }
 	if (name == "FlSetDemoMoveSpeed") { push_field("demo_speed", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
 
 	// Field objects / regions / portals.
@@ -2978,7 +3022,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 	if (name == "FlSetStageStartParam") { _stage_start_param = I(1); push_field("stage_start", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
-	// TODO: state-dependent; 0 for now.
+	// TODO(field): map-completion formula is not recovered yet.
 	if (name == "FlGetBreakthroughRate") { gen->SetReturnFloat(0.0f); return true; }
 	if (name == "FlGetTownLv") { auto it = _town_lv.find(S(0)); gen->SetReturnDWord(it == _town_lv.end() ? 0u : static_cast<asDWORD>(it->second)); return true; }
 	if (name == "FlGetItemChangeShopLevel") { gen->SetReturnDWord(static_cast<asDWORD>(_item_change_shop_level)); return true; }

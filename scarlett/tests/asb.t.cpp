@@ -39,6 +39,15 @@ std::filesystem::path find_cpk() {
 	return {};
 }
 
+std::filesystem::path find_viewer_data(const std::string& name) {
+	for (const char* dir : {"viewer/data/", "../viewer/data/", "../../viewer/data/"}) {
+		const std::filesystem::path p = std::filesystem::path(dir) / name;
+		if (std::filesystem::exists(p))
+			return p;
+	}
+	return {};
+}
+
 std::vector<uint8_t> extract_entry(const std::filesystem::path& cpk, const std::string& entry) {
 	auto pos = entry.find_last_of('/');
 	std::string dir = pos == std::string::npos ? "" : entry.substr(0, pos);
@@ -79,6 +88,73 @@ TEST_CASE("pick_scene_function follows the heuristic") {
 	// Falls back to the busiest function then the first non-empty one.
 	auto s3 = make_scene({{"a", 1}, {"b", 4}});
 	CHECK(asb::pick_scene_function(s3)->name == "b");
+}
+
+TEST_CASE("field chara symbols resolve their assets") {
+	const std::filesystem::path cpk = find_cpk();
+	const auto charaset = find_viewer_data("charaset.tsv");
+	const auto classes = find_viewer_data("classes.tsv");
+	if (cpk.empty() || charaset.empty() || classes.empty()) {
+		WARN("missing Unicorn.CPK or viewer/data; skipping field-symbol test");
+		return;
+	}
+
+	const std::string entry = "Script/Fl_OW.asb";
+	std::vector<uint8_t> bytes = extract_entry(cpk, entry);
+	REQUIRE_FALSE(bytes.empty());
+
+	asb::Module mod = asb::parse(bytes);
+	REQUIRE(mod.error.empty());
+	asb::Host host;
+	host.register_module(mod);
+	host.set_call_log([](const std::string&) {});
+	asb::CharaSetTable sets =
+		asb::load_chara_set(charaset.string(), classes.string(), find_viewer_data("charanpc_assets.tsv").string());
+	host.set_chara_set_table(sets);
+	REQUIRE(host.load(bytes));
+	asIScriptFunction* fn = host.find_function({"START"});
+	REQUIRE(fn);
+
+	asb::Timeline tl = host.run(fn, entry);
+	size_t symbols = 0;
+	size_t resolved = 0;
+	for (const auto& kf : tl.keyframes)
+		for (const auto& e : kf.entities)
+			if (e.kind == "FlCreateCharaSymbol") {
+				++symbols;
+				if (!e.mbs.empty() && !e.ftx.empty())
+					++resolved;
+			}
+	CHECK(symbols > 0);
+	CHECK(symbols == resolved);
+}
+
+TEST_CASE("effect position and offset events are recorded") {
+	const std::filesystem::path cpk = find_cpk();
+	if (cpk.empty()) {
+		WARN("no Unicorn.CPK found (set UNICORN_CPK); skipping effect test");
+		return;
+	}
+
+	const std::string entry = "Script/Dr_OW_A_2_Fl_Main_0.asb";
+	std::vector<uint8_t> bytes = extract_entry(cpk, entry);
+	REQUIRE_FALSE(bytes.empty());
+
+	asb::Module mod = asb::parse(bytes);
+	REQUIRE(mod.error.empty());
+	asb::Host host;
+	host.register_module(mod);
+	host.set_call_log([](const std::string&) {});
+	REQUIRE(host.load(bytes));
+	asIScriptFunction* fn = host.find_function({"scene00"});
+	REQUIRE(fn);
+
+	asb::Timeline tl = host.run(fn, entry);
+	bool saw_offset = false;
+	for (const auto& e : tl.effects)
+		if (e.kind == "offset")
+			saw_offset = true;
+	CHECK(saw_offset);
 }
 
 TEST_CASE("native callback registrations are retained") {

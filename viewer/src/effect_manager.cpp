@@ -92,6 +92,17 @@ void EffectManager::apply(const asb::RuntimeEffect& e, long frame, const EntityP
 		return;
 	Effect& ef = it->second;
 
+	if (e.kind == "pos") {
+		ef.base_pos = {e.pos[0], e.pos[1]};
+		ef.moving = false;
+		return;
+	}
+	if (e.kind == "offset") {
+		ef.offset = {e.pos[0], e.pos[1]};
+		if (ef.attached.empty())
+			ef.base_pos += ef.offset;
+		return;
+	}
 	if (e.kind == "dir") {
 		ef.dir_x = e.i0 ? 1.0f : -1.0f;
 	} else if (e.kind == "attach") {

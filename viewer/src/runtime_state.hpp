@@ -55,6 +55,7 @@ private:
 	asb::Timeline _timeline;
 	std::vector<std::unique_ptr<SpriteLayer>> _layers; // aligned by entity order
 	std::vector<char> _active;
+	std::vector<char> _paused;
 	std::vector<int> _track;
 	std::vector<int> _parent; // entity index this layer is anchored to, or -1
 	ScreenFadeOverlay _fade;
