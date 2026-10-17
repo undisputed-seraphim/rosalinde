@@ -5,8 +5,8 @@
 
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
-#include <spdlog/spdlog.h>
 #include <glm/gtx/euler_angles.hpp>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cmath>
@@ -442,6 +442,28 @@ glm::mat4 SpriteInstance::transform_for_sa(uint32_t sa_idx, bool* out_flipx, boo
 }
 
 uint32_t SpriteInstance::sa_count() const { return static_cast<uint32_t>(data->tracks[track_idx].runs.size()); }
+
+std::vector<SpriteInstance::RunState> SpriteInstance::run_states() const {
+	std::vector<RunState> out;
+	if (!data || track_idx >= data->tracks.size())
+		return out;
+	const auto& track = data->tracks[track_idx];
+	out.reserve(track.runs.size());
+	for (uint32_t i = 0; i < track.runs.size() && i < offsets.size(); ++i) {
+		const auto& run = track.runs[i];
+		RunState state;
+		state.offset = offsets[i];
+		state.done = i < done.size() && done[i] != 0;
+		state.hidden = i < hide.size() && hide[i] != 0;
+		if (run.s8_count > 0 && run.s8_start + state.offset < data->v77.s8.size()) {
+			const auto& s8 = data->v77.s8[run.s8_start + state.offset];
+			state.flags = s8.flags;
+			state.frames = s8.frames;
+		}
+		out.push_back(state);
+	}
+	return out;
+}
 
 uint32_t SpriteInstance::frame_counter() const { return _frame_counter; }
 

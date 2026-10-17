@@ -58,11 +58,7 @@ void SceneRenderer::rebuild(Object& object, const asb::RuntimeEntity& e, SpriteA
 
 	if (object.background) {
 		const auto selected = select_background_tracks(object.asset->data.v77);
-		spdlog::debug(
-			"bg: {} tracks={} selected={}",
-			e.mbs,
-			object.asset->data.tracks.size(),
-			selected.size());
+		spdlog::debug("bg: {} tracks={} selected={}", e.mbs, object.asset->data.tracks.size(), selected.size());
 		for (uint32_t i : selected) {
 			if (!track_usable(object.asset->data, static_cast<int>(i)))
 				continue;
@@ -275,6 +271,16 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 					b.y,
 					b.z,
 					b.w);
+				const auto states = in.run_states();
+				for (size_t k = 0; k < states.size(); ++k)
+					spdlog::debug(
+						"draw:     run={} offset={} flags=0x{:X} frames={} done={} hidden={}",
+						k,
+						states[k].offset,
+						states[k].flags,
+						states[k].frames,
+						states[k].done,
+						states[k].hidden);
 			}
 		}
 		for (auto& instance : object->instances) {

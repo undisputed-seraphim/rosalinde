@@ -103,6 +103,14 @@ struct SpriteInstance {
 	glm::mat4 transform_for_sa(uint32_t sa_idx, bool* out_flipx = nullptr, bool* out_flipy = nullptr) const;
 	uint32_t sa_count() const;
 	uint32_t frame_counter() const;
+	struct RunState {
+		uint32_t offset = 0;
+		uint32_t flags = 0;
+		uint32_t frames = 0;
+		bool done = false;
+		bool hidden = false;
+	};
+	std::vector<RunState> run_states() const;
 	glm::vec4 track_bounds() const;
 	glm::vec4 content_bounds() const;
 	glm::vec4 render_bounds() const;
