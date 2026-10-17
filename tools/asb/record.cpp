@@ -518,8 +518,8 @@ int main(int argc, char** argv) try {
 
 	asb::FacilityNames facilities = asb::load_facility_names("viewer/data/uc_enums.tsv");
 	host.set_facility_name([facilities](const std::string& key) { return facilities.resolve(key); });
-	asb::StageTable stages =
-		asb::load_stage_tables("viewer/data/stages.tsv", "viewer/data/facility_pos.tsv");
+	asb::StageTable stages = asb::load_stage_tables(
+		"viewer/data/stages.tsv", "viewer/data/facility_pos.tsv", "viewer/data/country_regions.tsv");
 	host.set_stage_table(stages);
 	asb::DropTables drops =
 		asb::load_drop_tables("viewer/data/drop_tables.tsv", "viewer/data/uc_enums.tsv");

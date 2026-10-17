@@ -344,12 +344,21 @@ struct StageTable {
 		std::string label;
 		float pos[2] = {0.0f, 0.0f};
 	};
+	struct CountryRegion {
+		int id = 0;
+		float p[8] = {0.0f}; // x0,y0, x1,y1, x2,y2, x3,y3
+	};
 	std::unordered_map<std::string, Stage> stages;
 	std::unordered_map<std::string, Facility> facilities;
+	std::vector<CountryRegion> countries;
 	const Stage* stage(const std::string& name) const;
 	const Facility* facility(const std::string& name) const;
+	// Engine country lookup: point-in-quad over the regions, then the engine's
+	// 5-entry id map (3,4,1,0,0; no region -> 2).
+	int country_at(const float p[2]) const;
 };
-StageTable load_stage_tables(const std::string& stages_tsv, const std::string& facility_tsv);
+StageTable load_stage_tables(const std::string& stages_tsv, const std::string& facility_tsv,
+	const std::string& country_tsv = {});
 
 // Drop tables from the engine `.data` joined with the DROPTABLE/ITEMID enums.
 struct DropTableEntry {
