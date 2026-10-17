@@ -176,6 +176,48 @@ private:
 	int _item_change_num = 0;
 	int _ex_stage_dialog_result = 0;
 	int _stage_start_param = 0;
+
+	// Phase 7 battle / AI. The engine owns the simulation (unit turn loop, AI
+	// component list, gambit execution, engagement/damage, reinforcements); the
+	// stores below only keep return values coherent. TODO(phase7): implement the
+	// simulation.
+	struct BattleUnit {
+		std::string name;
+		std::string def;
+		float pos[2] = {0.0f, 0.0f};
+		int army = 0;
+		int state = 0;
+		int hp = 100;
+		int stamina = 0;
+		int brave = 0;
+		bool demo = false;
+		bool vehicle = false;
+	};
+	struct BattleTimer {
+		long start = 0;
+		int rest = 0;
+		bool running = false;
+	};
+	std::unordered_map<std::string, BattleUnit> _battle_units;
+	std::unordered_map<std::string, BattleTimer> _battle_timers;
+	std::unordered_map<std::string, std::string> _unit_station;
+	std::unordered_map<std::string, int> _facility_army;
+	std::unordered_set<std::string> _selectable_objects;
+	std::unordered_set<std::string> _targetable_objects;
+	std::unordered_set<int> _selectable_commands;
+	int _selected_command = -1;
+	std::string _battle_scene;
+	std::string _battle_bg;
+	bool _battle_scene_on = false;
+	int _time_limit_day = -1, _time_limit_hour = -1, _time_limit_minute = -1;
+	int _stage_unit_base_lv = 0;
+	int _battle_unit_seq = 0;
+	int _battle_brave = 0;
+	std::string _battle_found_last;
+	std::vector<std::string> _partner_defs;
+	std::vector<std::string> _battle_unit_order;
+	bool dispatch_battle(std::string_view name, asIScriptGeneric* gen);
+
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;
 	std::function<std::string(const std::string&)> _facility_name;
