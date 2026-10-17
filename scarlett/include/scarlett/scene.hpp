@@ -173,6 +173,16 @@ struct RuntimeAudio {
 	float volume = 0.0f;
 };
 
+// Script callback registration. The target is a module function name; actual
+// dispatch is deferred until the corresponding game event exists.
+struct RuntimeCallback {
+	long frame = 0;
+	std::string event;
+	std::string key;
+	std::string slot;
+	std::string function;
+};
+
 // Item/treasure record. The inventory count side is Phase 6; the dialog popup
 // is Phase 5C; this is the event itself.
 struct RuntimeItem {
@@ -250,6 +260,7 @@ struct Timeline {
 	std::vector<RuntimePointLight> point_lights;
 	std::vector<RuntimeAudio> audio;
 	std::vector<RuntimeItem> items;
+	std::vector<RuntimeCallback> callbacks;
 	std::vector<RuntimeFog> fog;
 	std::vector<RuntimeGradient> gradients;
 	std::vector<RuntimeUi> ui;

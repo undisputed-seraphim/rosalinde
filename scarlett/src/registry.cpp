@@ -177,8 +177,123 @@ void Registry::reset(std::string source, std::string function) {
 	_battle_unit_order.clear();
 	_camera = RuntimeCamera{};
 	_dirty = false;
+	_talk_move_back = false;
 	frame = 0;
 	pending_wait = -1;
+}
+
+const char* Registry::callback_event_name(ScriptEvent event) {
+	switch (event) {
+	case ScriptEvent::BattleBefore: return "battle_before";
+	case ScriptEvent::BattleDie: return "battle_die";
+	case ScriptEvent::EncounterBefore: return "encounter_before";
+	case ScriptEvent::EncounterAfter: return "encounter_after";
+	case ScriptEvent::Talk: return "talk";
+	case ScriptEvent::Facility: return "facility";
+	case ScriptEvent::GateBreakAfter: return "gate_break_after";
+	case ScriptEvent::TownLvUp: return "town_lv_up";
+	case ScriptEvent::BattleAfter: return "battle_after";
+	case ScriptEvent::BattleDieAfter: return "battle_die_after";
+	case ScriptEvent::FacilityAfter: return "facility_after";
+	case ScriptEvent::Treasure: return "treasure";
+	case ScriptEvent::Chase: return "chase";
+	case ScriptEvent::Portal: return "portal";
+	case ScriptEvent::Port: return "port";
+	}
+	return "unknown";
+}
+
+void Registry::add_callback(
+	ScriptEvent event,
+	std::string key,
+	std::string function,
+	bool replace,
+	std::string slot) {
+	if (function.empty())
+		return;
+	const char* name = callback_event_name(event);
+	if (replace) {
+		_timeline.callbacks.erase(
+			std::remove_if(
+				_timeline.callbacks.begin(),
+				_timeline.callbacks.end(),
+				[&](const RuntimeCallback& cb) {
+					return cb.event == name && cb.key == key && cb.slot == slot;
+				}),
+			_timeline.callbacks.end());
+	}
+	_timeline.callbacks.push_back(RuntimeCallback{frame, name, std::move(key), std::move(slot), std::move(function)});
+}
+
+void Registry::remove_callback(
+	ScriptEvent event,
+	const std::string& key,
+	const std::string& function,
+	const std::string& slot) {
+	const char* name = callback_event_name(event);
+	_timeline.callbacks.erase(
+		std::remove_if(
+			_timeline.callbacks.begin(),
+			_timeline.callbacks.end(),
+			[&](const RuntimeCallback& cb) {
+				return cb.event == name && cb.key == key && (function.empty() || cb.function == function) &&
+					   (slot.empty() || cb.slot == slot);
+			}),
+		_timeline.callbacks.end());
+}
+
+asIScriptFunction* Registry::resolve_callback(std::string_view name) const {
+	if (!_module || name.empty())
+		return nullptr;
+	asIScriptFunction* bare = nullptr;
+	for (asUINT i = 0; i < _module->GetFunctionCount(); ++i) {
+		asIScriptFunction* fn = _module->GetFunctionByIndex(i);
+		if (!fn)
+			continue;
+		const char* ns = fn->GetNamespace();
+		const char* fn_name = fn->GetName();
+		if (!fn_name)
+			continue;
+		std::string full = (ns && *ns) ? std::string(ns) + "::" + fn_name : std::string(fn_name);
+		if (name == full)
+			return fn;
+		if (name == fn_name) {
+			if (bare)
+				bare = nullptr; // ambiguous bare name; require the qualified form
+			else
+				bare = fn;
+		}
+	}
+	return bare;
+}
+
+bool Registry::fire_script_event(ScriptEvent event, std::string_view key) {
+	// TODO(combat): invoke BattleBefore/BattleDie/Encounter*/BattleAfter/
+	// BattleDieAfter callbacks when the battle simulation emits these events.
+	// TODO(field): invoke Talk/Facility/GateBreakAfter/TownLvUp/FacilityAfter/
+	// Treasure/Chase/Portal/Port callbacks when field interaction exists.
+	// Callback storage/removal is complete; dispatch needs a coroutine-capable
+	// invoker and real event sources.
+	const char* name = callback_event_name(event);
+	for (const auto& cb : _timeline.callbacks) {
+		if (cb.event != name || (!key.empty() && cb.key != key))
+			continue;
+		if (std::getenv("ASB_CALLBACKS")) {
+			const bool combat = event == ScriptEvent::BattleBefore || event == ScriptEvent::BattleDie ||
+								event == ScriptEvent::EncounterBefore || event == ScriptEvent::EncounterAfter ||
+								event == ScriptEvent::BattleAfter || event == ScriptEvent::BattleDieAfter;
+			std::fprintf(
+				stderr,
+				"[callback] %s key=\"%s\"%s%s -> %s (not fired: TODO(%s))\n",
+				name,
+				cb.key.c_str(),
+				cb.slot.empty() ? "" : " slot=",
+				cb.slot.c_str(),
+				cb.function.c_str(),
+				combat ? "combat" : "field");
+		}
+	}
+	return false;
 }
 
 int Registry::ensure(const std::string& name) {
@@ -581,13 +696,31 @@ bool Registry::dispatch_battle(std::string_view name, asIScriptGeneric* gen) {
 	}
 	if (name == "StGetPartnerCharaDefName") { ret_str(_partner_defs.empty() ? std::string() : _partner_defs.front()); return true; }
 
+	// ---- script callback bookkeeping (dispatch deferred) ----------------
+	// Stored for TODO(combat)/TODO(field) event dispatch; no callback is invoked
+	// until the corresponding game event exists.
+	if (name == "AddBattleBefore") { add_callback(ScriptEvent::BattleBefore, {}, S(0)); return true; }
+	if (name == "AddBattleDie") { add_callback(ScriptEvent::BattleDie, S(0), S(1)); return true; }
+	if (name == "StAddEncountBefore") { add_callback(ScriptEvent::EncounterBefore, {}, S(0)); return true; }
+	if (name == "StAddEncountAfter") { add_callback(ScriptEvent::EncounterAfter, {}, S(0)); return true; }
+	if (name == "StAddTalkEvent") {
+		add_callback(ScriptEvent::Talk, S(0) + "\x1f" + S(1), S(2));
+		return true;
+	}
+	if (name == "StDeleteTalkEvent") {
+		remove_callback(ScriptEvent::Talk, S(0) + "\x1f" + S(1), S(2));
+		return true;
+	}
+	if (name == "StSetTalkEventMoveBack") { _talk_move_back = I(0) != 0; return true; }
+	if (name == "StSetFacilityEvent") { add_callback(ScriptEvent::Facility, S(0), S(1), true); return true; }
+	if (name == "StSetGateBreakAfter") { add_callback(ScriptEvent::GateBreakAfter, S(0), S(1), true); return true; }
+
 	// Engine-side unit actions: no state the scripts read back.
 	if (name == "StActionEnd" || name == "StActionEnd_AllPlayerArmy" || name == "StUnitWaitSkip" ||
 		name == "StEmote" || name == "StSetUnitAnimation" || name == "StSetUnitMov" ||
 		name == "StSetMoveSpeedRate" || name == "StSetMoveAiPermissionInDemo" || name == "StSetForcePause" ||
 		name == "StDisableBattle" || name == "StSetEncountOff" || name == "StSetNightMask" ||
 		name == "StSetMiasumaAllUnit" || name == "StOpenCoAEditor" || name == "StDisableGroundMoveEffect" ||
-		name == "StSetTalkEventMoveBack" || name == "StAddTalkEvent" || name == "StDeleteTalkEvent" ||
 		name == "StSetFocusReturnPosV" || name == "StSetArmyBase" || name == "StDeleteArmyBase" ||
 		name == "StBoard" || name == "StRestartSkipEnd" || name == "SetObjectName") {
 		return true;
@@ -658,8 +791,7 @@ bool Registry::dispatch_battle(std::string_view name, asIScriptGeneric* gen) {
 	if (name == "StAddWinMessage" || name == "StShowWinMessage" || name == "StAddLoseMessage" ||
 		name == "StShowLoseMessage" || name == "StAddWinMessageCommander" ||
 		name == "StShowWinMessageCommander" || name == "StClearWinMessage" || name == "StClearLoseMessage" ||
-		name == "StAddEncountBefore" || name == "StAddEncountAfter" || name == "AddBattleBefore" ||
-		name == "AddBattleDie" || name == "AddBattleFlag") {
+		name == "AddBattleFlag") {
 		return true; // battle result/message hooks: engine UI
 	}
 	if (name == "BtFindChara") {
@@ -703,12 +835,11 @@ bool Registry::dispatch_battle(std::string_view name, asIScriptGeneric* gen) {
 		_unit_station[S(0)] = S(1);
 		return true;
 	}
-	if (name == "StCreateFacility_StageRect" || name == "StSetFacilityEvent" ||
+	if (name == "StCreateFacility_StageRect" ||
 		name == "StSetFacilityDir" || name == "StSetStationItem" || name == "StDeleteAllGimmick" ||
 		name == "StCreateGimmick" || name == "StCreateFire" || name == "StCreateCloud" ||
 		name == "StCreateCloudGenerator" || name == "StCreateCircleRegionObject" ||
-		name == "StCreateLookoutRegionObject" || name == "StCreateSwitchObject" ||
-		name == "StSetGateBreakAfter") {
+		name == "StCreateLookoutRegionObject" || name == "StCreateSwitchObject") {
 		return true; // record-only / engine object graph
 	}
 
@@ -2360,6 +2491,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			if (gen->GetArgCount() > 4)
 				it.callback = S(4);
 		}
+		if (!it.callback.empty())
+			add_callback(ScriptEvent::Treasure, it.object, it.callback, true);
 		_timeline.items.push_back(it);
 		return true;
 	}
@@ -2748,6 +2881,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		V(2, p, 2);
 		field_object("FlCreateChaseEnemy", S(0), p);
 		push_field("chase_enemy", S(0), S(5), I(1), I(3), I(4), 0.0f, p, false);
+		add_callback(ScriptEvent::Chase, S(0), S(5), true);
 		return true;
 	}
 	if (name == "FlCreateChaseChara" || name == "FlCreateFleeChara") {
@@ -2779,6 +2913,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		f.text2 = S(6);
 		f.pos[0] = b[0];
 		f.pos[1] = b[1];
+		add_callback(ScriptEvent::Portal, S(0), S(5), true, "0");
+		add_callback(ScriptEvent::Portal, S(0), S(6), true, "1");
 		return true;
 	}
 	if (name == "FlCreateTalkPoint") { float p[2]; V(1, p, 2); push_field("talk_point", S(0), {}, I(2), 0, 0, 0.0f, p, false); return true; }
@@ -2788,7 +2924,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "FlCreateFreeMap") { float p[2]; V(1, p, 2); push_field("free_map", S(0), S(2), I(3), 0, 0, 0.0f, p, false); return true; }
 	if (name == "FlCreateStage") { push_field("stage", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlCreateExStage") { float p[2]; V(1, p, 2); push_field("ex_stage", S(0), S(2), I(3), 0, 0, 0.0f, p, false); return true; }
-	if (name == "FlAddPort") { push_field("port", S(0), S(1), I(2), 0, 0, 0.0f, nullptr, false).text2 = S(3); return true; }
+	if (name == "FlAddPort") {
+		push_field("port", S(0), S(1), I(2), 0, 0, 0.0f, nullptr, false).text2 = S(3);
+		add_callback(ScriptEvent::Port, S(0), S(3), true);
+		return true;
+	}
 	if (name == "FlSetRevivePosV") { float p[2]; V(0, p, 2); _revive_pos[0] = p[0]; _revive_pos[1] = p[1]; return true; }
 	if (name == "FlDeleteMarker") { push_field("marker_del", S(0), {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlCreateGradientMapRegion") { auto pts = read_int_array(gen, 1); push_field("gradient_region", S(0), {}, static_cast<int>(pts.size()), I(2), 0, F(3), nullptr, false); return true; }
@@ -2803,8 +2943,18 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	// Field flags / UI.
 	if (name == "FlSetDemoMode") { _demo_mode = I(0) != 0; push_field("demo_mode", {}, {}, _demo_mode ? 1 : 0, 0, 0, 0.0f, nullptr, _demo_mode); return true; }
 	if (name == "FlSetBattleMode") { _battle_mode = I(1) != 0; push_field("battle_mode", S(0), {}, _battle_mode ? 1 : 0, 0, 0, 0.0f, nullptr, _battle_mode); return true; }
-	if (name == "FlSetBattleAfter") { _battle_after = S(1); push_field("battle_after", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false); return true; }
-	if (name == "FlSetBattleDieAfter") { _battle_die_after = S(1); push_field("battle_die_after", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlSetBattleAfter") {
+		_battle_after = S(1);
+		add_callback(ScriptEvent::BattleAfter, S(0), S(1), true);
+		push_field("battle_after", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false);
+		return true;
+	}
+	if (name == "FlSetBattleDieAfter") {
+		_battle_die_after = S(1);
+		add_callback(ScriptEvent::BattleDieAfter, S(0), S(1), true);
+		push_field("battle_die_after", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false);
+		return true;
+	}
 	if (name == "FlDisableWorldMap") { _world_map_disabled = I(0) != 0; push_field("world_map", {}, {}, _world_map_disabled ? 1 : 0, 0, 0, 0.0f, nullptr, _world_map_disabled); return true; }
 	if (name == "FlSetDispGrid") { push_field("disp_grid", {}, {}, I(0), I(1), I(2), static_cast<float>(I(3)), nullptr, false); return true; }
 	if (name == "FlSetChipClip") { push_field("chip_clip", {}, {}, I(0), 0, 0, 0.0f, nullptr, I(0) != 0); return true; }
@@ -2813,12 +2963,20 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "FlSetAreaObjectAnimeOffset") { push_field("area_anime", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlSetAreaCollisionEnabled") { push_field("area_collision", S(0), {}, 0, 0, 0, 0.0f, nullptr, I(1) != 0); return true; }
 	if (name == "FlSetGateOpenSettingToAreaCollision") { push_field("gate_open", S(0), {}, 0, 0, 0, 0.0f, nullptr, I(1) != 0); return true; }
-	if (name == "FlSetFacilityAfter") { push_field("facility_after", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlSetFacilityAfter") {
+		add_callback(ScriptEvent::FacilityAfter, S(0), S(1), true);
+		push_field("facility_after", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false);
+		return true;
+	}
 	if (name == "FlSetFacilityDisable") { push_field("facility_disable", S(0), {}, 0, 0, 0, 0.0f, nullptr, I(1) != 0); return true; }
 	if (name == "FlSetSearchFlag") { if (auto* e = ent(0)) { e->search_flag = I(1) != 0; _dirty = true; } return true; }
 	if (name == "FlOnlyOneTownLvMax") { _town_lv[S(0)] = 99; push_field("town_max", S(0), {}, 99, 0, 0, 0.0f, nullptr, false); return true; }
 	if (name == "FlAllTownLvMax") { for (auto& [k, v] : _town_lv) v = 99; push_field("town_max_all", {}, {}, 0, 0, 0, 0.0f, nullptr, false); return true; }
-	if (name == "FlAddTownLvUpEvent") { push_field("town_lv_event", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false); return true; }
+	if (name == "FlAddTownLvUpEvent") {
+		add_callback(ScriptEvent::TownLvUp, S(0), S(1));
+		push_field("town_lv_event", S(0), S(1), 0, 0, 0, 0.0f, nullptr, false);
+		return true;
+	}
 	if (name == "FlSetStageStartParam") { _stage_start_param = I(1); push_field("stage_start", S(0), {}, I(1), 0, 0, 0.0f, nullptr, false); return true; }
 	// TODO: state-dependent; 0 for now.
 	if (name == "FlGetBreakthroughRate") { gen->SetReturnFloat(0.0f); return true; }

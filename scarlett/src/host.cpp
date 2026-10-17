@@ -635,6 +635,7 @@ Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 	if (_impl->sound_length)
 		reg.set_sound_length(_impl->sound_length);
 	reg.reset(std::move(source), fn ? fn->GetName() : "");
+	reg.set_module(_impl->module);
 	g_scene_registry = &reg;
 
 	asIScriptContext* ctx = _impl->engine->CreateContext();
@@ -688,6 +689,21 @@ Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 		reg.timeline().keyframes.size(),
 		reg.timeline().keyframes.empty() ? 0 : reg.timeline().keyframes.back().entities.size(),
 		frame);
+
+	if (std::getenv("ASB_CALLBACKS")) {
+		for (const auto& cb : reg.timeline().callbacks) {
+			asIScriptFunction* fn = reg.resolve_callback(cb.function);
+			std::fprintf(
+				stderr,
+				"[callback] %s key=\"%s\"%s%s -> %s (%s; dispatch deferred)\n",
+				cb.event.c_str(),
+				cb.key.c_str(),
+				cb.slot.empty() ? "" : " slot=",
+				cb.slot.c_str(),
+				cb.function.c_str(),
+				fn ? "resolved" : "MISSING");
+		}
+	}
 
 	g_scene_registry = nullptr;
 	g_call_log = nullptr;
