@@ -194,6 +194,19 @@ struct RuntimeGradient {
 	int time = 0;
 };
 
+// 5C UI / archive / HUD event (record-only; rendering deferred).
+struct RuntimeUi {
+	long frame = 0;
+	std::string kind;
+	std::string text;
+	int id = 0;
+	int i0 = 0, i1 = 0;
+	float pos[2] = {0.0f, 0.0f};
+	float rate = 0.0f;
+	bool flag = false;
+	std::vector<int> ints; // archive pages, etc.
+};
+
 // The whole scene at one frame. Only emitted when something changed.
 struct Keyframe {
 	long frame = 0;
@@ -217,6 +230,7 @@ struct Timeline {
 	std::vector<RuntimeItem> items;
 	std::vector<RuntimeFog> fog;
 	std::vector<RuntimeGradient> gradients;
+	std::vector<RuntimeUi> ui;
 };
 
 // Overlay colour (linear RGBA) produced by the fades list at `frame`.
