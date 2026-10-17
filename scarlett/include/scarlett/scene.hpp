@@ -69,7 +69,7 @@ struct ScreenFade {
 // `speaker` is the object name (Msg arg 0); `text` is the literal message text
 // the script itself passes (Msg arg 1). `ids` is the _nMsgIDArray argument.
 struct RuntimeText {
-	enum class Kind { Msg, Screen, Dialog, Select, YesNo };
+	enum class Kind { Msg, Screen, Dialog, Select, YesNo, Message };
 
 	long frame = 0;
 	long end = 0; // frame the message is dismissed (0 = immediate)
