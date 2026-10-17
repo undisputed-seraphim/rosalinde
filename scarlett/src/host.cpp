@@ -242,6 +242,7 @@ struct Host::Impl {
 	std::unordered_map<std::string, int> known_size;
 	std::unordered_map<std::string, bool> registered_types;
 	std::function<void(const std::string&)> call_log;
+	TraceCallback trace;
 	std::function<long(const std::string&, int)> track_frames;
 	std::function<int(const std::string&, const std::string&)> resolve_track;
 	std::function<std::string(const std::string&)> facility_name;
@@ -278,6 +279,8 @@ Host::~Host() {
 }
 
 void Host::set_call_log(std::function<void(const std::string&)> cb) { _impl->call_log = std::move(cb); }
+
+void Host::set_trace(TraceCallback cb) { _impl->trace = std::move(cb); }
 
 void Host::register_module(const Module& mod) {
 	asIScriptEngine* engine = _impl->engine;
@@ -622,6 +625,7 @@ struct RuntimeSession::Impl {
 	asIScriptContext* ctx = nullptr;
 	Registry reg;
 	std::function<void(const std::string&)> call_log;
+	TraceCallback trace;
 	long wake = 0;
 	unsigned long steps = 0;
 };
@@ -634,6 +638,7 @@ RuntimeSession::RuntimeSession(Host& host, std::string source)
 	_impl->engine = h->engine;
 	_impl->module = h->module;
 	_impl->call_log = h->call_log;
+	_impl->trace = h->trace;
 	if (h->chars)
 		_impl->reg.set_char_table(h->chars);
 	if (h->chara_sets)
@@ -673,6 +678,7 @@ bool RuntimeSession::start(asIScriptFunction* fn) {
 		return false;
 	}
 	_impl->reg.reset(_source, fn->GetName());
+	_impl->reg.set_trace(_impl->trace);
 	_impl->reg.set_module(_impl->module);
 	_impl->reg.set_frame(0);
 	_impl->wake = 0;

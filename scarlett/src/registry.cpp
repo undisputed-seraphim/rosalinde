@@ -323,10 +323,19 @@ void Registry::create_sprite(
 	float scale) {
 	if (scene_trace())
 		std::fprintf(stderr, "[vm f=%ld] create %-22s \"%s\" mbs=%s\n", frame, kind.c_str(), id.c_str(), mbs.c_str());
+	trace_event(
+		"sprite",
+		"create",
+		"\"kind\":\"" + trace::quote(kind) + "\",\"name\":\"" + trace::quote(id) + "\",\"mbs\":\"" + trace::quote(mbs) +
+			"\",\"ftx\":\"" + trace::quote(ftx) + "\",\"layer\":" + trace::integer(layer) +
+			",\"scale\":" + trace::number(scale) + ",\"pos\":" + trace::vec3(pos3));
 	int idx = ensure(id);
 	auto& e = _timeline.entities[idx];
 	e.kind = kind;
 	e.space = RuntimeEntity::Space::World;
+	e.started = false;
+	if (const char* o = std::getenv("VIEWER_FORCE_START"); o && id.find(o) != std::string::npos)
+		e.started = true;
 	if (!id.empty() && e.aliases.empty())
 		e.aliases.push_back(id);
 	if (!mbs.empty())
@@ -352,10 +361,21 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 			std::fprintf(stderr, " [%s]", n.c_str());
 		std::fprintf(stderr, "\n");
 	}
+	{
+		std::string aliases;
+		for (const auto& n : names)
+			aliases += (aliases.empty() ? "" : ",") + ("\"" + trace::quote(n) + "\"");
+		trace_event(
+			"sprite",
+			"chara",
+			"\"kind\":\"" + trace::quote(kind) + "\",\"name\":\"" + trace::quote(id) + "\",\"aliases\":[" + aliases +
+				"]");
+	}
 	int idx = ensure(id);
 	auto& e = _timeline.entities[idx];
 	e.kind = kind;
 	e.space = kind == "DrUiCreateChara" ? RuntimeEntity::Space::Ui : RuntimeEntity::Space::World;
+	e.started = true;
 	// UI chara are created hidden and faded in later by DrUiSetColorA; world
 	// chara (DrCreateChara/Npc) are visible immediately.
 	if (e.space == RuntimeEntity::Space::Ui)
@@ -870,17 +890,24 @@ bool Registry::dispatch_battle(std::string_view name, asIScriptGeneric* gen) {
 	return false;
 }
 
+void Registry::trace_event(std::string_view kind, std::string_view event, std::string_view fields) {
+	if (_trace)
+		_trace({frame, kind, event, fields});
+}
+
 bool Registry::dispatch(asIScriptGeneric* gen) {
 	asIScriptFunction* fn = gen->GetFunction();
 	if (!fn || !fn->GetName())
 		return false;
 	std::string_view name = fn->GetName();
+	trace_event("vm", "call", "\"name\":\"" + trace::quote(name) + "\"");
 
 	if (name == "Wait") {
 		long n = static_cast<long>(gen->GetArgDWord(0));
 		pending_wait = std::max(1L, n);
 		if (wait_trace())
 			std::fprintf(stderr, "[wait f=%ld] Wait %ld -> end %ld\n", frame, pending_wait, frame + pending_wait);
+		trace_event("vm", "wait", "\"frames\":" + trace::integer(n) + ",\"end\":" + trace::integer(frame + n));
 		if (asIScriptContext* ctx = asGetActiveContext())
 			ctx->Suspend();
 		return true;
@@ -1504,7 +1531,13 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		s.weather_type = I(1);
 		s.coa_preset = I(2);
 		s.flag_color = I(3);
+		_timeline.stage = s;
 		_timeline.stages.push_back(std::move(s));
+		trace_event(
+			"stage",
+			"set",
+			"\"type\":" + trace::integer(s.stage_type) + ",\"weather\":" + trace::integer(s.weather_type) +
+				",\"coa\":" + trace::integer(s.coa_preset) + ",\"flag\":" + trace::integer(s.flag_color));
 		return true;
 	}
 
@@ -1572,6 +1605,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "SetSpriteMoneAnimation" || name == "SetSpriteMoneAnimationPaused") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track_index = I(1);
+			if (e->name == "ヴァニラロゴ") {
+				if (const char* o = std::getenv("VIEWER_LOGO_TRACK"))
+					e->track_index = std::atoi(o);
+			}
+			e->started = true;
 			e->anim_paused = name == "SetSpriteMoneAnimationPaused" ? I(2) != 0 : false;
 			if (scene_trace())
 				std::fprintf(
@@ -1581,6 +1619,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 					e->name.c_str(),
 					e->track_index,
 					e->anim_paused ? 1 : 0);
+			trace_event(
+				"sprite",
+				"anim",
+				"\"name\":\"" + trace::quote(e->name) + "\",\"track\":" + trace::integer(e->track_index) +
+					",\"mbs\":\"" + trace::quote(e->mbs) + "\",\"paused\":" + trace::boolean(e->anim_paused));
 			mark_dirty();
 		}
 		return true;
@@ -1588,6 +1631,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrUiSetAnimation") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track_index = I(1);
+			e->started = true;
 			if (scene_trace())
 				std::fprintf(stderr, "[vm f=%ld] anim   \"%s\" track=%d\n", frame, e->name.c_str(), e->track_index);
 			mark_dirty();
@@ -1597,6 +1641,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrSetIdleAnimation" || name == "DrAnimation" || name == "DrAnimationAsync" ||
 		name == "DrChangeAnimation") {
 		if (RuntimeEntity* e = ent(0)) {
+			e->started = true;
 			e->track = S(1);
 			if (!e->track.empty() && _resolve_track) {
 				int ti = _resolve_track(e->mbs, e->track);
@@ -1674,6 +1719,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		_timeline.camera.has_pos = true;
 		if (name == "DrSetCameraPosV")
 			_camera_move_end = frame + std::max(0, I(1));
+		trace_event(
+			"camera",
+			"pos",
+			"\"pos\":" + trace::vec3(p) + ",\"duration\":" + trace::integer(I(1)) +
+				",\"mode\":" + trace::integer(I(2)) + ",\"end\":" + trace::integer(_camera_move_end));
 		mark_dirty();
 		return true;
 	}
@@ -1682,6 +1732,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		if (plausible_scale(z)) {
 			_timeline.camera.zoom = z;
 			_timeline.camera.has_zoom = true;
+			trace_event(
+				"camera",
+				"zoom",
+				"\"zoom\":" + trace::number(z) + ",\"duration\":" + trace::integer(I(1)) +
+					",\"mode\":" + trace::integer(I(2)));
 			mark_dirty();
 		}
 		return true;
@@ -1689,6 +1744,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrSetCameraParam" || name == "SetCameraParam") {
 		_timeline.camera.accel = F(0);
 		_timeline.camera.decel = F(1);
+		trace_event(
+			"camera",
+			"param",
+			"\"accel\":" + trace::number(_timeline.camera.accel) +
+				",\"decel\":" + trace::number(_timeline.camera.decel));
 		mark_dirty();
 		return true;
 	}
@@ -1699,6 +1759,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		float c[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 		read_color(gen, 0, c);
 		push_fade(c, I(1));
+		trace_event(
+			"stage",
+			"fade",
+			"\"from\":[" + trace::number(c[0]) + "," + trace::number(c[1]) + "," + trace::number(c[2]) + "," +
+				trace::number(c[3]) + "],\"time\":" + trace::integer(I(1)));
 		return true;
 	}
 	if (name == "CrossFadeAsync") {
@@ -2866,7 +2931,15 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "FlUnpauseSymbol") { if (auto* e = ent(0)) { e->paused = false; mark_dirty(); } return true; }
 	// TODO(field): auto-facing on movement is not simulated; state is retained.
 	if (name == "FlSetAutoDirOff") { if (auto* e = ent(0)) { e->auto_dir_off = I(1) != 0; mark_dirty(); } return true; }
-	if (name == "FlSetAnimation") { if (auto* e = ent(0)) { e->track_index = I(1); e->reverse = I(2) != 0; mark_dirty(); } return true; }
+	if (name == "FlSetAnimation") {
+		if (auto* e = ent(0)) {
+			e->track_index = I(1);
+			e->started = true;
+			e->reverse = I(2) != 0;
+			mark_dirty();
+		}
+		return true;
+	}
 	if (name == "FlSetReverseX") { if (auto* e = ent(0)) { e->reverse_x = I(1) != 0; mark_dirty(); } return true; }
 	if (name == "FlSetHeight") { if (auto* e = ent(0)) { e->height = F(1); mark_dirty(); } return true; }
 	if (name == "FlEmote") { if (auto* e = ent(0)) { e->emote = I(1); mark_dirty(); } push_field("emote", S(0), {}, I(1), I(2), 0, 0.0f, nullptr, false); return true; }

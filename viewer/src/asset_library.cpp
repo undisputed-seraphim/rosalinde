@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <utility>
 
 std::optional<Job> AssetLibrary::job_for(const std::string& mbs, const std::string& ftx) const {
@@ -27,14 +28,40 @@ AssetLibrary::upload(AssetLoader::PreparedLayer&& prepared, const std::string& m
 
 SpriteAssetPtr AssetLibrary::get(const std::string& mbs, const std::string& ftx) {
 	const std::string key = key_for(mbs, ftx);
-	if (auto it = _assets.find(key); it != _assets.end())
+	if (auto it = _assets.find(key); it != _assets.end()) {
+		if (_trace)
+			_trace(
+				{_frame,
+				 "asset",
+				 "hit",
+				 "\"key\":\"" + asb::trace::quote(key) + "\",\"mbs\":\"" + asb::trace::quote(mbs) + "\",\"ftx\":\"" +
+					 asb::trace::quote(ftx) + "\""});
 		return it->second;
+	}
+	const auto t0 = std::chrono::steady_clock::now();
+	auto elapsed_ms = [&] {
+		return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	};
+	auto log_load = [&](const char* what) {
+		if (!std::getenv("SCENE_TRACE"))
+			return;
+		std::fprintf(stderr, "[asset] %s %s ftx=%s %.1fms\n", what, key.c_str(), ftx.c_str(), elapsed_ms());
+	};
 	if (auto it = _pending.find(key); it != _pending.end()) {
 		try {
 			auto prepared = it->second.future.get();
 			Pending pending = std::move(it->second);
 			_pending.erase(it);
-			return upload(std::move(prepared), pending.mbs, pending.ftx);
+			auto asset = upload(std::move(prepared), pending.mbs, pending.ftx);
+			log_load("async");
+			if (_trace && asset)
+				_trace(
+					{_frame,
+					 "asset",
+					 "load",
+					 "\"key\":\"" + asb::trace::quote(key) + "\",\"mode\":\"async\",\"mbs\":\"" +
+						 asb::trace::quote(mbs) + "\",\"ftx\":\"" + asb::trace::quote(ftx) + "\""});
+			return asset;
 		} catch (const std::exception& e) {
 			std::fprintf(stderr, "[asset] %s: %s\n", key.c_str(), e.what());
 			_pending.erase(it);
@@ -50,7 +77,16 @@ SpriteAssetPtr AssetLibrary::get(const std::string& mbs, const std::string& ftx)
 		return {};
 	}
 	try {
-		return upload(_loader.prepare(*job), mbs, ftx);
+		auto asset = upload(_loader.prepare(*job), mbs, ftx);
+		log_load("sync");
+		if (_trace && asset)
+			_trace(
+				{_frame,
+				 "asset",
+				 "load",
+				 "\"key\":\"" + asb::trace::quote(key) + "\",\"mode\":\"sync\",\"mbs\":\"" + asb::trace::quote(mbs) +
+					 "\",\"ftx\":\"" + asb::trace::quote(ftx) + "\",\"ms\":" + asb::trace::number(elapsed_ms())});
+		return asset;
 	} catch (const std::exception& e) {
 		std::fprintf(stderr, "[asset] %s: %s\n", key.c_str(), e.what());
 		_failed[key] = true;

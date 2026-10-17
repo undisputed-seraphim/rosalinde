@@ -23,6 +23,7 @@ struct RuntimeEntity {
 	std::string ftx;
 	std::string track;
 	int track_index = -1;
+	bool started = false;
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	float scale = 1.0f;
 	float dir_x = 1.0f; // facing: -1 mirrored, +1 default
@@ -260,6 +261,7 @@ struct SceneState {
 	std::vector<RuntimeEntity> entities;
 	RuntimeCamera camera;
 	std::vector<ScreenFade> fades;
+	StageConfig stage;
 	std::vector<StageConfig> stages;
 	std::vector<RuntimeText> texts;
 	std::vector<RuntimeShake> shakes;

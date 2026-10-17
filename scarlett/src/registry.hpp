@@ -2,6 +2,7 @@
 
 #include <scarlett/asb.hpp>
 #include <scarlett/scene.hpp>
+#include <scarlett/trace.hpp>
 
 #include <string>
 #include <string_view>
@@ -70,6 +71,10 @@ public:
 	void set_drop_tables(const DropTables& d) { _drops = &d; }
 	void set_sound_length(std::function<int(int)> fn) { _sound_length = std::move(fn); }
 
+	// Optional structured event sink. Events are emitted with the current scene
+	// frame and a category (`vm`, `stage`, `camera`, `sprite`, ...).
+	void set_trace(TraceCallback fn) { _trace = std::move(fn); }
+
 	void reset(std::string source, std::string function);
 
 	// Model a native call. Returns true if recognised (and thus not handled by
@@ -121,6 +126,7 @@ private:
 		int layer,
 		float scale);
 	void create_chara(const std::string& kind, const std::vector<std::string>& names);
+	void trace_event(std::string_view kind, std::string_view event, std::string_view fields = {});
 
 	// Screen-fade overlay colour (linear RGBA) at `frame`, and start a fade
 	// towards `to` lasting `time` frames from the current frame.
@@ -128,6 +134,7 @@ private:
 	void push_fade(const float* to, long time);
 	long fade_end() const;
 
+	TraceCallback _trace;
 	const CharTable* _chars = nullptr;
 	const CharaSetTable* _chara_sets = nullptr;
 	// Script-accumulated save/party state: recruited chara def names and the

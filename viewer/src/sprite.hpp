@@ -79,6 +79,7 @@ struct SpriteInstance {
 	uint32_t _phase = 0;	   // run index currently playing (sequential-runs mode)
 	uint32_t _frame_counter = 0;
 	bool paused = false;
+	bool hold_finished = false;
 
 	std::vector<mbs::section_7> _transition_src_s7;
 	float _transition_t = 1.0f;

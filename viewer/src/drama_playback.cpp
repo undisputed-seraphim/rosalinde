@@ -83,6 +83,20 @@ int mbs_resolve_track(const AssetLoader& loader, const std::string& mbs, const s
 	return idx;
 }
 
+std::string stage_background_name(int type) {
+	switch (type) {
+	case 179:
+	case 180:
+		return "BGOpening010";
+	case 82:
+	case 83:
+	case 78:
+		return "BGOpening090";
+	default:
+		return {};
+	}
+}
+
 } // namespace
 
 DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
@@ -92,6 +106,22 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
 	, _effects(loader)
 	, _camera(1.0f)
 	, _projection(glm::ortho(-960.0f, 960.0f, 540.0f, -540.0f)) {
+	if (!_cfg.capture_frames.empty()) {
+		_capture_mode = true;
+		std::sort(_cfg.capture_frames.begin(), _cfg.capture_frames.end());
+		_cfg.capture_frames.erase(
+			std::unique(_cfg.capture_frames.begin(), _cfg.capture_frames.end()), _cfg.capture_frames.end());
+		const long last = _cfg.capture_frames.back();
+		_cfg.scene_frame = std::max(_cfg.scene_frame, last);
+	}
+	if (!_cfg.trace.empty())
+		_trace.open(_cfg.trace, _cfg.trace_categories);
+	auto trace_cb = [this](const asb::TraceEvent& e) {
+		if (_trace.enabled(e.kind))
+			_trace.write(e);
+	};
+	_host.set_trace(trace_cb);
+	_renderer.set_trace(trace_cb);
 	if (const char* o = std::getenv("VIEWER_ORTHO")) {
 		float a = 0, b = 0, c = 0, d = 0;
 		if (std::sscanf(o, "%f,%f,%f,%f", &a, &b, &c, &d) == 4)
@@ -145,6 +175,7 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
 		throw std::runtime_error("could not start " + _cfg.entry + ": " + _session->error());
 
 	viewer::trace::stamp("DramaPlayback: started %s::%s", _cfg.entry.c_str(), picked->name.c_str());
+	sync_stage();
 	_renderer.sync(_session->scene());
 	_effects.update(_session->scene().frame, _session->scene().effects, [this](const std::string& name) -> glm::vec2 {
 		if (const auto* e = _session->scene().find_entity(name))
@@ -161,6 +192,7 @@ bool DramaPlayback::handle_inputs() { return _quit; }
 void DramaPlayback::step() {
 	if (!_session || _session->finished())
 		return;
+	const long trace_frame = static_cast<long>(_session->scene().frame);
 	const auto result = _session->advance();
 	if (result == asb::RuntimeSession::StepResult::Error) {
 		fprintf(stderr, "[drama] %s\n", _session->error().c_str());
@@ -168,6 +200,17 @@ void DramaPlayback::step() {
 		return;
 	}
 	_frame = _session->frame();
+	if (std::getenv("SCENE_TRACE") && (trace_frame % 60) == 0)
+		std::fprintf(
+			stderr,
+			"[play] frame=%ld entities=%zu stage=%d cam=(%.1f,%.1f) zoom=%.3f\n",
+			trace_frame,
+			_session->scene().entities.size(),
+			_session->scene().stage.stage_type,
+			_session->scene().camera.pos[0],
+			_session->scene().camera.pos[1],
+			_session->scene().camera.zoom);
+	sync_stage();
 	_renderer.sync(_session->scene());
 	_effects.update(_session->scene().frame, _session->scene().effects, [this](const std::string& name) -> glm::vec2 {
 		if (const auto* e = _session->scene().find_entity(name))
@@ -182,6 +225,18 @@ void DramaPlayback::step() {
 
 void DramaPlayback::update(float dt) {
 	if (_cfg.scene_frame >= 0) {
+		if (_capture_mode) {
+			if (_capture_index >= _cfg.capture_frames.size())
+				return;
+			const long target = _cfg.capture_frames[_capture_index];
+			while (_frame < target && !_session->finished())
+				step();
+			if (_session->finished() && _frame < target) {
+				std::fprintf(stderr, "[capture] scene ended at frame %ld before requested frame %ld\n", _frame, target);
+				_captures_done = true;
+			}
+			return;
+		}
 		if (!_stepped) {
 			while (_frame < _cfg.scene_frame && !_session->finished())
 				step();
@@ -198,12 +253,53 @@ void DramaPlayback::update(float dt) {
 	}
 }
 
+void DramaPlayback::sync_stage() {
+	const int type = _session->scene().stage.stage_type;
+	if (type == _stage_type)
+		return;
+	_stage_type = type;
+	const std::string name = stage_background_name(type);
+	if (std::getenv("SCENE_TRACE"))
+		std::fprintf(
+			stderr,
+			"[stage] frame=%ld type=%d -> %s\n",
+			static_cast<long>(_session->scene().frame),
+			type,
+			name.c_str());
+	auto it = BattleBGs.find(name);
+	if (it == BattleBGs.end()) {
+		_renderer.set_stage({}, {});
+		return;
+	}
+	const std::string mbs =
+		it->second.mbs.dir.empty() ? it->second.mbs.path : it->second.mbs.dir + "/" + it->second.mbs.path;
+	const std::string ftx =
+		it->second.ftx.dir.empty() ? it->second.ftx.path : it->second.ftx.dir + "/" + it->second.ftx.path;
+	_renderer.set_stage(mbs, ftx);
+	_trace.write(
+		{static_cast<long>(_session->scene().frame),
+		 "stage",
+		 "asset",
+		 "\"type\":" + asb::trace::integer(type) + ",\"mbs\":\"" + asb::trace::quote(mbs) + "\",\"ftx\":\"" +
+			 asb::trace::quote(ftx) + "\""});
+}
+
 void DramaPlayback::apply_camera() {
 	const auto& cam = _session->scene().camera;
-	if (cam.has_pos)
-		_camera.recenter({cam.pos[0], cam.pos[1]});
+	const float zoom = cam.has_zoom && cam.zoom > 0.0f ? cam.zoom : 1.0f;
+	if (cam.has_pos) {
+		float oy = 0.0f;
+		if (const char* e = std::getenv("VIEWER_CAM_Y"))
+			oy = static_cast<float>(std::atof(e));
+		_camera.recenter({cam.pos[0] / zoom, cam.pos[1] / zoom + oy});
+	}
 	if (cam.has_zoom && cam.zoom > 0.0f)
 		_camera.set_zoom(cam.zoom);
+	_trace.write(
+		{static_cast<long>(_session->scene().frame),
+		 "camera",
+		 "eval",
+		 "\"target\":" + asb::trace::vec3(cam.pos) + ",\"zoom\":" + asb::trace::number(zoom)});
 }
 
 void DramaPlayback::draw_text() {
@@ -229,24 +325,42 @@ void DramaPlayback::draw_text() {
 	}
 }
 
-void DramaPlayback::capture() {
-	if (_cfg.screenshot.empty() || _captured || _render_count < _cfg.frames)
-		return;
+bool DramaPlayback::write_screenshot(const std::string& path) {
 	int fb_w = 0, fb_h = 0;
 	SDL_GetWindowSizeInPixels(SDL_GL_GetCurrentWindow(), &fb_w, &fb_h);
 	if (fb_w <= 0 || fb_h <= 0)
-		return;
+		return false;
 	std::vector<uint8_t> pixels(static_cast<size_t>(fb_w) * fb_h * 4);
 	glReadPixels(0, 0, fb_w, fb_h, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-	const bool ok = screenshot::write(_cfg.screenshot, fb_w, fb_h, pixels);
-	fprintf(
-		stderr,
-		"%s: %s (%dx%d)\n",
-		ok ? "screenshot written" : "screenshot FAILED",
-		_cfg.screenshot.c_str(),
-		fb_w,
-		fb_h);
-	_captured = true;
+	const bool ok = screenshot::write(path, fb_w, fb_h, pixels);
+	fprintf(stderr, "%s: %s (%dx%d)\n", ok ? "screenshot written" : "screenshot FAILED", path.c_str(), fb_w, fb_h);
+	return ok;
+}
+
+void DramaPlayback::capture() {
+	if (_capture_mode) {
+		const long frame = _session ? _session->scene().frame : _frame;
+		const bool wanted =
+			std::find(_cfg.capture_frames.begin(), _cfg.capture_frames.end(), frame) != _cfg.capture_frames.end();
+		if (!wanted || _captured_frames.contains(frame))
+			return;
+		std::filesystem::create_directories(_cfg.capture_dir);
+		char name[32];
+		std::snprintf(name, sizeof(name), "%s-%06ld.png", _cfg.capture_prefix.c_str(), frame);
+		const auto path = std::filesystem::path(_cfg.capture_dir) / name;
+		if (write_screenshot(path.string())) {
+			_captured_frames.insert(frame);
+			while (_capture_index < _cfg.capture_frames.size() &&
+				   _captured_frames.contains(_cfg.capture_frames[_capture_index]))
+				++_capture_index;
+			_captures_done = _capture_index >= _cfg.capture_frames.size();
+		}
+		return;
+	}
+	if (_cfg.screenshot.empty() || _captured || _render_count < _cfg.frames)
+		return;
+	if (write_screenshot(_cfg.screenshot))
+		_captured = true;
 }
 
 void DramaPlayback::render() {

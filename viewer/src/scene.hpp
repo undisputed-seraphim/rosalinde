@@ -20,6 +20,11 @@ struct ViewerConfig {
 	std::string chara_table; // generated character name -> asset table
 	long scene_frame = -1;	 // scene frame to advance to (-1 = real time)
 	float scene_fps = 60.0f; // playback frame step rate
+	std::string trace;		 // optional NDJSON event trace
+	std::string trace_categories;
+	std::vector<long> capture_frames;
+	std::string capture_dir;
+	std::string capture_prefix = "frame";
 };
 
 class Scene final : public uvw::BaseGame {
