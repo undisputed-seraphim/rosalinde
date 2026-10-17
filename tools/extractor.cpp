@@ -6,6 +6,8 @@
 #include <impl/mbs/csv_dump.hpp>
 #include <impl/mbs/detail.hpp>
 #include <impl/mbs/sections.hpp>
+#include <impl/nnd.hpp>
+#include <impl/nnd_dump.hpp>
 #include <impl/otm.hpp>
 #include <impl/otm_dump.hpp>
 
@@ -56,6 +58,9 @@ struct Args {
 	std::string otm_dump;
 	std::string otm_out = "otm_dump";
 	bool otm_check = false;
+	std::string nnd_dump;
+	std::string nnd_out = "nnd_dump";
+	bool nnd_check = false;
 	std::string extract_all;
 	std::string skip_ext;
 	uint64_t max_size_mb = 0;
@@ -345,6 +350,13 @@ int main(int argc, char* argv[]) try {
 		po::value<std::string>(&args.otm_out),
 		"Output directory for OTM CSV dump (default: otm_dump)")(
 		"otm-check", po::bool_switch(&args.otm_check), "Parse every OTM in the CPK and report failures")(
+		"nnd-dump",
+		po::value<std::string>(&args.nnd_dump),
+		"Dump NND header/nodes/edges/names/links to CSV (DirName/FileName of .nnd in CPK)")(
+		"nnd-out",
+		po::value<std::string>(&args.nnd_out),
+		"Output directory for NND CSV dump (default: nnd_dump)")(
+		"nnd-check", po::bool_switch(&args.nnd_check), "Parse every NND in the CPK and report failures")(
 		"extract-all",
 		po::value<std::string>(&args.extract_all),
 		"Extract every entry into DIR (preserving DirName/FileName)")(
@@ -533,6 +545,56 @@ int main(int argc, char* argv[]) try {
 			}
 		}
 		std::cout << "Parsed " << ok << " OTM files (" << failed << " failed)\n";
+		return failed == 0 ? 0 : 1;
+	}
+
+	if (!args.nnd_dump.empty()) {
+		auto [dir, name] = split_path(args.nnd_dump);
+		auto data = extract_entry(table, dir, name);
+		auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+
+		auto f = nnd::parse(bytes);
+		if (!f)
+			throw std::runtime_error("Not a valid NND file.");
+
+		size_t edges = 0;
+		size_t links = 0;
+		for (const auto& n : f->nodes)
+			edges += n.edges.size();
+		for (const auto& n : f->names)
+			links += n.links.size();
+
+		fs::path outdir = fs::path(args.nnd_out) / name;
+		nnd::dump_csv(*f, outdir);
+		std::cout << "Dumped " << dir << "/" << name << " (v" << f->version << ", " << f->nodes.size()
+				  << " nodes, " << edges << " edges, " << f->names.size() << " names, " << links
+				  << " links) -> " << outdir << "/\n";
+		return 0;
+	}
+
+	if (args.nnd_check) {
+		size_t ok = 0;
+		size_t failed = 0;
+		for (const auto& e : list_entries(table)) {
+			if (e.name.size() < 4)
+				continue;
+			auto ext = e.name.substr(e.name.size() - 4);
+			for (char& c : ext)
+				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+			if (ext != ".nnd")
+				continue;
+
+			std::vector<char> data;
+			table.extract(e.dir, e.name, data);
+			auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+			if (nnd::parse(bytes)) {
+				++ok;
+			} else {
+				++failed;
+				std::cout << "FAIL " << e.dir << "/" << e.name << "\n";
+			}
+		}
+		std::cout << "Parsed " << ok << " NND files (" << failed << " failed)\n";
 		return failed == 0 ? 0 : 1;
 	}
 
