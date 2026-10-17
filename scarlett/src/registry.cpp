@@ -120,6 +120,9 @@ void Registry::reset(std::string source, std::string function) {
 	_skip_mode = false;
 	_camera_move_end = 0;
 	_shake_seq = 0;
+	_follow_offset[0] = _follow_offset[1] = 0.0f;
+	_balcony_bru = false;
+	_balcony_scr = false;
 	_camera = RuntimeCamera{};
 	_dirty = false;
 	frame = 0;
@@ -830,7 +833,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		}
 		return true;
 	}
-	if (name == "DrMoveAbs" || name == "DrMoveAbsAsync" || name == "DrMoveAsync" || name == "DrShortMoveAsync") {
+	if (name == "DrMoveAbs" || name == "DrMoveAbsAsync" || name == "DrMoveAsync" || name == "DrShortMoveAsync" ||
+		name == "DrMove") {
 		float to[3] = {0.0f, 0.0f, 0.0f};
 		V(1, to, 3);
 		if (RuntimeEntity* e = ent(0)) {
@@ -846,6 +850,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			m.f1 = frame + dur;
 			_moves[e->name] = m;
 			_dirty = true;
+			if (name == "DrMove") {
+				pending_wait = dur;
+				if (asIScriptContext* ctx = asGetActiveContext())
+					ctx->Suspend();
+			}
 		}
 		return true;
 	}
@@ -1255,7 +1264,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		}
 		return true;
 	}
-	if (name == "DrShortMoveAbsAsync") {
+	if (name == "DrShortMoveAbsAsync" || name == "DrShortMove") {
 		float to[3] = {0.0f, 0.0f, 0.0f};
 		V(1, to, 3);
 		if (RuntimeEntity* e = ent(0)) {
@@ -1273,10 +1282,15 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			m.f1 = frame + std::max(1, dur);
 			_moves[e->name] = m;
 			_dirty = true;
+			if (name == "DrShortMove") {
+				pending_wait = std::max(1, dur);
+				if (asIScriptContext* ctx = asGetActiveContext())
+					ctx->Suspend();
+			}
 		}
 		return true;
 	}
-	if (name == "DrJumpAsync") {
+	if (name == "DrJumpAsync" || name == "DrJump") {
 		if (RuntimeEntity* e = ent(0)) {
 			const float move = F(1), height = F(2), speed = F(4);
 			Move m{};
@@ -1291,6 +1305,11 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			m.arc = std::abs(height);
 			_moves[e->name] = m;
 			_dirty = true;
+			if (name == "DrJump") {
+				pending_wait = std::max(1, dur);
+				if (asIScriptContext* ctx = asGetActiveContext())
+					ctx->Suspend();
+			}
 		}
 		return true;
 	}
@@ -1328,7 +1347,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		}
 		return true;
 	}
-	if (name == "DrSetShake") {
+	if (name == "DrSetShake" || name == "SetShake") {
 		RuntimeShake s;
 		s.start = frame;
 		s.index = _shake_seq++;
@@ -1364,6 +1383,492 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		b.freeze = I(1) != 0;
 		b.max_rate = F(3);
 		_timeline.bokashi.push_back(b);
+		return true;
+	}
+
+	// --- 5A residuals: non-`Dr` aliases and synchronous movement/camera variants.
+	if (name == "SetDemoCameraPosY") {
+		_camera.demo_y = F(0);
+		_dirty = true;
+		return true;
+	}
+	if (name == "ResetDemoCameraPosY") {
+		_camera.demo_y = 0.0f;
+		_dirty = true;
+		return true;
+	}
+	if (name == "ResetDemoCameraPosXZ") {
+		_camera.demo_xz[0] = _camera.demo_xz[1] = 0.0f;
+		_dirty = true;
+		return true;
+	}
+	if (name == "SetCameraDegreeOffset") {
+		_camera.degree_offset = F(0);
+		_dirty = true;
+		return true;
+	}
+	if (name == "FollowCamera" || name == "FollowCameraBySpeed") {
+		if (RuntimeEntity* e = ent(0)) {
+			for (int k = 0; k < 3; ++k)
+				_camera.pos[k] = e->pos[k];
+			_camera.has_pos = true;
+			_dirty = true;
+		}
+		const long wait = std::max(0, I(2));
+		if (wait > 0) {
+			pending_wait = wait;
+			if (asIScriptContext* ctx = asGetActiveContext())
+				ctx->Suspend();
+		}
+		return true;
+	}
+	if (name == "FollowDirClear") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->dir_x = 1.0f;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "FollowOffsetV") {
+		float v[2] = {0.0f, 0.0f};
+		V(0, v, 2);
+		_follow_offset[0] = v[0];
+		_follow_offset[1] = v[1];
+		return true;
+	}
+	if (name == "ResetCameraParam") {
+		_camera.accel = _camera.decel = 0.0f;
+		_dirty = true;
+		return true;
+	}
+	if (name == "DrCameraStop") {
+		_camera_move_end = frame;
+		return true;
+	}
+	if (name == "DrWaveCamera") {
+		_camera.wave = I(0) != 0;
+		_dirty = true;
+		return true;
+	}
+	if (name == "DrResetCameraZoomParam")
+		return true;
+	if (name == "DrStopShakeFadeoutAll") {
+		for (auto& s : _timeline.shakes)
+			if (s.end > frame)
+				s.end = frame;
+		return true;
+	}
+	if (name == "DrCopyCharaInfo") {
+		if (RuntimeEntity* dst = ent(1)) {
+			if (RuntimeEntity* src = ent(0)) {
+				dst->mbs = src->mbs;
+				dst->ftx = src->ftx;
+				dst->kind = src->kind;
+				_dirty = true;
+			}
+		}
+		return true;
+	}
+	if (name == "DrEnableBalconyFlagBRU") {
+		_balcony_bru = true;
+		return true;
+	}
+	if (name == "DrEnableBalconyFlagSCR") {
+		_balcony_scr = true;
+		return true;
+	}
+	if (name == "DrGetBalconyFlagBRU") {
+		gen->SetReturnByte(_balcony_bru ? 1 : 0);
+		return true;
+	}
+	if (name == "DrGetBalconyFlagSCR") {
+		gen->SetReturnByte(_balcony_scr ? 1 : 0);
+		return true;
+	}
+	if (name == "CancelAllSkipMode") {
+		_skip_mode = false;
+		return true;
+	}
+
+	// Synchronous 2D movement variants. `MoveBack` is modelled as a negative
+	// relative delta; the rest are absolute. `ByTime` variants block.
+	auto move2 = [&](int pos_arg, int time_arg, bool absolute, bool negative) -> bool {
+		float to[3] = {0.0f, 0.0f, 0.0f};
+		V(pos_arg, to, 2);
+		if (RuntimeEntity* e = ent(0)) {
+			Move m{};
+			for (int k = 0; k < 3; ++k) {
+				m.from[k] = e->pos[k];
+				m.to[k] = absolute ? to[k] : e->pos[k] + (negative ? -to[k] : to[k]);
+			}
+			m.to[2] = e->pos[2];
+			m.f0 = frame;
+			m.f1 = frame + std::max(1, I(time_arg));
+			_moves[e->name] = m;
+			_dirty = true;
+			pending_wait = m.f1 - frame;
+			if (asIScriptContext* ctx = asGetActiveContext())
+				ctx->Suspend();
+		}
+		return true;
+	};
+	if (name == "MoveAbsByTime" || name == "MoveBackAbsByTime")
+		return move2(1, 2, true, false);
+	if (name == "MoveBackAbs")
+		return move2(1, 2, true, false);
+	if (name == "MoveBack")
+		return move2(1, 2, false, true);
+	if (name == "ObjectDeleteWait")
+		return true;
+	if (name == "SetDemoClipRange")
+		return true;
+	if (name == "TutorialFadeAsync") {
+		float c[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+		read_color(gen, 0, c);
+		push_fade(c, I(1));
+		return true;
+	}
+	if (name == "WaitAnyButton" || name == "WaitOKButton")
+		return true; // input waits cannot be satisfied headlessly
+
+	// --- 5B: record-only effects, lights, audio, item spawns.
+	auto to_bytes = [](const float* c, unsigned char* o) {
+		for (int k = 0; k < 4; ++k)
+			o[k] = static_cast<unsigned char>(std::clamp(c[k], 0.0f, 1.0f) * 255.0f);
+	};
+
+	if (name == "DrCreateEffect") {
+		RuntimeEffect e;
+		e.frame = frame;
+		e.kind = "create";
+		e.name = S(0);
+		e.mbs = S(1);
+		e.ftx = S(2);
+		e.anime = I(3);
+		V(4, e.pos, 3);
+		e.i0 = I(5);
+		e.f0 = F(6);
+		e.flag = I(7) != 0;
+		e.i1 = I(8);
+		e.i2 = I(9);
+		_timeline.effects.push_back(e);
+		return true;
+	}
+	if (name == "DrSetEffectDirX") {
+		RuntimeEffect e;
+		e.frame = frame;
+		e.kind = "dir";
+		e.name = S(0);
+		e.i0 = I(1);
+		_timeline.effects.push_back(e);
+		return true;
+	}
+	if (name == "DrSetEffectCharaCollision") {
+		RuntimeEffect e;
+		e.frame = frame;
+		e.kind = "collision";
+		e.name = S(0);
+		e.attached = S(1);
+		e.i0 = I(2);
+		e.i1 = I(3);
+		_timeline.effects.push_back(e);
+		return true;
+	}
+	if (name == "DrSetCharaToEffect") {
+		RuntimeEffect e;
+		e.frame = frame;
+		e.kind = "attach";
+		e.name = S(0);
+		e.attached = S(1);
+		_timeline.effects.push_back(e);
+		return true;
+	}
+	if (name == "SetDrCharaToSpriteEffect") {
+		RuntimeEffect e;
+		e.frame = frame;
+		e.kind = "sprite_attach";
+		e.name = S(0);
+		e.attached = S(1);
+		V(2, e.pos, 2);
+		_timeline.effects.push_back(e);
+		return true;
+	}
+	if (name == "DrRotateEffectAsync") {
+		RuntimeEffect e;
+		e.frame = frame;
+		e.kind = "rotate";
+		e.name = S(0);
+		e.f0 = F(1);
+		e.i0 = I(2);
+		_timeline.effects.push_back(e);
+		return true;
+	}
+	if (name == "DrMoveEffect" || name == "DrMoveEffectAsync") {
+		RuntimeEffect e;
+		e.frame = frame;
+		e.kind = "move";
+		e.name = S(0);
+		V(1, e.pos, 3);
+		e.i0 = I(2);
+		e.i1 = I(3);
+		e.i2 = I(4);
+		_timeline.effects.push_back(e);
+		return true;
+	}
+	if (name == "DrScaleEffectAsync") {
+		RuntimeEffect e;
+		e.frame = frame;
+		e.kind = "scale";
+		e.name = S(0);
+		e.f0 = F(1);
+		e.i0 = I(2);
+		_timeline.effects.push_back(e);
+		return true;
+	}
+	if (name == "ExecOpeningEffect") {
+		RuntimeEffect e;
+		e.frame = frame;
+		e.kind = "opening";
+		_timeline.effects.push_back(e);
+		return true;
+	}
+	if (name == "DrCreatePointLight") {
+		RuntimePointLight l;
+		l.frame = frame;
+		l.name = S(0);
+		V(1, l.pos, 3);
+		float c[4] = {0, 0, 0, 0};
+		read_color(gen, 2, c);
+		to_bytes(c, l.light);
+		read_color(gen, 3, c);
+		to_bytes(c, l.shadow);
+		read_color(gen, 4, c);
+		to_bytes(c, l.godray);
+		l.power = F(5);
+		l.bloom = F(6);
+		l.f2 = F(7);
+		l.f3 = F(8);
+		l.f4 = F(9);
+		l.f5 = F(10);
+		_timeline.point_lights.push_back(l);
+		return true;
+	}
+	if (name == "DrDeletePointLight") {
+		RuntimePointLight l;
+		l.frame = frame;
+		l.remove = true;
+		l.name = S(0);
+		l.index = I(1);
+		_timeline.point_lights.push_back(l);
+		return true;
+	}
+	if (name == "DrSetCharaToPointLight") {
+		RuntimePointLight l;
+		l.frame = frame;
+		l.name = S(0);
+		l.attached = S(1);
+		V(2, l.pos, 3);
+		_timeline.point_lights.push_back(l);
+		return true;
+	}
+	if (name == "DrSetPointLightCharaCollision") {
+		RuntimeEffect e;
+		e.frame = frame;
+		e.kind = "pointlight_collision";
+		e.name = S(0);
+		e.attached = S(1);
+		e.i0 = I(2);
+		e.i1 = I(3);
+		_timeline.effects.push_back(e);
+		return true;
+	}
+	if (name == "DrSetShadowOff") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->shadow_off = I(1) != 0;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrSetSortIDOffset") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->sort_id_offset = I(1);
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrSetDLPrio") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->dlprio = I(1);
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrSetWindowIDOffset") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->window_id_offset = I(1);
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrSetPrerenderOnForce") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->prerender_force = I(1) != 0;
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrSetCharaColor") {
+		if (RuntimeEntity* e = ent(0)) {
+			for (int k = 0; k < 4; ++k)
+				e->color[k] = I(1 + k);
+			_dirty = true;
+		}
+		return true;
+	}
+	if (name == "DrSetFogColor") {
+		float c[4] = {0, 0, 0, 0};
+		read_color(gen, 1, c);
+		RuntimeFog f;
+		f.frame = frame;
+		f.name = S(0);
+		to_bytes(c, f.color);
+		_timeline.fog.push_back(f);
+		return true;
+	}
+	if (name == "DrSetGradientMap") {
+		_timeline.gradients.push_back(RuntimeGradient{frame, I(0), F(1), I(2)});
+		return true;
+	}
+	if (name == "BokashiFadeStop") {
+		if (!_timeline.bokashi.empty() && _timeline.bokashi.back().end > frame)
+			_timeline.bokashi.back().end = frame;
+		return true;
+	}
+
+	auto push_audio = [&](std::string kind, int cue, std::string target, int fade, int wait, int index, float vol) -> bool {
+		RuntimeAudio a;
+		a.frame = frame;
+		a.kind = std::move(kind);
+		a.cue = cue;
+		a.target = std::move(target);
+		a.fade = fade;
+		a.wait = wait;
+		a.index = index;
+		a.volume = vol;
+		_timeline.audio.push_back(std::move(a));
+		if (wait > 0) {
+			pending_wait = wait;
+			if (asIScriptContext* ctx = asGetActiveContext())
+				ctx->Suspend();
+		}
+		return true;
+	};
+	if (name == "PlayBGM")
+		return push_audio("bgm", I(0), {}, I(1), I(2), I(3), 0.0f);
+	if (name == "PlayDefaultBGM")
+		return push_audio("bgm_default", 0, {}, I(0), I(1), I(2), 0.0f);
+	if (name == "PlaySE")
+		return push_audio("se", I(0), {}, 0, I(1), -1, 0.0f);
+	if (name == "PlaySE_Chara")
+		return push_audio("se_chara", I(0), S(1), 0, I(2), -1, 0.0f);
+	if (name == "StopBGM")
+		return push_audio("stop_bgm", 0, {}, I(0), I(1), -1, 0.0f);
+	if (name == "StopSE")
+		return push_audio("stop_se", I(0), {}, I(1), 0, -1, 0.0f);
+	if (name == "SetBGMVolume")
+		return push_audio("bgm_volume", 0, {}, I(1), 0, -1, F(0));
+	if (name == "SetSeVolume")
+		return push_audio("se_volume", 0, {}, I(1), 0, -1, F(0));
+	if (name == "SetAmbVolume")
+		return push_audio("amb_volume", 0, {}, I(1), 0, -1, F(0));
+	if (name == "AmbVolumeSyncByFade")
+		return push_audio("amb_fade", 0, {}, 0, 0, -1, F(0));
+	if (name == "SetStageBGM")
+		return push_audio("stage_bgm", I(0), {}, 0, 0, -1, 0.0f);
+	if (name == "PlayBGMWithTime")
+		return push_audio("bgm_time", I(0), {}, I(1), I(2), I(3), 0.0f);
+	if (name == "PlayActionCue")
+		return push_audio("action_cue", I(0), {}, 0, 0, -1, 0.0f);
+	if (name == "DrSetThunderVolumeLevel")
+		return push_audio("thunder", 0, {}, 0, 0, -1, static_cast<float>(I(0)));
+	if (name == "SetBattleBGM") {
+		if (gen->GetArgTypeId(0) == asTYPEID_INT32)
+			return push_audio("battle_bgm", I(0), {}, 0, 0, -1, 0.0f);
+		return push_audio("battle_bgm", 0, S(0), I(1), 0, -1, 0.0f);
+	}
+	if (name == "UC_SEC") {
+		// seconds -> frames at 60 fps (scripts use it as Wait(UC_SEC(x))).
+		gen->SetReturnDWord(static_cast<asDWORD>(static_cast<int>(F(0) * 60.0f)));
+		return true;
+	}
+	if (name == "GetSoundLength") {
+		// TODO: return the real cue length in frames. The ACB/AFS2 parser
+		// (libcriware/src/acb.cpp) has the cue -> waveform mapping; scripts use
+		// Wait(GetSoundLength(cue) + 60). Returning 0 is a timing approximation.
+		gen->SetReturnDWord(0);
+		return true;
+	}
+
+	if (name == "CreateItem") {
+		RuntimeItem it;
+		it.frame = frame;
+		it.kind = "create";
+		if (gen->GetArgTypeId(0) == asTYPEID_INT32) {
+			it.id = I(0);
+			it.dialog = I(1) != 0;
+		} else {
+			it.item = S(0);
+			it.count = I(1);
+			it.dialog = I(2) != 0;
+		}
+		_timeline.items.push_back(it);
+		return true;
+	}
+	if (name == "DeleteItem") {
+		RuntimeItem it;
+		it.frame = frame;
+		it.kind = "delete";
+		if (gen->GetArgTypeId(0) == asTYPEID_INT32) {
+			it.id = I(0);
+			it.count = I(1);
+			it.dialog = I(2) != 0;
+		} else {
+			it.item = S(0);
+			it.count = I(1);
+			it.dialog = I(2) != 0;
+		}
+		_timeline.items.push_back(it);
+		return true;
+	}
+	if (name == "CreateDbItem") {
+		RuntimeItem it;
+		it.frame = frame;
+		it.kind = "db";
+		it.id = I(0);
+		const auto add = read_int_array(gen, 1);
+		it.add_count = static_cast<int>(std::min<size_t>(add.size(), 8));
+		for (int k = 0; k < it.add_count; ++k)
+			it.add[k] = add[k];
+		_timeline.items.push_back(it);
+		return true;
+	}
+	if (name == "CreateTreasure") {
+		RuntimeItem it;
+		it.frame = frame;
+		it.kind = "treasure";
+		it.object = S(0);
+		V(1, it.pos, 2);
+		if (gen->GetArgTypeId(2) == asTYPEID_INT32) {
+			it.id = I(2);
+			if (gen->GetArgCount() > 3)
+				it.callback = S(3);
+		} else {
+			it.item = S(2);
+			it.count = I(3);
+			if (gen->GetArgCount() > 4)
+				it.callback = S(4);
+		}
+		_timeline.items.push_back(it);
 		return true;
 	}
 
