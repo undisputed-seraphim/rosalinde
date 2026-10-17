@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sprite_asset.hpp"
 #include "sprite_layer.hpp"
 #include "tables.hpp"
 
@@ -26,6 +27,12 @@ public:
 		std::vector<FTX::Entry> ftx;
 	};
 	PreparedLayer prepare(const Job& job) const;
+	SpriteAssetPtr make_asset(
+		PreparedLayer&& prepared,
+		const std::string& mbs,
+		const std::string& ftx,
+		const std::string& class_name,
+		const std::string& variant_name) const;
 	std::unique_ptr<SpriteLayer> make_layer(
 		PreparedLayer&& prepared,
 		uint32_t trackid,

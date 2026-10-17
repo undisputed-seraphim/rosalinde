@@ -150,6 +150,30 @@ AssetLoader::PreparedLayer AssetLoader::prepare(const Job& job) const {
 	return p;
 }
 
+SpriteAssetPtr AssetLoader::make_asset(
+	PreparedLayer&& p,
+	const std::string& mbs,
+	const std::string& ftx,
+	const std::string& class_name,
+	const std::string& variant_name) const {
+	(void)variant_name;
+	auto asset = std::make_shared<SpriteAsset>();
+	asset->mbs = mbs;
+	asset->ftx = ftx;
+	asset->is_character = mbs.rfind("Chara", 0) == 0;
+	asset->is_background = mbs.rfind("BattleBG/", 0) == 0 || mbs.rfind("FieldBG/", 0) == 0;
+	{
+		viewer::trace::Scoped sc("make mbs parse " + class_name);
+		asset->data = SpriteData::load(
+			std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(p.mbs.data()), p.mbs.size()), std::move(p.ftx));
+	}
+	{
+		viewer::trace::Scoped sc("make gpu upload " + class_name);
+		asset->renderer.upload_textures(asset->data);
+	}
+	return asset;
+}
+
 std::unique_ptr<SpriteLayer> AssetLoader::make_layer(
 	PreparedLayer&& p,
 	uint32_t trackid,
