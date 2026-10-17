@@ -13,8 +13,30 @@
 #include <memory>
 
 class asIScriptGeneric;
+class asIScriptModule;
+class asIScriptFunction;
 
 namespace asb {
+
+// A deferred script callback registration. The callback is stored with the
+// event/key it belongs to; dispatch is added when the event source exists.
+enum class ScriptEvent {
+	BattleBefore,
+	BattleDie,
+	EncounterBefore,
+	EncounterAfter,
+	Talk,
+	Facility,
+	GateBreakAfter,
+	TownLvUp,
+	BattleAfter,
+	BattleDieAfter,
+	FacilityAfter,
+	Treasure,
+	Chase,
+	Portal,
+	Port,
+};
 
 // The recording shim: models the scene-relevant native calls (create / mutate /
 // camera) so a hosted module populates a runtime scene instead of hitting a
@@ -56,6 +78,16 @@ public:
 
 	// Snapshot the current state into a keyframe if it changed since the last.
 	void flush_keyframe();
+
+	// Callback bookkeeping. Registrations are retained in the timeline for
+	// inspection; `fire_script_event` is a stub until combat/field events exist.
+	void set_module(asIScriptModule* module) { _module = module; }
+	asIScriptFunction* resolve_callback(std::string_view name) const;
+	void add_callback(ScriptEvent event, std::string key, std::string function, bool replace = false,
+					  std::string slot = {});
+	void remove_callback(ScriptEvent event, const std::string& key, const std::string& function = {},
+						 const std::string& slot = {});
+	bool fire_script_event(ScriptEvent event, std::string_view key = {});
 
 	long frame = 0;
 	// Frames to sleep requested by the last `Wait`; -1 when unset.
@@ -222,6 +254,9 @@ private:
 	std::vector<std::string> _partner_defs;
 	std::vector<std::string> _battle_unit_order;
 	bool dispatch_battle(std::string_view name, asIScriptGeneric* gen);
+	static const char* callback_event_name(ScriptEvent event);
+	bool _talk_move_back = false;
+	asIScriptModule* _module = nullptr;
 
 	std::function<long(const std::string&, int)> _track_frames;
 	std::function<int(const std::string&, const std::string&)> _resolve_track;

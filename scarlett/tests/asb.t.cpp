@@ -81,6 +81,45 @@ TEST_CASE("pick_scene_function follows the heuristic") {
 	CHECK(asb::pick_scene_function(s3)->name == "b");
 }
 
+TEST_CASE("native callback registrations are retained") {
+	const std::filesystem::path cpk = find_cpk();
+	if (cpk.empty()) {
+		WARN("no Unicorn.CPK found (set UNICORN_CPK); skipping callback test");
+		return;
+	}
+
+	const std::string entry = "Script/St_OW_A_1.asb";
+	std::vector<uint8_t> bytes = extract_entry(cpk, entry);
+	REQUIRE_FALSE(bytes.empty());
+
+	asb::Module mod = asb::parse(bytes);
+	REQUIRE(mod.error.empty());
+	REQUIRE(mod.consumed == mod.total);
+
+	asb::Host host;
+	host.register_module(mod);
+	host.set_call_log([](const std::string&) {});
+	REQUIRE(host.load(bytes));
+
+	asIScriptFunction* fn = host.find_function({"Stage_Setup"});
+	REQUIRE(fn);
+
+	asb::Timeline tl = host.run(fn, entry);
+	REQUIRE_FALSE(tl.callbacks.empty());
+
+	auto has = [&](const std::string& event, const std::string& function) {
+		for (const auto& cb : tl.callbacks)
+			if (cb.event == event && cb.function == function)
+				return true;
+		return false;
+	};
+	CHECK(has("battle_before", "BattleBefore_Boss"));
+	CHECK(has("battle_die", "BattleDie_Boss"));
+	CHECK(has("encounter_after", "StEncountAfter_FarLevel"));
+	CHECK(has("facility", "Facility_Citizen01"));
+	CHECK(has("gate_break_after", "StGataBreakeAfter"));
+}
+
 TEST_CASE("decode, load and run a real script") {
 	const std::filesystem::path cpk = find_cpk();
 	if (cpk.empty()) {

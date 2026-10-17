@@ -346,6 +346,19 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 			add.c_str(),
 			i + 1 < tl.items.size() ? "," : "");
 	}
+	std::fprintf(out, "\t],\n\t\"callbacks\": [\n");
+	for (size_t i = 0; i < tl.callbacks.size(); ++i) {
+		const asb::RuntimeCallback& cb = tl.callbacks[i];
+		std::fprintf(
+			out,
+			"\t\t{\"frame\": %ld, \"event\": \"%s\", \"key\": \"%s\", \"slot\": \"%s\", \"function\": \"%s\"}%s\n",
+			cb.frame,
+			json_escape(cb.event).c_str(),
+			json_escape(cb.key).c_str(),
+			json_escape(cb.slot).c_str(),
+			json_escape(cb.function).c_str(),
+			i + 1 < tl.callbacks.size() ? "," : "");
+	}
 	std::fprintf(out, "\t],\n\t\"fog\": [\n");
 	for (size_t i = 0; i < tl.fog.size(); ++i) {
 		const asb::RuntimeFog& f = tl.fog[i];
