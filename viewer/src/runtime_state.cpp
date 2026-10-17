@@ -345,6 +345,7 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 
 	_layers = build_layers(_loader, specs, _cfg.limit);
 	_active.assign(_layers.size(), 0);
+	_paused.assign(_layers.size(), 0);
 	_track.assign(_layers.size(), -1);
 
 	std::unordered_map<std::string, int> by_name;
@@ -447,6 +448,7 @@ void RuntimeState::apply_keyframe() {
 			pos += glm::vec2(k.entities[_parent[i]].pos[0], k.entities[_parent[i]].pos[1]);
 		_layers[i]->position = pos;
 		_layers[i]->scale = e.scale > 0.0f ? e.scale : 1.0f;
+		_paused[i] = (e.paused || e.anim_paused) ? 1 : 0;
 		const int tracks = static_cast<int>(_layers[i]->data.tracks.size());
 		int ti = e.track_index;
 		if (ti < 0 && !e.track.empty()) {
@@ -522,7 +524,7 @@ void RuntimeState::tick(float dt) {
 	if (_bok_active && _bok.freeze)
 		return;
 	for (size_t i = 0; i < _layers.size(); ++i) {
-		if (!_layers[i] || !_active[i])
+		if (!_layers[i] || !_active[i] || (i < _paused.size() && _paused[i]))
 			continue;
 		if (_layers[i]->instances.empty()) {
 			_layers[i]->instance.update(dt);
@@ -754,7 +756,7 @@ void RuntimeState::render() {
 		const asb::RuntimeEntity* e = kf && i < kf->entities.size() ? &kf->entities[i] : nullptr;
 		const glm::vec2 pos = l.position + _shake_offset;
 		const float alpha = e ? std::clamp(e->alpha / 255.0f, 0.0f, 1.0f) : 1.0f;
-		const bool flip = e && e->dir_x < 0.0f;
+		const bool flip = e && ((e->dir_x < 0.0f) != e->reverse_x);
 		const uint32_t mask = e ? e->layer_mask : 0xFFFFFFFFu;
 
 		l.layer_tints.clear();

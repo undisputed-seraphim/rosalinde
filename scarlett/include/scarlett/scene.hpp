@@ -42,9 +42,11 @@ struct RuntimeEntity {
 	float height = 0.0f;			   // FlSetHeight
 	int emote = 0;					   // FlEmote
 	bool search_flag = false;		   // FlSetSearchFlag
-	bool paused = false;			   // FlPauseSymbol / FlUnpauseSymbol
+	bool paused = false;			   // FlPauseSymbol / FlUnpauseSymbol (freezes animation)
+	bool anim_paused = false;		   // SetSpriteMoneAnimationPaused
+	bool ai_paused = false;			   // FlSetMoveAiPermissionInDemo (no AI yet)
 	bool auto_dir_off = false;		   // FlSetAutoDirOff
-	bool reverse_x = false;			   // FlSetReverseX
+	bool reverse_x = false;			   // FlSetReverseX (mirrors X)
 	int order = 0;
 	Space space = Space::World;
 	std::string parent; // SetSpriteToAnchor target (empty = none); pos is relative
