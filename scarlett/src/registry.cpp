@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+#include <random>
 #include <string_view>
 
 namespace asb {
@@ -2050,6 +2051,89 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	}
 	if (name == "UnlockTrophyAllDelivery") {
 		push_ui("trophy_all", {}, 0, 0, 0, nullptr, 0.0f, false);
+		return true;
+	}
+
+	// --- general API gaps + misc/debug/platform (defaults/record/no-op).
+	{
+		asITypeInfo* ot = fn->GetObjectType();
+		const bool vec2 = ot && std::string_view(ot->GetName()) == "FnVector2";
+		if (vec2 && name == "LengthSq") {
+			const float* a = static_cast<const float*>(gen->GetObject());
+			gen->SetReturnFloat(a ? a[0] * a[0] + a[1] * a[1] : 0.0f);
+			return true;
+		}
+		if (vec2 && name == "IncDistance") {
+			// (distance, radians) — verified from GetDokataCurveTrack's atan2 call.
+			float* a = static_cast<float*>(gen->GetObject());
+			if (a) {
+				const float dist = gen->GetArgFloat(0);
+				const float rad = gen->GetArgFloat(1);
+				a[0] += dist * std::cos(rad);
+				a[1] += dist * std::sin(rad);
+			}
+			return true;
+		}
+		if (vec2 && name == "opEquals") {
+			const float* a = static_cast<const float*>(gen->GetObject());
+			const float* b = static_cast<const float*>(gen->GetArgAddress(0));
+			gen->SetReturnByte(a && b && a[0] == b[0] && a[1] == b[1] ? 1 : 0);
+			return true;
+		}
+	}
+	if (name == "GetRandom") {
+		static std::mt19937 rng{0x5eed1234u};
+		if (gen->GetArgCount() >= 2) {
+			int lo = static_cast<int>(gen->GetArgDWord(0));
+			int hi = static_cast<int>(gen->GetArgDWord(1));
+			if (lo > hi)
+				std::swap(lo, hi);
+			std::uniform_int_distribution<int> dist(lo, hi > lo ? hi - 1 : lo);
+			gen->SetReturnDWord(static_cast<asDWORD>(dist(rng)));
+		} else {
+			gen->SetReturnFloat(std::uniform_real_distribution<float>(0.0f, 1.0f)(rng));
+		}
+		return true;
+	}
+	if (name == "DbPrint") {
+		gen->SetReturnDWord(0);
+		return true;
+	}
+	if (name == "DbInt" || name == "DbAddFriendshipAllChara" || name == "DbClearNotify" ||
+		name == "AddOpeningResource" || name == "HideResource" || name == "ShowResource" || name == "AutoSave" ||
+		name == "SetTimerColorTableIndex" || name == "SetCharaGradientMapCommon")
+		return true;
+	if (name == "DbIsDebugStage" || name == "DbIsKeyTrigger" || name == "IsFriendshipTalkReplay" ||
+		name == "IsVeryHard" || name == "IsPlayStation" || name == "IsXBX" || name == "IsOfflineFirstUnit") {
+		gen->SetReturnByte(0);
+		return true;
+	}
+	if (name == "IsJapanese") {
+		// The data set is the JP build.
+		gen->SetReturnByte(1);
+		return true;
+	}
+	if (name == "GetTextLanguage" || name == "GetVoiceLanguage") {
+		gen->SetReturnDWord(0);
+		return true;
+	}
+	if (name == "SetAllSymbolColorA") {
+		push_ui("symbol_color_a", {}, I(0), I(1), I(2), nullptr, 0.0f, false);
+		return true;
+	}
+	if (name == "SetColor") {
+		float c[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+		read_color(gen, 1, c);
+		unsigned char b[4] = {0, 0, 0, 0};
+		to_bytes(c, b);
+		RuntimeUi& u = push_ui("set_color", S(0), I(2), 0, 0, nullptr, 0.0f, false);
+		u.ints = {b[0], b[1], b[2], b[3]};
+		return true;
+	}
+	if (name == "SetDSPSnapshot") {
+		// No DSP snapshot support; return an empty snapshot name.
+		if (auto* out = static_cast<std::string*>(gen->GetAddressOfReturnLocation()))
+			new (out) std::string();
 		return true;
 	}
 
