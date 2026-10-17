@@ -516,6 +516,9 @@ int main(int argc, char** argv) try {
 		host.set_chara_set_table(sets);
 	}
 
+	asb::FacilityNames facilities = asb::load_facility_names("viewer/data/uc_enums.tsv");
+	host.set_facility_name([facilities](const std::string& key) { return facilities.resolve(key); });
+
 	std::vector<std::string> candidates;
 	if (!func.empty())
 		candidates.push_back(func);

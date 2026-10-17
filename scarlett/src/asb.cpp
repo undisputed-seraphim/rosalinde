@@ -1078,6 +1078,41 @@ CharTable load_char_table(const std::string& path) {
 	return t;
 }
 
+std::string FacilityNames::resolve(const std::string& key) const {
+	if (!key.empty() && key.find_first_not_of("0123456789") == std::string::npos) {
+		const unsigned long idx = std::stoul(key);
+		if (idx < by_index.size())
+			return by_index[idx];
+	}
+	auto it = by_name.find(key);
+	if (it != by_name.end())
+		return it->second;
+	return {};
+}
+
+FacilityNames load_facility_names(const std::string& uc_enums_tsv) {
+	FacilityNames out;
+	std::ifstream f{uc_enums_tsv};
+	std::string line;
+	while (std::getline(f, line)) {
+		if (line.empty() || line[0] == '#')
+			continue;
+		const size_t a = line.find('\t');
+		if (a == std::string::npos || line.substr(0, a) != "ST_FACILITYID")
+			continue;
+		const size_t b = line.find('\t', a + 1);
+		if (b == std::string::npos)
+			continue;
+		const std::string name = line.substr(a + 1, b - a - 1);
+		const std::string label = line.substr(b + 1);
+		if (name.empty())
+			continue;
+		out.by_name.emplace(name, label);
+		out.by_index.push_back(label);
+	}
+	return out;
+}
+
 CharaSetTable load_chara_set(const std::string& charaset_tsv, const std::string& classes_tsv,
 	const std::string& charanpc_tsv) {
 	auto split = [](const std::string& line) {

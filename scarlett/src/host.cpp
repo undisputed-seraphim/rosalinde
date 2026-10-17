@@ -243,6 +243,7 @@ struct Host::Impl {
 	std::function<void(const std::string&)> call_log;
 	std::function<long(const std::string&, int)> track_frames;
 	std::function<int(const std::string&, const std::string&)> resolve_track;
+	std::function<std::string(const std::string&)> facility_name;
 	const CharTable* chars = nullptr;
 	const CharaSetTable* chara_sets = nullptr;
 };
@@ -601,6 +602,10 @@ void Host::set_resolve_track(std::function<int(const std::string&, const std::st
 	_impl->resolve_track = std::move(fn);
 }
 
+void Host::set_facility_name(std::function<std::string(const std::string&)> fn) {
+	_impl->facility_name = std::move(fn);
+}
+
 Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
 
@@ -612,6 +617,8 @@ Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 		reg.set_track_frames(_impl->track_frames);
 	if (_impl->resolve_track)
 		reg.set_resolve_track(_impl->resolve_track);
+	if (_impl->facility_name)
+		reg.set_facility_name(_impl->facility_name);
 	reg.reset(std::move(source), fn ? fn->GetName() : "");
 	g_scene_registry = &reg;
 
