@@ -8,34 +8,38 @@ turns FMBS/FTX data into pixels, how to render headlessly, and the debug afforda
 
 | File | Role |
 |------|------|
-| `main.cpp` | CLI parsing (`--cpk`, `--screenshot`, `--frames`, `--class`, `--class2`, `--bg`) → `ViewerConfig` → `Scene` |
-| `scene.cpp/hpp` | `BaseGame` implementation; Menu↔Battle state machine; owns `AssetLoader` + `DebugUI` |
-| `menu_state.cpp/hpp` | ImGui class/stage picker |
-| `battle_state.cpp/hpp` | The scene: background + character layers, camera, animation graph, screenshot |
-| `animation_graph.cpp/hpp` | Hardcoded action→track→next map (IDLE / D_WALK_A1 / MAGIC_A chain) |
-| `asset_loader.cpp/hpp` | CPK open, FTX decode, `load_layer`, `load_background`, **background track selection** |
-| `debug_ui.cpp/hpp` | ImGui lifecycle + debug panels |
-| `sprite_layer.hpp` | `SpriteLayer` + `BackgroundScene` value types |
-| `sprite.cpp/hpp` | `SpriteData` (parse+preprocess) and `SpriteInstance` (playback, `build_vertices`, bounds) |
+| `main.cpp` | CLI parsing (`--cpk`, `--script`, `--scene-frame`, `--screenshot`, `--frames`) → `ViewerConfig` → `Scene` |
+| `scene.cpp/hpp` | SDL/ImGui shell; owns `AssetLoader`, `DebugUI`, and one `DramaPlayback` |
+| `drama_playback.cpp/hpp` | 60 Hz script playback loop; steps `asb::RuntimeSession` and draws the live scene |
+| `scene_renderer.cpp/hpp` | Reconciles live `SceneState` objects with cached sprite assets and draws them |
+| `asset_library.cpp/hpp` | Cached MBS/FTX assets; async CPU prepare, GL-thread upload |
+| `sprite_asset.hpp` | Shared cached `SpriteData` + `SpriteRenderer` |
+| `asset_loader.cpp/hpp` | CPK open, FTX decode, asset resolution/prepare |
+| `background_tracks.cpp/hpp` | Background track policy (landscape vs state families, day/night) |
+| `effect_manager.cpp/hpp` | Live effect event stream and sprite instances |
+| `debug_ui.cpp/hpp` | ImGui lifecycle and optional CJK font |
+| `sprite_layer.hpp` | Legacy layer types still used by effects/debug helpers |
+| `sprite.cpp/hpp` | `SpriteData` (parse+preprocess) and `SpriteInstance` (playback, vertices, bounds) |
 | `sprite_renderer.cpp/hpp` | Texture-array upload + draw |
 | `shader.cpp/hpp` | Embedded GLSL 450 vertex/fragment |
 | `camera.cpp/hpp` | 2D camera (pan/zoom/fit/follow) |
 | `screenshot.cpp/hpp` | PNG (zlib) / PPM writer |
-| `tables.cpp/hpp` | Hardcoded class/background lookup tables |
-| `engine/` | `Engine` game loop + `Window` (SDL3/OpenGL RAII) — driven by `main.cpp` |
+| `engine/` | `Engine` game loop + `Window` (SDL3/OpenGL RAII) |
 | `glxx/` | Thin OpenGL RAII wrappers |
 
 ## Rendering pipeline
 
-1. `AssetLoader` opens the CPK; for a layer/background it extracts the `.mbs` and `.ftx`.
-2. FTX: `FTX::parse` → `FTX::decompress` (BC3/BC4/BC7) → `FTX::deswizzle` (Tegra X1).
-3. `SpriteData::load` parses the MBS (v76/v77) and `preprocess()`es it into
-   `CachedKeyframe`s (per-layer `tex_id`, `uv`, `xy`, `color`, `attributes`, `blend`) and a
-   `Track` list.
-4. `SpriteRenderer::upload_textures` packs every FTX texture into one
-   `GL_TEXTURE_2D_ARRAY`.
-5. Draw: for each sub-animation (`run`/`sa`), set `u_mvp = projection * view * s7`, build
-   vertices, and issue draws **grouped by blend mode**.
+1. `DramaPlayback` loads the selected `.asb`, registers the module, and starts an
+   `asb::RuntimeSession`.
+2. Each scene tick advances the VM and updates the live `asb::SceneState`.
+3. `SceneRenderer::sync` reconciles scene objects with `AssetLibrary` entries:
+   create, update, asset swap, or destroy.
+4. `AssetLibrary` extracts the MBS/FTX, decodes FTX, and uploads a texture array
+   on the GL thread. CPU preparation can be requested asynchronously.
+5. `SceneRenderer` advances `SpriteInstance`s by scene frames and draws them in
+   stable order. Background assets expand to their selected track set.
+6. `DramaPlayback` draws effects, fades, and the current dialogue text, then
+   captures a screenshot when requested.
 
 ### Vertex format and attributes
 
@@ -96,46 +100,41 @@ against the array size. Verified GPU (`glGetTexImage`) == CPU decode byte-for-by
 `s4.blend_id` selects a blend mode; the renderer does up to 4 passes per run
 (0=normal, 1=additive, 2=multiply, 3=screen — mode mapping is a best guess, not confirmed).
 
-## Background heuristics (stand-in for external game logic)
+## Background track policy
 
-The MBS does not encode which tracks are live or how the camera frames them; the viewer
-approximates it in `asset_loader.cpp::select_background_tracks` and `battle_state.cpp`:
+`background_tracks.cpp::select_background_tracks` centralizes the heuristic:
 
-- **Landscape** scenes → render **all** element tracks; **state/cutscene** families
-  (`ENKE`/`KNKE`) → render a single `*_ENKE_IDLE` card.
-- Skip day/night variants (`*_yoru` suffix, `yor*` prefix).
-- Apply the `s7.fog` tint on background draws.
-- Camera: character-fit by default; `BG_CAM=<track_idx>` frames a single background
-  element. Background-fit framing is set aside (see the format doc's bounds caveats).
+- landscape elements play simultaneously;
+- state families (`ENKE`/`KNKE`) select one state;
+- day/night variants prefer the day set.
+
+`SceneRenderer` expands a background object into one `SpriteInstance` per selected
+track, each with its own animation clock. GUI and character assets use the
+script-selected track.
 
 ## Headless capture
 
-The viewer can render one frame to an image and exit, which is how it is verified without a
-GPU/display.
+Render on the GPU with no X server:
 
 ```bash
-LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe \
-  xvfb-run -a -s "-screen 0 1920x1080x24" \
+SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
   ./build/viewer/viewer --cpk ~/Unicorn.CPK \
-      --frames 1 --bg BGBtPlain_a --screenshot /tmp/frame.png
+      --script Script/Dr_OW_0_Opening.asb \
+      --scene-frame 60 --screenshot /tmp/frame.png
 ```
 
-Flags: `--screenshot <png|ppm>` (PNG via zlib, or PPM), `--frames <n>` (render N frames
-before capture; default 1), `--class` / `--class2` / `--bg` (screenshot-mode selection).
-`imgui.ini` writing is disabled in screenshot mode.
+Flags: `--script` selects the drama and is required; `--scene-frame <n>` advances
+deterministically before capture; `--screenshot <png|ppm>` writes one frame and
+exits; `--frames <n>` controls how many rendered frames precede capture.
 
 ## Debug environment variables
 
 | Var | Effect |
 |-----|--------|
-| `BG_DUMP=1` | Dump selected s9 tracks + s4 flag/blend histogram |
-| `BG_LAYERS=<idx>` | Dump per-run keyframe layers (tex/blend/colour/uv/xy) for one track |
-| `FTX_DUMP=1` | Export decoded FTX textures to `/tmp/opencode/ftx_*.png` |
-| `FTX_GPU_DUMP=1` | Read the uploaded texture array back (`glGetTexImage`) to `gpu_tex.png` |
-| `BG_ONLY=<idx>` | Render a single background element in isolation |
-| `BG_COLOR=1` | Tint each background element a distinct colour |
-| `BG_CAM=<idx>` | Fit the camera to one background element's s9 bounds |
-| `BG_NOFOG=1` | Disable the `s7.fog` tint |
+| `SCENE_TRACE=1` | Trace VM creates/waits and playback state |
+| `ASB_TEXT=1` | Trace dialogue/text events |
+| `VIEWER_FONT=<path>` | Override the ImGui CJK font |
+| `VIEWER_ORTHO=a,b,c,d` | Override the orthographic projection |
 
 ## Data tables
 
