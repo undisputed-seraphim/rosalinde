@@ -78,6 +78,7 @@ struct SpriteInstance {
 	std::vector<uint8_t> hide; // per-run: a finished run that should stop drawing
 	uint32_t _phase = 0;	   // run index currently playing (sequential-runs mode)
 	uint32_t _frame_counter = 0;
+	bool paused = false;
 
 	std::vector<mbs::section_7> _transition_src_s7;
 	float _transition_t = 1.0f;
@@ -85,6 +86,7 @@ struct SpriteInstance {
 	void play(uint32_t track_id);
 	void play(const std::string& name);
 	void update(float dt_seconds);
+	void advance_frames(uint32_t frames);
 	void next_track();
 	void prev_track();
 

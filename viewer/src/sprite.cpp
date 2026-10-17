@@ -269,6 +269,14 @@ void SpriteInstance::update(float dt_seconds) {
 		_frame_counter++;
 }
 
+void SpriteInstance::advance_frames(uint32_t frames) {
+	if (paused || !data || frames == 0)
+		return;
+	constexpr float kFrameSeconds = 1.0f / 60.0f;
+	for (uint32_t i = 0; i < frames; ++i)
+		update(kFrameSeconds);
+}
+
 void SpriteInstance::next_track() {
 	if (data->tracks.empty())
 		return;

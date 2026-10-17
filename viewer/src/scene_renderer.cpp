@@ -1,0 +1,186 @@
+#include "scene_renderer.hpp"
+#include "scene_util.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <map>
+
+namespace {
+
+bool track_usable(const SpriteData& data, int index) {
+	return index >= 0 && static_cast<size_t>(index) < data.tracks.size() && !data.tracks[index].disabled &&
+		   !data.tracks[index].runs.empty();
+}
+
+} // namespace
+
+int SceneRenderer::choose_track(const SpriteAsset& asset, const asb::RuntimeEntity& e) {
+	if (track_usable(asset.data, e.track_index))
+		return e.track_index;
+	if (!e.track.empty()) {
+		if (const auto* t = asset.data.find_track(e.track))
+			return static_cast<int>(t - asset.data.tracks.data());
+	}
+	for (size_t i = 0; i < asset.data.tracks.size(); ++i)
+		if (track_usable(asset.data, static_cast<int>(i)))
+			return static_cast<int>(i);
+	return -1;
+}
+
+void SceneRenderer::rebuild(Object& object, const asb::RuntimeEntity& e, SpriteAssetPtr asset) {
+	object.state = e;
+	object.asset = std::move(asset);
+	object.instances.clear();
+	object.track_index = -1;
+	object.background = object.asset && object.asset->is_background;
+
+	if (!object.asset)
+		return;
+
+	if (object.background) {
+		for (size_t i = 0; i < object.asset->data.tracks.size(); ++i) {
+			if (!track_usable(object.asset->data, static_cast<int>(i)))
+				continue;
+			object.instances.emplace_back(&object.asset->data, static_cast<uint32_t>(i), 0xFFFFFFFFu);
+			object.instances.back().play(static_cast<uint32_t>(i));
+		}
+	} else {
+		const int track = choose_track(*object.asset, e);
+		if (track < 0)
+			return;
+		object.track_index = track;
+		object.instances.emplace_back(&object.asset->data, static_cast<uint32_t>(track), 0xFFFFFFFFu);
+		object.instances.back().play(static_cast<uint32_t>(track));
+	}
+	apply(object, e);
+}
+
+void SceneRenderer::apply(Object& object, const asb::RuntimeEntity& e) {
+	object.state = e;
+	if (object.instances.empty())
+		return;
+	if (!object.background) {
+		const int track = choose_track(*object.asset, e);
+		if (track >= 0 && track != object.track_index) {
+			object.track_index = track;
+			object.instances[0].play(static_cast<uint32_t>(track));
+		}
+	}
+	for (auto& instance : object.instances)
+		instance.paused = e.paused || e.anim_paused;
+}
+
+void SceneRenderer::sync(const asb::SceneState& scene) {
+	std::unordered_map<std::string, bool> seen;
+	seen.reserve(scene.entities.size());
+
+	for (const auto& e : scene.entities) {
+		if (e.name.empty() || e.mbs.empty() || e.ftx.empty() || !e.visible)
+			continue;
+		seen[e.name] = true;
+
+		auto it = _objects.find(e.name);
+		if (it != _objects.end()) {
+			const bool same_asset = it->second.state.mbs == e.mbs && it->second.state.ftx == e.ftx;
+			if (same_asset) {
+				apply(it->second, e);
+				continue;
+			}
+			_objects.erase(it);
+		}
+
+		auto asset = _library.get(e.mbs, e.ftx);
+		if (!asset)
+			continue;
+		Object object;
+		rebuild(object, e, std::move(asset));
+		_objects.emplace(e.name, std::move(object));
+	}
+
+	for (auto it = _objects.begin(); it != _objects.end();) {
+		if (!seen.contains(it->first))
+			it = _objects.erase(it);
+		else
+			++it;
+	}
+}
+
+void SceneRenderer::advance(uint32_t frames) {
+	if (frames == 0)
+		return;
+	for (auto& [_, object] : _objects)
+		for (auto& instance : object.instances)
+			instance.advance_frames(frames);
+}
+
+glm::vec2 SceneRenderer::parent_position(const Object& object) const {
+	if (object.state.parent.empty())
+		return {0.0f, 0.0f};
+	auto it = _objects.find(object.state.parent);
+	if (it == _objects.end())
+		return {0.0f, 0.0f};
+	return {it->second.state.pos[0], it->second.state.pos[1]};
+}
+
+void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
+	enable_blend(glm::vec4(1.0f));
+	enable_depth(GL_ALWAYS);
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	std::vector<Object*> order;
+	order.reserve(_objects.size());
+	for (auto& [_, object] : _objects)
+		if (object.asset && !object.instances.empty() && object.state.visible)
+			order.push_back(&object);
+
+	std::stable_sort(order.begin(), order.end(), [](const Object* a, const Object* b) {
+		const auto& ea = a->state;
+		const auto& eb = b->state;
+		if (ea.prerender_force != eb.prerender_force)
+			return ea.prerender_force > eb.prerender_force;
+		if (ea.window_id_offset != eb.window_id_offset)
+			return ea.window_id_offset < eb.window_id_offset;
+		if (ea.dlprio != eb.dlprio)
+			return ea.dlprio < eb.dlprio;
+		if (ea.sort_id_offset != eb.sort_id_offset)
+			return ea.sort_id_offset < eb.sort_id_offset;
+		return ea.order < eb.order;
+	});
+
+	for (Object* object : order) {
+		const auto& e = object->state;
+		const glm::vec2 offset = parent_position(*object);
+		const glm::vec2 pos{e.pos[0] + offset.x, e.pos[1] + offset.y};
+		const float alpha = std::clamp(e.alpha / 255.0f, 0.0f, 1.0f);
+		if (alpha <= 0.0f)
+			continue;
+		const bool flip = (e.dir_x < 0.0f) != e.reverse_x;
+
+		std::map<uint32_t, glm::vec4> tints;
+		const int packed = e.color[0] >= 0 ? e.color[0] : e.color[2];
+		if (packed >= 0) {
+			const glm::vec4 tint{
+				((packed >> 16) & 0xFF) / 255.0f, ((packed >> 8) & 0xFF) / 255.0f, (packed & 0xFF) / 255.0f, 1.0f};
+			tints[0] = tint;
+			for (const auto& s4 : object->asset->data.v77.s4)
+				tints[s4.attributes] = tint;
+		}
+
+		for (auto& instance : object->instances) {
+			object->asset->renderer.draw(
+				instance,
+				projection,
+				camera,
+				pos,
+				tints.empty() ? nullptr : &tints,
+				object->background,
+				e.scale > 0.0f ? e.scale : 1.0f,
+				alpha,
+				flip,
+				0.0f,
+				e.layer_mask);
+		}
+	}
+}
+
+void SceneRenderer::clear() { _objects.clear(); }
