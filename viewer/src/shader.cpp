@@ -23,12 +23,14 @@ constexpr std::string_view kf_frag_src = "#version 450\n"
 "in      highp vec2           v_uv;\n"
 "flat in       uint           v_texid;\n"
 "uniform highp sampler2DArray u_tex;\n"
+"uniform highp float          u_alpha;\n"
 "out     highp vec4           fragColor;\n"
 
 "void main(void) {\n"
 "    highp ivec3 texsize = textureSize(u_tex, 0);\n"
 "    highp vec3 texcoord = vec3(v_uv.x / float(texsize.x), v_uv.y / float(texsize.y), float(v_texid));\n"
 "    fragColor = texture(u_tex, texcoord) * v_fog;\n"
+"    fragColor.a *= u_alpha;\n"
 "}";
 // clang-format on
 

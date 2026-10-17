@@ -5,6 +5,7 @@
 #include "tables.hpp"
 #include "trace.hpp"
 
+#include <criware/acb.hpp>
 #include <criware/cpk.hpp>
 #include <scarlett/asb.hpp>
 #include <scarlett/host.hpp>
@@ -15,6 +16,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <glad/glad.h>
 #include <glm/ext.hpp>
 #include <span>
@@ -27,6 +29,36 @@ namespace {
 static bool scene_trace() {
 	static const bool on = std::getenv("SCENE_TRACE") != nullptr;
 	return on;
+}
+
+// Sound cue length resolver: cue id -> frames, from the ACB cue/waveform
+// tables. Cue ids are globally unique (BGM 1+, SE 1000+, voice 1000101+); the
+// original voice ids may be offset by 0x1ca68, so try both. No audio playback.
+std::function<int(int)> make_sound_length_resolver(const CPKTable& cpk) {
+	std::unordered_map<int, int> lengths;
+	for (const char* name : {"bgm.acb", "se.acb", "voice_jp.acb", "voice_btl_jp.acb", "voice_add_jp.acb"}) {
+		auto entry = cpk.find_file("Sound", name);
+		if (entry == cpk.end())
+			continue;
+		std::vector<char> buf;
+		cpk.extract(*entry, buf);
+		auto acb = criware::ACB::parse(
+			std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()));
+		for (const auto& cue : acb.cues()) {
+			const auto* w = acb.find_waveform(cue.waveform_id);
+			if (!w || w->sampling_rate == 0)
+				continue;
+			const int frames = static_cast<int>(double(w->num_samples) / double(w->sampling_rate) * 60.0);
+			lengths.emplace(static_cast<int>(cue.cue_id), frames);
+		}
+	}
+	return [lengths = std::move(lengths)](int cue) {
+		auto it = lengths.find(cue);
+		if (it != lengths.end())
+			return it->second;
+		it = lengths.find(cue + 0x1ca68);
+		return it != lengths.end() ? it->second : 0;
+	};
 }
 
 // Read the default framebuffer (the window / offscreen pbuffer) into a PNG.
@@ -159,7 +191,8 @@ int mbs_resolve_track(const AssetLoader& loader, const std::string& mbs, const s
 RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	: _loader(loader)
 	, _cfg(std::move(cfg))
-	, _camera(1.0f) {
+	, _camera(1.0f)
+	, _effects(loader) {
 
 	_projection = glm::ortho(-960.0f, 960.0f, 540.0f, -540.0f);
 	if (const char* o = std::getenv("VIEWER_ORTHO")) {
@@ -231,6 +264,7 @@ RuntimeState::RuntimeState(const AssetLoader& loader, RuntimeSceneConfig cfg)
 	asb::DropTables drops = asb::load_drop_tables(
 		viewer_data_dir() + "/drop_tables.tsv", viewer_data_dir() + "/uc_enums.tsv");
 	host.set_drop_tables(drops);
+	host.set_sound_length(make_sound_length_resolver(_loader.cpk()));
 
 	viewer::trace::stamp("RuntimeState: VM run begin");
 	_timeline = asb::run_module(
@@ -426,7 +460,67 @@ void RuntimeState::apply_keyframe() {
 	}
 }
 
+glm::vec2 RuntimeState::entity_pos(const std::string& name) const {
+	if (_timeline.keyframes.empty())
+		return {0.0f, 0.0f};
+	const auto& k = _timeline.keyframes[std::min<size_t>(_kf, _timeline.keyframes.size() - 1)];
+	for (const auto& e : k.entities) {
+		if (e.name == name)
+			return {e.pos[0], e.pos[1]};
+		for (const auto& a : e.aliases)
+			if (a == name)
+				return {e.pos[0], e.pos[1]};
+	}
+	return {0.0f, 0.0f};
+}
+
+void RuntimeState::apply_state(long frame) {
+	while (_shake_i < _timeline.shakes.size() && _timeline.shakes[_shake_i].start <= frame)
+		_shakes.push_back(_timeline.shakes[_shake_i++]);
+	for (auto it = _shakes.begin(); it != _shakes.end();) {
+		if (it->end <= frame)
+			it = _shakes.erase(it);
+		else
+			++it;
+	}
+	glm::vec2 off{0.0f, 0.0f};
+	for (const auto& s : _shakes) {
+		if (frame < s.start || s.end <= s.start)
+			continue;
+		const float t = float(frame - s.start) / float(s.end - s.start);
+		const float decay = 1.0f - t;
+		const float w = std::sin(t * 6.2831853f * (s.pow > 0.0f ? s.pow : 1.0f));
+		off += glm::vec2(s.shake[0], s.shake[1]) * (decay * w * (s.att > 0.0f ? s.att : 1.0f));
+	}
+	_shake_offset = off;
+
+	while (_fog_i < _timeline.fog.size() && _timeline.fog[_fog_i].frame <= frame) {
+		const auto& f = _timeline.fog[_fog_i++];
+		_fog = glm::vec4(
+			f.color[0] / 255.0f, f.color[1] / 255.0f, f.color[2] / 255.0f, f.color[3] / 255.0f);
+	}
+	while (_bok_i < _timeline.bokashi.size() && _timeline.bokashi[_bok_i].start <= frame) {
+		_bok = _timeline.bokashi[_bok_i++];
+		_bok_active = true;
+	}
+	if (_bok_active && frame >= _bok.end)
+		_bok_active = false;
+	while (_var_i < _timeline.variations.size() && _timeline.variations[_var_i].frame <= frame)
+		_variation = _timeline.variations[_var_i++].mask;
+	while (_light_i < _timeline.point_lights.size() && _timeline.point_lights[_light_i].frame <= frame) {
+		const auto& l = _timeline.point_lights[_light_i++];
+		if (l.remove)
+			_lights.erase(l.name);
+		else
+			_lights[l.name] = l;
+	}
+}
+
 void RuntimeState::tick(float dt) {
+	apply_state(_frame);
+	_effects.update(_frame, _timeline.effects, [this](const std::string& n) { return entity_pos(n); });
+	if (_bok_active && _bok.freeze)
+		return;
 	for (size_t i = 0; i < _layers.size(); ++i) {
 		if (!_layers[i] || !_active[i])
 			continue;
@@ -438,6 +532,7 @@ void RuntimeState::tick(float dt) {
 				inst.update(dt);
 		}
 	}
+	_effects.tick(dt);
 }
 
 bool RuntimeState::handle_inputs() {
@@ -497,6 +592,8 @@ void RuntimeState::update(float dt) {
 
 void RuntimeState::render() {
 	++_render_count;
+	apply_state(_frame);
+	_effects.update(_frame, _timeline.effects, [this](const std::string& n) { return entity_pos(n); });
 
 	if (_cfg.camera == "follow" && _focus >= 0 && _focus < static_cast<int>(_layers.size()) && _layers[_focus])
 		_camera.recenter(_layers[_focus]->position);
@@ -622,17 +719,102 @@ void RuntimeState::render() {
 	}
 
 	glClear(GL_DEPTH_BUFFER_BIT);
-	for (size_t i = 0; i < _layers.size(); ++i) {
-		if (!_layers[i] || !_active[i])
-			continue;
+	const asb::Keyframe* kf = _timeline.keyframes.empty()
+		? nullptr
+		: &_timeline.keyframes[std::min<size_t>(_kf, _timeline.keyframes.size() - 1)];
+
+	std::vector<size_t> order;
+	order.reserve(_layers.size());
+	for (size_t i = 0; i < _layers.size(); ++i)
+		if (_layers[i] && _active[i])
+			order.push_back(i);
+	static const asb::RuntimeEntity empty_entity{};
+	auto ent_at = [&](size_t idx) -> const asb::RuntimeEntity& {
+		return kf && idx < kf->entities.size() ? kf->entities[idx] : empty_entity;
+	};
+	if (kf)
+		std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+			const auto& ea = ent_at(a);
+			const auto& eb = ent_at(b);
+			if (ea.prerender_force != eb.prerender_force)
+				return ea.prerender_force > eb.prerender_force;
+			if (ea.window_id_offset != eb.window_id_offset)
+				return ea.window_id_offset < eb.window_id_offset;
+			if (ea.dlprio != eb.dlprio)
+				return ea.dlprio < eb.dlprio;
+			if (ea.sort_id_offset != eb.sort_id_offset)
+				return ea.sort_id_offset < eb.sort_id_offset;
+			if (ea.order != eb.order)
+				return ea.order < eb.order;
+			return a < b;
+		});
+
+	for (size_t i : order) {
 		auto& l = *_layers[i];
+		const asb::RuntimeEntity* e = kf && i < kf->entities.size() ? &kf->entities[i] : nullptr;
+		const glm::vec2 pos = l.position + _shake_offset;
+		const float alpha = e ? std::clamp(e->alpha / 255.0f, 0.0f, 1.0f) : 1.0f;
+		const bool flip = e && e->dir_x < 0.0f;
+		const uint32_t mask = e ? e->layer_mask : 0xFFFFFFFFu;
+
+		l.layer_tints.clear();
+		if (e) {
+			const int packed = e->color[0] >= 0 ? e->color[0] : e->color[2];
+			if (packed >= 0) {
+				const glm::vec4 t = {
+					((packed >> 16) & 0xFF) / 255.0f,
+					((packed >> 8) & 0xFF) / 255.0f,
+					(packed & 0xFF) / 255.0f,
+					1.0f};
+				l.layer_tints[0] = t;
+				for (const auto& s4 : l.data.v77.s4)
+					l.layer_tints[s4.attributes] = t;
+			}
+			if (_variation != 0) {
+				l.instance.variant_flags = _variation;
+				for (auto& inst : l.instances)
+					inst.variant_flags = _variation;
+			}
+		}
+
 		if (l.instances.empty()) {
-			l.renderer.draw(l.instance, _projection, _camera, l.position, &l.layer_tints, false, l.scale);
+			l.renderer.draw(l.instance, _projection, _camera, pos, &l.layer_tints, false, l.scale, alpha, flip, 0.0f, mask);
 		} else {
 			for (auto& inst : l.instances)
-				l.renderer.draw(inst, _projection, _camera, l.position, &l.layer_tints, false, l.scale);
+				l.renderer.draw(inst, _projection, _camera, pos, &l.layer_tints, false, l.scale, alpha, flip, 0.0f, mask);
 		}
 	}
+
+	if (!std::getenv("VIEWER_NO_EFFECTS"))
+		_effects.draw(_projection, _camera, _shake_offset);
+
+	std::vector<PointLightDraw> lights;
+	lights.reserve(_lights.size());
+	for (const auto& [name, l] : _lights) {
+		PointLightDraw p;
+		glm::vec3 ppos{l.pos[0], l.pos[1], l.pos[2]};
+		if (!l.attached.empty()) {
+			const glm::vec2 e = entity_pos(l.attached);
+			ppos.x += e.x;
+			ppos.y += e.y;
+		}
+		p.pos = ppos;
+		p.light = {
+			l.light[0] / 255.0f,
+			l.light[1] / 255.0f,
+			l.light[2] / 255.0f,
+			1.0f};
+		p.power = l.power > 0.0f ? l.power : 500.0f;
+		lights.push_back(p);
+	}
+	if (!std::getenv("VIEWER_NO_LIGHTS"))
+		_lights_renderer.draw(_projection, _camera, lights);
+
+	if (_fog.a > 0.0f)
+		_overlay.draw(glm::vec4(_fog.r, _fog.g, _fog.b, _fog.a * 0.25f));
+	if (_bok_active && _bok.bokashi)
+		_overlay.draw(glm::vec4(1.0f, 1.0f, 1.0f, _bok.max_rate));
+	// TODO(gradient): GradientMap00.ftx + DrSetGradientMap screen pass.
 
 	float fade[4];
 	asb::fade_at(_timeline.fades, _frame, fade);

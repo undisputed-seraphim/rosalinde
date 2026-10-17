@@ -3,12 +3,16 @@
 #include <scarlett/scene.hpp>
 
 #include <angelscript.h>
+#include <criware/acb.hpp>
 #include <criware/cpk.hpp>
 
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <functional>
+#include <span>
+#include <unordered_map>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -457,6 +461,36 @@ void write_json(FILE* out, const asb::Timeline& tl) {
 
 } // namespace
 
+std::function<int(int)> load_sound_lengths(const std::string& cpk_path) {
+	std::unordered_map<int, int> lengths;
+	if (cpk_path.empty())
+		return [](int) { return 0; };
+	CPKTable table = TopLevelCpk(std::filesystem::absolute(cpk_path)).getTableOfContents();
+	for (const char* name : {"bgm.acb", "se.acb", "voice_jp.acb", "voice_btl_jp.acb", "voice_add_jp.acb"}) {
+		auto entry = table.find_file("Sound", name);
+		if (entry == table.end())
+			continue;
+		std::vector<char> buf;
+		table.extract(*entry, buf);
+		auto acb = criware::ACB::parse(
+			std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()));
+		for (const auto& cue : acb.cues()) {
+			const auto* w = acb.find_waveform(cue.waveform_id);
+			if (!w || w->sampling_rate == 0)
+				continue;
+			lengths.emplace(static_cast<int>(cue.cue_id),
+				static_cast<int>(double(w->num_samples) / double(w->sampling_rate) * 60.0));
+		}
+	}
+	return [lengths = std::move(lengths)](int cue) {
+		auto it = lengths.find(cue);
+		if (it != lengths.end())
+			return it->second;
+		it = lengths.find(cue + 0x1ca68);
+		return it != lengths.end() ? it->second : 0;
+	};
+}
+
 int main(int argc, char** argv) try {
 	std::string input, cpk, entry, func, json, chara_table;
 	long frames = 200000;
@@ -524,6 +558,7 @@ int main(int argc, char** argv) try {
 	asb::DropTables drops =
 		asb::load_drop_tables("viewer/data/drop_tables.tsv", "viewer/data/uc_enums.tsv");
 	host.set_drop_tables(drops);
+	host.set_sound_length(load_sound_lengths(cpk));
 
 	std::vector<std::string> candidates;
 	if (!func.empty())

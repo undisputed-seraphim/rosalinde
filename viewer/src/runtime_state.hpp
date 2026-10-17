@@ -2,6 +2,8 @@
 
 #include "asset_loader.hpp"
 #include "camera.hpp"
+#include "effect_manager.hpp"
+#include "light_renderer.hpp"
 #include "screen_fade.hpp"
 #include "sprite_layer.hpp"
 
@@ -41,7 +43,9 @@ public:
 
 private:
 	void apply_keyframe();
+	void apply_state(long frame);
 	void tick(float dt);
+	glm::vec2 entity_pos(const std::string& name) const;
 
 	const AssetLoader& _loader;
 	RuntimeSceneConfig _cfg;
@@ -54,6 +58,18 @@ private:
 	std::vector<int> _track;
 	std::vector<int> _parent; // entity index this layer is anchored to, or -1
 	ScreenFadeOverlay _fade;
+	ScreenFadeOverlay _overlay;
+	EffectManager _effects;
+	LightRenderer _lights_renderer;
+	glm::vec2 _shake_offset{0.0f, 0.0f};
+	std::vector<asb::RuntimeShake> _shakes;
+	size_t _shake_i = 0, _fog_i = 0, _bok_i = 0, _var_i = 0;
+	glm::vec4 _fog{0.0f, 0.0f, 0.0f, 0.0f};
+	asb::RuntimeBokashi _bok{};
+	bool _bok_active = false;
+	unsigned _variation = 0;
+	std::unordered_map<std::string, asb::RuntimePointLight> _lights;
+	size_t _light_i = 0;
 
 	long _cap_from = -1;
 	long _cap_to = -1;
