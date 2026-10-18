@@ -222,6 +222,9 @@ d PATH [--json] [--full] [--limit N]
 - `--full` expands text output
 - `--limit N` caps rows/nodes/tracks/sequences/frames
 
+MBS sequence queries also accept `--timeline` and `--colors`; both require
+`--track` and `--seq`.
+
 ## MBS inspection
 
 MBS files are treated as a three-level animation hierarchy:
@@ -289,6 +292,51 @@ sequence[2] sa=2 s8[4..10) total_frames=211 once=0 commit=-1 track=7 loop=0
 - `total_frames` is the sum over the sequence
 - `--limit N` caps the number of frame rows
 - sections 4, 5, 6, and 7 are not expanded; their IDs are reported
+
+### Sequence timeline
+
+```text
+d BattleBG/BGBtPort_D.mbs --track 0 --seq 2 --timeline
+```
+
+Each frame row gains sequence-local cumulative timing:
+
+```text
+frame[0] t=0 end=42 s8=4 duration=42 ...
+frame[1] t=42 end=84 s8=5 duration=42 ...
+frame[4] t=168 end=210 s8=8 duration=42 ...
+frame[5] t=210 end=211 s8=9 duration=1 ...
+```
+
+- `t` is the sum of preceding section-8 durations in the sequence
+- `end = t + duration`
+- JSON frame objects always include `t` and `end`, even without `--timeline`
+- the sequence header includes `s8_st`; the inspector shows raw section-8 rows
+
+### Effective color/alpha
+
+```text
+d GUI/Logo.mbs --track 9 --seq 21 --colors
+```
+
+For each section-8 frame, each layer in its section-6 keyframe is shown with:
+
+- section-4 and section-0 indices
+- attributes, flags, blend, and texture IDs
+- raw `s0` corner colors
+- corner colors after multiplication by `s7.fog`
+- effective colors as `#RRGGBBAA`
+
+```text
+frame[0] ... fog=0xffffffff
+  layer[0] s4=344 s0=16 attr=0x0 flags=0x1 blend=0 tex=0 raw=[...] eff=[#ffffffff,...]
+```
+
+`--colors` works with or without `--timeline`, and with `--json`. JSON layers
+contain `raw_colors` and effective `colors` arrays.
+
+This is endpoint inspection, not interpolation: it shows the source keyframe's
+layer colors and the fog multiplier.
 
 ### Full JSON
 

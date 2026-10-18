@@ -513,6 +513,103 @@ std::string flag_text(uint32_t flags) {
 	return text.empty() ? "none" : text;
 }
 
+struct effective_color {
+	uint32_t raw = 0;
+	uint8_t r = 0;
+	uint8_t g = 0;
+	uint8_t b = 0;
+	uint8_t a = 0;
+};
+
+std::array<effective_color, 4> effective_colors(const mbs::section_0& color, uint32_t fog) {
+	std::array<effective_color, 4> out{};
+	for (size_t i = 0; i < out.size(); ++i) {
+		const uint32_t raw = color.colors[i];
+		out[i].raw = raw;
+		out[i].r = static_cast<uint8_t>(((raw & 0xFF) * ((fog >> 16) & 0xFF)) / 255);
+		out[i].g = static_cast<uint8_t>((((raw >> 8) & 0xFF) * ((fog >> 8) & 0xFF)) / 255);
+		out[i].b = static_cast<uint8_t>((((raw >> 16) & 0xFF) * (fog & 0xFF)) / 255);
+		out[i].a = static_cast<uint8_t>((((raw >> 24) & 0xFF) * ((fog >> 24) & 0xFF)) / 255);
+	}
+	return out;
+}
+
+std::string color_text(const effective_color& color) {
+	return std::format(
+		"#{:02x}{:02x}{:02x}{:02x}",
+		static_cast<unsigned>(color.r),
+		static_cast<unsigned>(color.g),
+		static_cast<unsigned>(color.b),
+		static_cast<unsigned>(color.a));
+}
+
+uint32_t frame_fog(const mbs::v77& value, const mbs::section_8& frame) {
+	return frame.s7_id < value.s7.size() ? value.s7[frame.s7_id].fog : 0;
+}
+
+void write_frame_colors_text(const mbs::v77& value, const mbs::section_8& frame) {
+	if (frame.s6_id >= value.s6.size())
+		return;
+	const auto& keyframe = value.s6[frame.s6_id];
+	if (keyframe.s4_id >= value.s4.size())
+		return;
+	const uint32_t fog = frame_fog(value, frame);
+	const size_t count = std::min<size_t>(keyframe.s4_no, value.s4.size() - keyframe.s4_id);
+	for (size_t i = 0; i < count; ++i) {
+		const auto& layer = value.s4[keyframe.s4_id + i];
+		if (layer.s0_id >= value.s0.size())
+			continue;
+		const auto colors = effective_colors(value.s0[layer.s0_id], fog);
+		std::cout << "    layer[" << i << "] s4=" << (keyframe.s4_id + i) << " s0=" << layer.s0_id
+				  << " attr=" << std::format("{:#x}", layer.attributes)
+				  << " flags=" << std::format("{:#x}", static_cast<unsigned>(layer.flags))
+				  << " blend=" << static_cast<unsigned>(layer.blend_id)
+				  << " tex=" << static_cast<unsigned>(layer.tex_id) << " raw=[";
+		for (size_t k = 0; k < colors.size(); ++k)
+			std::cout << (k ? "," : "") << std::format("{:#010x}", colors[k].raw);
+		std::cout << "] eff=[";
+		for (size_t k = 0; k < colors.size(); ++k)
+			std::cout << (k ? "," : "") << color_text(colors[k]);
+		std::cout << "]\n";
+	}
+}
+
+void write_frame_colors_json(json_writer& json, const mbs::v77& value, const mbs::section_8& frame) {
+	if (frame.s6_id >= value.s6.size())
+		return;
+	const auto& keyframe = value.s6[frame.s6_id];
+	if (keyframe.s4_id >= value.s4.size())
+		return;
+	const uint32_t fog = frame_fog(value, frame);
+	const size_t count = std::min<size_t>(keyframe.s4_no, value.s4.size() - keyframe.s4_id);
+	json.field("fog", fog);
+	json.begin_array("layers");
+	for (size_t i = 0; i < count; ++i) {
+		const auto& layer = value.s4[keyframe.s4_id + i];
+		if (layer.s0_id >= value.s0.size())
+			continue;
+		const auto colors = effective_colors(value.s0[layer.s0_id], fog);
+		json.begin_object();
+		json.field("index", i);
+		json.field("s4_index", keyframe.s4_id + i);
+		json.field("s0_index", layer.s0_id);
+		json.field("attributes", layer.attributes);
+		json.field("flags", layer.flags);
+		json.field("blend_id", layer.blend_id);
+		json.field("tex_id", layer.tex_id);
+		json.begin_array("raw_colors");
+		for (const auto& color : colors)
+			json.number(color.raw);
+		json.end_array();
+		json.begin_array("colors");
+		for (const auto& color : colors)
+			json.string(color_text(color));
+		json.end_array();
+		json.end_object();
+	}
+	json.end_array();
+}
+
 void write_track_summary_text(const mbs::v77& value, size_t index) {
 	const auto& track = value.s9[index];
 	const size_t sequence_count = track_sequence_count(value, track);
@@ -552,11 +649,17 @@ void dump_sequence_text(const mbs::v77& value, size_t track_index, size_t sequen
 	std::cout << "sequence[" << sequence_index << "] sa=" << sa_index << " s8[" << sequence.s8_id << ".."
 			  << (sequence.s8_id + sequence.s8_no) << ") total_frames=" << metrics.total_frames
 			  << " once=" << sequence.s8_sum_once << " commit=" << sequence.commit_ticks
-			  << " track=" << sequence.track_id << " loop=" << metrics.loop_start << '\n';
+			  << " s8_st=" << static_cast<unsigned>(sequence.s8_st) << " track=" << sequence.track_id
+			  << " loop=" << metrics.loop_start << '\n';
+	uint32_t timeline = 0;
 	for (size_t i = 0; i < shown; ++i) {
 		const size_t s8_index = sequence.s8_id + i;
 		const auto& frame = value.s8[s8_index];
-		std::cout << "  frame[" << i << "] s8=" << s8_index << " duration=" << frame.frames
+		const uint32_t end = timeline + frame.frames;
+		std::cout << "  frame[" << i << "]";
+		if (opt.timeline)
+			std::cout << " t=" << timeline << " end=" << end;
+		std::cout << " s8=" << s8_index << " duration=" << frame.frames
 				  << " flags=" << std::format("{:#x}", frame.flags) << " [" << flag_text(frame.flags)
 				  << "] s6=" << frame.s6_id << " s7=" << frame.s7_id << " loop_s8_id=" << frame.loop_s8_id
 				  << " s5s3=" << static_cast<unsigned>(frame.s5s3_interpolation)
@@ -565,7 +668,13 @@ void dump_sequence_text(const mbs::v77& value, size_t track_index, size_t sequen
 				  << " s6i=" << static_cast<unsigned>(frame.s6_interpolation)
 				  << " s0s1s2=" << static_cast<unsigned>(frame.s0s1s2_interpolation)
 				  << " n_180=" << static_cast<unsigned>(frame.n_180) << " sfx=" << frame.sfx_id
-				  << " mute=" << frame.sfx_mute << '\n';
+				  << " mute=" << frame.sfx_mute;
+		if (opt.colors)
+			std::cout << " fog=" << std::format("{:#x}", frame_fog(value, frame));
+		std::cout << '\n';
+		if (opt.colors)
+			write_frame_colors_text(value, frame);
+		timeline = end;
 	}
 	if (shown < count)
 		std::cout << "  ... " << (count - shown) << " more frames\n";
@@ -613,10 +722,20 @@ void write_sequence_json(json_writer& json, const mbs::v77& value, size_t track_
 	json.end_object();
 }
 
-void write_frame_json(json_writer& json, const mbs::section_8& frame, size_t frame_index, size_t s8_index) {
+void write_frame_json(
+	json_writer& json,
+	const mbs::v77& value,
+	const mbs::section_8& frame,
+	size_t frame_index,
+	size_t s8_index,
+	uint32_t timeline,
+	uint32_t end,
+	bool colors) {
 	json.begin_object();
 	json.field("frame_index", frame_index);
 	json.field("s8_index", s8_index);
+	json.field("t", timeline);
+	json.field("end", end);
 	json.field("s6_id", frame.s6_id);
 	json.field("s7_id", frame.s7_id);
 	json.field("duration", frame.frames);
@@ -630,6 +749,8 @@ void write_frame_json(json_writer& json, const mbs::section_8& frame, size_t fra
 	json.field("n_180", frame.n_180);
 	json.field("sfx_mute", frame.sfx_mute);
 	json.field("sfx_id", frame.sfx_id);
+	if (colors)
+		write_frame_colors_json(json, value, frame);
 	json.end_object();
 }
 
@@ -677,9 +798,13 @@ void dump_sequence_query_json(
 	json.key("sequence");
 	write_sequence_json(json, value, track_index, sequence_index);
 	json.begin_array("frames");
+	uint32_t timeline = 0;
 	for (size_t i = 0; i < shown; ++i) {
 		const size_t s8_index = sequence.s8_id + i;
-		write_frame_json(json, value.s8[s8_index], i, s8_index);
+		const auto& frame = value.s8[s8_index];
+		const uint32_t end = timeline + frame.frames;
+		write_frame_json(json, value, frame, i, s8_index, timeline, end, ctx.opt.colors);
+		timeline = end;
 	}
 	json.end_array();
 	if (shown < count)

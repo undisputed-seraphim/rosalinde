@@ -24,6 +24,8 @@ struct options {
 	bool full = false;
 	bool limit_set = false;
 	size_t limit = 10;
+	bool timeline = false;
+	bool colors = false;
 	std::string_view section;
 	std::optional<size_t> track;
 	std::optional<size_t> sequence;

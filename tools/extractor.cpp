@@ -517,7 +517,9 @@ private:
 	}
 
 	int cmd_d(arg_list args, int) {
-		constexpr std::string_view usage = "d PATH [--json] [--full] [--limit N] [--section sN] [--track N] [--seq N]";
+		constexpr std::string_view usage =
+			"d PATH [--json] [--full] [--limit N] [--section sN] [--track N] [--seq N] [--timeline] "
+			"[--colors]";
 		if (args.size() < 2) {
 			std::cerr << "d: usage: " << usage << '\n';
 			return 2;
@@ -545,6 +547,10 @@ private:
 				options.json = true;
 			} else if (option == "--full") {
 				options.full = true;
+			} else if (option == "--timeline") {
+				options.timeline = true;
+			} else if (option == "--colors") {
+				options.colors = true;
 			} else if (option == "--limit") {
 				const auto value = parse_size(i, "--limit");
 				if (!value)
@@ -872,7 +878,8 @@ std::span<const shell::command_spec> shell::command_list() {
 		{"find", "find [PATH] [TEXT] [--long]", "recursively find files", &shell::cmd_find},
 		{"stat", "stat PATH", "show file or directory metadata", &shell::cmd_stat},
 		{"d",
-		 "d PATH [--json] [--full] [--limit N] [--section sN] [--track N] [--seq N]",
+		 "d PATH [--json] [--full] [--limit N] [--section sN] [--track N] [--seq N] [--timeline] "
+		 "[--colors]",
 		 "inspect a CPK file in memory",
 		 &shell::cmd_d},
 		{"e",

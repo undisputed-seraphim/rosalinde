@@ -127,6 +127,10 @@ int dispatch(const cpk::archive& archive, const cpk::entry& item, std::string_vi
 		std::cerr << "d: --seq requires --track\n";
 		return 2;
 	}
+	if ((opt.timeline || opt.colors) && (!opt.track || !opt.sequence)) {
+		std::cerr << "d: --timeline/--colors require --track and --seq\n";
+		return 2;
+	}
 	if (opt.track && (opt.full || !opt.section.empty())) {
 		std::cerr << "d: --track/--seq cannot be combined with --full or --section\n";
 		return 2;
