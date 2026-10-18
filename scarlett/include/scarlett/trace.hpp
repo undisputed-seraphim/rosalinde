@@ -16,6 +16,20 @@ struct TraceEvent {
 
 using TraceCallback = std::function<void(const TraceEvent&)>;
 
+// One complete native invocation. Unlike TraceEvent, this owns its strings so a
+// consumer can retain or reorder it.
+struct NativeCall {
+	long frame = 0;
+	std::string name;
+	std::string call;
+	std::string caller;
+	bool handled = false;
+	std::string return_type;
+	std::string result;
+};
+
+using NativeCallCallback = std::function<void(const NativeCall&)>;
+
 namespace trace {
 
 inline std::string quote(std::string_view value) {

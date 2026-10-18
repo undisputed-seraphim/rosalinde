@@ -90,6 +90,10 @@ public:
 	// from this host.
 	void set_trace(TraceCallback cb);
 
+	// Optional complete-native-call sink shared by all sessions created from
+	// this host. Emitted once per generic native invocation, after dispatch.
+	void set_native_call(NativeCallCallback cb);
+
 private:
 	struct Impl;
 	Impl* _impl;

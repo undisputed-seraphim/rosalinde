@@ -1648,6 +1648,7 @@ Scene extract_scene(const Module& mod) {
 
 		std::vector<Val> pending;
 		std::vector<double> lastvec;
+		std::string pending_import;
 		bool has_vec = false;
 
 		auto flush = [&](const std::string& cname, const std::string& cdecl_str, char ckind, bool is_ctor) {
@@ -1673,11 +1674,13 @@ Scene extract_scene(const Module& mod) {
 					lastvec.push_back(floats[k]);
 				has_vec = !lastvec.empty();
 				pending.clear();
+				pending_import.clear();
 				return;
 			}
 			SceneEvent ev;
 			ev.call = cname;
 			ev.decl = cdecl_str;
+			ev.import_from = pending_import;
 			ev.kind = ckind;
 			for (const Val& v : pending)
 				if (v.k == Val::S)
@@ -1695,6 +1698,7 @@ Scene extract_scene(const Module& mod) {
 			sf.events.push_back(std::move(ev));
 			pending.clear();
 			lastvec.clear();
+			pending_import.clear();
 			has_vec = false;
 		};
 
@@ -1742,6 +1746,7 @@ Scene extract_scene(const Module& mod) {
 					if (!in.dargs.empty() && in.dargs[0] < mod.binds.size()) {
 						cdecl_str = mod.binds[in.dargs[0]].sig.decl();
 						cname = mod.binds[in.dargs[0]].sig.name;
+						pending_import = mod.binds[in.dargs[0]].import_from;
 					}
 				} else if (!in.dargs.empty()) {
 					cname = call_name(in.dargs[0], cdecl_str, ckind);

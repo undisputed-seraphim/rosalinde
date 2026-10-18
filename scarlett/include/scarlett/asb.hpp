@@ -237,6 +237,7 @@ struct BindInfo {
 struct SceneEvent {
 	std::string call;
 	std::string decl;
+	std::string import_from;
 	char kind = '?';
 	std::vector<std::string> strings;
 	std::vector<int64_t> ints;

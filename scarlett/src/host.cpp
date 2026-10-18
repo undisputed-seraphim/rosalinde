@@ -106,6 +106,179 @@ struct NSGuard {
 
 std::function<void(const std::string&)>* g_call_log = nullptr;
 Registry* g_scene_registry = nullptr;
+NativeCallCallback* g_native_call = nullptr;
+
+std::string function_name(asIScriptFunction* fn) {
+	std::string name;
+	if (fn && *fn->GetNamespace()) {
+		name += fn->GetNamespace();
+		name += "::";
+	}
+	if (fn)
+		name += fn->GetName();
+	return name;
+}
+
+std::string active_caller_name() {
+	asIScriptContext* ctx = asGetActiveContext();
+	if (!ctx || ctx->GetCallstackSize() == 0)
+		return {};
+	return function_name(ctx->GetFunction(0));
+}
+
+std::string return_type_name(asIScriptGeneric* gen, int type_id) {
+	if (type_id == asTYPEID_VOID)
+		return {};
+	const char* declaration = gen->GetEngine()->GetTypeDeclaration(type_id, true);
+	return declaration ? declaration : "?";
+}
+
+std::string return_value_text(asIScriptGeneric* gen, int type_id) {
+	if (type_id == asTYPEID_VOID)
+		return {};
+	void* location = gen->GetAddressOfReturnLocation();
+	if (!location)
+		return "null";
+
+	char buffer[64];
+	if (type_id & asTYPEID_OBJHANDLE) {
+		void* value = nullptr;
+		std::memcpy(&value, location, sizeof(value));
+		if (!value)
+			return "null";
+		std::snprintf(buffer, sizeof(buffer), "@%p", value);
+		return buffer;
+	}
+	switch (type_id) {
+	case asTYPEID_BOOL: {
+		uint8_t value = 0;
+		std::memcpy(&value, location, sizeof(value));
+		return value ? "true" : "false";
+	}
+	case asTYPEID_INT8: {
+		int8_t value = 0;
+		std::memcpy(&value, location, sizeof(value));
+		std::snprintf(buffer, sizeof(buffer), "%d", static_cast<int>(value));
+		return buffer;
+	}
+	case asTYPEID_INT16: {
+		int16_t value = 0;
+		std::memcpy(&value, location, sizeof(value));
+		std::snprintf(buffer, sizeof(buffer), "%d", static_cast<int>(value));
+		return buffer;
+	}
+	case asTYPEID_INT32: {
+		int32_t value = 0;
+		std::memcpy(&value, location, sizeof(value));
+		std::snprintf(buffer, sizeof(buffer), "%d", value);
+		return buffer;
+	}
+	case asTYPEID_UINT8: {
+		uint8_t value = 0;
+		std::memcpy(&value, location, sizeof(value));
+		std::snprintf(buffer, sizeof(buffer), "%u", static_cast<unsigned>(value));
+		return buffer;
+	}
+	case asTYPEID_UINT16: {
+		uint16_t value = 0;
+		std::memcpy(&value, location, sizeof(value));
+		std::snprintf(buffer, sizeof(buffer), "%u", static_cast<unsigned>(value));
+		return buffer;
+	}
+	case asTYPEID_UINT32: {
+		uint32_t value = 0;
+		std::memcpy(&value, location, sizeof(value));
+		std::snprintf(buffer, sizeof(buffer), "%u", value);
+		return buffer;
+	}
+	case asTYPEID_INT64: {
+		int64_t value = 0;
+		std::memcpy(&value, location, sizeof(value));
+		std::snprintf(buffer, sizeof(buffer), "%lld", static_cast<long long>(value));
+		return buffer;
+	}
+	case asTYPEID_UINT64: {
+		uint64_t value = 0;
+		std::memcpy(&value, location, sizeof(value));
+		std::snprintf(buffer, sizeof(buffer), "%llu", static_cast<unsigned long long>(value));
+		return buffer;
+	}
+	case asTYPEID_FLOAT: {
+		float value = 0.0f;
+		std::memcpy(&value, location, sizeof(value));
+		std::snprintf(buffer, sizeof(buffer), "%g", value);
+		return buffer;
+	}
+	case asTYPEID_DOUBLE: {
+		double value = 0.0;
+		std::memcpy(&value, location, sizeof(value));
+		std::snprintf(buffer, sizeof(buffer), "%g", value);
+		return buffer;
+	}
+	default:
+		break;
+	}
+
+	if (asITypeInfo* type = gen->GetEngine()->GetTypeInfoById(type_id)) {
+		const std::string_view name = type->GetName() ? type->GetName() : "";
+		if (name == "string") {
+			auto* value = static_cast<const std::string*>(location);
+			return value ? *value : std::string();
+		}
+	}
+	std::snprintf(buffer, sizeof(buffer), "obj@%p", location);
+	return buffer;
+}
+
+void set_default_return(asIScriptGeneric* gen, asIScriptFunction* fn) {
+	const int type_id = fn->GetReturnTypeId();
+	if (type_id == asTYPEID_VOID)
+		return;
+	if (type_id & asTYPEID_OBJHANDLE) {
+		gen->SetReturnAddress(nullptr);
+		return;
+	}
+	switch (type_id) {
+	case asTYPEID_BOOL:
+	case asTYPEID_INT8:
+	case asTYPEID_INT16:
+	case asTYPEID_INT32:
+	case asTYPEID_UINT8:
+	case asTYPEID_UINT16:
+	case asTYPEID_UINT32:
+		gen->SetReturnDWord(0);
+		break;
+	case asTYPEID_INT64:
+	case asTYPEID_UINT64:
+		gen->SetReturnQWord(0);
+		break;
+	case asTYPEID_FLOAT:
+		gen->SetReturnFloat(0.0f);
+		break;
+	case asTYPEID_DOUBLE:
+		gen->SetReturnDouble(0.0);
+		break;
+	default:
+		break;
+	}
+}
+
+void emit_native_call(asIScriptGeneric* gen, asIScriptFunction* fn, const std::string& call, bool handled) {
+	if (!g_native_call)
+		return;
+	NativeCall event;
+	event.frame = g_scene_registry ? g_scene_registry->frame : 0;
+	event.name = function_name(fn);
+	event.call = call;
+	event.caller = active_caller_name();
+	event.handled = handled;
+	const int type_id = fn->GetReturnTypeId();
+	if (type_id != asTYPEID_VOID) {
+		event.return_type = return_type_name(gen, type_id);
+		event.result = return_value_text(gen, type_id);
+	}
+	(*g_native_call)(event);
+}
 
 // True if the type already exposes a method/factory/behaviour with this
 // declaration. Registering a duplicate makes the engine set its `configFailed`
@@ -156,73 +329,42 @@ bool behaviour_exists(asITypeInfo* ti, asEBehaviours beh, const std::string& dec
 void GenericStub(asIScriptGeneric* gen) {
 	asIScriptFunction* fn = gen->GetFunction();
 
-	std::string line = "call ";
-	if (*fn->GetNamespace()) {
-		line += fn->GetNamespace();
-		line += "::";
-	}
-	line += fn->GetName();
-	line += "(";
+	std::string call = function_name(fn);
+	call += "(";
 	for (asUINT i = 0; i < gen->GetArgCount(); ++i) {
 		if (i)
-			line += ", ";
-		line += arg_to_string(gen, i);
+			call += ", ";
+		call += arg_to_string(gen, i);
 	}
-	line += ")";
+	call += ")";
 	if (g_call_log)
-		(*g_call_log)(line);
+		(*g_call_log)("call " + call);
 	else
-		std::printf("%s\n", line.c_str());
+		std::printf("call %s\n", call.c_str());
 
 	// Let the recording shim model scene-relevant calls (and the scheduler hook)
 	// before falling back to a benign no-op return.
-	if (g_scene_registry && g_scene_registry->dispatch(gen))
-		return;
+	const bool handled = g_scene_registry && g_scene_registry->dispatch(gen);
+	if (!handled) {
+		set_default_return(gen, fn);
 
-	int rt = fn->GetReturnTypeId();
-	if (rt == asTYPEID_VOID)
-		return;
-	if (rt & asTYPEID_OBJHANDLE) {
-		gen->SetReturnAddress(nullptr);
-		return;
-	}
-	switch (rt) {
-	case asTYPEID_BOOL:
-	case asTYPEID_INT8:
-	case asTYPEID_INT16:
-	case asTYPEID_INT32:
-	case asTYPEID_UINT8:
-	case asTYPEID_UINT16:
-	case asTYPEID_UINT32:
-		gen->SetReturnDWord(0);
-		break;
-	case asTYPEID_INT64:
-	case asTYPEID_UINT64:
-		gen->SetReturnQWord(0);
-		break;
-	case asTYPEID_FLOAT:
-		gen->SetReturnFloat(0.0f);
-		break;
-	case asTYPEID_DOUBLE:
-		gen->SetReturnDouble(0.0);
-		break;
-	default:
-		break;
-	}
-
-	// Value types are returned into caller-allocated storage; if we leave it
-	// untouched the VM later destroys/copies uninitialised memory (e.g. a bogus
-	// `string`). Default-construct a string and zero anything else.
-	if (rt & asTYPEID_MASK_OBJECT) {
-		asITypeInfo* ti = gen->GetEngine()->GetTypeInfoById(rt);
-		void* loc = gen->GetAddressOfReturnLocation();
-		if (loc && ti) {
-			if (std::strcmp(ti->GetName(), "string") == 0)
-				new (loc) std::string();
-			else if (int size = ti->GetSize(); size > 0)
-				std::memset(loc, 0, static_cast<size_t>(size));
+		// Value types are returned into caller-allocated storage; if we leave it
+		// untouched the VM later destroys/copies uninitialised memory (e.g. a bogus
+		// `string`). Default-construct a string and zero anything else.
+		const int rt = fn->GetReturnTypeId();
+		if (rt & asTYPEID_MASK_OBJECT) {
+			asITypeInfo* ti = gen->GetEngine()->GetTypeInfoById(rt);
+			void* loc = gen->GetAddressOfReturnLocation();
+			if (loc && ti) {
+				if (std::strcmp(ti->GetName(), "string") == 0)
+					new (loc) std::string();
+				else if (int size = ti->GetSize(); size > 0)
+					std::memset(loc, 0, static_cast<size_t>(size));
+			}
 		}
 	}
+
+	emit_native_call(gen, fn, call, handled);
 }
 
 void AbortCallback(asIScriptContext* ctx, void* param) {
@@ -243,6 +385,7 @@ struct Host::Impl {
 	std::unordered_map<std::string, bool> registered_types;
 	std::function<void(const std::string&)> call_log;
 	TraceCallback trace;
+	NativeCallCallback native_call;
 	std::function<long(const std::string&, int)> track_frames;
 	std::function<int(const std::string&, const std::string&)> resolve_track;
 	std::function<std::string(const std::string&)> facility_name;
@@ -281,6 +424,8 @@ Host::~Host() {
 void Host::set_call_log(std::function<void(const std::string&)> cb) { _impl->call_log = std::move(cb); }
 
 void Host::set_trace(TraceCallback cb) { _impl->trace = std::move(cb); }
+
+void Host::set_native_call(NativeCallCallback cb) { _impl->native_call = std::move(cb); }
 
 void Host::register_module(const Module& mod) {
 	asIScriptEngine* engine = _impl->engine;
@@ -582,6 +727,7 @@ asIScriptFunction* Host::find_function(const std::vector<std::string>& names) co
 
 int Host::execute(asIScriptFunction* fn) {
 	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
+	g_native_call = _impl->native_call ? &_impl->native_call : nullptr;
 	asIScriptContext* ctx = _impl->engine->CreateContext();
 	ctx->Prepare(fn);
 	unsigned long steps = 0;
@@ -591,11 +737,11 @@ int Host::execute(asIScriptFunction* fn) {
 	if (er == asEXECUTION_EXCEPTION) {
 		std::fprintf(stderr, "[as] exception: %s\n", ctx->GetExceptionString());
 		if (asIScriptFunction* ef = ctx->GetExceptionFunction())
-			std::fprintf(
-				stderr, "[as]   in %s line %d\n", ef->GetDeclaration(), ctx->GetExceptionLineNumber());
+			std::fprintf(stderr, "[as]   in %s line %d\n", ef->GetDeclaration(), ctx->GetExceptionLineNumber());
 	}
 	ctx->Release();
 	g_call_log = nullptr;
+	g_native_call = nullptr;
 	return er;
 }
 
@@ -626,6 +772,7 @@ struct RuntimeSession::Impl {
 	Registry reg;
 	std::function<void(const std::string&)> call_log;
 	TraceCallback trace;
+	NativeCallCallback native_call;
 	long wake = 0;
 	unsigned long steps = 0;
 };
@@ -639,6 +786,7 @@ RuntimeSession::RuntimeSession(Host& host, std::string source)
 	_impl->module = h->module;
 	_impl->call_log = h->call_log;
 	_impl->trace = h->trace;
+	_impl->native_call = h->native_call;
 	if (h->chars)
 		_impl->reg.set_char_table(h->chars);
 	if (h->chara_sets)
@@ -699,6 +847,7 @@ void RuntimeSession::burst() {
 	_impl->steps = 0;
 	g_scene_registry = &_impl->reg;
 	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
+	g_native_call = _impl->native_call ? &_impl->native_call : nullptr;
 	const int er = _impl->ctx->Execute();
 	if (er == asEXECUTION_SUSPENDED) {
 		_impl->wake = _frame + std::max(1L, _impl->reg.pending_wait);
@@ -710,16 +859,10 @@ void RuntimeSession::burst() {
 			_error = buf;
 			std::fprintf(stderr, "[as] run r=%d\n", er);
 			if (er == asEXECUTION_EXCEPTION) {
-				std::fprintf(
-					stderr,
-					"[as] exception: %s\n",
-					_impl->ctx->GetExceptionString());
+				std::fprintf(stderr, "[as] exception: %s\n", _impl->ctx->GetExceptionString());
 				if (asIScriptFunction* ef = _impl->ctx->GetExceptionFunction())
 					std::fprintf(
-						stderr,
-						"[as]   in %s line %d\n",
-						ef->GetDeclaration(),
-						_impl->ctx->GetExceptionLineNumber());
+						stderr, "[as]   in %s line %d\n", ef->GetDeclaration(), _impl->ctx->GetExceptionLineNumber());
 			}
 		}
 	}
@@ -728,6 +871,7 @@ void RuntimeSession::burst() {
 		_impl->reg.flush_keyframe();
 	g_scene_registry = nullptr;
 	g_call_log = nullptr;
+	g_native_call = nullptr;
 }
 
 RuntimeSession::StepResult RuntimeSession::advance() {
@@ -804,6 +948,7 @@ Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 
 	g_scene_registry = nullptr;
 	g_call_log = nullptr;
+	g_native_call = nullptr;
 	return tl;
 }
 

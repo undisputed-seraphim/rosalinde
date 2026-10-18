@@ -255,6 +255,47 @@ TEST_CASE("non-ASB input is rejected without a huge string allocation") {
 	CHECK(mod.consumed <= mod.total);
 }
 
+TEST_CASE("native call callback carries call, caller and handled") {
+	const std::filesystem::path cpk = find_cpk();
+	if (cpk.empty()) {
+		WARN("no Unicorn.CPK found (set UNICORN_CPK); skipping native call test");
+		return;
+	}
+
+	const std::string entry = "Script/Dr_OW_0_Opening.asb";
+	std::vector<uint8_t> bytes = extract_entry(cpk, entry);
+	REQUIRE_FALSE(bytes.empty());
+
+	asb::Module mod = asb::parse(bytes);
+	REQUIRE(mod.error.empty());
+
+	asb::Host host;
+	host.set_call_log([](const std::string&) {});
+	std::vector<asb::NativeCall> calls;
+	host.set_native_call([&](const asb::NativeCall& call) { calls.push_back(call); });
+	host.register_module(mod);
+	REQUIRE(host.load(bytes));
+
+	asIScriptFunction* fn = host.find_function({"scene00"});
+	REQUIRE(fn);
+
+	asb::RuntimeSession session(host, entry);
+	REQUIRE(session.start(fn));
+	REQUIRE_FALSE(calls.empty());
+
+	bool found = false;
+	for (const auto& call : calls) {
+		if (call.name == "DrUiCreateChara") {
+			found = true;
+			CHECK(call.caller == "scene00");
+			CHECK(call.handled);
+			CHECK(call.call.find("DrUiCreateChara(") == 0);
+			break;
+		}
+	}
+	CHECK(found);
+}
+
 TEST_CASE("runtime session advances a live scene") {
 	const std::filesystem::path cpk = find_cpk();
 	if (cpk.empty()) {

@@ -20,4 +20,4 @@ add_executable(asbrun
 	"../line_editor.cpp"
 )
 target_include_directories(asbrun PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
-target_link_libraries(asbrun PRIVATE scarlett criware)
+target_link_libraries(asbrun PRIVATE scarlett criware eltolinde)

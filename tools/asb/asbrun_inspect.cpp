@@ -210,6 +210,8 @@ std::string scene_json(
 				continue;
 			events += (function_events ? "," : "");
 			events += "{\"call\":\"" + json_escape(event.call) + "\",\"kind\":\"" + std::string(1, event.kind) + "\"";
+			if (!event.import_from.empty())
+				events += ",\"import_from\":\"" + json_escape(event.import_from) + "\"";
 			if (!event.strings.empty())
 				events += ",\"strings\":" + slist(event.strings);
 			if (!event.ints.empty())
