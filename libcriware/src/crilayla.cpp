@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <bit>
 #include <cstdint>
 #include <cstring>
 #include <istream>
@@ -17,92 +18,162 @@ struct header {
 
 static constexpr std::string_view CRILAYLA = "CRILAYLA";
 
-// WARNING: Not sure if the compression algorithm is correct.
+// Match finder structure adapted from AuroraLib.Compression's LzChainMatchFinder (MIT).
+namespace {
+
+constexpr uint32_t kWindow = 0x2000;
+constexpr uint32_t kMinDistance = 3;
+constexpr uint32_t kMinMatch = 3;
+constexpr uint32_t kMaxMatch = 0xFFFF;
+constexpr uint32_t kHashBits = 15;
+constexpr uint32_t kHashSize = 1u << kHashBits;
+constexpr uint32_t kMaxChain = 32;
+
+uint32_t hash3(const uint8_t* p) {
+	const uint32_t v =
+		static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) | (static_cast<uint32_t>(p[2]) << 16);
+	return (v * 2654435761u) >> (32 - kHashBits);
+}
+
+uint32_t match_length(const uint8_t* a, const uint8_t* b, uint32_t max) {
+	uint32_t len = 0;
+	while (len + 8 <= max) {
+		uint64_t x, y;
+		std::memcpy(&x, a + len, sizeof(x));
+		std::memcpy(&y, b + len, sizeof(y));
+		const uint64_t diff = x ^ y;
+		if (diff != 0) {
+			if constexpr (std::endian::native == std::endian::little)
+				return len + (std::countr_zero(diff) >> 3);
+			else
+				return len + (std::countl_zero(diff) >> 3);
+		}
+		len += 8;
+	}
+	while (len < max && a[len] == b[len])
+		++len;
+	return len;
+}
+
+} // namespace
+
 unsigned int layla_compress(uint8_t* dest, uint32_t* const destLen, const uint8_t* const src, const uint32_t srcLen) {
-	uint32_t n = srcLen - 1, m = *destLen - 0x1, T = 0, d = 0, p, q, i, j, k;
-	uint8_t* odest = dest;
-	for (; n >= 0x100;) {
-		j = n + 3 + 0x2000;
-		if (j > srcLen)
-			j = srcLen;
-		for (i = n + 3, p = 0; i < j; i++) {
-			for (k = 0; k <= n - 0x100; k++) {
-				if (*(src + n - k) != *(src + i - k))
+	if (srcLen < 0x100)
+		return 0;
+	const uint64_t data_len = static_cast<uint64_t>(srcLen) - 0x100;
+	const uint64_t worst_case = data_len + data_len / 8 + 0x120;
+	if (worst_case > *destLen || data_len > INT32_MAX)
+		return 0;
+
+	uint8_t* const odest = dest;
+	const uint32_t tail_len = srcLen - 0x100;
+	std::vector<uint8_t> reversed(tail_len);
+	for (uint32_t i = 0; i < tail_len; ++i)
+		reversed[i] = src[srcLen - 1 - i];
+
+	uint32_t m = *destLen - 1;
+	uint64_t bit_acc = 0;
+	uint32_t bit_count = 0;
+	auto put_bits = [&](uint32_t value, uint32_t count) {
+		bit_acc = (bit_acc << count) | (value & ((1u << count) - 1));
+		bit_count += count;
+		while (bit_count >= 8) {
+			dest[m--] = static_cast<uint8_t>((bit_acc >> (bit_count - 8)) & 0xFF);
+			bit_count -= 8;
+			bit_acc &= (1ull << bit_count) - 1;
+		}
+	};
+
+	auto emit_literal = [&](uint8_t value) {
+		put_bits(0, 1);
+		put_bits(value, 8);
+	};
+
+	auto emit_match = [&](uint32_t distance, uint32_t length) {
+		put_bits(1, 1);
+		put_bits(distance - kMinDistance, 13);
+		static constexpr uint32_t vle_bits[]{2, 3, 5, 8};
+		static constexpr uint32_t vle_flags[]{0x3, 0x7, 0x1F, 0xFF};
+		uint32_t remaining = length - kMinMatch;
+		uint32_t level = 0;
+		while (remaining >= vle_flags[level]) {
+			put_bits(vle_flags[level], vle_bits[level]);
+			remaining -= vle_flags[level];
+			if (level < 3)
+				++level;
+		}
+		put_bits(remaining, vle_bits[level]);
+	};
+
+	std::vector<int32_t> head(kHashSize, -1);
+	std::vector<int32_t> previous(kWindow, -1);
+	auto insert = [&](uint32_t pos) {
+		if (pos + 2 >= tail_len)
+			return;
+		const uint32_t h = hash3(reversed.data() + pos);
+		previous[pos & (kWindow - 1)] = head[h];
+		head[h] = static_cast<int32_t>(pos);
+	};
+
+	uint32_t pos = 0;
+	while (pos < tail_len) {
+		uint32_t best_length = 0;
+		uint32_t best_distance = 0;
+		if (pos + kMinMatch <= tail_len) {
+			const uint32_t h = hash3(reversed.data() + pos);
+			int32_t cur = head[h];
+			const uint32_t max_length = std::min<uint32_t>(kMaxMatch, tail_len - pos);
+			uint32_t attempts = kMaxChain;
+			while (cur >= 0 && attempts-- > 0) {
+				const uint32_t candidate = static_cast<uint32_t>(cur);
+				const uint32_t distance = pos - candidate;
+				if (distance > kWindow)
 					break;
-			}
-			if (k > p) {
-				q = i - n - 3;
-				p = k;
-			}
-		}
-		if (p < 3) {
-			d = (d << 9) | (*(src + n--));
-			T += 9;
-		} else {
-			d = (((d << 1) | 1) << 13) | q;
-			T += 14;
-			n -= p;
-			if (p < 6) {
-				d = (d << 2) | (p - 3);
-				T += 2;
-			} else if (p < 13) {
-				d = (((d << 2) | 3) << 3) | (p - 6);
-				T += 5;
-			} else if (p < 44) {
-				d = (((d << 5) | 0x1f) << 5) | (p - 13);
-				T += 10;
-			} else {
-				d = ((d << 10) | 0x3ff);
-				T += 10;
-				p -= 44;
-				for (;;) {
-					for (; T >= 8;) {
-						*(dest + m--) = (d >> (T - 8)) & 0xff;
-						T -= 8;
-						d = d & ((1 << T) - 1);
+				if (distance >= kMinDistance) {
+					const uint32_t length =
+						match_length(reversed.data() + candidate, reversed.data() + pos, max_length);
+					if (length > best_length) {
+						best_length = length;
+						best_distance = distance;
+						if (length == max_length)
+							break;
 					}
-					if (p < 255)
-						break;
-					d = (d << 8) | 0xff;
-					T += 8;
-					p = p - 0xff;
 				}
-				d = (d << 8) | p;
-				T += 8;
+				cur = previous[candidate & (kWindow - 1)];
 			}
 		}
-		for (; T >= 8;) {
-			*(dest + m--) = (d >> (T - 8)) & 0xff;
-			T -= 8;
-			d = d & ((1 << T) - 1);
+
+		if (best_length >= kMinMatch) {
+			emit_match(best_distance, best_length);
+			const uint32_t end = pos + best_length;
+			while (pos < end)
+				insert(pos++);
+		} else {
+			emit_literal(reversed[pos]);
+			insert(pos++);
 		}
 	}
-	if (T != 0) {
-		*(dest + m--) = d << (8 - T);
-	}
-	*(dest + m--) = 0;
-	*(dest + m) = 0;
-	for (;;) {
-		if (((*destLen - m) & 3) == 0)
-			break;
-		*(dest + m--) = 0;
-	}
-	*destLen = *destLen - m;
-	dest += m;
-	uint32_t l[] = {0x4c495243, 0x414c5941, srcLen - 0x100, *destLen};
-	for (j = 0; j < 4; j++) {
-		for (i = 0; i < 4; i++) {
-			*(odest + i + j * 4) = l[j] & 0xff;
-			l[j] >>= 8;
+
+	if (bit_count != 0)
+		dest[m--] = static_cast<uint8_t>(bit_acc << (8 - bit_count));
+	dest[m--] = 0;
+	dest[m] = 0;
+	while (((*destLen - m) & 3) != 0)
+		dest[m--] = 0;
+
+	const uint32_t payload = *destLen - m;
+	const uint8_t* const payload_src = dest + m;
+	uint32_t header_words[] = {0x4c495243, 0x414c5941, srcLen - 0x100, payload};
+	for (uint32_t j = 0; j < 4; ++j) {
+		uint32_t value = header_words[j];
+		for (uint32_t i = 0; i < 4; ++i) {
+			odest[i + j * 4] = static_cast<uint8_t>(value & 0xFF);
+			value >>= 8;
 		}
 	}
-	for (j = 0, odest += 0x10; j < *destLen; j++) {
-		*(odest++) = *(dest + j);
-	}
-	for (j = 0; j < 0x100; j++) {
-		*(odest++) = *(src + j);
-	}
-	*destLen += 0x110;
+	std::memmove(odest + 0x10, payload_src, payload);
+	std::memcpy(odest + 0x10 + payload, src, 0x100);
+	*destLen = payload + 0x110;
 	return *destLen;
 }
 
@@ -237,9 +308,21 @@ void layla_decompress(const header& h, Source& src, std::span<char> out) {
 }
 
 int64_t compress(const std::vector<char>& src, std::vector<char>& dst) {
-	dst.resize(src.size());
-	uint32_t size = 0;
-	return layla_compress((uint8_t*)dst.data(), &size, (const uint8_t*)src.data(), src.size());
+	if (src.size() < 0x100 || src.size() > UINT32_MAX)
+		return -1;
+
+	const size_t capacity = src.size() + src.size() / 8 + 0x200;
+	if (capacity > UINT32_MAX)
+		return -1;
+
+	dst.resize(capacity);
+	uint32_t size = static_cast<uint32_t>(dst.size());
+	const auto ret =
+		layla_compress((uint8_t*)dst.data(), &size, (const uint8_t*)src.data(), static_cast<uint32_t>(src.size()));
+	if (ret == 0)
+		return -1;
+	dst.resize(ret);
+	return static_cast<int64_t>(ret);
 }
 
 int64_t decompress(std::span<const char> in, std::span<char> out) {
