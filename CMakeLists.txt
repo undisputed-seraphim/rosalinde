@@ -72,8 +72,18 @@ target_include_directories(eltolinde PUBLIC
 
 add_subdirectory(scarlett)
 
-add_executable(rosalinde "tools/extractor.cpp")
-target_link_libraries(rosalinde PRIVATE eltolinde Boost::program_options)
+add_executable(rosalinde
+	"tools/extractor.cpp"
+	"tools/line_editor.cpp"
+	"tools/dump/dump.cpp"
+	"tools/dump/fms.cpp"
+	"tools/dump/ftx.cpp"
+	"tools/dump/mbs.cpp"
+	"tools/dump/nnd.cpp"
+	"tools/dump/otm.cpp"
+	"tools/dump/utf.cpp"
+)
+target_link_libraries(rosalinde PRIVATE eltolinde)
 
 add_subdirectory(tools/asb)
 

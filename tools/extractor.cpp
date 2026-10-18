@@ -1,638 +1,964 @@
-#include <boost/program_options.hpp>
-#include <criware/byte_reader.hpp>
-#include <criware/cpk.hpp>
-#include <criware/utf.hpp>
-#include <eltolinde.hpp>
-#include <impl/mbs/csv_dump.hpp>
-#include <impl/mbs/detail.hpp>
-#include <impl/mbs/sections.hpp>
-#include <impl/nnd.hpp>
-#include <impl/nnd_dump.hpp>
-#include <impl/otm.hpp>
-#include <impl/otm_dump.hpp>
+#include "dump/dump.hpp"
+#include "line_editor.hpp"
 
-#include <array>
+#include <criware/cpk.hpp>
+
+#include <algorithm>
 #include <cctype>
-#include <cstring>
+#include <charconv>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <deque>
 #include <filesystem>
-#include <iomanip>
+#include <format>
+#include <fstream>
 #include <iostream>
+#include <map>
 #include <memory>
-#include <set>
+#include <optional>
 #include <span>
+#include <stdexcept>
+#include <string>
 #include <string_view>
-#include <type_traits>
+#include <utility>
 #include <vector>
 
+#if defined(__EMSCRIPTEN__) || defined(__wasm__)
+#elif defined(_WIN32)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace fs = std::filesystem;
-namespace po = boost::program_options;
 
-// ============================================================================
-// Data types
-// ============================================================================
+namespace {
 
-struct Entry {
-	std::string dir;
-	std::string name;
-	uint64_t file_size;
-	uint64_t extract_size;
-	uint64_t offset;
-	uint64_t id;
+constexpr size_t no_entry = static_cast<size_t>(-1);
+constexpr int max_source_depth = 16;
 
-	double ratio() const noexcept {
-		if (file_size == 0)
-			return 0.0;
-		return static_cast<double>(extract_size) / static_cast<double>(file_size);
-	}
-};
+std::string_view trim(std::string_view text) {
+	while (!text.empty() && std::isspace(static_cast<unsigned char>(text.front())))
+		text.remove_prefix(1);
+	while (!text.empty() && std::isspace(static_cast<unsigned char>(text.back())))
+		text.remove_suffix(1);
+	return text;
+}
 
-struct ExtractBuffer {
-	std::unique_ptr<char[]> data;
-	size_t capacity = 0;
+bool has_trailing_separator(std::string_view text) {
+	return !text.empty() && (text.back() == '/' || text.back() == '\\');
+}
 
-	std::span<char> get(size_t size) {
-		if (size > capacity) {
-			data = std::make_unique_for_overwrite<char[]>(size);
-			capacity = size;
+fs::path expand_real_path(std::string_view text) {
+	if (text.empty() || text.front() != '~' || (text.size() > 1 && text[1] != '/' && text[1] != '\\'))
+		return fs::path(std::string(text));
+
+	const char* home = std::getenv("HOME");
+#if defined(_WIN32)
+	if (!home || !*home)
+		home = std::getenv("USERPROFILE");
+	if (!home || !*home) {
+		const char* drive = std::getenv("HOMEDRIVE");
+		const char* path = std::getenv("HOMEPATH");
+		if (drive && *drive && path && *path) {
+			std::string_view rest = text.substr(1);
+			while (!rest.empty() && (rest.front() == '/' || rest.front() == '\\'))
+				rest.remove_prefix(1);
+			fs::path result = fs::path(std::string(drive) + std::string(path));
+			if (!rest.empty())
+				result /= fs::path(std::string(rest));
+			return result;
 		}
-		return {data.get(), size};
 	}
-};
+#endif
+	if (!home || !*home)
+		throw std::runtime_error("cannot expand ~: home directory is not set");
 
-struct Args {
-	std::string cpk_path;
-	bool list = false;
-	std::string extract_file;
-	std::string dump_file;
-	std::string mbs_dump;
-	std::string mbs_info;
-	int mbs_track = -1;
-	int mbs_run = -1;
-	std::string mbs_out = "mbs_dump";
-	std::string otm_dump;
-	std::string otm_out = "otm_dump";
-	bool otm_check = false;
-	std::string nnd_dump;
-	std::string nnd_out = "nnd_dump";
-	bool nnd_check = false;
-	std::string extract_all;
-	std::string skip_ext;
-	uint64_t max_size_mb = 0;
-	bool help = false;
-};
+	std::string_view rest = text.substr(1);
+	while (!rest.empty() && (rest.front() == '/' || rest.front() == '\\'))
+		rest.remove_prefix(1);
 
-// ============================================================================
-// Core operations
-// ============================================================================
-
-cpk::archive open_cpk(const std::string& path) {
-	fs::path p = fs::absolute(fs::path(path));
-	if (!fs::exists(p) || !fs::is_regular_file(p)) {
-		throw std::runtime_error("File does not exist: " + p.string());
-	}
-	return cpk::archive(p);
+	fs::path result = fs::path(home);
+	if (!rest.empty())
+		result /= fs::path(std::string(rest));
+	return result;
 }
 
-std::vector<Entry> list_entries(const cpk::archive& table) {
-	std::vector<Entry> entries;
-	entries.reserve(table.size());
-	for (const auto& item : table)
-		entries.emplace_back(
-			std::string(item.dir), std::string(item.name), item.file_size, item.extract_size, item.offset, item.id);
-	return entries;
-}
+std::optional<std::vector<std::string>> tokenize(std::string_view line, std::string& error) {
+	std::vector<std::string> args;
+	std::string token;
+	bool in_token = false;
+	char quote = 0;
 
-std::vector<char> extract_entry(const cpk::archive& table, std::string_view dir, std::string_view name) {
-	std::vector<char> buffer;
-	table.extract(dir, name, buffer);
-	if (buffer.empty()) {
-		throw std::runtime_error("File not found or empty: " + std::string(dir) + "/" + std::string(name));
-	}
-	return buffer;
-}
-
-std::pair<std::string_view, std::string_view> split_path(std::string_view path) {
-	auto pos = path.find_last_of('/');
-	if (pos == std::string_view::npos) {
-		return {"", path};
-	}
-	return {path.substr(0, pos), path.substr(pos + 1)};
-}
-
-std::string json_quote(std::string_view value) {
-	std::string out;
-	out.reserve(value.size() + 8);
-	for (unsigned char c : value) {
-		switch (c) {
-		case '"':
-			out += "\\\"";
-			break;
-		case '\\':
-			out += "\\\\";
-			break;
-		case '\n':
-			out += "\\n";
-			break;
-		case '\r':
-			out += "\\r";
-			break;
-		case '\t':
-			out += "\\t";
-			break;
-		default:
-			if (c < 0x20) {
-				char buf[8];
-				std::snprintf(buf, sizeof(buf), "\\u%04x", c);
-				out += buf;
+	for (size_t i = 0; i < line.size(); ++i) {
+		const char c = line[i];
+		if (quote != 0) {
+			if (c == quote) {
+				quote = 0;
+			} else if (
+				c == '\\' && quote == '"' && i + 1 < line.size() && (line[i + 1] == '"' || line[i + 1] == '\\')) {
+				token += line[++i];
 			} else {
-				out += static_cast<char>(c);
+				token += c;
 			}
+			in_token = true;
+			continue;
 		}
-	}
-	return out;
-}
 
-std::string json_number(double value) {
-	char buf[64];
-	std::snprintf(buf, sizeof(buf), "%.7g", value);
-	return buf;
-}
-
-std::string json_bool(bool value) { return value ? "true" : "false"; }
-
-std::string mbs_name(const char (&name)[24]) {
-	size_t n = 0;
-	while (n < 24 && name[n] != '\0')
-		++n;
-	return std::string(name, n);
-}
-
-void dump_mbs_info(const mbs::v77& v, uint16_t version, std::string_view file, int only_track, int only_run) {
-	if (only_track >= static_cast<int>(v.s9.size()))
-		throw std::runtime_error("track index out of range");
-	if (only_run >= 0 && only_track < 0)
-		throw std::runtime_error("--mbs-run requires --mbs-track");
-
-	std::cout << "{\n";
-	std::cout << "  \"file\": \"" << json_quote(file) << "\",\n";
-	std::cout << "  \"version\": " << version << ",\n";
-	std::cout << "  \"track_count\": " << v.s9.size() << ",\n";
-	std::cout << "  \"tracks\": [";
-
-	bool first_track = true;
-	const int begin = only_track >= 0 ? only_track : 0;
-	const int end = only_track >= 0 ? only_track + 1 : static_cast<int>(v.s9.size());
-	for (int ti = begin; ti < end; ++ti) {
-		const auto& s9 = v.s9[ti];
-		std::cout << (first_track ? "\n" : ",\n");
-		first_track = false;
-		std::cout << "    {\n";
-		std::cout << "      \"index\": " << ti << ",\n";
-		std::cout << "      \"name\": \"" << json_quote(mbs_name(s9.name)) << "\",\n";
-		std::cout << "      \"bounds\": [" << json_number(s9.left) << ", " << json_number(s9.top) << ", "
-				  << json_number(s9.right) << ", " << json_number(s9.bottom) << "],\n";
-		std::cout << "      \"sa_set_id\": " << s9.sa_set_id << ",\n";
-		std::cout << "      \"sa_set_no\": " << static_cast<unsigned>(s9.sa_set_no) << ",\n";
-		std::cout << "      \"sa_set_main\": " << static_cast<unsigned>(s9.sa_set_main) << ",\n";
-		std::cout << "      \"sa_sb_set_id\": " << s9.sa_sb_set_id << ",\n";
-		std::cout << "      \"sa_sb_set_no\": " << static_cast<unsigned>(s9.sa_sb_set_no) << ",\n";
-		std::cout << "      \"disabled\": " << json_bool(s9.disabled != 0) << ",\n";
-		std::cout << "      \"runs\": [";
-
-		const int run_begin = only_run >= 0 && ti == only_track ? only_run : 0;
-		const int run_end = only_run >= 0 && ti == only_track ? only_run + 1 : static_cast<int>(s9.sa_set_no);
-		if (run_end > static_cast<int>(s9.sa_set_no))
-			throw std::runtime_error("run index out of range");
-		bool first_run = true;
-		for (int ri = run_begin; ri < run_end; ++ri) {
-			const auto& sa = v.sa[s9.sa_set_id + ri];
-			long total_frames = 0;
-			uint32_t loop_start = 0;
-			uint32_t acc = 0;
-			for (uint32_t j = 0; j < sa.s8_no && sa.s8_id + j < v.s8.size(); ++j) {
-				total_frames += v.s8[sa.s8_id + j].frames;
-				acc += v.s8[sa.s8_id + j].frames;
-				if (sa.s8_sum_once > 0 && loop_start == 0 && acc >= static_cast<uint32_t>(sa.s8_sum_once))
-					loop_start = j + 1;
+		if (std::isspace(static_cast<unsigned char>(c))) {
+			if (in_token) {
+				args.push_back(std::move(token));
+				token.clear();
+				in_token = false;
 			}
-			std::cout << (first_run ? "\n" : ",\n");
-			first_run = false;
-			std::cout << "        {\n";
-			std::cout << "          \"index\": " << ri << ",\n";
-			std::cout << "          \"s8_start\": " << sa.s8_id << ",\n";
-			std::cout << "          \"s8_count\": " << sa.s8_no << ",\n";
-			std::cout << "          \"s8_start_offset\": " << static_cast<unsigned>(sa.s8_st) << ",\n";
-			std::cout << "          \"s8_sum\": " << sa.s8_sum << ",\n";
-			std::cout << "          \"s8_sum_once\": " << sa.s8_sum_once << ",\n";
-			std::cout << "          \"total_frames\": " << total_frames << ",\n";
-			std::cout << "          \"loop_start\": " << loop_start << ",\n";
-			std::cout << "          \"single_pass\": " << json_bool(sa.s8_sum_once < 0) << ",\n";
-			std::cout << "          \"track_id\": " << sa.track_id;
-			if (only_run >= 0 && ti == only_track) {
-				std::cout << ",\n          \"s8\": [";
-				bool first_s8 = true;
-				for (uint32_t j = 0; j < sa.s8_no && sa.s8_id + j < v.s8.size(); ++j) {
-					const auto& s8 = v.s8[sa.s8_id + j];
-					std::cout << (first_s8 ? "\n" : ",\n");
-					first_s8 = false;
-					std::cout << "            {\"index\": " << j << ", \"s8_id\": " << (sa.s8_id + j)
-							  << ", \"s7_id\": " << s8.s7_id << ", \"s6_id\": " << s8.s6_id
-							  << ", \"frames\": " << s8.frames << ", \"flags\": " << s8.flags
-							  << ", \"loop_s8_id\": " << s8.loop_s8_id << "}";
+			continue;
+		}
+
+		if (c == '\'' || c == '"') {
+			quote = c;
+			in_token = true;
+			continue;
+		}
+
+		if (c == '\\' && i + 1 < line.size() &&
+			(std::isspace(static_cast<unsigned char>(line[i + 1])) || line[i + 1] == '\'' || line[i + 1] == '"' ||
+			 line[i + 1] == '\\')) {
+			token += line[++i];
+			in_token = true;
+			continue;
+		}
+
+		token += c;
+		in_token = true;
+	}
+
+	if (quote != 0) {
+		error = "unterminated quote";
+		return std::nullopt;
+	}
+	if (in_token)
+		args.push_back(std::move(token));
+	return args;
+}
+
+struct vnode {
+	std::string name;
+	bool directory = true;
+	size_t entry = no_entry;
+	vnode* parent = nullptr;
+	std::map<std::string, std::unique_ptr<vnode>, std::less<>> children;
+};
+
+struct lookup_result {
+	const vnode* node = nullptr;
+	bool missing = false;
+	bool not_directory = false;
+};
+
+class virtual_tree {
+public:
+	explicit virtual_tree(std::span<const cpk::entry> entries)
+		: _root(std::make_unique<vnode>()) {
+		for (size_t i = 0; i < entries.size(); ++i) {
+			const auto& item = entries[i];
+			vnode* current = _root.get();
+
+			std::string_view dir = item.dir;
+			size_t start = 0;
+			while (start < dir.size()) {
+				const size_t slash = dir.find('/', start);
+				const std::string_view component =
+					dir.substr(start, slash == std::string_view::npos ? std::string_view::npos : slash - start);
+				if (!component.empty()) {
+					if (component == "." || component == "..")
+						throw std::runtime_error(
+							"CPK contains an invalid directory component: " + std::string(component));
+					current = add_directory(current, component);
 				}
-				std::cout << "\n          ]";
+				if (slash == std::string_view::npos)
+					break;
+				start = slash + 1;
 			}
-			std::cout << "\n        }";
+
+			if (item.name.empty() || item.name == "." || item.name == ".." ||
+				item.name.find('/') != std::string_view::npos)
+				throw std::runtime_error("CPK contains an invalid file name: " + std::string(item.name));
+			add_file(current, item.name, i);
 		}
-		std::cout << "\n      ]\n    }";
 	}
-	std::cout << "\n  ]\n}\n";
-}
 
-// ============================================================================
-// CLI output helpers
-// ============================================================================
+	const vnode* root_node() const noexcept { return _root.get(); }
 
-void print_list(const std::vector<Entry>& entries) {
-	for (const auto& e : entries) {
-		std::cout << e.id << ": " << e.dir << "/" << e.name << "  compressed=" << e.file_size
-				  << "  decompressed=" << e.extract_size << "  ratio=" << std::fixed << std::setprecision(2)
-				  << e.ratio() << "\n";
-	}
-	std::cout << entries.size() << " files\n";
-}
+	lookup_result resolve(const vnode* base, std::string_view path) const {
+		if (!base)
+			return {nullptr, true, false};
 
-static const char* utf_type_name(utf::type type) {
-	switch (type) {
-	case utf::type::UINT8:
-		return "u8";
-	case utf::type::INT8:
-		return "s8";
-	case utf::type::UINT16:
-		return "u16";
-	case utf::type::INT16:
-		return "s16";
-	case utf::type::UINT32:
-		return "u32";
-	case utf::type::INT32:
-		return "s32";
-	case utf::type::UINT64:
-		return "u64";
-	case utf::type::INT64:
-		return "s64";
-	case utf::type::FLOAT:
-		return "f32";
-	case utf::type::DOUBLE:
-		return "f64";
-	case utf::type::STRING:
-		return "str";
-	case utf::type::DATA:
-		return "data";
-	}
-	return "???";
-}
+		const vnode* current = (!path.empty() && path.front() == '/') ? _root.get() : base;
+		const bool trailing_slash = !path.empty() && path.back() == '/';
+		size_t start = 0;
 
-static void dump_utf_value(const utf::value& value) {
-	std::visit(
-		[](const auto& v) {
-			using T = std::decay_t<decltype(v)>;
-			if constexpr (std::is_same_v<T, std::monostate>)
-				std::cout << "(none)";
-			else if constexpr (std::is_same_v<T, std::string_view>)
-				std::cout << '"' << v << '"';
-			else if constexpr (std::is_same_v<T, utf::blob_ref>)
-				std::cout << "offset=" << v.offset << " size=" << v.size;
-			else
-				std::cout << v;
-		},
-		value);
-}
+		while (start < path.size()) {
+			const size_t slash = path.find('/', start);
+			const size_t end = slash == std::string_view::npos ? path.size() : slash;
+			const std::string_view component = path.substr(start, end - start);
 
-static void dump_utf_table(std::span<const uint8_t> data, std::string_view label, int depth) {
-	auto table = utf::raw_table::parse(data);
-	const std::string indent(static_cast<size_t>(depth) * 2, ' ');
-	std::cout << indent << label << ": rows=" << table.row_count() << " cols=" << table.column_count() << "\n";
+			if (!current->directory)
+				return {nullptr, false, true};
 
-	for (size_t i = 0; i < table.column_count(); ++i) {
-		const auto& column = table.column(i);
-		std::cout << indent << "  " << column.name << " (" << utf_type_name(column.type_) << ") x"
-				  << column.value_count(table.row_count());
-		if (column.has_default)
-			std::cout << " [default]";
-		if (!column.valid)
-			std::cout << " [invalid]";
-
-		if (column.value_count(table.row_count()) > 0) {
-			const auto value = table.value_at(0, i);
-			std::cout << " = ";
-			dump_utf_value(value);
-			if (auto* ref = std::get_if<utf::blob_ref>(&value)) {
-				auto blob = table.blob(*ref);
-				if (blob.size() >= 4 && std::memcmp(blob.data(), "@UTF", 4) == 0) {
-					std::cout << " ->\n";
-					dump_utf_table(blob, column.name, depth + 1);
-					continue;
+			if (!component.empty() && component != ".") {
+				if (component == "..") {
+					if (current->parent)
+						current = current->parent;
+				} else {
+					const auto it = current->children.find(component);
+					if (it == current->children.end())
+						return {nullptr, true, false};
+					current = it->second.get();
 				}
 			}
+
+			if (slash == std::string_view::npos)
+				break;
+			start = slash + 1;
 		}
-		std::cout << "\n";
+
+		if (trailing_slash && !current->directory)
+			return {nullptr, false, true};
+		return {current, false, false};
 	}
-}
 
-void dump_columns(const cpk::archive& table, std::string_view file_path) {
-	auto [dir, name] = split_path(file_path);
-	auto data = extract_entry(table, dir, name);
-	utf::decipher(data);
+	std::string path_of(const vnode* node) const {
+		if (!node || node == _root.get())
+			return "/";
 
-	std::cout << "File: " << dir << "/" << name << "\n";
-	dump_utf_table(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size()), "root", 0);
-}
+		std::vector<std::string_view> parts;
+		for (const vnode* current = node; current && current->parent; current = current->parent)
+			parts.push_back(current->name);
 
-// ============================================================================
-// CLI
-// ============================================================================
+		std::string result;
+		for (auto it = parts.rbegin(); it != parts.rend(); ++it) {
+			result += '/';
+			result += *it;
+		}
+		return result.empty() ? "/" : result;
+	}
 
-int main(int argc, char* argv[]) try {
-	Args args;
-	po::options_description desc;
-	desc.add_options()("help,h", "Print this help message")(
-		"cpk", po::value<std::string>(&args.cpk_path)->required(), "Path to CPK archive")(
-		"list,l", po::bool_switch(&args.list), "List files with sizes")(
-		"extract,e", po::value<std::string>(&args.extract_file), "Extract file (DirName/FileName)")(
-		"dump,d", po::value<std::string>(&args.dump_file), "Dump @UTF column layout of a file")(
-		"mbs-dump",
-		po::value<std::string>(&args.mbs_dump),
-		"Dump MBS sections to CSV (DirName/FileName of .mbs in CPK)")(
-		"mbs-info",
-		po::value<std::string>(&args.mbs_info),
-		"Dump interpreted MBS track/run metadata as JSON (DirName/FileName of .mbs in CPK)")(
-		"mbs-track", po::value<int>(&args.mbs_track), "Limit --mbs-info to one track index")(
-		"mbs-run", po::value<int>(&args.mbs_run), "Limit --mbs-info to one run index (requires --mbs-track)")(
-		"mbs-out", po::value<std::string>(&args.mbs_out), "Output directory for MBS CSV dump (default: mbs_dump)")(
-		"otm-dump",
-		po::value<std::string>(&args.otm_dump),
-		"Dump OTM header/tracks/events/cues to CSV (DirName/FileName of .otm in CPK)")(
-		"otm-out",
-		po::value<std::string>(&args.otm_out),
-		"Output directory for OTM CSV dump (default: otm_dump)")(
-		"otm-check", po::bool_switch(&args.otm_check), "Parse every OTM in the CPK and report failures")(
-		"nnd-dump",
-		po::value<std::string>(&args.nnd_dump),
-		"Dump NND header/nodes/edges/names/links to CSV (DirName/FileName of .nnd in CPK)")(
-		"nnd-out",
-		po::value<std::string>(&args.nnd_out),
-		"Output directory for NND CSV dump (default: nnd_dump)")(
-		"nnd-check", po::bool_switch(&args.nnd_check), "Parse every NND in the CPK and report failures")(
-		"extract-all",
-		po::value<std::string>(&args.extract_all),
-		"Extract every entry into DIR (preserving DirName/FileName)")(
-		"skip-ext",
-		po::value<std::string>(&args.skip_ext),
-		"Extensions to skip when extracting all (e.g. ftx,acb,awb)")(
-		"max-size-mb",
-		po::value<uint64_t>(&args.max_size_mb)->default_value(0),
-		"Skip entries whose decompressed size exceeds N MiB (0 = no limit)");
+private:
+	std::string child_path(const vnode* parent, std::string_view name) const {
+		const std::string base = path_of(parent);
+		return base == "/" ? "/" + std::string(name) : base + "/" + std::string(name);
+	}
 
-	po::variables_map vm;
-	po::store(po::parse_command_line(argc, argv, desc), vm);
+	vnode* add_directory(vnode* parent, std::string_view name) {
+		const auto it = parent->children.find(name);
+		if (it != parent->children.end()) {
+			if (!it->second->directory)
+				throw std::runtime_error("CPK has a file where a directory is required: " + child_path(parent, name));
+			return it->second.get();
+		}
 
-	try {
-		po::notify(vm);
-		if (vm.count("help")) {
-			std::cout << desc << '\n';
+		auto child = std::make_unique<vnode>();
+		child->name = name;
+		child->directory = true;
+		child->parent = parent;
+		auto* raw = child.get();
+		parent->children.emplace(std::string(name), std::move(child));
+		return raw;
+	}
+
+	void add_file(vnode* parent, std::string_view name, size_t entry_index) {
+		const auto it = parent->children.find(name);
+		if (it != parent->children.end())
+			throw std::runtime_error("CPK contains a conflicting path: " + child_path(parent, name));
+
+		auto child = std::make_unique<vnode>();
+		child->name = name;
+		child->directory = false;
+		child->entry = entry_index;
+		child->parent = parent;
+		parent->children.emplace(std::string(name), std::move(child));
+	}
+
+	std::unique_ptr<vnode> _root;
+};
+
+class shell {
+public:
+	shell(cpk::archive& archive, bool interactive)
+		: _archive(archive)
+		, _tree(archive.entries())
+		, _cwd(_tree.root_node())
+		, _interactive(interactive) {}
+
+	int run(std::istream& in) {
+		if (_interactive) {
+			cli::line_editor editor;
+			while (_running) {
+				std::cout.flush();
+				const auto line = editor.read_line(prompt(), _history);
+				if (!line)
+					break;
+				remember(*line);
+				execute_line(*line, 0);
+			}
+		} else {
+			std::string line;
+			while (_running && std::getline(in, line))
+				execute_line(line, 0);
+		}
+		std::cout.flush();
+		return _interactive ? 0 : (_had_error ? 1 : 0);
+	}
+
+private:
+	using arg_list = std::span<const std::string>;
+
+	struct command_spec {
+		std::string_view name;
+		std::string_view usage;
+		std::string_view summary;
+		int (shell::*handler)(arg_list, int);
+	};
+
+	struct extraction_stats {
+		size_t files = 0;
+		uint64_t compressed = 0;
+		uint64_t decompressed = 0;
+	};
+
+	struct subtree_stats {
+		size_t files = 0;
+		size_t directories = 0;
+		uint64_t compressed = 0;
+		uint64_t decompressed = 0;
+	};
+
+	static std::span<const command_spec> command_list();
+
+	int execute_line(std::string_view line, int depth) {
+		line = trim(line);
+		if (line.empty() || line.front() == '#')
+			return 0;
+
+		std::string error;
+		auto args = tokenize(line, error);
+		if (!args) {
+			std::cerr << "rosalinde: " << error << '\n';
+			_had_error = true;
+			return 2;
+		}
+		if (args->empty())
+			return 0;
+
+		int status = 0;
+		try {
+			status = dispatch(*args, depth);
+		} catch (const std::exception& e) {
+			std::cerr << "rosalinde: " << e.what() << '\n';
+			status = 1;
+		} catch (...) {
+			std::cerr << "rosalinde: unknown error\n";
+			status = 1;
+		}
+		if (status != 0)
+			_had_error = true;
+		return status;
+	}
+
+	int dispatch(arg_list args, int depth) {
+		for (const auto& command : command_list()) {
+			if (command.name == args[0])
+				return (this->*(command.handler))(args, depth);
+		}
+		std::cerr << "rosalinde: unknown command '" << args[0] << "' (type 'help')\n";
+		return 1;
+	}
+
+	int cmd_ls(arg_list args, int) {
+		bool long_format = false;
+		bool path_set = false;
+		std::string_view path;
+
+		for (size_t i = 1; i < args.size(); ++i) {
+			if (args[i] == "-l" || args[i] == "--long") {
+				long_format = true;
+			} else if (!path_set) {
+				path = args[i];
+				path_set = true;
+			} else {
+				std::cerr << "ls: too many arguments\n";
+				return 2;
+			}
+		}
+
+		const lookup_result found = _tree.resolve(_cwd, path);
+		const std::string_view display = path.empty() ? std::string_view(".") : path;
+
+		if (found.not_directory) {
+			std::cerr << "ls: " << display << ": Not a directory\n";
 			return 1;
 		}
-	} catch (const po::required_option& e) {
-		std::cout << desc << '\n';
-		throw;
-	}
+		if (found.missing || !found.node) {
+			std::cerr << "ls: " << display << ": No such file or directory\n";
+			return 1;
+		}
+		if (!found.node->directory) {
+			if (long_format)
+				print_file_long(found.node);
+			else
+				std::cout << found.node->name << '\n';
+			return 0;
+		}
 
-	auto table = open_cpk(args.cpk_path);
-
-	if (args.list) {
-		print_list(list_entries(table));
+		for (const auto& [name, child] : found.node->children) {
+			if (long_format) {
+				if (child->directory)
+					print_directory_long(child.get());
+				else
+					print_file_long(child.get());
+			} else {
+				std::cout << name;
+				if (child->directory)
+					std::cout << '/';
+				std::cout << '\n';
+			}
+		}
 		return 0;
 	}
 
-	if (!args.extract_all.empty()) {
-		auto lower = [](std::string_view s) {
-			std::string out(s);
-			for (char& c : out)
-				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-			return out;
+	int cmd_stat(arg_list args, int) {
+		if (args.size() != 2) {
+			std::cerr << "stat: usage: stat PATH\n";
+			return 2;
+		}
+
+		const std::string_view path = args[1];
+		const lookup_result found = _tree.resolve(_cwd, path);
+		const std::string_view display = path.empty() ? std::string_view(".") : path;
+		if (found.not_directory) {
+			std::cerr << "stat: " << display << ": Not a directory\n";
+			return 1;
+		}
+		if (found.missing || !found.node) {
+			std::cerr << "stat: " << display << ": No such file or directory\n";
+			return 1;
+		}
+
+		std::cout << "Path: " << virtual_path(found.node) << '\n';
+		if (!found.node->directory) {
+			const cpk::entry& item = _archive.at(found.node->entry);
+			std::cout << "Type: file\n";
+			std::cout << "ID: " << item.id << '\n';
+			std::cout << "Compressed: " << item.file_size << '\n';
+			std::cout << "Decompressed: " << item.extract_size << '\n';
+			std::cout << "Ratio: " << ratio_text(item.file_size, item.extract_size) << '\n';
+			std::cout << "Offset: " << item.offset << '\n';
+			return 0;
+		}
+
+		subtree_stats stats;
+		collect_stats(found.node, stats);
+		std::cout << "Type: directory\n";
+		std::cout << "Entries: " << found.node->children.size() << '\n';
+		std::cout << "Files: " << stats.files << '\n';
+		std::cout << "Directories: " << stats.directories << '\n';
+		std::cout << "Compressed: " << stats.compressed << '\n';
+		std::cout << "Decompressed: " << stats.decompressed << '\n';
+		std::cout << "Ratio: " << ratio_text(stats.compressed, stats.decompressed) << '\n';
+		return 0;
+	}
+
+	int cmd_find(arg_list args, int) {
+		bool long_format = false;
+		bool path_set = false;
+		std::string_view path;
+		std::string_view text;
+
+		for (size_t i = 1; i < args.size(); ++i) {
+			if (args[i] == "-l" || args[i] == "--long") {
+				long_format = true;
+			} else if (!path_set) {
+				path = args[i];
+				path_set = true;
+			} else if (text.empty()) {
+				text = args[i];
+			} else {
+				std::cerr << "find: too many arguments\n";
+				return 2;
+			}
+		}
+		if (!path_set)
+			path = ".";
+
+		const lookup_result found = _tree.resolve(_cwd, path);
+		const std::string_view display = path.empty() ? std::string_view(".") : path;
+		if (found.not_directory) {
+			std::cerr << "find: " << display << ": Not a directory\n";
+			return 1;
+		}
+		if (found.missing || !found.node) {
+			std::cerr << "find: " << display << ": No such file or directory\n";
+			return 1;
+		}
+
+		if (!found.node->directory) {
+			if (contains_case_insensitive(virtual_path(found.node), text)) {
+				if (long_format)
+					print_file_long(found.node);
+				else
+					std::cout << virtual_path(found.node) << '\n';
+			}
+			return 0;
+		}
+
+		find_files(found.node, text, long_format);
+		return 0;
+	}
+
+	int cmd_d(arg_list args, int) {
+		constexpr std::string_view usage = "d PATH [--json] [--full] [--limit N] [--section sN] [--track N] [--seq N]";
+		if (args.size() < 2) {
+			std::cerr << "d: usage: " << usage << '\n';
+			return 2;
+		}
+
+		dump::options options;
+		auto parse_size = [&](size_t& index, std::string_view name) -> std::optional<size_t> {
+			if (index + 1 >= args.size()) {
+				std::cerr << "d: " << name << " requires a value\n";
+				return std::nullopt;
+			}
+			const std::string& text = args[++index];
+			size_t value = 0;
+			const auto result = std::from_chars(text.data(), text.data() + text.size(), value);
+			if (result.ec != std::errc{} || result.ptr != text.data() + text.size()) {
+				std::cerr << "d: invalid " << name << " value '" << text << "'\n";
+				return std::nullopt;
+			}
+			return value;
 		};
 
-		std::set<std::string> skip;
-		{
-			std::string_view rest = args.skip_ext;
-			while (!rest.empty()) {
-				auto pos = rest.find(',');
-				auto tok = rest.substr(0, pos);
-				if (!tok.empty())
-					skip.insert(lower(tok));
-				if (pos == std::string_view::npos)
+		for (size_t i = 2; i < args.size(); ++i) {
+			const std::string_view option = args[i];
+			if (option == "--json") {
+				options.json = true;
+			} else if (option == "--full") {
+				options.full = true;
+			} else if (option == "--limit") {
+				const auto value = parse_size(i, "--limit");
+				if (!value)
+					return 2;
+				options.limit_set = true;
+				options.limit = *value;
+			} else if (option == "--section") {
+				if (i + 1 >= args.size()) {
+					std::cerr << "d: --section requires a value\n";
+					return 2;
+				}
+				options.section = args[++i];
+			} else if (option == "--track") {
+				const auto value = parse_size(i, "--track");
+				if (!value)
+					return 2;
+				options.track = *value;
+			} else if (option == "--seq" || option == "--sequence") {
+				const auto value = parse_size(i, "--seq");
+				if (!value)
+					return 2;
+				options.sequence = *value;
+			} else {
+				std::cerr << "d: unknown option '" << option << "'\n";
+				std::cerr << "d: usage: " << usage << '\n';
+				return 2;
+			}
+		}
+
+		const std::string_view path = args[1];
+		const lookup_result found = _tree.resolve(_cwd, path);
+		const std::string_view display = path.empty() ? std::string_view(".") : path;
+		if (found.not_directory) {
+			std::cerr << "d: " << display << ": Not a directory\n";
+			return 1;
+		}
+		if (found.missing || !found.node) {
+			std::cerr << "d: " << display << ": No such file or directory\n";
+			return 1;
+		}
+		if (found.node->directory) {
+			std::cerr << "d: " << display << ": Is a directory\n";
+			return 1;
+		}
+
+		return dump::dispatch(_archive, _archive.at(found.node->entry), virtual_path(found.node), options);
+	}
+
+	int cmd_e(arg_list args, int) {
+		if (args.size() < 2 || args.size() > 3) {
+			std::cerr << "e: usage: e VIRTUAL_PATH [REAL_PATH]\n";
+			return 2;
+		}
+
+		const std::string_view virtual_path = args[1];
+		const std::string_view real_text = args.size() == 3 ? std::string_view(args[2]) : std::string_view(".");
+		const std::string_view display = virtual_path.empty() ? std::string_view(".") : virtual_path;
+		if (real_text.empty()) {
+			std::cerr << "e: empty destination\n";
+			return 2;
+		}
+
+		const lookup_result found = _tree.resolve(_cwd, virtual_path);
+		if (found.not_directory) {
+			std::cerr << "e: " << display << ": Not a directory\n";
+			return 1;
+		}
+		if (found.missing || !found.node) {
+			std::cerr << "e: " << display << ": No such file or directory\n";
+			return 1;
+		}
+
+		fs::path destination;
+		try {
+			destination = expand_real_path(real_text);
+		} catch (const std::exception& e) {
+			std::cerr << "e: " << e.what() << '\n';
+			return 1;
+		}
+
+		fs::path check_path = destination;
+		if (check_path.filename().empty() && check_path.has_parent_path()) {
+			const fs::path parent = check_path.parent_path();
+			if (!parent.empty() && parent != check_path)
+				check_path = parent;
+		}
+		bool destination_exists = false;
+		bool destination_is_directory = false;
+		try {
+			destination_exists = fs::exists(check_path);
+			destination_is_directory = fs::is_directory(check_path);
+		} catch (const std::exception& e) {
+			std::cerr << "e: " << real_text << ": " << e.what() << '\n';
+			return 1;
+		}
+
+		if (found.node->directory) {
+			if (destination_exists && !destination_is_directory) {
+				std::cerr << "e: " << real_text << ": Not a directory\n";
+				return 1;
+			}
+
+			extraction_stats stats;
+			if (!extract_directory(found.node, destination, stats))
+				return 1;
+			std::cout << "Extracted " << stats.files << " files (compressed=" << stats.compressed
+					  << ", decompressed=" << stats.decompressed << ") -> " << destination.string() << '\n';
+			return 0;
+		}
+
+		if (destination_is_directory || has_trailing_separator(real_text)) {
+			if (destination_exists && !destination_is_directory) {
+				std::cerr << "e: " << real_text << ": Not a directory\n";
+				return 1;
+			}
+			destination /= fs::path(found.node->name);
+		}
+
+		extraction_stats stats;
+		return extract_file(found.node, destination, stats) ? 0 : 1;
+	}
+
+	int cmd_help(arg_list args, int) {
+		if (args.size() > 2) {
+			std::cerr << "help: too many arguments\n";
+			return 2;
+		}
+
+		if (args.size() == 2) {
+			for (const auto& command : command_list()) {
+				if (command.name == args[1]) {
+					std::cout << command.usage << " - " << command.summary << '\n';
+					return 0;
+				}
+			}
+			std::cerr << "help: unknown command '" << args[1] << "'\n";
+			return 1;
+		}
+
+		for (const auto& command : command_list())
+			std::cout << command.usage << " - " << command.summary << '\n';
+		return 0;
+	}
+
+	int cmd_source(arg_list args, int depth) {
+		if (args.size() != 2) {
+			std::cerr << "source: usage: source FILE\n";
+			return 2;
+		}
+		if (depth >= max_source_depth) {
+			std::cerr << "source: maximum nesting depth exceeded\n";
+			return 1;
+		}
+
+		std::ifstream in{std::string(args[1])};
+		if (!in) {
+			std::cerr << "source: " << args[1] << ": cannot open\n";
+			return 1;
+		}
+
+		int status = 0;
+		std::string line;
+		while (_running && std::getline(in, line)) {
+			const int current = execute_line(line, depth + 1);
+			if (current != 0 && status == 0)
+				status = current;
+		}
+		if (in.bad()) {
+			std::cerr << "source: " << args[1] << ": read error\n";
+			status = 1;
+		}
+		return status;
+	}
+
+	int cmd_quit(arg_list args, int) {
+		if (args.size() != 1) {
+			std::cerr << "quit: too many arguments\n";
+			return 2;
+		}
+		_running = false;
+		return 0;
+	}
+
+	void remember(std::string_view line) {
+		const std::string_view trimmed = trim(line);
+		if (trimmed.empty() || trimmed.front() == '#')
+			return;
+
+		std::string command(trimmed);
+		const auto existing = std::find(_history.begin(), _history.end(), command);
+		if (existing != _history.end())
+			_history.erase(existing);
+		_history.push_front(std::move(command));
+		if (_history.size() > 5)
+			_history.pop_back();
+	}
+
+	std::string virtual_path(const vnode* node) const {
+		std::string path = _tree.path_of(node);
+		if (path.size() > 1 && path.front() == '/')
+			path.erase(0, 1);
+		return path;
+	}
+
+	static std::string ratio_text(uint64_t compressed, uint64_t decompressed) {
+		if (compressed == 0)
+			return "0.00";
+		return std::format("{:.2f}", static_cast<double>(decompressed) / static_cast<double>(compressed));
+	}
+
+	void print_file_long(const vnode* node) const {
+		const cpk::entry& item = _archive.at(node->entry);
+		std::cout << item.id << ": " << virtual_path(node) << "  compressed=" << item.file_size
+				  << "  decompressed=" << item.extract_size
+				  << "  ratio=" << ratio_text(item.file_size, item.extract_size) << '\n';
+	}
+
+	void print_directory_long(const vnode* node) const {
+		std::cout << "-: " << virtual_path(node) << "/  entries=" << node->children.size() << '\n';
+	}
+
+	void collect_stats(const vnode* node, subtree_stats& stats) const {
+		for (const auto& [name, child] : node->children) {
+			if (child->directory) {
+				++stats.directories;
+				collect_stats(child.get(), stats);
+			} else {
+				++stats.files;
+				const cpk::entry& item = _archive.at(child->entry);
+				stats.compressed += item.file_size;
+				stats.decompressed += item.extract_size;
+			}
+		}
+	}
+
+	static bool contains_case_insensitive(std::string_view text, std::string_view needle) {
+		if (needle.empty())
+			return true;
+		if (needle.size() > text.size())
+			return false;
+		for (size_t i = 0; i + needle.size() <= text.size(); ++i) {
+			bool match = true;
+			for (size_t j = 0; j < needle.size(); ++j) {
+				const auto left = static_cast<unsigned char>(text[i + j]);
+				const auto right = static_cast<unsigned char>(needle[j]);
+				if (std::tolower(left) != std::tolower(right)) {
+					match = false;
 					break;
-				rest = rest.substr(pos + 1);
+				}
 			}
+			if (match)
+				return true;
 		}
+		return false;
+	}
 
-		const uint64_t max_bytes = args.max_size_mb * 1024ull * 1024ull;
-		size_t done = 0, skipped = 0;
-		for (const auto& item : table) {
-			auto dot = item.name.find_last_of('.');
-			std::string ext = dot == std::string::npos ? std::string() : lower(item.name.substr(dot + 1));
-			if (skip.count(ext)) {
-				++skipped;
-				continue;
-			}
-			if (max_bytes != 0 && item.extract_size > max_bytes) {
-				++skipped;
+	void find_files(const vnode* node, std::string_view text, bool long_format) const {
+		for (const auto& [name, child] : node->children) {
+			if (child->directory) {
+				find_files(child.get(), text, long_format);
 				continue;
 			}
-
-			fs::path out_path = fs::path(args.extract_all) / item.dir / item.name;
-			fs::create_directories(out_path.parent_path());
-			table.extract_to_file(item, out_path);
-			++done;
-		}
-		std::cout << "Extracted " << done << " files (" << skipped << " skipped) -> " << args.extract_all << "\n";
-		return 0;
-	}
-
-	if (!args.extract_file.empty()) {
-		auto [dir, name] = split_path(args.extract_file);
-		auto entry = table.find(dir, name);
-		if (entry == table.end()) {
-			throw std::runtime_error("File not found: " + std::string(dir) + "/" + std::string(name));
-		}
-		auto out_path = fs::path(name);
-		const uint64_t size = entry->extract_size;
-		table.extract_to_file(*entry, out_path);
-		std::cout << "Extracted " << dir << "/" << name << " (" << size << " bytes) -> " << out_path << "\n";
-		return 0;
-	}
-
-	if (!args.dump_file.empty()) {
-		dump_columns(table, args.dump_file);
-		return 0;
-	}
-
-	if (!args.mbs_info.empty()) {
-		auto [dir, name] = split_path(args.mbs_info);
-		auto data = extract_entry(table, dir, name);
-		auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
-
-		byte_reader r(bytes);
-		const auto h = r.read<mbs::file_header>();
-		if (std::strncmp(h.magic, "FMBS", 4) != 0)
-			throw std::runtime_error("Not an FMBS file.");
-
-		mbs::v77 v;
-		switch (h.version) {
-		case 0x76:
-			mbs::parse_v76(bytes, v);
-			break;
-		case 0x77:
-			mbs::parse_v77(bytes, v);
-			break;
-		default:
-			throw std::runtime_error("Unsupported FMBS version.");
-		}
-		dump_mbs_info(v, h.version, args.mbs_info, args.mbs_track, args.mbs_run);
-		return 0;
-	}
-
-	if (!args.mbs_dump.empty()) {
-		auto [dir, name] = split_path(args.mbs_dump);
-		auto data = extract_entry(table, dir, name);
-		auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
-
-		byte_reader r(bytes);
-		const auto h = r.read<mbs::file_header>();
-		if (std::strncmp(h.magic, "FMBS", 4) != 0) {
-			throw std::runtime_error("Not an FMBS file.");
-		}
-
-		mbs::v77 v;
-		switch (h.version) {
-		case 0x76:
-			mbs::parse_v76(bytes, v);
-			break;
-		case 0x77:
-			mbs::parse_v77(bytes, v);
-			break;
-		default:
-			throw std::runtime_error("Unsupported FMBS version.");
-		}
-
-		fs::path outdir = fs::path(args.mbs_out) / name;
-		mbs::dump_csv(v, outdir);
-		std::cout << "Dumped " << dir << "/" << name << " (v" << std::hex << h.version << std::dec << ", "
-				  << v.s9.size() << " tracks) -> " << outdir << "/\n";
-		return 0;
-	}
-
-	if (!args.otm_dump.empty()) {
-		auto [dir, name] = split_path(args.otm_dump);
-		auto data = extract_entry(table, dir, name);
-		auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
-
-		auto f = otm::parse(bytes);
-		if (!f)
-			throw std::runtime_error("Not a valid OTBM file.");
-
-		fs::path outdir = fs::path(args.otm_out) / name;
-		otm::dump_csv(*f, outdir);
-		std::cout << "Dumped " << dir << "/" << name << " (" << f->mbs_name << ", v" << f->hdr.version << ", "
-				  << f->tracks.size() << " tracks, " << f->events.size() << " events, " << f->cues.size()
-				  << " cues) -> " << outdir << "/\n";
-		return 0;
-	}
-
-	if (args.otm_check) {
-		size_t ok = 0;
-		size_t failed = 0;
-		ExtractBuffer scratch;
-		for (const auto& item : table) {
-			if (item.name.size() < 4)
+			const std::string path = virtual_path(child.get());
+			if (!contains_case_insensitive(path, text))
 				continue;
-			std::string ext(item.name.substr(item.name.size() - 4));
-			for (char& c : ext)
-				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-			if (ext != ".otm")
-				continue;
+			if (long_format)
+				print_file_long(child.get());
+			else
+				std::cout << path << '\n';
+		}
+	}
 
-			auto data = scratch.get(static_cast<size_t>(item.extract_size));
-			table.extract(item, data);
-			auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
-			if (otm::parse(bytes)) {
-				++ok;
-			} else {
-				++failed;
-				std::cout << "FAIL " << item.dir << "/" << item.name << "\n";
+	bool extract_file(const vnode* node, const fs::path& target, extraction_stats& stats) {
+		const cpk::entry& item = _archive.at(node->entry);
+		try {
+			const fs::path parent = target.parent_path();
+			if (!parent.empty())
+				fs::create_directories(parent);
+			_archive.extract_to_file(item, target);
+		} catch (const std::exception& e) {
+			std::cerr << "e: " << virtual_path(node) << ": " << e.what() << '\n';
+			return false;
+		}
+
+		std::cout << "Extracted " << virtual_path(node) << " -> " << target.string()
+				  << " (compressed=" << item.file_size << ", decompressed=" << item.extract_size << ")\n";
+		++stats.files;
+		stats.compressed += item.file_size;
+		stats.decompressed += item.extract_size;
+		return true;
+	}
+
+	bool extract_directory(const vnode* node, const fs::path& target, extraction_stats& stats) {
+		try {
+			fs::create_directories(target);
+		} catch (const std::exception& e) {
+			std::cerr << "e: " << target.string() << ": " << e.what() << '\n';
+			return false;
+		}
+
+		for (const auto& [name, child] : node->children) {
+			const fs::path child_target = target / fs::path(name);
+			const bool ok = child->directory ? extract_directory(child.get(), child_target, stats)
+											 : extract_file(child.get(), child_target, stats);
+			if (!ok)
+				return false;
+		}
+		return true;
+	}
+
+	std::string prompt() const { return "rosalinde:" + _tree.path_of(_cwd) + "> "; }
+
+	cpk::archive& _archive;
+	virtual_tree _tree;
+	const vnode* _cwd;
+	bool _interactive;
+	bool _running = true;
+	bool _had_error = false;
+	std::deque<std::string> _history;
+};
+
+std::span<const shell::command_spec> shell::command_list() {
+	static constexpr command_spec list[] = {
+		{"ls", "ls [-l] [PATH]", "list virtual directory contents", &shell::cmd_ls},
+		{"find", "find [PATH] [TEXT] [--long]", "recursively find files", &shell::cmd_find},
+		{"stat", "stat PATH", "show file or directory metadata", &shell::cmd_stat},
+		{"d",
+		 "d PATH [--json] [--full] [--limit N] [--section sN] [--track N] [--seq N]",
+		 "inspect a CPK file in memory",
+		 &shell::cmd_d},
+		{"e",
+		 "e VIRTUAL_PATH [REAL_PATH]",
+		 "extract a file or directory contents (default destination: .)",
+		 &shell::cmd_e},
+		{"help", "help [COMMAND]", "show command help", &shell::cmd_help},
+		{"source", "source FILE", "run commands from a host file", &shell::cmd_source},
+		{"quit", "quit", "leave the shell", &shell::cmd_quit},
+		{"exit", "exit", "leave the shell", &shell::cmd_quit},
+		{"q", "q", "leave the shell", &shell::cmd_quit},
+	};
+	return std::span<const command_spec>(list);
+}
+
+bool stdin_is_tty() {
+#if defined(__EMSCRIPTEN__) || defined(__wasm__)
+	return false;
+#elif defined(_WIN32)
+	return _isatty(_fileno(stdin)) != 0;
+#else
+	return ::isatty(STDIN_FILENO) != 0;
+#endif
+}
+
+void print_usage(std::ostream& out) { out << "usage: rosalinde --cpk PATH\n"; }
+
+} // namespace
+
+int main(int argc, char** argv) {
+	std::string cpk_path;
+	bool cpk_set = false;
+
+	for (int i = 1; i < argc; ++i) {
+		const std::string_view arg = argv[i];
+		if (arg == "--cpk") {
+			if (cpk_set) {
+				std::cerr << "rosalinde: duplicate --cpk\n";
+				return 2;
 			}
-		}
-		std::cout << "Parsed " << ok << " OTM files (" << failed << " failed)\n";
-		return failed == 0 ? 0 : 1;
-	}
-
-	if (!args.nnd_dump.empty()) {
-		auto [dir, name] = split_path(args.nnd_dump);
-		auto data = extract_entry(table, dir, name);
-		auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
-
-		auto f = nnd::parse(bytes);
-		if (!f)
-			throw std::runtime_error("Not a valid NND file.");
-
-		size_t edges = 0;
-		size_t links = 0;
-		for (const auto& n : f->nodes)
-			edges += n.edges.size();
-		for (const auto& n : f->names)
-			links += n.links.size();
-
-		fs::path outdir = fs::path(args.nnd_out) / name;
-		nnd::dump_csv(*f, outdir);
-		std::cout << "Dumped " << dir << "/" << name << " (v" << f->version << ", " << f->nodes.size()
-				  << " nodes, " << edges << " edges, " << f->names.size() << " names, " << links
-				  << " links) -> " << outdir << "/\n";
-		return 0;
-	}
-
-	if (args.nnd_check) {
-		size_t ok = 0;
-		size_t failed = 0;
-		ExtractBuffer scratch;
-		for (const auto& item : table) {
-			if (item.name.size() < 4)
-				continue;
-			std::string ext(item.name.substr(item.name.size() - 4));
-			for (char& c : ext)
-				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-			if (ext != ".nnd")
-				continue;
-
-			auto data = scratch.get(static_cast<size_t>(item.extract_size));
-			table.extract(item, data);
-			auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
-			if (nnd::parse(bytes)) {
-				++ok;
-			} else {
-				++failed;
-				std::cout << "FAIL " << item.dir << "/" << item.name << "\n";
+			if (i + 1 >= argc) {
+				print_usage(std::cerr);
+				return 2;
 			}
+			cpk_set = true;
+			cpk_path = argv[++i];
+		} else if (arg.starts_with("--cpk=")) {
+			if (cpk_set) {
+				std::cerr << "rosalinde: duplicate --cpk\n";
+				return 2;
+			}
+			cpk_set = true;
+			cpk_path = std::string(arg.substr(6));
+		} else {
+			std::cerr << "rosalinde: unknown argument '" << arg << "'\n";
+			print_usage(std::cerr);
+			return 2;
 		}
-		std::cout << "Parsed " << ok << " NND files (" << failed << " failed)\n";
-		return failed == 0 ? 0 : 1;
 	}
 
-	std::cout << desc << '\n';
-	return 1;
-} catch (const std::exception& e) {
-	std::cerr << "Error: " << e.what() << '\n';
-	return 1;
-} catch (...) {
-	std::cerr << "Unknown error.\n";
-	return 1;
+	if (!cpk_set || cpk_path.empty()) {
+		print_usage(std::cerr);
+		return 2;
+	}
+
+	try {
+		const fs::path path = fs::absolute(fs::path(cpk_path));
+		if (!fs::is_regular_file(path)) {
+			std::cerr << "rosalinde: not a regular file: " << path.string() << '\n';
+			return 1;
+		}
+
+		cpk::archive archive(path);
+		const bool interactive = stdin_is_tty();
+		if (interactive) {
+			std::cerr << "rosalinde: " << path.string() << " (" << archive.size() << " entries)\n"
+					  << "Type 'help' for commands.\n";
+		}
+
+		shell sh(archive, interactive);
+		return sh.run(std::cin);
+	} catch (const std::exception& e) {
+		std::cerr << "rosalinde: " << e.what() << '\n';
+		return 1;
+	} catch (...) {
+		std::cerr << "rosalinde: unknown error\n";
+		return 1;
+	}
 }
