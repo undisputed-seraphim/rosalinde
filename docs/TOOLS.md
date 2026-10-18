@@ -2,44 +2,47 @@
 
 Permanent debug fixtures for correlating script time, asset state, and rendered output.
 
-## `rosalinde` — MBS metadata
+## `rosalinde` — interactive CPK shell
 
-`tools/extractor.cpp` already handles CPK listing/extraction, UTF column dumps and raw
-MBS CSV dumps. `--mbs-info` adds interpreted track/run metadata as JSON:
-
-```bash
-./build/rosalinde --cpk ~/Unicorn.CPK --mbs-info GUI/Logo.mbs
-./build/rosalinde --cpk ~/Unicorn.CPK --mbs-info GUI/Logo.mbs --mbs-track 9
-./build/rosalinde --cpk ~/Unicorn.CPK --mbs-info GUI/Logo.mbs --mbs-track 9 --mbs-run 21
-```
-
-The output includes:
-
-- track index/name, bounds, `sa_set_id`, `sa_set_no`, `sa_set_main`, disabled state
-- per-run `s8` range/count, start offset, tick sum, intro/loop point, single-pass flag,
-  track id and computed duration
-- with `--mbs-run`, the full `s8` frame list (frame count, flags, loop target)
-
-Raw section dumps remain available with `--mbs-dump`.
-
-## `asb_trace` — offline script event stream
-
-`tools/asb/trace.cpp` runs a module without opening a window and emits structured
-NDJSON events:
+`rosalinde` opens the CPK once and accepts line commands on stdin; nothing is written
+to disk unless you ask with `e`. See [`tools/README.md`](../tools/README.md) for the
+full command reference and the line editor.
 
 ```bash
-./build/tools/asb/asb_trace \
-  --cpk ~/Unicorn.CPK \
-  --asb Script/Dr_OW_0_Opening.asb \
-  --frames 2600 \
-  --categories stage,camera,sprite \
-  --out /tmp/opening-events.ndjson
+printf 'ls GUI\nd GUI/Logo.mbs --track 9 --seq 21 --limit 8\nq\n' \
+  | ./build/rosalinde --cpk ~/Unicorn.CPK
 ```
 
-Omit `--out` to write to stdout. `--categories all` is the default. VM events include
-the native call name; semantic events include arguments and resolved values (for
-example camera position/duration/mode, stage type, sprite create/animation). The
-offline tool has no renderer, so `asset` and `draw` events are viewer-only.
+`d` inspects an entry in memory (`acb`, `acf`, `nnd`, `ftx`, `mbs`, `otm`, `fms`).
+For MBS the view is track → sequence → frame:
+
+- `d X.mbs` — compact track list (sequence count, index range, `main`, `disabled`)
+- `d X.mbs --track N` — sequences, with `total_frames`, `once`, `commit`, `track`, `loop`
+- `d X.mbs --track N --seq M` — frames, with `duration`, flags, `s6`/`s7`,
+  `loop_s8_id` and the interpolation tiers (`s5s3`, `rate`, `s7i`, `s6i`, `s0s1s2`)
+- `--json` — machine-readable, filtered by `--track`/`--seq`
+- `--section sN` — one raw section (`s0`…`s9`, `sa`, `sb`); `--full` for all
+
+In the raw `s0` table the `r g b a` columns are the bytes of the first corner colour
+printed high→low. `uint32_t` colours are RGBA in memory (red in the least-significant
+byte), so the printed `a` column is red and `r` is alpha; `center`/`topleft` already
+carry red in the low byte.
+
+## `asbrun` — offline script event stream and inspection
+
+The ASB shell is the master tool; see [`tools/ASBRUN_README.md`](../tools/ASBRUN_README.md).
+To trace a scene without opening a window:
+
+```bash
+printf 'open Dr_OW_0_Opening.asb\ntrace scene00 --frames 2600 --categories stage,camera,sprite --out /tmp/opening-events.ndjson\nq\n' \
+  | ./build/tools/asb/asbrun --cpk ~/Unicorn.CPK
+```
+
+Omit `--out` to write to stdout. `--categories all` is the default. `vm/call` events
+include the call text, caller, and handled status; semantic events include arguments
+and resolved values (for example camera position/duration/mode, stage type, sprite
+create/animation). The offline run has no renderer, so `asset` and `draw` events are
+viewer-only. The old `asb_trace` binary is legacy.
 
 ## `viewer` — live trace and multi-frame capture
 
@@ -69,8 +72,9 @@ Behavior:
 
 ## Suggested workflow
 
-1. Use `asb_trace` to identify the exact script frame and native arguments.
-2. Use `rosalinde --mbs-info` to inspect the referenced track/runs.
+1. Use `asbrun trace` (or `timeline`) to identify the exact script frame and native arguments.
+2. Use `rosalinde`'s `d ... --track/--seq` to inspect the referenced track and frames
+   in memory (no extraction).
 3. Use `viewer --capture-frames` to produce comparison frames.
 4. Use `viewer --trace` with only the categories needed when a visual result is
    unexpected.

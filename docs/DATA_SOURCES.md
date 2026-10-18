@@ -11,7 +11,7 @@ characters/scenes. All paths are CPK-relative.
   - `_UcEnum_CharaNpc.inc` → `NPCTYPE` (320 NPCs)
   - plus Buff/Item/Skill/Facility/EquipAi/DropTable/QuestList/etc.
   - Format: `TABLE:count`, then `NAME , // localized label`, terminated by
-    `TABLE_END`. Dump with `asb_harvest --cpk Unicorn.CPK --uc-enums`
+    `TABLE_END`. Dump with `asbrun export enums`
     (writes `viewer/data/uc_enums.tsv`).
 - `MsgSheet/*.fms` — FMSB string tables (localized text, 3 columns per row):
   - `UcCharaList.fms` (1388 rows) / `UcClassList.fms` (313) / `UcCharaNpcList.fms`
@@ -54,7 +54,7 @@ engine resolves to class + appearance + colour.
 ## Resolution chains we can build
 
 - **Drama**: `dispName`/`charName` → `CharaOp` asset, via the `DrUiCreateChara`
-  calls found across the archive (`asb_harvest --chara-table` →
+  calls found across the archive (`asbrun export chara` →
   `viewer/data/chara_table.tsv`).
 - **Battle**: `class` → `Chara/<Class>_<M|F>` by naming convention; a character
   **def** → class by the class token inside the def name

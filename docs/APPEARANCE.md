@@ -77,7 +77,8 @@ the old handwritten table.
 3. Read the CharaSet records at `0x2741bb8` (stride `0x48`).
 4. Map `class_id` → class name (`Debug/_UcEnum_Class.inc`) and `gender` →
    `M`/`F`; the viewer key is `<CLASS>_<M|F>`.
-5. Dump each class MBS `s4` (`rosalinde --mbs-dump Chara/<Class>.mbs`) and
+5. Dump each class MBS `s4` with the extractor shell
+   (`printf 'd Chara/<Class>.mbs --section s4\nq\n' | ./build/rosalinde --cpk ~/Unicorn.CPK`) and
    compute `group(class)` as above.
 6. Emit `viewer/data/variants.tsv`:
    `class_key <TAB> CharaSetName <TAB> 0x<group|1<<variant> <TAB> jp_label`.
