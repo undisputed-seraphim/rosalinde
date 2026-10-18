@@ -356,7 +356,10 @@ void Registry::create_sprite(
 	int idx = ensure(id);
 	auto& e = _timeline.entities[idx];
 	e.kind = kind;
-	e.space = RuntimeEntity::Space::World;
+	// CreateSpriteMone is the 2D overlay variant: its coordinates are design-space
+	// screen coordinates, not field coordinates. The World/StageStart variants
+	// stay in field space.
+	e.space = kind == "CreateSpriteMone" ? RuntimeEntity::Space::Ui : RuntimeEntity::Space::World;
 	e.started = false;
 	if (const char* o = std::getenv("VIEWER_FORCE_START"); o && id.find(o) != std::string::npos)
 		e.started = true;

@@ -236,6 +236,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 		_trace({_frame, "draw", "list", "\"objects\":[" + objects + "]"});
 	}
 	const char* hide = std::getenv("VIEWER_HIDE");
+	static const Camera ui_camera;
 	for (Object* object : order) {
 		const auto& e = object->state;
 		if (hide && !e.name.empty() && e.name.find(hide) != std::string::npos)
@@ -284,10 +285,11 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 			}
 		}
 		for (auto& instance : object->instances) {
+			const Camera& object_camera = e.space == asb::RuntimeEntity::Space::Ui ? ui_camera : camera;
 			object->asset->renderer.draw(
 				instance,
 				projection,
-				camera,
+				object_camera,
 				pos,
 				tints.empty() ? nullptr : &tints,
 				true,
