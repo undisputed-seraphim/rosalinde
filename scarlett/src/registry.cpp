@@ -1620,7 +1620,14 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		}
 		return true;
 	}
-	if (name == "SetSpriteMoneStopSE" || name == "SetSpriteMoneDispOffFrameList" || name == "SetSpriteMonePreRenderAll")
+	if (name == "SetSpriteMonePreRenderAll") {
+		if (RuntimeEntity* e = ent(0)) {
+			e->prerender_force = true;
+			mark_dirty();
+		}
+		return true;
+	}
+	if (name == "SetSpriteMoneStopSE" || name == "SetSpriteMoneDispOffFrameList")
 		return true;
 
 	if (name == "GetSpriteMoneFindCallbackTiming") {
