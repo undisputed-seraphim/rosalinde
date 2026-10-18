@@ -12,6 +12,7 @@ target_link_libraries(asb_trace PRIVATE scarlett criware)
 
 add_executable(asbrun
 	"asbrun.cpp"
+	"asbrun_bulk.cpp"
 	"asbrun_common.cpp"
 	"asbrun_inspect.cpp"
 	"asbrun_record.cpp"

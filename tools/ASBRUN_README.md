@@ -52,9 +52,11 @@ module remains loaded.
 | Command | Purpose |
 |---|---|
 | `summary [--json FILE\|-] [--compact]` | module size, parse status, function/native/asset/section counts |
+| `scan [...]` | bulk scan all `Script/*.asb` entries |
+| `export chara\|enums\|bgs [--out FILE\|-]` | generate table TSVs from the CPK |
 | `funcs` | list module functions |
 | `disasm [FUNC] [--all] [--dir DIR]` | disassemble one function, everything, or write a text dump |
-| `scene [FUNC] [--json FILE\|-] [--ir] [--index] [--limit N] [--filter TEXT]` | extracted call stream, SceneIR, or compact scene index |
+| `scene [FUNC] [--json FILE\|-] [--ir] [--index] [--limit N] [--filter TEXT] [--chara-file FILE]` | extracted call stream, SceneIR, or compact scene index |
 | `timeline FUNC [--expand-calls] [--json FILE\|-] [--limit N]` | static frame-annotated call timeline |
 | `play [FUNC] ...` | run a function with the scene scheduler |
 | `trace ...` | alias for `play` with an NDJSON trace |
@@ -91,8 +93,10 @@ scene --ir --json /tmp/ir.json
 - `summary --compact` writes counts only instead of the full string/call/API pools.
 - `scene` text prints one line per event; default text limit is 50 events.
 - `scene --limit N` caps output events; `--limit 0` means unlimited.
-- `scene --filter TEXT` keeps calls whose name or declaration contains `TEXT`.
-- `scene --ir` lists folded entities.
+- `scene --filter TEXT` keeps calls whose name, declaration, or string arguments
+  contain `TEXT`.
+- `scene --ir` lists folded entities; `--chara-file FILE` overrides the default
+  `viewer/data/chara_table.tsv` resolver.
 - `scene --index` prints **static event counts**, not runtime entities created by
   a given frame:
   - `sprite calls`: `CreateSprite*` calls
@@ -100,6 +104,45 @@ scene --ir --json /tmp/ir.json
   - `entity calls`: sprite + chara
   - `stage calls`: stage/unit/symbol setup calls
   - `camera calls`: camera position/parameter calls
+  - JSON also retains the legacy `sprites`, `chara`, `stages`, and `cameras`
+    fields for `asb_harvest` compatibility.
+
+## Bulk scan and table export
+
+```text
+scan --limit 5
+scan --summary --json /tmp/all-summary.json
+scan --scene-index --json -
+scan --scene-ir --json /tmp/all-ir.json --chara-file viewer/data/chara_table.tsv
+scan --disasm-dir /tmp/disasm-all
+```
+
+- `scan` iterates `Script/*.asb` and defaults to a concise text summary.
+- `--summary`, `--scene`, `--scene-index`, and `--scene-ir` select the JSON object
+  shape; `--json FILE|-` is required for those structured modes.
+- `--filter TEXT` filters by CPK path.
+- `--limit N` caps the number of modules.
+- `--disasm` writes disassembly to stdout; `--disasm-dir DIR` writes one file per
+  module.
+- `scan --json` streams the array; it does not build the old ~176 MB string.
+
+Table generation:
+
+```text
+export chara --out viewer/data/chara_table.tsv
+export enums --out viewer/data/uc_enums.tsv
+export bgs   --out viewer/data/battlebgs.tsv
+```
+
+`export chara` scans all modules; `export enums` reads `Debug/_UcEnum_*.inc`;
+`export bgs` scans `BattleBG/*`. The generated rows match `asb_harvest`; only the
+generated header text identifies `asbrun`.
+
+Known limitations:
+
+- `scan --scene`, `--scene-index`, and `--scene-ir` reuse the linear static
+  extractor and are branch-unaware, like the single-module scene commands.
+- `scan --json -` can produce very large output; prefer `--json FILE`.
 
 ## Static timeline
 
@@ -164,7 +207,9 @@ trace scene00 --frames 2000 --categories vm --out /tmp/vm.ndjson
 
 Non-void calls may also carry `return_type` and `return`. The legacy
 `asb_trace` binary remains name-only; `asbrun` filters that old event and emits
-the complete one.
+the complete one. Because dispatch must run before `handled`/return are known,
+the complete `vm/call` event is emitted after any semantic events from the same
+call.
 
 ### `calls` command
 
@@ -307,11 +352,9 @@ q
 EOF
 ```
 
-## Deferred features
+## Legacy binaries
 
-The following are not yet in `asbrun`:
-
-- bulk `scan` and `export` commands (`--all`, enum/BGS/chara generation)
-
-The old ASB binaries remain available as reference implementations until bulk
-parity is ported.
+The bulk `scan` and `export` workflows are now available in `asbrun`. The old
+`asb_harvest`, `asb_run`, `asb_trace`, and `asb_record` binaries remain built as
+reference implementations until the new shell is fully validated and the old
+targets are retired.

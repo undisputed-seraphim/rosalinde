@@ -206,8 +206,17 @@ std::string scene_json(
 			if (limit && emitted >= *limit)
 				break;
 			if (!call_needle.empty() && lower(event.call).find(call_needle) == std::string::npos &&
-				lower(event.decl).find(call_needle) == std::string::npos)
-				continue;
+				lower(event.decl).find(call_needle) == std::string::npos) {
+				bool string_match = false;
+				for (const auto& value : event.strings) {
+					if (lower(value).find(call_needle) != std::string::npos) {
+						string_match = true;
+						break;
+					}
+				}
+				if (!string_match)
+					continue;
+			}
 			events += (function_events ? "," : "");
 			events += "{\"call\":\"" + json_escape(event.call) + "\",\"kind\":\"" + std::string(1, event.kind) + "\"";
 			if (!event.import_from.empty())
@@ -251,12 +260,15 @@ std::string scene_index_json(const asb::Module& module, const std::string& name)
 		for (const auto& event : function.events) {
 			const std::string& call = event.call;
 			const bool chara = asb::is_chara_create_call(call);
-			if (asb::is_sprite_create_call(call) && !chara) {
-				++sprite_calls;
-				++function_entities;
+			const bool sprite = asb::is_sprite_create_call(call);
+			if (sprite || chara) {
 				for (const auto& string : event.strings)
 					if (ends_with(string, ".mbs") || ends_with(string, ".ftx"))
 						assets.insert(string);
+			}
+			if (sprite && !chara) {
+				++sprite_calls;
+				++function_entities;
 			}
 			if (chara) {
 				++chara_calls;
@@ -281,6 +293,9 @@ std::string scene_index_json(const asb::Module& module, const std::string& name)
 		   ",\"chara_calls\":" + std::to_string(chara_calls) +
 		   ",\"entity_calls\":" + std::to_string(sprite_calls + chara_calls) +
 		   ",\"stage_calls\":" + std::to_string(stage_calls) + ",\"camera_calls\":" + std::to_string(camera_calls) +
+		   // Legacy asb_harvest fields; `sprites` includes chara creates.
+		   ",\"sprites\":" + std::to_string(sprite_calls + chara_calls) + ",\"chara\":" + std::to_string(chara_calls) +
+		   ",\"stages\":" + std::to_string(stage_calls) + ",\"cameras\":" + std::to_string(camera_calls) +
 		   ",\"funcs\":" + slist(functions) + ",\"assets\":" + slist(asset_list) + "}";
 }
 

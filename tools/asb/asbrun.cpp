@@ -1,3 +1,4 @@
+#include "asbrun_bulk.hpp"
 #include "asbrun_common.hpp"
 #include "asbrun_inspect.hpp"
 #include "asbrun_record.hpp"
@@ -586,6 +587,7 @@ private:
 		std::string json_path;
 		std::string function_name;
 		std::string filter;
+		std::string chara_file;
 		for (size_t i = 1; i < args.size(); ++i) {
 			if (args[i] == "--ir") {
 				ir = true;
@@ -615,6 +617,12 @@ private:
 					return 2;
 				}
 				filter = args[++i];
+			} else if (args[i] == "--chara-file") {
+				if (i + 1 >= args.size()) {
+					std::cerr << "scene: --chara-file requires a path\n";
+					return 2;
+				}
+				chara_file = args[++i];
 			} else if (function_name.empty()) {
 				function_name = args[i];
 			} else {
@@ -631,16 +639,24 @@ private:
 			return 2;
 		}
 		require_module();
+		auto load_chars = [&]() {
+			asb::CharTable chars;
+			if (!chara_file.empty()) {
+				chars = asb::load_char_table(chara_file);
+			} else {
+				const fs::path chars_path = fs::path(_data_dir) / "chara_table.tsv";
+				if (fs::exists(chars_path))
+					chars = asb::load_char_table(chars_path.string());
+			}
+			return chars;
+		};
 
 		const std::optional<size_t> json_limit = limit_set && limit > 0 ? std::optional<size_t>(limit) : std::nullopt;
 		if (!json_path.empty()) {
 			if (index) {
 				write_json_document(asbrun::scene_index_json(_module, _path), json_path);
 			} else if (ir) {
-				asb::CharTable chars;
-				const fs::path chars_path = fs::path(_data_dir) / "chara_table.tsv";
-				if (fs::exists(chars_path))
-					chars = asb::load_char_table(chars_path.string());
+				asb::CharTable chars = load_chars();
 				write_json_document(asbrun::scene_ir_json(_module, _path, chars.empty() ? nullptr : &chars), json_path);
 			} else {
 				write_json_document(asbrun::scene_json(_module, _path, function_name, filter, json_limit), json_path);
@@ -681,10 +697,7 @@ private:
 		}
 
 		if (ir) {
-			asb::CharTable chars;
-			const fs::path chars_path = fs::path(_data_dir) / "chara_table.tsv";
-			if (fs::exists(chars_path))
-				chars = asb::load_char_table(chars_path.string());
+			asb::CharTable chars = load_chars();
 			bool found = false;
 			for (const auto& function : scene().functions) {
 				if (!function_name.empty() && function.name != function_name && function.decl != function_name)
@@ -721,8 +734,17 @@ private:
 			for (size_t i = 0; i < function.events.size(); ++i) {
 				const auto& event = function.events[i];
 				if (!filter_needle.empty() && asbrun::lower(event.call).find(filter_needle) == std::string::npos &&
-					asbrun::lower(event.decl).find(filter_needle) == std::string::npos)
-					continue;
+					asbrun::lower(event.decl).find(filter_needle) == std::string::npos) {
+					bool string_match = false;
+					for (const auto& value : event.strings) {
+						if (asbrun::lower(value).find(filter_needle) != std::string::npos) {
+							string_match = true;
+							break;
+						}
+					}
+					if (!string_match)
+						continue;
+				}
 				++matched;
 				if (text_limit > 0 && emitted >= text_limit)
 					continue;
@@ -745,6 +767,98 @@ private:
 		if (text_limit > 0 && matched > emitted)
 			std::cout << "... " << (matched - emitted) << " more event(s); use --limit 0 for all\n";
 		return found ? 0 : 1;
+	}
+
+	int cmd_scan(arg_list args, int) {
+		asbrun::ScanOptions options;
+		for (size_t i = 1; i < args.size(); ++i) {
+			if (args[i] == "--all") {
+				continue;
+			} else if (args[i] == "--summary") {
+				options.summary = true;
+			} else if (args[i] == "--scene") {
+				options.scene = true;
+			} else if (args[i] == "--scene-index") {
+				options.scene_index = true;
+			} else if (args[i] == "--scene-ir") {
+				options.scene_ir = true;
+			} else if (args[i] == "--disasm") {
+				options.disasm = true;
+			} else if (args[i] == "--disasm-dir") {
+				if (i + 1 >= args.size()) {
+					std::cerr << "scan: --disasm-dir requires a path\n";
+					return 2;
+				}
+				options.disasm_dir = args[++i];
+			} else if (args[i] == "--json") {
+				if (i + 1 >= args.size()) {
+					std::cerr << "scan: --json requires a path\n";
+					return 2;
+				}
+				options.json_path = args[++i];
+			} else if (args[i] == "--filter") {
+				if (i + 1 >= args.size()) {
+					std::cerr << "scan: --filter requires a value\n";
+					return 2;
+				}
+				options.filter = args[++i];
+			} else if (args[i] == "--chara-file") {
+				if (i + 1 >= args.size()) {
+					std::cerr << "scan: --chara-file requires a path\n";
+					return 2;
+				}
+				options.chara_file = args[++i];
+			} else if (args[i] == "--limit") {
+				if (i + 1 >= args.size()) {
+					std::cerr << "scan: --limit requires a value\n";
+					return 2;
+				}
+				try {
+					options.limit = static_cast<size_t>(std::stoull(args[++i]));
+				} catch (...) {
+					std::cerr << "scan: invalid --limit value\n";
+					return 2;
+				}
+			} else {
+				std::cerr << "scan: unknown option '" << args[i] << "'\n";
+				return 2;
+			}
+		}
+		const int modes = int(options.summary) + int(options.scene) + int(options.scene_index) + int(options.scene_ir);
+		if (modes > 1) {
+			std::cerr << "scan: choose one of --summary, --scene, --scene-index, --scene-ir\n";
+			return 2;
+		}
+		return asbrun::scan(_archive, options);
+	}
+
+	int cmd_export(arg_list args, int) {
+		if (args.size() < 2) {
+			std::cerr << "export: usage: export chara|enums|bgs [--out FILE|-]\n";
+			return 2;
+		}
+		const std::string kind = args[1];
+		std::string out_path = "-";
+		for (size_t i = 2; i < args.size(); ++i) {
+			if (args[i] == "--out") {
+				if (i + 1 >= args.size()) {
+					std::cerr << "export: --out requires a path\n";
+					return 2;
+				}
+				out_path = args[++i];
+			} else {
+				std::cerr << "export: unknown option '" << args[i] << "'\n";
+				return 2;
+			}
+		}
+		if (kind == "chara")
+			return asbrun::export_chara(_archive, out_path);
+		if (kind == "enums")
+			return asbrun::export_enums(_archive, out_path);
+		if (kind == "bgs")
+			return asbrun::export_bgs(_archive, out_path);
+		std::cerr << "export: unknown table '" << kind << "'\n";
+		return 2;
 	}
 
 	int cmd_state(arg_list args, int) {
@@ -1360,10 +1474,19 @@ std::span<const Shell::command_spec> Shell::command_list() {
 		{"close", "close", "unload the current module", &Shell::cmd_close},
 		{"status", "status", "show the current CPK/module", &Shell::cmd_status},
 		{"summary", "summary [--json FILE|-] [--compact]", "show module metadata", &Shell::cmd_summary},
+		{"scan",
+		 "scan [--summary|--scene|--scene-index|--scene-ir] [--json FILE|-] [--filter TEXT] "
+		 "[--limit N] [--chara-file FILE] [--disasm|--disasm-dir DIR]",
+		 "scan all Script/*.asb entries",
+		 &Shell::cmd_scan},
+		{"export",
+		 "export chara|enums|bgs [--out FILE|-]",
+		 "generate asset/table TSVs from the CPK",
+		 &Shell::cmd_export},
 		{"funcs", "funcs", "list module functions", &Shell::cmd_funcs},
 		{"disasm", "disasm [FUNC] [--all] [--dir DIR]", "disassemble functions", &Shell::cmd_disasm},
 		{"scene",
-		 "scene [FUNC] [--json FILE|-] [--ir] [--index] [--limit N] [--filter TEXT]",
+		 "scene [FUNC] [--json FILE|-] [--ir] [--index] [--limit N] [--filter TEXT] [--chara-file FILE]",
 		 "inspect extracted scene events",
 		 &Shell::cmd_scene},
 		{"timeline",
