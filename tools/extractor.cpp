@@ -15,7 +15,6 @@
 #include <cctype>
 #include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -118,10 +117,6 @@ std::pair<std::string_view, std::string_view> split_path(std::string_view path) 
 		return {"", path};
 	}
 	return {path.substr(0, pos), path.substr(pos + 1)};
-}
-
-void write_file(const fs::path& path, std::span<const char> data) {
-	std::ofstream(path, std::ios::binary).write(data.data(), data.size());
 }
 
 std::string json_quote(std::string_view value) {
@@ -426,7 +421,6 @@ int main(int argc, char* argv[]) try {
 
 		const uint64_t max_bytes = args.max_size_mb * 1024ull * 1024ull;
 		size_t done = 0, skipped = 0;
-		ExtractBuffer scratch;
 		for (auto it = table.begin(); it != table.end(); ++it) {
 			const auto e = *it;
 			const auto& name = get<"FileName">(e);
@@ -444,10 +438,7 @@ int main(int argc, char* argv[]) try {
 
 			fs::path out_path = fs::path(args.extract_all) / get<"DirName">(e) / name;
 			fs::create_directories(out_path.parent_path());
-
-			auto data = scratch.get(static_cast<size_t>(extract_size));
-			table.extract(e, data);
-			write_file(out_path, data);
+			table.extract_to_file(e, out_path);
 			++done;
 		}
 		std::cout << "Extracted " << done << " files (" << skipped << " skipped) -> " << args.extract_all << "\n";
@@ -456,10 +447,14 @@ int main(int argc, char* argv[]) try {
 
 	if (!args.extract_file.empty()) {
 		auto [dir, name] = split_path(args.extract_file);
-		auto data = extract_entry(table, dir, name);
+		auto entry = table.find_file(dir, name);
+		if (entry == table.end()) {
+			throw std::runtime_error("File not found: " + std::string(dir) + "/" + std::string(name));
+		}
 		auto out_path = fs::path(name);
-		write_file(out_path, data);
-		std::cout << "Extracted " << dir << "/" << name << " (" << data.size() << " bytes) -> " << out_path << "\n";
+		const uint64_t size = get<"ExtractSize">(*entry);
+		table.extract_to_file(*entry, out_path);
+		std::cout << "Extracted " << dir << "/" << name << " (" << size << " bytes) -> " << out_path << "\n";
 		return 0;
 	}
 

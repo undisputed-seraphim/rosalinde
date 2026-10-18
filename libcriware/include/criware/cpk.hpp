@@ -34,6 +34,7 @@ public:
 	void extract(const row_type& entry, std::span<char> out) const;
 	void extract(std::string_view dir, std::string_view name, std::vector<char>& out) const;
 	void extract(std::string_view dir, std::string_view name, std::span<char> out) const;
+	void extract_to_file(const row_type& entry, const std::filesystem::path& path) const;
 	iterator find_file(std::string_view dir, std::string_view file) const;
 	size_t size() const noexcept { return _table.size(); }
 
