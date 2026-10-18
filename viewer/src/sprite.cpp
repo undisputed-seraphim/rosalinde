@@ -288,7 +288,21 @@ void SpriteInstance::update(float dt_seconds) {
 					const auto& end = data->v77.s8[run.s8_start + offsets[i]];
 					const uint32_t fog = data->v77.s7[end.s7_id].fog;
 					const bool visible_end = (end.flags & mbs::v77::s8flag::ACTIVE) && ((fog >> 24) != 0);
-					hide[i] = (hold_finished || visible_end) ? 0 : 1;
+					const bool one_tick_last =
+						run.once && !hold_finished && end.frames <= 1 && (end.flags & mbs::v77::s8flag::LAST);
+					if (one_tick_last && prev_offsets[i] != UINT32_MAX) {
+						const auto& prev = data->v77.s8[run.s8_start + prev_offsets[i]];
+						const uint32_t prev_fog = data->v77.s7[prev.s7_id].fog;
+						const bool prev_visible = (prev.flags & mbs::v77::s8flag::ACTIVE) && ((prev_fog >> 24) != 0);
+						if (prev_visible) {
+							offsets[i] = prev_offsets[i];
+							hide[i] = 0;
+						} else {
+							hide[i] = 1;
+						}
+					} else {
+						hide[i] = (hold_finished || visible_end) ? 0 : 1;
+					}
 				}
 				ticks[i] = data->v77.s8[run.s8_start + offsets[i]].frames;
 			}
