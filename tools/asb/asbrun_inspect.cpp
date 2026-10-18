@@ -182,64 +182,92 @@ std::string harvest_json(const asb::Module& module, const std::string& name, siz
 	return json;
 }
 
-std::string scene_json(const asb::Module& module, const std::string& name) {
+std::string scene_json(
+	const asb::Module& module,
+	const std::string& name,
+	std::string_view function_filter,
+	std::string_view call_filter,
+	std::optional<size_t> limit) {
 	const asb::Scene scene = asb::extract_scene(module);
+	const std::string function_needle = lower(std::string(function_filter));
+	const std::string call_needle = lower(std::string(call_filter));
+	size_t emitted = 0;
+	bool first_function = true;
+
 	std::string json = "  {\"file\":\"" + json_escape(name) + "\",\"functions\":[";
-	for (size_t i = 0; i < scene.functions.size(); ++i) {
-		const auto& function = scene.functions[i];
-		json += (i ? "," : "");
-		json += "{\"name\":\"" + json_escape(function.name) + "\",\"decl\":\"" + json_escape(function.decl) +
-				"\",\"section\":\"" + json_escape(function.section) + "\",\"events\":[";
-		for (size_t e = 0; e < function.events.size(); ++e) {
-			const auto& event = function.events[e];
-			json += (e ? "," : "");
-			json += "{\"call\":\"" + json_escape(event.call) + "\",\"kind\":\"" + std::string(1, event.kind) + "\"";
+	for (const auto& function : scene.functions) {
+		if (!function_needle.empty() && lower(function.name) != function_needle &&
+			lower(function.decl) != function_needle)
+			continue;
+
+		std::string events;
+		size_t function_events = 0;
+		for (const auto& event : function.events) {
+			if (limit && emitted >= *limit)
+				break;
+			if (!call_needle.empty() && lower(event.call).find(call_needle) == std::string::npos &&
+				lower(event.decl).find(call_needle) == std::string::npos)
+				continue;
+			events += (function_events ? "," : "");
+			events += "{\"call\":\"" + json_escape(event.call) + "\",\"kind\":\"" + std::string(1, event.kind) + "\"";
 			if (!event.strings.empty())
-				json += ",\"strings\":" + slist(event.strings);
+				events += ",\"strings\":" + slist(event.strings);
 			if (!event.ints.empty())
-				json += ",\"ints\":" + ilist(event.ints);
+				events += ",\"ints\":" + ilist(event.ints);
 			if (!event.floats.empty())
-				json += ",\"floats\":" + dlist(event.floats);
+				events += ",\"floats\":" + dlist(event.floats);
 			if (!event.vec2.empty())
-				json += ",\"vec2\":" + dlist(event.vec2);
+				events += ",\"vec2\":" + dlist(event.vec2);
 			if (!event.vec3.empty())
-				json += ",\"vec3\":" + dlist(event.vec3);
-			json += "}";
+				events += ",\"vec3\":" + dlist(event.vec3);
+			events += "}";
+			++function_events;
+			++emitted;
 		}
-		json += "]}";
+		if (function_events == 0)
+			continue;
+		json += (first_function ? "" : ",");
+		first_function = false;
+		json += "{\"name\":\"" + json_escape(function.name) + "\",\"decl\":\"" + json_escape(function.decl) +
+				"\",\"section\":\"" + json_escape(function.section) + "\",\"events\":[" + events + "]}";
+		if (limit && emitted >= *limit)
+			break;
 	}
 	return json + "]}";
 }
 
 std::string scene_index_json(const asb::Module& module, const std::string& name) {
 	const asb::Scene scene = asb::extract_scene(module);
-	size_t sprites = 0;
-	size_t chara = 0;
-	size_t stages = 0;
-	size_t cameras = 0;
+	size_t sprite_calls = 0;
+	size_t chara_calls = 0;
+	size_t stage_calls = 0;
+	size_t camera_calls = 0;
 	std::vector<std::string> functions;
 	std::unordered_set<std::string> assets;
 	for (const auto& function : scene.functions) {
-		size_t function_sprites = 0;
+		size_t function_entities = 0;
 		for (const auto& event : function.events) {
 			const std::string& call = event.call;
-			if (asb::is_sprite_create_call(call)) {
-				++function_sprites;
-				++sprites;
+			const bool chara = asb::is_chara_create_call(call);
+			if (asb::is_sprite_create_call(call) && !chara) {
+				++sprite_calls;
+				++function_entities;
 				for (const auto& string : event.strings)
 					if (ends_with(string, ".mbs") || ends_with(string, ".ftx"))
 						assets.insert(string);
 			}
-			if (asb::is_chara_create_call(call))
-				++chara;
+			if (chara) {
+				++chara_calls;
+				++function_entities;
+			}
 			if (call == "DrCreateStage" || call == "FlCreateStage" || call == "StSetBattleScene" ||
 				call == "StCreateUnit" || call == "StCreateDemoUnit" || call == "FlCreateCharaSymbol")
-				++stages;
+				++stage_calls;
 			if (call == "DrSetCameraPosV" || call == "SetCameraPosV" || call == "DrSetCameraParam")
-				++cameras;
+				++camera_calls;
 		}
-		if (function_sprites > 0)
-			functions.push_back(function.name + ":" + std::to_string(function_sprites));
+		if (function_entities > 0)
+			functions.push_back(function.name + ":" + std::to_string(function_entities));
 	}
 
 	std::vector<std::string> asset_list(assets.begin(), assets.end());
@@ -247,8 +275,10 @@ std::string scene_index_json(const asb::Module& module, const std::string& name)
 
 	return "  {\"file\":\"" + json_escape(name) + "\",\"parse_ok\":" +
 		   std::string(module.error.empty() && module.consumed == module.total ? "true" : "false") +
-		   ",\"sprites\":" + std::to_string(sprites) + ",\"chara\":" + std::to_string(chara) +
-		   ",\"stages\":" + std::to_string(stages) + ",\"cameras\":" + std::to_string(cameras) +
+		   ",\"static\":true,\"sprite_calls\":" + std::to_string(sprite_calls) +
+		   ",\"chara_calls\":" + std::to_string(chara_calls) +
+		   ",\"entity_calls\":" + std::to_string(sprite_calls + chara_calls) +
+		   ",\"stage_calls\":" + std::to_string(stage_calls) + ",\"camera_calls\":" + std::to_string(camera_calls) +
 		   ",\"funcs\":" + slist(functions) + ",\"assets\":" + slist(asset_list) + "}";
 }
 

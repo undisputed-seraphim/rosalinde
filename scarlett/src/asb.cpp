@@ -311,7 +311,7 @@ public:
 private:
 	// --- primitive reads ---------------------------------------------------
 	bool read(void* dst, size_t n) {
-		if (pos + n > data.size()) {
+		if (pos > data.size() || n > data.size() - pos) {
 			ok = false;
 			return false;
 		}
@@ -395,6 +395,10 @@ private:
 		if (len == 0)
 			return {};
 		len /= 2;
+		if (pos > data.size() || len > data.size() - pos) {
+			ok = false;
+			return {};
+		}
 		std::string s(len, '\0');
 		if (!read(s.data(), len))
 			return {};
@@ -434,7 +438,11 @@ private:
 			ti->name = read_str();
 			ti->name_space = read_str();
 			uint32_t n = enc_u32();
-			for (uint32_t k = 0; k < n; ++k) {
+			if (!ok || pos > data.size() || n > data.size() - pos) {
+				ok = false;
+				return nullptr;
+			}
+			for (uint32_t k = 0; k < n && ok; ++k) {
 				uint8_t c2 = u8();
 				if (c2 == 's')
 					ti->sub_types.push_back(read_datatype());
@@ -494,19 +502,31 @@ private:
 			return s;
 		s.return_type = read_datatype();
 		uint32_t count = enc_u32();
-		for (uint32_t k = 0; k < count; ++k)
+		if (!ok || pos > data.size() || count > data.size() - pos) {
+			ok = false;
+			return s;
+		}
+		for (uint32_t k = 0; k < count && ok; ++k)
 			s.params.push_back(read_datatype());
 		if (count > 0) {
 			uint32_t ic = enc_u32();
+			if (!ok || ic > count) {
+				ok = false;
+				return s;
+			}
 			s.inout_flags.assign(count, 0);
-			for (uint32_t k = 0; k < ic && k < count; ++k)
+			for (uint32_t k = 0; k < ic && ok; ++k)
 				s.inout_flags[k] = enc_i32();
 		}
 		s.func_type = int(enc_u32());
 		if (count > 0) {
 			uint32_t dc = enc_u32();
+			if (!ok || dc > count || pos > data.size() || dc > data.size() - pos) {
+				ok = false;
+				return s;
+			}
 			s.default_args.resize(dc);
-			for (uint32_t k = 0; k < dc; ++k)
+			for (uint32_t k = 0; k < dc && ok; ++k)
 				s.default_args[dc - 1 - k] = read_str();
 		}
 		s.object_type = read_typeinfo();
@@ -630,14 +650,14 @@ private:
 				fn->variable_space = enc_u32();
 				if (bits & 8) {
 					uint32_t count = enc_u32();
-					for (uint32_t k = 0; k < count; ++k) {
+					for (uint32_t k = 0; k < count && ok; ++k) {
 						fn->obj_var_types.push_back(read_typeinfo());
 						fn->obj_var_pos.push_back(enc_i32());
 					}
 					if (count > 0)
 						fn->obj_vars_on_heap = enc_i32();
 					uint32_t info = enc_u32();
-					for (uint32_t k = 0; k < info; ++k) {
+					for (uint32_t k = 0; k < info && ok; ++k) {
 						enc_u32();
 						enc_i32();
 						enc_u32();
@@ -645,25 +665,25 @@ private:
 				}
 				if (bits & 16) {
 					uint32_t tc = enc_u32();
-					for (uint32_t k = 0; k < tc; ++k) {
+					for (uint32_t k = 0; k < tc && ok; ++k) {
 						enc_u32();
 						enc_u32();
 					}
 				}
 				if (!mod.no_debug_info) {
 					uint32_t lc = enc_u32();
-					for (uint32_t k = 0; k < lc; ++k)
+					for (uint32_t k = 0; k < lc && ok; ++k)
 						fn->line_numbers.push_back(enc_i32());
 					uint32_t sc = enc_u32();
 					int pending = 0;
-					for (uint32_t k = 0; k < sc; ++k) {
+					for (uint32_t k = 0; k < sc && ok; ++k) {
 						if ((k & 1) == 0)
 							pending = enc_i32();
 						else
 							fn->sections.emplace_back(pending, read_str());
 					}
 					uint32_t vc = enc_u32();
-					for (uint32_t k = 0; k < vc; ++k) {
+					for (uint32_t k = 0; k < vc && ok; ++k) {
 						Variable v;
 						v.declared_at = enc_u32();
 						v.stack_offset = enc_i32();
@@ -674,7 +694,7 @@ private:
 					fn->script_section = read_str();
 					fn->declared_at = enc_u32();
 					uint32_t pc = uint32_t(enc_u64());
-					for (uint32_t k = 0; k < pc; ++k)
+					for (uint32_t k = 0; k < pc && ok; ++k)
 						fn->sig.param_names.push_back(read_str());
 				}
 			}
@@ -712,7 +732,7 @@ private:
 				return;
 			if (type->flags & ASOBJ_ENUM) {
 				uint32_t count = enc_u32();
-				for (uint32_t k = 0; k < count; ++k) {
+				for (uint32_t k = 0; k < count && ok; ++k) {
 					read_str();
 					u32_raw();
 				}
@@ -721,7 +741,7 @@ private:
 			} else {
 				read_typeinfo();
 				uint32_t isize = enc_u32();
-				for (uint32_t k = 0; k < isize; ++k) {
+				for (uint32_t k = 0; k < isize && ok; ++k) {
 					read_typeinfo();
 					if (!is_interface)
 						enc_u32();
@@ -729,23 +749,23 @@ private:
 				if (!is_interface) {
 					read_function(false);
 					uint32_t count = enc_u32();
-					for (uint32_t k = 0; k < count; ++k) {
+					for (uint32_t k = 0; k < count && ok; ++k) {
 						read_function(false);
 						read_function(false);
 					}
 				}
 				uint32_t msize = enc_u32();
-				for (uint32_t k = 0; k < msize; ++k)
+				for (uint32_t k = 0; k < msize && ok; ++k)
 					read_function(false);
 				uint32_t vsize = enc_u32();
-				for (uint32_t k = 0; k < vsize; ++k)
+				for (uint32_t k = 0; k < vsize && ok; ++k)
 					read_function(false);
 			}
 		} else if (phase == 3) {
 			if ((type->flags & ASOBJ_SHARED) && externalTypes.count(type.get()))
 				return;
 			uint32_t count = enc_u32();
-			for (uint32_t k = 0; k < count; ++k) {
+			for (uint32_t k = 0; k < count && ok; ++k) {
 				read_str();
 				read_datatype();
 				enc_u32();
@@ -1154,8 +1174,8 @@ int StageTable::country_at(const float p[2]) const {
 	return 2;
 }
 
-StageTable load_stage_tables(const std::string& stages_tsv, const std::string& facility_tsv,
-	const std::string& country_tsv) {
+StageTable
+load_stage_tables(const std::string& stages_tsv, const std::string& facility_tsv, const std::string& country_tsv) {
 	auto split = [](const std::string& line) {
 		std::vector<std::string> c;
 		size_t s = 0;
@@ -1291,8 +1311,8 @@ DropTables load_drop_tables(const std::string& drop_tables_tsv, const std::strin
 	return out;
 }
 
-CharaSetTable load_chara_set(const std::string& charaset_tsv, const std::string& classes_tsv,
-	const std::string& charanpc_tsv) {
+CharaSetTable
+load_chara_set(const std::string& charaset_tsv, const std::string& classes_tsv, const std::string& charanpc_tsv) {
 	auto split = [](const std::string& line) {
 		std::vector<std::string> c;
 		size_t s = 0;
@@ -1766,7 +1786,8 @@ bool is_chara_create_call(std::string_view c) {
 
 bool is_entity_create_call(std::string_view c) { return is_sprite_create_call(c) || is_chara_create_call(c); }
 
-SceneIR build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars, const CharaSetTable* sets) {
+SceneIR
+build_scene_ir(const SceneFunction& fn, const std::string& source, const CharTable* chars, const CharaSetTable* sets) {
 	SceneIR ir;
 	ir.source = source;
 	ir.function = fn.name;

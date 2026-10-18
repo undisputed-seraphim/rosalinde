@@ -323,7 +323,18 @@ private:
 			std::cerr << "open: usage: open PATH\n";
 			return 2;
 		}
-		const std::string path = resolve_entry(args[1]);
+		std::string path;
+		if (fs::path(args[1]).extension().empty()) {
+			try {
+				path = resolve_entry(args[1] + ".asb");
+			} catch (...) {
+				path = resolve_entry(args[1]);
+			}
+		} else {
+			path = resolve_entry(args[1]);
+		}
+		if (asbrun::lower(fs::path(path).extension().string()) != ".asb")
+			throw std::runtime_error("not an ASB file (expected .asb): " + path);
 		std::vector<uint8_t> bytes = asbrun::extract_entry(_archive, path);
 		if (bytes.empty()) {
 			std::cerr << "open: empty file: " << path << '\n';
@@ -381,6 +392,7 @@ private:
 
 	int cmd_summary(arg_list args, int) {
 		std::string json_path;
+		bool compact = false;
 		for (size_t i = 1; i < args.size(); ++i) {
 			if (args[i] == "--json") {
 				if (i + 1 >= args.size()) {
@@ -388,17 +400,14 @@ private:
 					return 2;
 				}
 				json_path = args[++i];
+			} else if (args[i] == "--compact") {
+				compact = true;
 			} else {
 				std::cerr << "summary: unknown option '" << args[i] << "'\n";
 				return 2;
 			}
 		}
 		require_module();
-
-		if (!json_path.empty()) {
-			write_json_document(asbrun::harvest_json(_module, _path, _bytes.size(), false), json_path);
-			return 0;
-		}
 
 		size_t natives = 0;
 		for (size_t i = 0; i < _module.used_functions.size(); ++i) {
@@ -415,6 +424,25 @@ private:
 		for (const auto& text : _module.used_strings)
 			if (asbrun::is_asset(text))
 				++assets;
+		const size_t scene_functions = scene().functions.size();
+
+		if (!json_path.empty()) {
+			if (!compact) {
+				write_json_document(asbrun::harvest_json(_module, _path, _bytes.size(), false), json_path);
+				return 0;
+			}
+			std::string object =
+				"  {\"file\":\"" + asbrun::json_escape(_path) + "\",\"size\":" + std::to_string(_bytes.size()) +
+				",\"parse_ok\":" + (_module.error.empty() ? "true" : "false") +
+				",\"consumed\":" + std::to_string(_module.consumed) + ",\"total\":" + std::to_string(_module.total) +
+				",\"error\":\"" + asbrun::json_escape(_module.error) +
+				"\",\"functions\":" + std::to_string(_module.functions.size()) +
+				",\"natives\":" + std::to_string(natives) + ",\"assets\":" + std::to_string(assets) +
+				",\"sections\":" + std::to_string(sections.size()) +
+				",\"scene_functions\":" + std::to_string(scene_functions) + "}";
+			write_json_document(object, json_path);
+			return 0;
+		}
 
 		std::cout << "file: " << _path << '\n';
 		std::cout << "size: " << _bytes.size() << '\n';
@@ -424,7 +452,7 @@ private:
 		std::cout << "natives: " << natives << '\n';
 		std::cout << "assets: " << assets << '\n';
 		std::cout << "sections: " << sections.size() << '\n';
-		std::cout << "scene functions: " << scene().functions.size() << '\n';
+		std::cout << "scene functions: " << scene_functions << '\n';
 		return 0;
 	}
 
@@ -501,8 +529,11 @@ private:
 	int cmd_scene(arg_list args, int) {
 		bool ir = false;
 		bool index = false;
+		bool limit_set = false;
+		size_t limit = 0;
 		std::string json_path;
 		std::string function_name;
+		std::string filter;
 		for (size_t i = 1; i < args.size(); ++i) {
 			if (args[i] == "--ir") {
 				ir = true;
@@ -514,6 +545,24 @@ private:
 					return 2;
 				}
 				json_path = args[++i];
+			} else if (args[i] == "--limit") {
+				if (i + 1 >= args.size()) {
+					std::cerr << "scene: --limit requires a value\n";
+					return 2;
+				}
+				try {
+					limit = static_cast<size_t>(std::stoull(args[++i]));
+				} catch (...) {
+					std::cerr << "scene: invalid --limit value\n";
+					return 2;
+				}
+				limit_set = true;
+			} else if (args[i] == "--filter") {
+				if (i + 1 >= args.size()) {
+					std::cerr << "scene: --filter requires a value\n";
+					return 2;
+				}
+				filter = args[++i];
 			} else if (function_name.empty()) {
 				function_name = args[i];
 			} else {
@@ -525,8 +574,13 @@ private:
 			std::cerr << "scene: --ir and --index are mutually exclusive\n";
 			return 2;
 		}
+		if ((ir || index) && (limit_set || !filter.empty())) {
+			std::cerr << "scene: --limit/--filter apply to event output, not --ir/--index\n";
+			return 2;
+		}
 		require_module();
 
+		const std::optional<size_t> json_limit = limit_set && limit > 0 ? std::optional<size_t>(limit) : std::nullopt;
 		if (!json_path.empty()) {
 			if (index) {
 				write_json_document(asbrun::scene_index_json(_module, _path), json_path);
@@ -537,37 +591,40 @@ private:
 					chars = asb::load_char_table(chars_path.string());
 				write_json_document(asbrun::scene_ir_json(_module, _path, chars.empty() ? nullptr : &chars), json_path);
 			} else {
-				write_json_document(asbrun::scene_json(_module, _path), json_path);
+				write_json_document(asbrun::scene_json(_module, _path, function_name, filter, json_limit), json_path);
 			}
 			return 0;
 		}
 
 		if (index) {
-			size_t sprites = 0;
-			size_t chara = 0;
-			size_t stages = 0;
-			size_t cameras = 0;
+			size_t sprite_calls = 0;
+			size_t chara_calls = 0;
+			size_t stage_calls = 0;
+			size_t camera_calls = 0;
 			for (const auto& function : scene().functions) {
 				for (const auto& event : function.events) {
-					if (asb::is_sprite_create_call(event.call))
-						++sprites;
-					if (asb::is_chara_create_call(event.call))
-						++chara;
+					const bool chara = asb::is_chara_create_call(event.call);
+					if (asb::is_sprite_create_call(event.call) && !chara)
+						++sprite_calls;
+					if (chara)
+						++chara_calls;
 					if (event.call == "DrCreateStage" || event.call == "FlCreateStage" ||
 						event.call == "StSetBattleScene" || event.call == "StCreateUnit" ||
 						event.call == "StCreateDemoUnit" || event.call == "FlCreateCharaSymbol")
-						++stages;
+						++stage_calls;
 					if (event.call == "DrSetCameraPosV" || event.call == "SetCameraPosV" ||
 						event.call == "DrSetCameraParam")
-						++cameras;
+						++camera_calls;
 				}
 			}
+			std::cout << "counts: static event stream (not runtime)\n";
 			std::cout << "parse: " << (_module.error.empty() && _module.consumed == _module.total ? "OK" : "FAIL")
 					  << '\n';
-			std::cout << "sprites: " << sprites << '\n';
-			std::cout << "chara: " << chara << '\n';
-			std::cout << "stages: " << stages << '\n';
-			std::cout << "cameras: " << cameras << '\n';
+			std::cout << "sprite calls: " << sprite_calls << '\n';
+			std::cout << "chara calls: " << chara_calls << '\n';
+			std::cout << "entity calls: " << sprite_calls + chara_calls << '\n';
+			std::cout << "stage calls: " << stage_calls << '\n';
+			std::cout << "camera calls: " << camera_calls << '\n';
 			return 0;
 		}
 
@@ -600,23 +657,42 @@ private:
 			return 0;
 		}
 
+		const std::string filter_needle = asbrun::lower(filter);
+		const size_t text_limit = limit_set ? limit : 50;
+		size_t emitted = 0;
+		size_t matched = 0;
 		bool found = false;
 		for (const auto& function : scene().functions) {
 			if (!function_name.empty() && function.name != function_name && function.decl != function_name)
 				continue;
-			found = true;
-			std::cout << function.name << " events=" << function.events.size();
-			if (!function.section.empty())
-				std::cout << " section=" << function.section;
-			std::cout << '\n';
-			for (size_t i = 0; i < function.events.size(); ++i)
-				std::cout << "  [" << i << "] " << scene_event_text(function.events[i]) << '\n';
+			bool header = false;
+			for (size_t i = 0; i < function.events.size(); ++i) {
+				const auto& event = function.events[i];
+				if (!filter_needle.empty() && asbrun::lower(event.call).find(filter_needle) == std::string::npos &&
+					asbrun::lower(event.decl).find(filter_needle) == std::string::npos)
+					continue;
+				++matched;
+				if (text_limit > 0 && emitted >= text_limit)
+					continue;
+				if (!header) {
+					header = true;
+					found = true;
+					std::cout << function.name << " events=" << function.events.size();
+					if (!function.section.empty())
+						std::cout << " section=" << function.section;
+					std::cout << '\n';
+				}
+				std::cout << "  [" << i << "] " << scene_event_text(event) << '\n';
+				++emitted;
+			}
 		}
-		if (!found) {
-			std::cerr << "scene: no such function: " << function_name << '\n';
+		if (matched == 0) {
+			std::cerr << "scene: no matching events\n";
 			return 1;
 		}
-		return 0;
+		if (text_limit > 0 && matched > emitted)
+			std::cout << "... " << (matched - emitted) << " more event(s); use --limit 0 for all\n";
+		return found ? 0 : 1;
 	}
 
 	int cmd_play_entry(arg_list args, int) { return cmd_play(args, PlayMode::Play); }
@@ -914,10 +990,13 @@ std::span<const Shell::command_spec> Shell::command_list() {
 		{"open", "open PATH", "load an ASB from the CPK", &Shell::cmd_open},
 		{"close", "close", "unload the current module", &Shell::cmd_close},
 		{"status", "status", "show the current CPK/module", &Shell::cmd_status},
-		{"summary", "summary [--json FILE|-]", "show module metadata", &Shell::cmd_summary},
+		{"summary", "summary [--json FILE|-] [--compact]", "show module metadata", &Shell::cmd_summary},
 		{"funcs", "funcs", "list module functions", &Shell::cmd_funcs},
 		{"disasm", "disasm [FUNC] [--all] [--dir DIR]", "disassemble functions", &Shell::cmd_disasm},
-		{"scene", "scene [FUNC] [--json FILE|-] [--ir] [--index]", "inspect extracted scene events", &Shell::cmd_scene},
+		{"scene",
+		 "scene [FUNC] [--json FILE|-] [--ir] [--index] [--limit N] [--filter TEXT]",
+		 "inspect extracted scene events",
+		 &Shell::cmd_scene},
 		{"play",
 		 "play [FUNC] [--frames N] [--trace FILE|-] [--record FILE|-] [--categories LIST] "
 		 "[--chara-table FILE] [--data-dir DIR]",

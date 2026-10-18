@@ -239,6 +239,22 @@ TEST_CASE("decode, load and run a real script") {
 	CHECK(placed);
 }
 
+TEST_CASE("non-ASB input is rejected without a huge string allocation") {
+	const std::filesystem::path cpk = find_cpk();
+	if (cpk.empty()) {
+		WARN("no Unicorn.CPK found (set UNICORN_CPK); skipping invalid input test");
+		return;
+	}
+
+	const std::string entry = "GUI/Logo.mbs";
+	std::vector<uint8_t> bytes = extract_entry(cpk, entry);
+	REQUIRE_FALSE(bytes.empty());
+
+	const asb::Module mod = asb::parse(bytes);
+	CHECK_FALSE(mod.error.empty());
+	CHECK(mod.consumed <= mod.total);
+}
+
 TEST_CASE("runtime session advances a live scene") {
 	const std::filesystem::path cpk = find_cpk();
 	if (cpk.empty()) {
