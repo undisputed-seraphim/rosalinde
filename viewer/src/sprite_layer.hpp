@@ -37,7 +37,7 @@ struct BackgroundScene {
 	SpriteRenderer renderer;
 	std::vector<Element> elements;
 
-	void load(const struct Job& job, CPKTable& cpkt);
+	void load(const struct Job& job, cpk::archive& cpkt);
 
 	void update(float dt) {
 		for (auto& el : elements)

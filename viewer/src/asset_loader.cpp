@@ -26,21 +26,20 @@ std::string lower(std::string s) {
 } // namespace
 
 AssetLoader::AssetLoader(std::filesystem::path cpk_path)
-	: _cpkt(TopLevelCpk(cpk_path).getTableOfContents()) {
+	: _cpkt(cpk_path) {
 	for (const auto& [name, _] : Characters) {
 		_class_names.push_back(name);
 	}
-	for (auto it = _cpkt.begin(); it != _cpkt.end(); ++it) {
-		auto row = *it;
-		std::string d(get<"DirName">(row));
-		std::string f(get<"FileName">(row));
+	for (const auto& item : _cpkt) {
+		std::string d(item.dir);
+		std::string f(item.name);
 		_asset_index[lower(d + "/" + f)] = {d, f};
 	}
 }
 
 std::optional<Job::dir_and_path> AssetLoader::resolve(std::string_view path) const {
 	const Job::dir_and_path sp = split_path(path);
-	if (_cpkt.find_file(sp.dir, sp.path) != _cpkt.end())
+	if (_cpkt.find(sp.dir, sp.path) != _cpkt.end())
 		return sp;
 	auto it = _asset_index.find(lower(std::string(path)));
 	if (it != _asset_index.end())
@@ -86,12 +85,12 @@ AssetLoader::PreparedLayer AssetLoader::prepare(const Job& job) const {
 	std::vector<char> ftx_raw;
 	{
 		viewer::trace::Scoped sc("prepare extract " + job.mbs.path);
-		if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
+		if (auto entry = _cpkt.find(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
 			throw std::runtime_error("MBS was not found: " + job.mbs.dir + "/" + job.mbs.path);
 		} else {
 			_cpkt.extract(*entry, p.mbs);
 		}
-		if (auto entry = _cpkt.find_file(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
+		if (auto entry = _cpkt.find(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
 			throw std::runtime_error("FTX was not found: " + job.ftx.dir + "/" + job.ftx.path);
 		} else {
 			_cpkt.extract(*entry, ftx_raw);
@@ -156,12 +155,12 @@ std::unique_ptr<SpriteLayer> AssetLoader::make_layer(
 
 BackgroundScene AssetLoader::load_background(const Job& job) const {
 	std::vector<char> mbs_buf, ftx_buf;
-	if (auto entry = _cpkt.find_file(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
+	if (auto entry = _cpkt.find(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
 		throw std::runtime_error("BG MBS was not found: " + job.mbs.dir + "/" + job.mbs.path);
 	} else {
 		_cpkt.extract(*entry, mbs_buf);
 	}
-	if (auto entry = _cpkt.find_file(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
+	if (auto entry = _cpkt.find(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
 		throw std::runtime_error("BG FTX was not found: " + job.ftx.dir + "/" + job.ftx.path);
 	} else {
 		_cpkt.extract(*entry, ftx_buf);

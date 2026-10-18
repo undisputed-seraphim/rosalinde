@@ -456,7 +456,7 @@ int main(int argc, char** argv) {
 			std::fprintf(stderr, "--uc-enums requires --cpk\n");
 			return 2;
 		}
-		CPKTable table = TopLevelCpk(fs::absolute(cpk_path)).getTableOfContents();
+		cpk::archive table(fs::absolute(cpk_path));
 		std::ostringstream os;
 		os << "# kind\tname\tcomment (generated from Debug/_UcEnum_*.inc by asb_harvest --uc-enums)\n";
 		const char* files[] = {
@@ -479,12 +479,11 @@ int main(int argc, char** argv) {
 			std::fprintf(stderr, "--bgs requires --cpk\n");
 			return 2;
 		}
-		CPKTable table = TopLevelCpk(fs::absolute(cpk_path)).getTableOfContents();
+		cpk::archive table(fs::absolute(cpk_path));
 		std::set<std::string> files;
-		for (auto it = table.begin(); it != table.end(); ++it) {
-			auto row = *it;
-			if (get<"DirName">(row) == "BattleBG")
-				files.insert(std::string(get<"FileName">(row)));
+		for (const auto& item : table) {
+			if (item.dir == "BattleBG")
+				files.insert(std::string(item.name));
 		}
 		std::ostringstream os;
 		os << "# key\tmbs\tftx (generated from BattleBG/* by asb_harvest --bgs)\n";
@@ -557,19 +556,16 @@ int main(int argc, char** argv) {
 		process(input_path, as_bytes(buf));
 	} else if (!cpk_path.empty()) {
 		fs::path p = fs::absolute(cpk_path);
-		CPKTable table = TopLevelCpk(p).getTableOfContents();
+		cpk::archive table(p);
 		if (all) {
-			for (auto it = table.begin(); it != table.end(); ++it) {
-				auto row = *it;
-				const auto DirName = get<"DirName">(row);
-				const auto FileName = get<"FileName">(row);
-				if (DirName != "Script")
+			for (const auto& item : table) {
+				if (item.dir != "Script")
 					continue;
-				std::string fn(FileName);
+				std::string fn(item.name);
 				if (fn.size() < 4 || fn.compare(fn.size() - 4, 4, ".asb") != 0)
 					continue;
 				std::vector<char> buf;
-				table.extract(DirName, FileName, buf);
+				table.extract(item, buf);
 				process("Script/" + fn, as_bytes(buf));
 			}
 		} else if (!entry.empty()) {

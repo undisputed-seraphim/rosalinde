@@ -17,12 +17,12 @@ namespace fs = std::filesystem;
 namespace po = boost::program_options;
 
 static std::vector<char> load_acb(std::string_view cpk_path, std::string_view acb_path) {
-	auto cpk = TopLevelCpk(fs::path(cpk_path)).getTableOfContents();
+	cpk::archive cpk{fs::path(cpk_path)};
 	auto pos = acb_path.find_last_of('/');
 	std::string_view dir = (pos == std::string_view::npos) ? "" : acb_path.substr(0, pos);
 	std::string_view name = (pos == std::string_view::npos) ? acb_path : acb_path.substr(pos + 1);
 
-	auto it = cpk.find_file(dir, name);
+	auto it = cpk.find(dir, name);
 	if (it == cpk.end()) {
 		throw std::runtime_error("ACB file not found: " + std::string(acb_path));
 	}

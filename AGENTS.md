@@ -81,6 +81,7 @@ The build produces:
 - **Parsing style**: Span-based with `byte_reader.hpp` (preferred). Iostream is legacy wrapper.
 - **GL version**: OpenGL ES 4.6 core (GLAD). Shaders are GLSL ES 3.20.
 - **UTF tables are schema-driven**: `utf::raw_table` validates the @UTF header, column descriptors, defaults, strings, and data refs. `utf::table<Schema>` is the typed column store; it takes the row count from the @UTF header and reads only the schema columns. Schemas are hardcoded per file/table type. Keep the `has_default` (0x20) and `is_valid` (0x40) semantics in `raw_table` intact.
+- **CPK is a container**: `cpk::archive` owns the decrypted TOC buffer and a `std::vector<cpk::entry>`; entry names are `std::string_view`s into that buffer. Lookup is indexed; iteration is over the entry vector.
 
 ---
 

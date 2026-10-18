@@ -129,7 +129,7 @@ std::string_view raw_table::string_at(uint64_t offset) const {
 	const void* end = std::memchr(start, 0, _data.size() - static_cast<size_t>(offset));
 	if (!end)
 		throw parse_error("UTF string is not terminated");
-	return {start, static_cast<const char*>(end) - start};
+	return {start, static_cast<size_t>(static_cast<const char*>(end) - start)};
 }
 
 std::span<const uint8_t> raw_table::blob(blob_ref ref) const {

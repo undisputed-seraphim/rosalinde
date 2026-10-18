@@ -34,8 +34,8 @@ long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int tra
 	long n = 0;
 	try {
 		if (auto p = loader.resolve(mbs)) {
-			const CPKTable& cpk = loader.cpk();
-			if (auto e = cpk.find_file(p->dir, p->path); e != cpk.end()) {
+			const cpk::archive& cpk = loader.cpk();
+			if (auto e = cpk.find(p->dir, p->path); e != cpk.end()) {
 				std::vector<char> buf;
 				cpk.extract(*e, buf);
 				SpriteData sd = SpriteData::load(
@@ -68,8 +68,8 @@ int mbs_resolve_track(const AssetLoader& loader, const std::string& mbs, const s
 	int idx = -1;
 	try {
 		if (auto p = loader.resolve(mbs)) {
-			const CPKTable& cpk = loader.cpk();
-			if (auto e = cpk.find_file(p->dir, p->path); e != cpk.end()) {
+			const cpk::archive& cpk = loader.cpk();
+			if (auto e = cpk.find(p->dir, p->path); e != cpk.end()) {
 				std::vector<char> buf;
 				cpk.extract(*e, buf);
 				SpriteData sd = SpriteData::load(
@@ -130,11 +130,11 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
 			_projection = glm::ortho(a, b, c, d);
 	}
 
-	const CPKTable& cpk = _loader.cpk();
+	const cpk::archive& cpk = _loader.cpk();
 	const auto slash = _cfg.entry.find_last_of('/');
 	const std::string dir = slash == std::string::npos ? "" : _cfg.entry.substr(0, slash);
 	const std::string file = slash == std::string::npos ? _cfg.entry : _cfg.entry.substr(slash + 1);
-	auto entry = cpk.find_file(dir, file);
+	auto entry = cpk.find(dir, file);
 	if (entry == cpk.end())
 		throw std::runtime_error("script not found in CPK: " + _cfg.entry);
 

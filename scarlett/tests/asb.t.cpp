@@ -53,9 +53,9 @@ std::vector<uint8_t> extract_entry(const std::filesystem::path& cpk, const std::
 	auto pos = entry.find_last_of('/');
 	std::string dir = pos == std::string::npos ? "" : entry.substr(0, pos);
 	std::string name = pos == std::string::npos ? entry : entry.substr(pos + 1);
-	CPKTable table = TopLevelCpk(cpk).getTableOfContents();
+	cpk::archive table(cpk);
 	std::vector<char> buf;
-	auto e = table.find_file(dir, name);
+	auto e = table.find(dir, name);
 	if (e == table.end())
 		return {};
 	table.extract(*e, buf);

@@ -181,105 +181,133 @@ private:
 #endif
 
 // ============================================================================
-// TopLevelCpk
+// cpk::archive
 // ============================================================================
 
-TopLevelCpk::TopLevelCpk(std::filesystem::path path)
+cpk::archive::archive(std::filesystem::path path)
 	: _path(std::move(path)) {
 	auto ifs = std::ifstream(_path, std::ios::binary);
-	const uint64_t size = read_header(ifs, CPK_magic);
-	_buffer.resize(size);
-	ifs.read(_buffer.data(), static_cast<std::streamsize>(size));
-	utf::decipher(_buffer);
-	_table = utf::table<TopLevelCPKSchema>::parse(
-		std::span(reinterpret_cast<const uint8_t*>(_buffer.data()), _buffer.size()));
+	if (!ifs) {
+		throw std::runtime_error("Failed to open " + _path.string());
+	}
+
+	const uint64_t top_size = read_header(ifs, CPK_magic);
+	std::vector<char> top(static_cast<size_t>(top_size));
+	ifs.read(top.data(), static_cast<std::streamsize>(top.size()));
+	if (!ifs) {
+		throw std::runtime_error("Failed to read " + _path.string());
+	}
+	utf::decipher(top);
+	const auto top_table =
+		utf::table<top_schema>::parse(std::span(reinterpret_cast<const uint8_t*>(top.data()), top.size()));
+	if (top_table.empty()) {
+		throw std::runtime_error("CPK has no top-level table");
+	}
+	const uint64_t toc_offset = get<"TocOffset">(top_table[0]);
+
+	ifs.clear();
+	ifs.seekg(static_cast<std::streamoff>(toc_offset), std::ios::beg);
+	const uint64_t toc_size = read_header(ifs, TOC_magic);
+	_toc_storage.resize(static_cast<size_t>(toc_size));
+	ifs.read(_toc_storage.data(), static_cast<std::streamsize>(_toc_storage.size()));
+	if (!ifs) {
+		throw std::runtime_error("Failed to read " + _path.string());
+	}
+	utf::decipher(_toc_storage);
+
+	const auto toc = utf::table<toc_schema>::parse(
+		std::span(reinterpret_cast<const uint8_t*>(_toc_storage.data()), _toc_storage.size()));
+	_entries.reserve(toc.size());
+	for (size_t i = 0; i < toc.size(); ++i) {
+		const auto row = toc[i];
+		_entries.push_back({
+			get<"DirName">(row),
+			get<"FileName">(row),
+			get<"FileSize">(row),
+			get<"ExtractSize">(row),
+			toc_offset + get<"FileOffset">(row),
+			get<"ID">(row),
+		});
+	}
+
+	_index.reserve(_entries.size());
+	for (size_t i = 0; i < _entries.size(); ++i) {
+		_index.emplace(key{_entries[i].dir, _entries[i].name}, i);
+	}
 }
 
-CPKTable TopLevelCpk::getTableOfContents() const {
-	const auto [TocOffset] = _table[0];
-	auto ifs = std::ifstream(_path, std::ios::binary);
-	ifs.seekg(static_cast<std::streamoff>(TocOffset), std::ios::beg);
-	const uint64_t size = read_header(ifs, TOC_magic);
-	_buffer.resize(static_cast<size_t>(size));
-	ifs.read(_buffer.data(), static_cast<std::streamsize>(size));
-	utf::decipher(_buffer);
-	CPKTable table(_path, TocOffset);
-	table.parse_toc(std::move(_buffer));
-	return table;
+cpk::archive::const_iterator cpk::archive::find(std::string_view dir, std::string_view name) const {
+	const auto it = _index.find(key{dir, name});
+	if (it == _index.end()) {
+		return _entries.end();
+	}
+	return _entries.begin() + static_cast<std::ptrdiff_t>(it->second);
 }
 
-// ============================================================================
-// CPKTable (uses new typed table<>)
-// ============================================================================
-
-CPKTable::CPKTable(std::filesystem::path path, uint64_t offset)
-	: _path(std::move(path))
-	, _offset(offset) {}
-
-void CPKTable::parse_toc(std::vector<char>&& data) {
-	_toc_storage = std::move(data);
-	_table = table_type::parse(
-		std::span(reinterpret_cast<const uint8_t*>(_toc_storage.data()), static_cast<size_t>(_toc_storage.size())));
+cpk::archive::const_iterator cpk::archive::find(std::string_view path) const {
+	const size_t slash = path.find_last_of('/');
+	if (slash == std::string_view::npos) {
+		return find({}, path);
+	}
+	return find(path.substr(0, slash), path.substr(slash + 1));
 }
 
-void CPKTable::extract(const row_type& entry, std::vector<char>& out) const {
-	out.resize(static_cast<size_t>(get<"ExtractSize">(entry)));
-	extract(entry, std::span<char>(out));
+bool cpk::archive::contains(std::string_view dir, std::string_view name) const {
+	return _index.contains(key{dir, name});
 }
 
-void CPKTable::extract(const row_type& entry, std::span<char> out) const {
-	const uint64_t file_size = get<"FileSize">(entry);
-	const uint64_t extract_size = get<"ExtractSize">(entry);
-	const uint64_t file_offset = get<"FileOffset">(entry);
-	if (file_size > static_cast<uint64_t>(std::numeric_limits<size_t>::max()) ||
-		extract_size > static_cast<uint64_t>(std::numeric_limits<size_t>::max()) ||
-		file_size > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max()) ||
-		extract_size > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max())) {
+void cpk::archive::extract(const entry& item, std::vector<char>& out) const {
+	out.resize(static_cast<size_t>(item.extract_size));
+	extract(item, std::span<char>(out));
+}
+
+void cpk::archive::extract(const entry& item, std::span<char> out) const {
+	if (item.file_size > static_cast<uint64_t>(std::numeric_limits<size_t>::max()) ||
+		item.extract_size > static_cast<uint64_t>(std::numeric_limits<size_t>::max()) ||
+		item.file_size > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max()) ||
+		item.extract_size > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max())) {
 		throw std::runtime_error("CPK entry is too large");
 	}
-	if (out.size() < extract_size) {
+	if (out.size() < item.extract_size) {
 		throw std::runtime_error("CPK output buffer is too small");
 	}
-	out = out.first(static_cast<size_t>(extract_size));
+	out = out.first(static_cast<size_t>(item.extract_size));
 
 	std::ifstream ifs(_path, std::ios::binary);
 	if (!ifs) {
 		throw std::runtime_error("Failed to open " + _path.string());
 	}
-	ifs.seekg(static_cast<std::streamoff>(file_offset + _offset), std::ios::beg);
+	ifs.seekg(static_cast<std::streamoff>(item.offset), std::ios::beg);
 	if (!ifs) {
 		throw std::runtime_error("Failed to seek in " + _path.string());
 	}
 
-	if (extract_size == file_size) {
-		ifs.read(out.data(), static_cast<std::streamsize>(extract_size));
+	if (item.extract_size == item.file_size) {
+		ifs.read(out.data(), static_cast<std::streamsize>(item.extract_size));
 		if (!ifs) {
 			throw std::runtime_error("Failed to read " + _path.string());
 		}
 		return;
 	}
 
-	const auto ret = decompress(ifs, file_offset + _offset, file_size, out);
+	const auto ret = decompress(ifs, item.offset, item.file_size, out);
 	if (ret < 0) {
 		throw std::runtime_error("Failed to decompress " + _path.string());
 	}
 }
 
-void CPKTable::extract_to_file(const row_type& entry, const std::filesystem::path& path) const {
-	const uint64_t file_size = get<"FileSize">(entry);
-	const uint64_t extract_size = get<"ExtractSize">(entry);
-	const uint64_t file_offset = get<"FileOffset">(entry);
-	if (file_size > static_cast<uint64_t>(std::numeric_limits<size_t>::max()) ||
-		extract_size > static_cast<uint64_t>(std::numeric_limits<size_t>::max()) ||
-		file_size > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max()) ||
-		extract_size > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max())) {
+void cpk::archive::extract_to_file(const entry& item, const std::filesystem::path& path) const {
+	if (item.file_size > static_cast<uint64_t>(std::numeric_limits<size_t>::max()) ||
+		item.extract_size > static_cast<uint64_t>(std::numeric_limits<size_t>::max()) ||
+		item.file_size > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max()) ||
+		item.extract_size > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max())) {
 		throw std::runtime_error("CPK entry is too large");
 	}
 
 #if defined(__EMSCRIPTEN__) || defined(__wasm__)
 	// TODO: stream to OPFS/WASI instead of materializing the whole output.
 	std::vector<char> data;
-	extract(entry, data);
+	extract(item, data);
 	std::ofstream ofs(path, std::ios::binary);
 	if (!ofs) {
 		throw std::runtime_error("Failed to open " + path.string());
@@ -293,23 +321,23 @@ void CPKTable::extract_to_file(const row_type& entry, const std::filesystem::pat
 	if (!ifs) {
 		throw std::runtime_error("Failed to open " + _path.string());
 	}
-	ifs.seekg(static_cast<std::streamoff>(file_offset + _offset), std::ios::beg);
+	ifs.seekg(static_cast<std::streamoff>(item.offset), std::ios::beg);
 	if (!ifs) {
 		throw std::runtime_error("Failed to seek in " + _path.string());
 	}
 
-	mapped_output out(path, extract_size);
+	mapped_output out(path, item.extract_size);
 	auto dst = out.span();
-	if (extract_size == file_size) {
-		if (extract_size != 0) {
-			ifs.read(dst.data(), static_cast<std::streamsize>(extract_size));
+	if (item.extract_size == item.file_size) {
+		if (item.extract_size != 0) {
+			ifs.read(dst.data(), static_cast<std::streamsize>(item.extract_size));
 			if (!ifs) {
 				out.discard();
 				throw std::runtime_error("Failed to read " + _path.string());
 			}
 		}
 	} else {
-		const auto ret = decompress(ifs, file_offset + _offset, file_size, dst);
+		const auto ret = decompress(ifs, item.offset, item.file_size, dst);
 		if (ret < 0) {
 			out.discard();
 			throw std::runtime_error("Failed to decompress " + _path.string());
@@ -325,25 +353,18 @@ void CPKTable::extract_to_file(const row_type& entry, const std::filesystem::pat
 #endif
 }
 
-void CPKTable::extract(std::string_view dir, std::string_view file, std::vector<char>& out) const {
-	auto it = find_file(dir, file);
-	if (it == end())
+void cpk::archive::extract(std::string_view dir, std::string_view name, std::vector<char>& out) const {
+	const auto it = find(dir, name);
+	if (it == end()) {
 		return;
-	extract(*it, out);
-}
-
-void CPKTable::extract(std::string_view dir, std::string_view file, std::span<char> out) const {
-	auto it = find_file(dir, file);
-	if (it == end())
-		return;
-	extract(*it, out);
-}
-
-CPKTable::iterator CPKTable::find_file(std::string_view dir, std::string_view file) const {
-	auto it = begin();
-	for (; it != end(); ++it) {
-		if (dir == get<"DirName">(*it) && file == get<"FileName">(*it))
-			break;
 	}
-	return it;
+	extract(*it, out);
+}
+
+void cpk::archive::extract(std::string_view dir, std::string_view name, std::span<char> out) const {
+	const auto it = find(dir, name);
+	if (it == end()) {
+		return;
+	}
+	extract(*it, out);
 }

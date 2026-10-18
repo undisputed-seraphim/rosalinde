@@ -85,31 +85,24 @@ struct Args {
 // Core operations
 // ============================================================================
 
-CPKTable open_cpk(const std::string& path) {
+cpk::archive open_cpk(const std::string& path) {
 	fs::path p = fs::absolute(fs::path(path));
 	if (!fs::exists(p) || !fs::is_regular_file(p)) {
 		throw std::runtime_error("File does not exist: " + p.string());
 	}
-	return TopLevelCpk(p).getTableOfContents();
+	return cpk::archive(p);
 }
 
-std::vector<Entry> list_entries(const CPKTable& table) {
+std::vector<Entry> list_entries(const cpk::archive& table) {
 	std::vector<Entry> entries;
 	entries.reserve(table.size());
-	for (auto it = table.begin(); it != table.end(); ++it) {
-		auto row = *it;
+	for (const auto& item : table)
 		entries.emplace_back(
-			std::string(get<"DirName">(row)),
-			std::string(get<"FileName">(row)),
-			get<"FileSize">(row),
-			get<"ExtractSize">(row),
-			get<"FileOffset">(row),
-			get<"ID">(row));
-	}
+			std::string(item.dir), std::string(item.name), item.file_size, item.extract_size, item.offset, item.id);
 	return entries;
 }
 
-std::vector<char> extract_entry(const CPKTable& table, std::string_view dir, std::string_view name) {
+std::vector<char> extract_entry(const cpk::archive& table, std::string_view dir, std::string_view name) {
 	std::vector<char> buffer;
 	table.extract(dir, name, buffer);
 	if (buffer.empty()) {
@@ -346,7 +339,7 @@ static void dump_utf_table(std::span<const uint8_t> data, std::string_view label
 	}
 }
 
-void dump_columns(const CPKTable& table, std::string_view file_path) {
+void dump_columns(const cpk::archive& table, std::string_view file_path) {
 	auto [dir, name] = split_path(file_path);
 	auto data = extract_entry(table, dir, name);
 	utf::decipher(data);
@@ -445,24 +438,21 @@ int main(int argc, char* argv[]) try {
 
 		const uint64_t max_bytes = args.max_size_mb * 1024ull * 1024ull;
 		size_t done = 0, skipped = 0;
-		for (auto it = table.begin(); it != table.end(); ++it) {
-			const auto e = *it;
-			const auto& name = get<"FileName">(e);
-			auto dot = name.find_last_of('.');
-			std::string ext = dot == std::string::npos ? std::string() : lower(name.substr(dot + 1));
+		for (const auto& item : table) {
+			auto dot = item.name.find_last_of('.');
+			std::string ext = dot == std::string::npos ? std::string() : lower(item.name.substr(dot + 1));
 			if (skip.count(ext)) {
 				++skipped;
 				continue;
 			}
-			const uint64_t extract_size = get<"ExtractSize">(e);
-			if (max_bytes != 0 && extract_size > max_bytes) {
+			if (max_bytes != 0 && item.extract_size > max_bytes) {
 				++skipped;
 				continue;
 			}
 
-			fs::path out_path = fs::path(args.extract_all) / get<"DirName">(e) / name;
+			fs::path out_path = fs::path(args.extract_all) / item.dir / item.name;
 			fs::create_directories(out_path.parent_path());
-			table.extract_to_file(e, out_path);
+			table.extract_to_file(item, out_path);
 			++done;
 		}
 		std::cout << "Extracted " << done << " files (" << skipped << " skipped) -> " << args.extract_all << "\n";
@@ -471,12 +461,12 @@ int main(int argc, char* argv[]) try {
 
 	if (!args.extract_file.empty()) {
 		auto [dir, name] = split_path(args.extract_file);
-		auto entry = table.find_file(dir, name);
+		auto entry = table.find(dir, name);
 		if (entry == table.end()) {
 			throw std::runtime_error("File not found: " + std::string(dir) + "/" + std::string(name));
 		}
 		auto out_path = fs::path(name);
-		const uint64_t size = get<"ExtractSize">(*entry);
+		const uint64_t size = entry->extract_size;
 		table.extract_to_file(*entry, out_path);
 		std::cout << "Extracted " << dir << "/" << name << " (" << size << " bytes) -> " << out_path << "\n";
 		return 0;
@@ -563,25 +553,23 @@ int main(int argc, char* argv[]) try {
 		size_t ok = 0;
 		size_t failed = 0;
 		ExtractBuffer scratch;
-		for (auto it = table.begin(); it != table.end(); ++it) {
-			const auto e = *it;
-			const auto& name = get<"FileName">(e);
-			if (name.size() < 4)
+		for (const auto& item : table) {
+			if (item.name.size() < 4)
 				continue;
-			std::string ext(name.substr(name.size() - 4));
+			std::string ext(item.name.substr(item.name.size() - 4));
 			for (char& c : ext)
 				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 			if (ext != ".otm")
 				continue;
 
-			auto data = scratch.get(static_cast<size_t>(get<"ExtractSize">(e)));
-			table.extract(e, data);
+			auto data = scratch.get(static_cast<size_t>(item.extract_size));
+			table.extract(item, data);
 			auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
 			if (otm::parse(bytes)) {
 				++ok;
 			} else {
 				++failed;
-				std::cout << "FAIL " << get<"DirName">(e) << "/" << name << "\n";
+				std::cout << "FAIL " << item.dir << "/" << item.name << "\n";
 			}
 		}
 		std::cout << "Parsed " << ok << " OTM files (" << failed << " failed)\n";
@@ -616,25 +604,23 @@ int main(int argc, char* argv[]) try {
 		size_t ok = 0;
 		size_t failed = 0;
 		ExtractBuffer scratch;
-		for (auto it = table.begin(); it != table.end(); ++it) {
-			const auto e = *it;
-			const auto& name = get<"FileName">(e);
-			if (name.size() < 4)
+		for (const auto& item : table) {
+			if (item.name.size() < 4)
 				continue;
-			std::string ext(name.substr(name.size() - 4));
+			std::string ext(item.name.substr(item.name.size() - 4));
 			for (char& c : ext)
 				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 			if (ext != ".nnd")
 				continue;
 
-			auto data = scratch.get(static_cast<size_t>(get<"ExtractSize">(e)));
-			table.extract(e, data);
+			auto data = scratch.get(static_cast<size_t>(item.extract_size));
+			table.extract(item, data);
 			auto bytes = std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size());
 			if (nnd::parse(bytes)) {
 				++ok;
 			} else {
 				++failed;
-				std::cout << "FAIL " << get<"DirName">(e) << "/" << name << "\n";
+				std::cout << "FAIL " << item.dir << "/" << item.name << "\n";
 			}
 		}
 		std::cout << "Parsed " << ok << " NND files (" << failed << " failed)\n";

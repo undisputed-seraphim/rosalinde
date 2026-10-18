@@ -49,10 +49,10 @@ public:
 
 	const std::vector<std::string>& class_names() const { return _class_names; }
 
-	const CPKTable& cpk() const { return _cpkt; }
+	const cpk::archive& cpk() const { return _cpkt; }
 
 private:
-	CPKTable _cpkt;
+	cpk::archive _cpkt;
 	std::vector<std::string> _class_names;
 	std::unordered_map<std::string, Job::dir_and_path> _asset_index;
 };

@@ -30,9 +30,9 @@ std::vector<uint8_t> extract_entry(const std::string& cpk, const std::string& en
 	auto pos = entry.find_last_of('/');
 	std::string dir = pos == std::string::npos ? "" : entry.substr(0, pos);
 	std::string name = pos == std::string::npos ? entry : entry.substr(pos + 1);
-	CPKTable table = TopLevelCpk(std::filesystem::absolute(cpk)).getTableOfContents();
+	cpk::archive table(std::filesystem::absolute(cpk));
 	std::vector<char> buf;
-	if (auto e = table.find_file(dir, name); e == table.end())
+	if (auto e = table.find(dir, name); e == table.end())
 		throw std::runtime_error("not found in CPK: " + entry);
 	else
 		table.extract(*e, buf);
@@ -478,9 +478,9 @@ std::function<int(int)> load_sound_lengths(const std::string& cpk_path) {
 	std::unordered_map<int, int> lengths;
 	if (cpk_path.empty())
 		return [](int) { return 0; };
-	CPKTable table = TopLevelCpk(std::filesystem::absolute(cpk_path)).getTableOfContents();
+	cpk::archive table(std::filesystem::absolute(cpk_path));
 	for (const char* name : {"bgm.acb", "se.acb", "voice_jp.acb", "voice_btl_jp.acb", "voice_add_jp.acb"}) {
-		auto entry = table.find_file("Sound", name);
+		auto entry = table.find("Sound", name);
 		if (entry == table.end())
 			continue;
 		std::vector<char> buf;
