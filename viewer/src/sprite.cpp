@@ -97,6 +97,10 @@ void SpriteData::preprocess() {
 			CachedKeyframe::Layer layer;
 			layer.notex = notex;
 			layer.tex_id = notex ? 0xFFFF : s4.tex_id;
+			layer.s4_id = s6.s4_id + j;
+			layer.s1_id = s4.s1_id;
+			layer.s2_id = s4.s2_id;
+			layer.s0_id = s4.s0_id;
 			layer.attributes = s4.attributes;
 			layer.blend = s4.blend_id;
 			if (!notex) {
@@ -320,56 +324,144 @@ void SpriteInstance::prev_track() {
 	play(track_idx == 0 ? data->tracks.size() - 1 : track_idx - 1);
 }
 
-void SpriteInstance::build_vertices(
+namespace {
+
+uint32_t scale_color(uint32_t c, const glm::vec4& m) {
+	uint32_t r = ((c >> 0) & 0xFF) * m.r;
+	uint32_t g = ((c >> 8) & 0xFF) * m.g;
+	uint32_t b = ((c >> 16) & 0xFF) * m.b;
+	uint32_t a = ((c >> 24) & 0xFF) * m.a;
+	return (a << 24) | (b << 16) | (g << 8) | r;
+}
+
+} // namespace
+
+template <typename F>
+void SpriteInstance::for_each_layer(
 	uint32_t sa_idx,
-	std::vector<SpriteVertex>& verts,
-	std::vector<uint32_t>& indices,
 	const std::map<uint32_t, glm::vec4>* tints,
 	bool apply_fog,
 	int blend_filter,
-	uint32_t layer_mask) const {
-	verts.clear();
-	indices.clear();
+	uint32_t layer_mask,
+	F&& visit) const {
+	if (!data || track_idx >= data->tracks.size())
+		return;
 
 	const auto& track = data->tracks[track_idx];
-	if (sa_idx >= track.runs.size())
+	LayerVisit base;
+	base.run = sa_idx;
+	base.transition_t = _transition_t;
+
+	if (sa_idx >= track.runs.size()) {
+		base.skip = "run";
+		visit(base);
 		return;
+	}
 
 	const auto& run = track.runs[sa_idx];
-	if (run.s8_count == 0)
-		return;
-	if (sa_idx < hide.size() && hide[sa_idx])
-		return;
-	if (seq_runs() && sa_idx != _phase)
-		return;
+	base.track_id = run.track_id;
+	base.offset = sa_idx < offsets.size() ? offsets[sa_idx] : 0;
+	base.done = sa_idx < done.size() && done[sa_idx] != 0;
+	base.hidden = sa_idx < hide.size() && hide[sa_idx] != 0;
 
-	const auto& s8 = data->v77.s8[run.s8_start + offsets[sa_idx]];
+	if (run.s8_count == 0 || base.offset >= run.s8_count) {
+		base.skip = "empty_run";
+		visit(base);
+		return;
+	}
+	if (base.hidden) {
+		base.skip = "hidden";
+		visit(base);
+		return;
+	}
+	if (seq_runs() && sa_idx != _phase) {
+		base.skip = "phase";
+		visit(base);
+		return;
+	}
+	const uint32_t s8_index = run.s8_start + base.offset;
+	if (s8_index >= data->v77.s8.size()) {
+		base.skip = "s8";
+		visit(base);
+		return;
+	}
+	const auto& s8 = data->v77.s8[s8_index];
+	base.s8_id = s8_index;
+	base.s8_flags = s8.flags;
+	base.s8_frames = s8.frames;
+	base.s6_id = s8.s6_id;
+	base.s7_id = s8.s7_id;
+	base.s6_interpolation = s8.s6_interpolation;
+	base.s7_interpolation = s8.s7_interpolation;
 	// Draw only frames flagged ACTIVE (0x20). 0x400 is a common modifier bit
 	// that co-occurs with ACTIVE on normal frames (not a "hitbox-only" marker),
 	// and 0x800 without ACTIVE is a non-rendered end sentinel — both covered by
 	// the ACTIVE test.
-	if (!(s8.flags & mbs::v77::s8flag::ACTIVE))
+	if (!(s8.flags & mbs::v77::s8flag::ACTIVE)) {
+		base.skip = "inactive";
+		visit(base);
 		return;
+	}
+	if (s8.s6_id >= data->keyframes.size() || s8.s7_id >= data->v77.s7.size()) {
+		base.skip = "ids";
+		visit(base);
+		return;
+	}
 
 	const auto& ck = data->keyframes[s8.s6_id];
-	if (ck.layers.empty())
+	const auto& s7 = data->v77.s7[s8.s7_id];
+	base.s6_bounds = ck.bounds;
+	base.s7_move = s7.move;
+	base.s7_rotate = s7.rotate;
+	base.s7_scale = s7.scale;
+	base.s7_fog = s7.fog;
+	if (ck.layers.empty()) {
+		base.skip = "empty_keyframe";
+		visit(base);
 		return;
+	}
 
 	uint32_t visible = 0;
 	for (const auto& layer : ck.layers) {
 		if ((layer.attributes & ~variant_flags) == 0 && (layer.attributes & ~layer_mask) == 0)
 			visible++;
 	}
-	if (visible == 0)
-		return;
-
 	const float zrate = 1.0f / (visible + 1.0f);
-	float depth = 1.0f;
-	uint32_t base = 0;
+	float depths[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
-	for (const auto& layer : ck.layers) {
-		if ((layer.attributes & ~variant_flags) != 0 || (layer.attributes & ~layer_mask) != 0)
+	for (size_t i = 0; i < ck.layers.size(); ++i) {
+		const auto& layer = ck.layers[i];
+		LayerVisit v = base;
+		v.layer = static_cast<int32_t>(i);
+		v.s4_id = layer.s4_id;
+		v.s1_id = layer.s1_id;
+		v.s2_id = layer.s2_id;
+		v.s0_id = layer.s0_id;
+		v.tex_id = layer.tex_id;
+		v.attributes = layer.attributes;
+		v.blend = layer.blend;
+		v.notex = layer.notex;
+		if (!layer.notex && layer.tex_id < data->textures.size()) {
+			v.tex_width = data->textures[layer.tex_id].width;
+			v.tex_height = data->textures[layer.tex_id].height;
+		}
+		for (int k = 0; k < 4; ++k) {
+			v.uv[k] = layer.uv[k];
+			v.xy[k] = layer.xy[k];
+			v.raw_color[k] = layer.color[k];
+			v.color[k] = layer.color[k];
+		}
+
+		if ((layer.attributes & ~variant_flags) != 0) {
+			v.skip = "variant";
+			visit(v);
 			continue;
+		}
+		if ((layer.attributes & ~layer_mask) != 0) {
+			v.skip = "layer_mask";
+			visit(v);
+			continue;
+		}
 		if (blend_filter >= 0 && layer.blend != blend_filter)
 			continue;
 		// NOTEX quads are solid fills without a texture. Full-screen veils
@@ -390,58 +482,76 @@ void SpriteInstance::build_vertices(
 				achromatic = achromatic && (r == g && g == b);
 			}
 			const bool covers_screen = minx <= -959.0f && maxx >= 959.0f && miny <= -539.0f && maxy >= 539.0f;
-			if (!achromatic || !covers_screen)
+			if (!achromatic || !covers_screen) {
+				v.skip = "notex";
+				visit(v);
 				continue;
+			}
+		}
+		if (layer.blend >= 4) {
+			v.skip = "blend";
+			visit(v);
+			continue;
 		}
 
-		uint32_t c0 = layer.color[0], c1 = layer.color[1], c2 = layer.color[2], c3 = layer.color[3];
 		if (tints) {
 			auto it = tints->find(layer.attributes);
 			if (it != tints->end()) {
-				const auto& t = it->second;
-				auto mul = [](uint32_t c, const glm::vec4& t) {
-					uint32_t r = ((c >> 0) & 0xFF) * t.r;
-					uint32_t g = ((c >> 8) & 0xFF) * t.g;
-					uint32_t b = ((c >> 16) & 0xFF) * t.b;
-					uint32_t a = ((c >> 24) & 0xFF) * t.a;
-					return (a << 24) | (b << 16) | (g << 8) | r;
-				};
-				c0 = mul(c0, t);
-				c1 = mul(c1, t);
-				c2 = mul(c2, t);
-				c3 = mul(c3, t);
+				for (int k = 0; k < 4; ++k)
+					v.color[k] = scale_color(v.color[k], it->second);
 			}
 		}
-
 		if (apply_fog) {
-			const uint32_t fog = data->v77.s7[s8.s7_id].fog;
+			const uint32_t fog = s7.fog;
 			const glm::vec4 f{
 				((fog >> 16) & 0xFF) / 255.0f,
 				((fog >> 8) & 0xFF) / 255.0f,
 				(fog & 0xFF) / 255.0f,
 				((fog >> 24) & 0xFF) / 255.0f};
-			auto fmul = [](uint32_t c, const glm::vec4& f) {
-				uint32_t r = ((c >> 0) & 0xFF) * f.r;
-				uint32_t g = ((c >> 8) & 0xFF) * f.g;
-				uint32_t b = ((c >> 16) & 0xFF) * f.b;
-				uint32_t a = ((c >> 24) & 0xFF) * f.a;
-				return (a << 24) | (b << 16) | (g << 8) | r;
-			};
-			c0 = fmul(c0, f);
-			c1 = fmul(c1, f);
-			c2 = fmul(c2, f);
-			c3 = fmul(c3, f);
+			for (int k = 0; k < 4; ++k)
+				v.color[k] = scale_color(v.color[k], f);
 		}
 
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[0], {layer.xy[0], depth}, c0});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[1], {layer.xy[1], depth}, c1});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[2], {layer.xy[2], depth}, c2});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[3], {layer.xy[3], depth}, c3});
+		v.drawn = true;
+		v.depth = depths[layer.blend];
+		depths[layer.blend] -= zrate;
+		visit(v);
+	}
+}
+
+void SpriteInstance::visit_layers(
+	uint32_t sa_idx,
+	const std::map<uint32_t, glm::vec4>* tints,
+	bool apply_fog,
+	uint32_t layer_mask,
+	const LayerVisitor& visitor) const {
+	for_each_layer(sa_idx, tints, apply_fog, -1, layer_mask, [&](const LayerVisit& layer) { visitor(layer); });
+}
+
+void SpriteInstance::build_vertices(
+	uint32_t sa_idx,
+	std::vector<SpriteVertex>& verts,
+	std::vector<uint32_t>& indices,
+	const std::map<uint32_t, glm::vec4>* tints,
+	bool apply_fog,
+	int blend_filter,
+	uint32_t layer_mask) const {
+	verts.clear();
+	indices.clear();
+
+	uint32_t base = 0;
+	for_each_layer(sa_idx, tints, apply_fog, blend_filter, layer_mask, [&](const LayerVisit& layer) {
+		if (!layer.drawn)
+			return;
+
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[0], {layer.xy[0], layer.depth}, layer.color[0]});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[1], {layer.xy[1], layer.depth}, layer.color[1]});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[2], {layer.xy[2], layer.depth}, layer.color[2]});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[3], {layer.xy[3], layer.depth}, layer.color[3]});
 
 		indices.insert(indices.end(), {base, base + 1, base + 3, base + 1, base + 2, base + 3});
-		depth -= zrate;
 		base += 4;
-	}
+	});
 }
 
 glm::mat4 SpriteInstance::transform_for_sa(uint32_t sa_idx, bool* out_flipx, bool* out_flipy) const {

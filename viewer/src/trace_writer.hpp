@@ -12,6 +12,7 @@ public:
 	bool open(const std::string& path, std::string_view categories);
 	bool enabled(std::string_view kind) const;
 	void write(const asb::TraceEvent& event);
+	void write_native_call(const asb::NativeCall& call);
 
 private:
 	bool _all = false;

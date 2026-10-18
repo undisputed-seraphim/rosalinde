@@ -5,6 +5,7 @@
 #include <impl/mbs/sections.hpp>
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -22,6 +23,10 @@ struct CachedKeyframe {
 	struct Layer {
 		uint16_t tex_id;
 		uint16_t _pad;
+		uint32_t s4_id = 0;
+		uint16_t s1_id = 0;
+		uint16_t s2_id = 0;
+		uint16_t s0_id = 0;
 		glm::vec2 uv[4];
 		glm::vec2 xy[4];
 		uint32_t color[4];
@@ -66,6 +71,47 @@ private:
 	void preprocess();
 };
 
+struct LayerVisit {
+	uint32_t run = 0;
+	int32_t layer = -1;
+	uint32_t s4_id = 0;
+	uint16_t s1_id = 0;
+	uint16_t s2_id = 0;
+	uint16_t s0_id = 0;
+	uint32_t s6_id = 0;
+	uint32_t s7_id = 0;
+	uint32_t s8_id = 0;
+	uint32_t s8_flags = 0;
+	uint16_t s8_frames = 0;
+	uint8_t s6_interpolation = 0;
+	uint8_t s7_interpolation = 0;
+	uint16_t track_id = 0;
+	uint32_t offset = 0;
+	bool done = false;
+	bool hidden = false;
+	bool drawn = false;
+	bool notex = false;
+	uint16_t tex_id = 0;
+	uint16_t tex_width = 0;
+	uint16_t tex_height = 0;
+	uint32_t attributes = 0;
+	uint8_t blend = 0;
+	const char* skip = "";
+	float depth = 0.0f;
+	float transition_t = 1.0f;
+	glm::vec4 s6_bounds{};
+	glm::vec3 s7_move{};
+	glm::vec3 s7_rotate{};
+	glm::vec2 s7_scale{1.0f};
+	uint32_t s7_fog = 0;
+	glm::vec2 uv[4] = {};
+	glm::vec2 xy[4] = {};
+	uint32_t raw_color[4] = {};
+	uint32_t color[4] = {};
+};
+
+using LayerVisitor = std::function<void(const LayerVisit&)>;
+
 struct SpriteInstance {
 	const SpriteData* data = nullptr;
 	uint32_t track_idx = 0;
@@ -101,6 +147,13 @@ struct SpriteInstance {
 		int blend_filter = -1,
 		uint32_t layer_mask = 0xFFFFFFFFu) const;
 
+	void visit_layers(
+		uint32_t sa_idx,
+		const std::map<uint32_t, glm::vec4>* tints,
+		bool apply_fog,
+		uint32_t layer_mask,
+		const LayerVisitor& visitor) const;
+
 	glm::mat4 transform_for_sa(uint32_t sa_idx, bool* out_flipx = nullptr, bool* out_flipy = nullptr) const;
 	uint32_t sa_count() const;
 	uint32_t frame_counter() const;
@@ -115,4 +168,14 @@ struct SpriteInstance {
 	glm::vec4 track_bounds() const;
 	glm::vec4 content_bounds() const;
 	glm::vec4 render_bounds() const;
+
+private:
+	template <typename F>
+	void for_each_layer(
+		uint32_t sa_idx,
+		const std::map<uint32_t, glm::vec4>* tints,
+		bool apply_fog,
+		int blend_filter,
+		uint32_t layer_mask,
+		F&& visit) const;
 };

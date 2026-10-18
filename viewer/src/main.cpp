@@ -3,7 +3,10 @@
 #include "scene.hpp"
 #include "trace.hpp"
 
+#include <algorithm>
+#include <array>
 #include <boost/program_options.hpp>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -28,6 +31,36 @@ std::vector<long> parse_frames(const std::string& text) {
 	return frames;
 }
 
+bool parse_color(std::string text, std::array<float, 4>& out) {
+	if (!text.empty() && text.front() == '#')
+		text.erase(0, 1);
+	if (text.size() == 6 || text.size() == 8) {
+		const bool hex = std::all_of(text.begin(), text.end(), [](unsigned char c) { return std::isxdigit(c) != 0; });
+		if (hex) {
+			auto byte = [&](size_t at) {
+				return static_cast<float>(std::stoi(text.substr(at, 2), nullptr, 16)) / 255.0f;
+			};
+			out = {byte(0), byte(2), byte(4), text.size() == 8 ? byte(6) : 1.0f};
+			return true;
+		}
+	}
+	float r = 0.0f, g = 0.0f, b = 0.0f, a = 1.0f;
+	const int count = std::sscanf(text.c_str(), "%f,%f,%f,%f", &r, &g, &b, &a);
+	if (count < 3)
+		return false;
+	if (count == 3)
+		a = 1.0f;
+	if (r > 1.0f || g > 1.0f || b > 1.0f) {
+		r /= 255.0f;
+		g /= 255.0f;
+		b /= 255.0f;
+	}
+	if (a > 1.0f)
+		a /= 255.0f;
+	out = {r, g, b, a};
+	return true;
+}
+
 } // namespace
 
 int main(int argc, char* argv[]) try {
@@ -35,6 +68,8 @@ int main(int argc, char* argv[]) try {
 	viewer::trace::reset();
 	viewer::trace::stamp("main() enter");
 	ViewerConfig config;
+	std::string clear_color_text;
+	std::string probe_frames_text;
 	::boost::program_options::options_description desc;
 	desc.add_options()("help,h", "Print this help message")(
 		"cpk", ::boost::program_options::value<std::filesystem::path>(&config.cpk)->required(), "Path to Unicorn.cpk")(
@@ -73,7 +108,28 @@ int main(int argc, char* argv[]) try {
 		"Filename prefix for --capture-frames images")(
 		"chara-table",
 		::boost::program_options::value<std::string>(&config.chara_table),
-		"Generated character name -> asset table (see: asbrun export chara)");
+		"Generated character name -> asset table (see: asbrun export chara)")(
+		"data-dir",
+		::boost::program_options::value<std::string>(&config.data_dir),
+		"Runtime data directory (default: viewer/data or $VIEWER_DATA)")(
+		"only",
+		::boost::program_options::value<std::vector<std::string>>(&config.only)->composing(),
+		"Render only objects with this exact name or alias (repeatable)")(
+		"hide",
+		::boost::program_options::value<std::vector<std::string>>(&config.hide)->composing(),
+		"Hide objects whose name or alias contains this text (repeatable)")(
+		"keep-stage",
+		::boost::program_options::bool_switch(&config.keep_stage),
+		"Keep the stage/background when --only is active")(
+		"clear-color",
+		::boost::program_options::value<std::string>(&clear_color_text),
+		"Background clear color: #RRGGBB[AA] or R,G,B[,A]")(
+		"probe",
+		::boost::program_options::value<std::string>(&config.probe_dir),
+		"Write state/draw/summary probe files to this directory")(
+		"probe-frames",
+		::boost::program_options::value<std::string>(&probe_frames_text),
+		"Comma-separated frames for --probe (default: --capture-frames or --scene-frame)");
 	::boost::program_options::variables_map vm;
 	::boost::program_options::store(::boost::program_options::parse_command_line(argc, argv, desc), vm);
 	try {
@@ -101,6 +157,29 @@ int main(int argc, char* argv[]) try {
 			return 1;
 		}
 	}
+	if (!clear_color_text.empty() && !parse_color(clear_color_text, config.clear_color)) {
+		spdlog::error("invalid --clear-color: {}", clear_color_text);
+		return 1;
+	}
+	if (!probe_frames_text.empty()) {
+		config.probe_frames = parse_frames(probe_frames_text);
+		if (config.probe_frames.empty()) {
+			spdlog::error("--probe-frames is empty");
+			return 1;
+		}
+		if (std::any_of(config.probe_frames.begin(), config.probe_frames.end(), [](long f) { return f < 0; })) {
+			spdlog::error("--probe-frames must be non-negative");
+			return 1;
+		}
+	}
+	if (!config.probe_dir.empty() && config.probe_frames.empty()) {
+		if (!config.capture_frames.empty())
+			config.probe_frames = config.capture_frames;
+		else if (config.scene_frame >= 0)
+			config.probe_frames = {config.scene_frame};
+		else
+			config.probe_frames = {0};
+	}
 
 	unsigned view_w = 1920, view_h = 1080;
 	if (const char* size = std::getenv("VIEWER_SIZE")) {
@@ -111,7 +190,9 @@ int main(int argc, char* argv[]) try {
 		}
 	}
 
-	uvw::Engine("Rosalinde", view_w, view_h).run([&] {
+	uvw::Engine engine("Rosalinde", view_w, view_h);
+	engine.set_clear_color(config.clear_color);
+	engine.run([&] {
 		viewer::trace::stamp("creating Scene");
 		auto scene = std::make_unique<Scene>(config);
 		viewer::trace::stamp("Scene constructed");

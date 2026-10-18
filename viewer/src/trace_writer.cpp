@@ -54,3 +54,16 @@ void TraceWriter::write(const asb::TraceEvent& event) {
 		_out << ',' << event.fields;
 	_out << "}\n";
 }
+
+void TraceWriter::write_native_call(const asb::NativeCall& call) {
+	if (!enabled("vm"))
+		return;
+	_out << "{\"frame\":" << call.frame << ",\"kind\":\"vm\",\"event\":\"call\",\"name\":\""
+		 << asb::trace::quote(call.name) << "\",\"call\":\"" << asb::trace::quote(call.call) << "\",\"caller\":\""
+		 << asb::trace::quote(call.caller) << "\",\"handled\":" << asb::trace::boolean(call.handled);
+	if (!call.return_type.empty()) {
+		_out << ",\"return_type\":\"" << asb::trace::quote(call.return_type) << "\",\"return\":\""
+			 << asb::trace::quote(call.result) << '"';
+	}
+	_out << "}\n";
+}

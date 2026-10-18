@@ -2,12 +2,12 @@
 #include "trace.hpp"
 
 #include <SDL3/SDL.h>
-#include <spdlog/spdlog.h>
 #include <glad/glad.h>
 #include <glxx/error.hpp>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl3.h>
 #include <iostream>
+#include <spdlog/spdlog.h>
 #include <stdexcept>
 
 Scene::Scene(ViewerConfig config)
@@ -31,6 +31,7 @@ Scene::Scene(ViewerConfig config)
 	dc.entry = _config.script;
 	dc.func = _config.scene_func;
 	dc.chara_table = _config.chara_table;
+	dc.data_dir = _config.data_dir;
 	dc.screenshot = _config.screenshot;
 	dc.frames = _config.frames;
 	dc.scene_frame = _config.scene_frame;
@@ -40,6 +41,11 @@ Scene::Scene(ViewerConfig config)
 	dc.capture_frames = _config.capture_frames;
 	dc.capture_dir = _config.capture_dir;
 	dc.capture_prefix = _config.capture_prefix;
+	dc.only = _config.only;
+	dc.hide = _config.hide;
+	dc.keep_stage = _config.keep_stage;
+	dc.probe_dir = _config.probe_dir;
+	dc.probe_frames = _config.probe_frames;
 	_drama = std::make_unique<DramaPlayback>(_loader, std::move(dc));
 	viewer::trace::stamp("Scene ctor: DramaPlayback ready");
 }
@@ -58,6 +64,8 @@ bool Scene::handle_inputs() {
 	if (!_config.screenshot.empty() && _drama && _drama->captured())
 		return true;
 	if (!_config.capture_frames.empty() && _drama && _drama->captures_done())
+		return true;
+	if (!_config.probe_dir.empty() && _drama && (_drama->probes_done() || _drama->is_done()))
 		return true;
 	return false;
 }

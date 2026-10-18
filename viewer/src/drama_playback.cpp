@@ -116,14 +116,27 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
 		const long last = _cfg.capture_frames.back();
 		_cfg.scene_frame = std::max(_cfg.scene_frame, last);
 	}
+	if (!_cfg.probe_dir.empty() && !_cfg.probe_frames.empty()) {
+		std::sort(_cfg.probe_frames.begin(), _cfg.probe_frames.end());
+		_cfg.probe_frames.erase(
+			std::unique(_cfg.probe_frames.begin(), _cfg.probe_frames.end()), _cfg.probe_frames.end());
+		_cfg.scene_frame = std::max(_cfg.scene_frame, _cfg.probe_frames.back());
+		_probe_mode = !_capture_mode;
+	}
 	if (!_cfg.trace.empty())
 		_trace.open(_cfg.trace, _cfg.trace_categories);
+	if (!_cfg.probe_dir.empty())
+		_probe.open(_cfg.probe_dir, _cfg.probe_frames);
 	auto trace_cb = [this](const asb::TraceEvent& e) {
+		if (e.kind == "vm" && e.event == "call")
+			return;
 		if (_trace.enabled(e.kind))
 			_trace.write(e);
 	};
 	_host.set_trace(trace_cb);
+	_host.set_native_call([this](const asb::NativeCall& call) { _trace.write_native_call(call); });
 	_renderer.set_trace(trace_cb);
+	_renderer.set_filters(_cfg.only, _cfg.hide, _cfg.keep_stage);
 	if (const char* o = std::getenv("VIEWER_ORTHO")) {
 		float a = 0, b = 0, c = 0, d = 0;
 		if (std::sscanf(o, "%f,%f,%f,%f", &a, &b, &c, &d) == 4)
@@ -145,18 +158,11 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
 	if (!mod.error.empty())
 		throw std::runtime_error("failed to decode " + _cfg.entry + ": " + mod.error);
 
-	asb::CharTable chars;
-	if (!_cfg.chara_table.empty())
-		chars = asb::load_char_table(_cfg.chara_table);
-	asb::CharaSetTable chara_sets = asb::load_chara_set(
-		viewer_data_dir() + "/charaset.tsv",
-		viewer_data_dir() + "/classes.tsv",
-		viewer_data_dir() + "/charanpc_assets.tsv");
+	const std::string data_dir = _cfg.data_dir.empty() ? viewer_data_dir() : _cfg.data_dir;
+	_runtime = load_viewer_runtime_data(_loader.cpk(), _cfg.chara_table, data_dir);
 
 	_host.set_call_log([](const std::string&) {});
-	if (!chars.empty())
-		_host.set_char_table(chars);
-	_host.set_chara_set_table(chara_sets);
+	configure_host(_host, _runtime);
 	_host.set_track_frames([this](const std::string& mbs, int idx) { return mbs_track_frames(_loader, mbs, idx); });
 	_host.set_resolve_track(
 		[this](const std::string& mbs, const std::string& name) { return mbs_resolve_track(_loader, mbs, name); });
@@ -236,6 +242,16 @@ void DramaPlayback::update(float dt) {
 				spdlog::warn("capture: scene ended at frame {} before requested frame {}", _frame, target);
 				_captures_done = true;
 			}
+			return;
+		}
+		if (_probe_mode) {
+			while (_probe_index < _cfg.probe_frames.size() && _probe.written(_cfg.probe_frames[_probe_index]))
+				++_probe_index;
+			if (_probe_index >= _cfg.probe_frames.size())
+				return;
+			const long target = _cfg.probe_frames[_probe_index];
+			while (_frame < target && !_session->finished())
+				step();
 			return;
 		}
 		if (!_stepped) {
@@ -367,6 +383,9 @@ void DramaPlayback::render() {
 	if (!_session)
 		return;
 	const auto& scene = _session->scene();
+	const long frame = static_cast<long>(scene.frame);
+	const bool probe_now = _probe.begin(frame);
+	_renderer.set_probe(probe_now ? &_probe : nullptr);
 	apply_camera();
 	_renderer.render(_projection, _camera);
 	_effects.draw(_projection, _camera, {0.0f, 0.0f});
@@ -375,4 +394,13 @@ void DramaPlayback::render() {
 	asb::fade_at(scene.fades, scene.frame, fade);
 	_fade.draw(glm::vec4(fade[0], fade[1], fade[2], fade[3]));
 	draw_text();
+
+	if (probe_now) {
+		const std::string json = "{\"frame\":" + std::to_string(frame) + ",\"scene\":" + scene_state_json(scene) +
+								 ",\"renderer\":" + _renderer.state_json(scene) + "}";
+		_probe.write_state(frame, json);
+		_probe.write_summary(frame, _renderer.summary(scene));
+		_renderer.set_probe(nullptr);
+		_probe.end();
+	}
 }
