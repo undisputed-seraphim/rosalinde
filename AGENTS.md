@@ -8,7 +8,7 @@ Layers:
 1. **criware** — CPK container + UTF table parser
 2. **eltolinde** — Game-specific formats: MBS (animation), FTX (textures), FMS (string tables), NND, OTBM
 3. **scarlett** — AngelScript (`.asb`) decoder + runtime (hosts modules in a stock AngelScript engine)
-4. **viewer** + **extractor** — Executables (OpenGL viewer + CLI extractor) sitting on top
+4. **viewer** + **extractor** + **ASB CLI** — Executables (OpenGL viewer, CPK extractor, and `asbrun` script shell) sitting on top
 
 ---
 
@@ -25,14 +25,14 @@ Layers:
         └── scarlett.lib  ←── angelscript.lib (vendored 2.34.0)
 
    rosalinde.exe (extractor) ←── eltolinde.lib
-   tools/asb/* (asb_harvest, asb_run) ←── scarlett.lib
+   asbrun.exe (ASB CLI) ←── scarlett.lib, criware.lib, eltolinde.lib
 ```
 
 - **criware**: No dependencies except STL. Self-contained CPK/UTF/CRILAYLA.
 - **eltolinde**: Depends on criware, Boost::iostreams (legacy), ZLIB (vestigial), glm. FTX textures are decoded on the GPU by the viewer, not here.
 - **scarlett**: Depends on the vendored AngelScript (angelscript + add-ons). Decodes `.asb` and hosts modules in a stock AngelScript 2.34 engine.
 - **viewer**: Depends on eltolinde, scarlett, imgui, glad, glm, Boost::program_options, SDL3, ZLIB (screenshot).
-- **rosalinde** (extractor): Depends on eltolinde, Boost::program_options.
+- **rosalinde** (extractor): Depends on eltolinde. Interactive CPK shell with in-memory format inspection (`tools/dump`).
 
 ---
 
@@ -64,8 +64,8 @@ The build produces:
 | `eltolinde` | static lib | `src/**/*.*` |
 | `scarlett` | static lib | `scarlett/src/*.cpp` |
 | `scarlett_test` | executable | `scarlett/tests/*.cpp` |
-| `rosalinde` | executable | `tools/extractor.cpp` |
-| `asb_harvest` / `asb_run` / `asb_record` / `asb_trace` | executable | `tools/asb/*.cpp` |
+| `rosalinde` | executable | `tools/extractor.cpp`, `tools/line_editor.cpp`, `tools/dump/*.cpp` |
+| `asbrun` | executable | `tools/asb/asbrun*.cpp`, `tools/line_editor.cpp` |
 | `imgui` | static lib | `thirdparty/imgui-1.91.3/*.cpp` |
 | `viewer` | executable | `viewer/src/**/*.*` |
 
@@ -108,7 +108,7 @@ The build produces:
 
 ### Before making changes
 1. **Build first**: `cmake --build build -j 8`
-2. **Test the extractor**: `./build/rosalinde --cpk ~/Unicorn.CPK --list`
+2. **Test the extractor**: `printf 'find /\nq\n' | ./build/rosalinde --cpk ~/Unicorn.CPK | wc -l`
 3. **Check what you're about to touch**: Read neighboring files to understand conventions (tabs, no comments, namespace usage).
 
 ### File organization rules
@@ -124,7 +124,7 @@ The build produces:
 - **criware library**: Medium-risk. `utf::raw_table` owns the @UTF validation and flag semantics; `utf::table<Schema>` owns the typed column projection. New schemas are welcome, but the raw table parser and CRILAYLA decoder should be changed carefully.
 - **eltolinde library**: Medium-risk. The MBS/FTX parsers are reverse-engineered. Verify against the CPK test archive.
 - **viewer**: Higher-risk. The GL state, shaders, and animation playback are fragile. Verify visual output headlessly (see [`docs/VIEWER.md`](docs/VIEWER.md)) rather than assuming. Script scenes render two ways: the static fold (`--script`) and hosted-VM playback (`--runtime`, with `--scene-frame N` for deterministic capture, `--scene-fps`, `--scene-camera design|fit|first|last|<n>`).
-- **tools/extractor.cpp**: CLI utility. Adding flags is safe.
+- **tools/extractor.cpp / tools/dump/**: interactive CPK shell (`ls`, `find`, `stat`, `e`, `d`, `source`). Script mode on stdin is the stable interface; see [`tools/README.md`](tools/README.md). Adding dumpers/commands is safe.
 
 ### Common pitfalls
 - **Double +8 on string offsets**: `chunk_header` offsets need +8 adjustment (relative → absolute). `read_column_defs` already receives adjusted values. Do NOT add +8 again.
@@ -144,8 +144,11 @@ cmake --build build -j 8
 UNICORN_CPK=~/Unicorn.CPK ./build/scarlett/scarlett_test
 
 # Run extractor integration test (requires Unicorn.CPK)
-./build/rosalinde --cpk ~/Unicorn.CPK --list | wc -l
+printf 'find /\nq\n' | ./build/rosalinde --cpk ~/Unicorn.CPK | wc -l
 # Expected: 4752
+
+# Inspect an MBS entry in memory (no extraction)
+printf 'd GUI/Logo.mbs --track 9 --seq 21 --limit 8\nq\n' | ./build/rosalinde --cpk ~/Unicorn.CPK
 
 # Run the viewer headlessly and capture a frame (see docs/VIEWER.md)
 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe \

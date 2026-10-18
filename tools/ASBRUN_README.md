@@ -5,9 +5,8 @@ bytecode (`.asb`). It is the interactive counterpart to `rosalinde`: open the CP
 once, load a script by path or filename, then inspect or run it without restarting
 the process.
 
-The existing `asb_harvest`, `asb_run`, `asb_trace`, and `asb_record` binaries are
-still built and remain the reference implementations. `asbrun` is the new unified
-frontend under validation.
+`asbrun` is the unified ASB frontend. The standalone `asb_harvest`, `asb_run`,
+`asb_trace`, and `asb_record` binaries have been retired.
 
 ## Build and start
 
@@ -205,11 +204,10 @@ trace scene00 --frames 2000 --categories vm --out /tmp/vm.ndjson
  "caller":"scene00","handled":true}
 ```
 
-Non-void calls may also carry `return_type` and `return`. The legacy
-`asb_trace` binary remains name-only; `asbrun` filters that old event and emits
-the complete one. Because dispatch must run before `handled`/return are known,
-the complete `vm/call` event is emitted after any semantic events from the same
-call.
+Non-void calls may also carry `return_type` and `return`. The retired `asb_trace`
+implementation emitted name-only calls; `asbrun` emits the complete event.
+Because dispatch must run before `handled`/return are known, the complete
+`vm/call` event is emitted after any semantic events from the same call.
 
 ### `calls` command
 
@@ -351,10 +349,3 @@ scene --index
 q
 EOF
 ```
-
-## Legacy binaries
-
-The bulk `scan` and `export` workflows are now available in `asbrun`. The old
-`asb_harvest`, `asb_run`, `asb_trace`, and `asb_record` binaries remain built as
-reference implementations until the new shell is fully validated and the old
-targets are retired.

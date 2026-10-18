@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) try {
 		"Filename prefix for --capture-frames images")(
 		"chara-table",
 		::boost::program_options::value<std::string>(&config.chara_table),
-		"Generated character name -> asset table (see: asb_harvest --chara-table)");
+		"Generated character name -> asset table (see: asbrun export chara)");
 	::boost::program_options::variables_map vm;
 	::boost::program_options::store(::boost::program_options::parse_command_line(argc, argv, desc), vm);
 	try {
