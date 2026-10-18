@@ -29,7 +29,7 @@ static std::vector<char> load_acb(std::string_view cpk_path, std::string_view ac
 
 	std::vector<char> buf;
 	cpk.extract(*it, buf);
-	UTF::decipher(buf);
+	utf::decipher(buf);
 	return buf;
 }
 

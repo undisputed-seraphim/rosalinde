@@ -76,11 +76,11 @@ The build produces:
 - **C++23**: Uses `std::span`, `std::expected` (future), fold expressions, concepts, `fixed_string` NTTP
 - **Tabs for indentation** (`.clang-format`: `UseTab: Always`)
 - **No comments** in code (unless documenting complex format logic)
-- **Namespaces**: `criware::`, `mbs::`, `sprite::`, `glxx::`, `ftx::`, `fms::`, `nnd::`, `asb::`, `otm::`
-- **String type**: `std::string` everywhere (no `wstring`, no `u8string`)
+- **Namespaces**: `criware::`, `utf::`, `mbs::`, `sprite::`, `glxx::`, `ftx::`, `fms::`, `nnd::`, `asb::`, `otm::`
+- **String type**: `std::string` for ownership, `std::string_view` for UTF/CPK views (no `wstring`, no `u8string`)
 - **Parsing style**: Span-based with `byte_reader.hpp` (preferred). Iostream is legacy wrapper.
 - **GL version**: OpenGL ES 4.6 core (GLAD). Shaders are GLSL ES 3.20.
-- **The `utf.cpp` is sacred**: `UTF::operator>>` handles `has_default` (0x20), `is_valid` (0x40), string-offset resolution, and endian-swap correctly. The new `table<>` delegates to it. Do NOT rewrite that function.
+- **UTF tables are schema-driven**: `utf::raw_table` validates the @UTF header, column descriptors, defaults, strings, and data refs. `utf::table<Schema>` is the typed column store; it takes the row count from the @UTF header and reads only the schema columns. Schemas are hardcoded per file/table type. Keep the `has_default` (0x20) and `is_valid` (0x40) semantics in `raw_table` intact.
 
 ---
 
@@ -120,7 +120,7 @@ The build produces:
 - **Do NOT add new files to the repo root.** Move root-level binaries to `testdata/`.
 
 ### Working on different areas
-- **criware library**: Low-risk. The only invariant is that `utf.cpp` must not be rewritten. New `table<>` schemas are welcome.
+- **criware library**: Medium-risk. `utf::raw_table` owns the @UTF validation and flag semantics; `utf::table<Schema>` owns the typed column projection. New schemas are welcome, but the raw table parser and CRILAYLA decoder should be changed carefully.
 - **eltolinde library**: Medium-risk. The MBS/FTX parsers are reverse-engineered. Verify against the CPK test archive.
 - **viewer**: Higher-risk. The GL state, shaders, and animation playback are fragile. Verify visual output headlessly (see [`docs/VIEWER.md`](docs/VIEWER.md)) rather than assuming. Script scenes render two ways: the static fold (`--script`) and hosted-VM playback (`--runtime`, with `--scene-frame N` for deterministic capture, `--scene-fps`, `--scene-camera design|fit|first|last|<n>`).
 - **tools/extractor.cpp**: CLI utility. Adding flags is safe.

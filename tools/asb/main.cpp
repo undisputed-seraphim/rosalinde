@@ -481,9 +481,11 @@ int main(int argc, char** argv) {
 		}
 		CPKTable table = TopLevelCpk(fs::absolute(cpk_path)).getTableOfContents();
 		std::set<std::string> files;
-		for (const auto& [d, f] : table.rows<"DirName", "FileName">())
-			if (d == "BattleBG")
-				files.insert(f);
+		for (auto it = table.begin(); it != table.end(); ++it) {
+			auto row = *it;
+			if (get<"DirName">(row) == "BattleBG")
+				files.insert(std::string(get<"FileName">(row)));
+		}
 		std::ostringstream os;
 		os << "# key\tmbs\tftx (generated from BattleBG/* by asb_harvest --bgs)\n";
 		for (const auto& f : files) {
@@ -557,10 +559,13 @@ int main(int argc, char** argv) {
 		fs::path p = fs::absolute(cpk_path);
 		CPKTable table = TopLevelCpk(p).getTableOfContents();
 		if (all) {
-			for (const auto& [DirName, FileName] : table.rows<"DirName", "FileName">()) {
+			for (auto it = table.begin(); it != table.end(); ++it) {
+				auto row = *it;
+				const auto DirName = get<"DirName">(row);
+				const auto FileName = get<"FileName">(row);
 				if (DirName != "Script")
 					continue;
-				std::string fn = FileName;
+				std::string fn(FileName);
 				if (fn.size() < 4 || fn.compare(fn.size() - 4, 4, ".asb") != 0)
 					continue;
 				std::vector<char> buf;

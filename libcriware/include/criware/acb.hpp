@@ -77,7 +77,7 @@ private:
 	uint32_t _format_version = 0;
 
 	std::span<const uint8_t> _raw_data;
-	UTF::field::data_t _awb_file{};
+	utf::blob_ref _awb_file{};
 	mutable std::optional<AFS2> _internal_awb_cache;
 };
 

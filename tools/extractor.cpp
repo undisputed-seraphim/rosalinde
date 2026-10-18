@@ -21,6 +21,7 @@
 #include <set>
 #include <span>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -95,9 +96,15 @@ CPKTable open_cpk(const std::string& path) {
 std::vector<Entry> list_entries(const CPKTable& table) {
 	std::vector<Entry> entries;
 	entries.reserve(table.size());
-	for (const auto& [DirName, FileName, FileSize, ExtractSize, FileOffset, ID] :
-		 table.rows<"DirName", "FileName", "FileSize", "ExtractSize", "FileOffset", "ID">()) {
-		entries.emplace_back(DirName, FileName, FileSize, ExtractSize, FileOffset, ID);
+	for (auto it = table.begin(); it != table.end(); ++it) {
+		auto row = *it;
+		entries.emplace_back(
+			std::string(get<"DirName">(row)),
+			std::string(get<"FileName">(row)),
+			get<"FileSize">(row),
+			get<"ExtractSize">(row),
+			get<"FileOffset">(row),
+			get<"ID">(row));
 	}
 	return entries;
 }
@@ -262,73 +269,90 @@ void print_list(const std::vector<Entry>& entries) {
 	std::cout << entries.size() << " files\n";
 }
 
-void dump_columns(const CPKTable& table, std::string_view file_path) {
-	auto [dir, name] = split_path(file_path);
-	auto data = extract_entry(table, dir, name);
-	UTF::decipher(data);
-	auto utf = UTF::parse(std::span(reinterpret_cast<const uint8_t*>(data.data()), data.size()));
+static const char* utf_type_name(utf::type type) {
+	switch (type) {
+	case utf::type::UINT8:
+		return "u8";
+	case utf::type::INT8:
+		return "s8";
+	case utf::type::UINT16:
+		return "u16";
+	case utf::type::INT16:
+		return "s16";
+	case utf::type::UINT32:
+		return "u32";
+	case utf::type::INT32:
+		return "s32";
+	case utf::type::UINT64:
+		return "u64";
+	case utf::type::INT64:
+		return "s64";
+	case utf::type::FLOAT:
+		return "f32";
+	case utf::type::DOUBLE:
+		return "f64";
+	case utf::type::STRING:
+		return "str";
+	case utf::type::DATA:
+		return "data";
+	}
+	return "???";
+}
 
-	std::cout << "File: " << dir << "/" << name << "\n";
-	std::cout << "Columns: " << utf.num_cols() << "\n";
-	for (const auto& [col_name, field] : utf) {
-		const char* type_str = "???";
-		switch (field.type_) {
-		case UTF::field::type::UINT8:
-			type_str = "u8";
-			break;
-		case UTF::field::type::INT8:
-			type_str = "s8";
-			break;
-		case UTF::field::type::UINT16:
-			type_str = "u16";
-			break;
-		case UTF::field::type::INT16:
-			type_str = "s16";
-			break;
-		case UTF::field::type::UINT32:
-			type_str = "u32";
-			break;
-		case UTF::field::type::INT32:
-			type_str = "s32";
-			break;
-		case UTF::field::type::UINT64:
-			type_str = "u64";
-			break;
-		case UTF::field::type::INT64:
-			type_str = "s64";
-			break;
-		case UTF::field::type::FLOAT:
-			type_str = "f32";
-			break;
-		case UTF::field::type::DOUBLE:
-			type_str = "f64";
-			break;
-		case UTF::field::type::STRING:
-			type_str = "str";
-			break;
-		case UTF::field::type::DATA:
-			type_str = "data";
-			break;
-		default:
-			break;
-		}
-		std::cout << "  " << col_name << " (" << type_str << ") x" << field.values.size();
-		if (field.has_default)
+static void dump_utf_value(const utf::value& value) {
+	std::visit(
+		[](const auto& v) {
+			using T = std::decay_t<decltype(v)>;
+			if constexpr (std::is_same_v<T, std::monostate>)
+				std::cout << "(none)";
+			else if constexpr (std::is_same_v<T, std::string_view>)
+				std::cout << '"' << v << '"';
+			else if constexpr (std::is_same_v<T, utf::blob_ref>)
+				std::cout << "offset=" << v.offset << " size=" << v.size;
+			else
+				std::cout << v;
+		},
+		value);
+}
+
+static void dump_utf_table(std::span<const uint8_t> data, std::string_view label, int depth) {
+	auto table = utf::raw_table::parse(data);
+	const std::string indent(static_cast<size_t>(depth) * 2, ' ');
+	std::cout << indent << label << ": rows=" << table.row_count() << " cols=" << table.column_count() << "\n";
+
+	for (size_t i = 0; i < table.column_count(); ++i) {
+		const auto& column = table.column(i);
+		std::cout << indent << "  " << column.name << " (" << utf_type_name(column.type_) << ") x"
+				  << column.value_count(table.row_count());
+		if (column.has_default)
 			std::cout << " [default]";
-		if (!field.valid)
+		if (!column.valid)
 			std::cout << " [invalid]";
-		if (field.type_ == UTF::field::type::STRING && field.values.size() > 0) {
-			auto s = field.cast_at<std::string>(0);
-			if (s)
-				std::cout << " = \"" << *s << "\"";
-		}
-		if (field.type_ == UTF::field::type::DATA && field.values.size() > 0) {
-			auto d = field.cast_at<UTF::field::data_t>(0);
-			if (d)
-				std::cout << " offset=" << d->offset << " size=" << d->size;
+
+		if (column.value_count(table.row_count()) > 0) {
+			const auto value = table.value_at(0, i);
+			std::cout << " = ";
+			dump_utf_value(value);
+			if (auto* ref = std::get_if<utf::blob_ref>(&value)) {
+				auto blob = table.blob(*ref);
+				if (blob.size() >= 4 && std::memcmp(blob.data(), "@UTF", 4) == 0) {
+					std::cout << " ->\n";
+					dump_utf_table(blob, column.name, depth + 1);
+					continue;
+				}
+			}
 		}
 		std::cout << "\n";
 	}
+}
+
+void dump_columns(const CPKTable& table, std::string_view file_path) {
+	auto [dir, name] = split_path(file_path);
+	auto data = extract_entry(table, dir, name);
+	utf::decipher(data);
+
+	std::cout << "File: " << dir << "/" << name << "\n";
+	dump_utf_table(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size()), "root", 0);
 }
 
 // ============================================================================
@@ -544,7 +568,7 @@ int main(int argc, char* argv[]) try {
 			const auto& name = get<"FileName">(e);
 			if (name.size() < 4)
 				continue;
-			auto ext = name.substr(name.size() - 4);
+			std::string ext(name.substr(name.size() - 4));
 			for (char& c : ext)
 				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 			if (ext != ".otm")
@@ -597,7 +621,7 @@ int main(int argc, char* argv[]) try {
 			const auto& name = get<"FileName">(e);
 			if (name.size() < 4)
 				continue;
-			auto ext = name.substr(name.size() - 4);
+			std::string ext(name.substr(name.size() - 4));
 			for (char& c : ext)
 				c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 			if (ext != ".nnd")

@@ -1,125 +1,22 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstring>
-#include <map>
 #include <optional>
-#include <ostream>
-#include <ranges>
 #include <span>
-#include <string>
+#include <stdexcept>
 #include <string_view>
+#include <tuple>
+#include <type_traits>
+#include <utility>
 #include <variant>
 #include <vector>
-
-class UTF {
-public:
-	class field {
-	public:
-		struct data_t {
-			uint32_t offset;
-			uint32_t size;
-		};
-
-		using value_t = std::variant<
-			uint8_t,
-			int8_t,
-			uint16_t,
-			int16_t,
-			uint32_t,
-			int32_t,
-			uint64_t,
-			int64_t,
-			float,
-			double,
-			std::string,
-			data_t,
-			std::monostate>;
-		enum class type : uint8_t {
-			UINT8 = 0,
-			INT8 = 1,
-			UINT16 = 2,
-			INT16 = 3,
-			UINT32 = 4,
-			INT32 = 5,
-			UINT64 = 6,
-			INT64 = 7,
-			FLOAT = 8,
-			DOUBLE = 9,
-			// Pointer (32bit) types
-			STRING = 0xA,
-			DATA = 0xB,
-			INVALID,
-		};
-
-		std::vector<value_t> values;
-		type type_{type::INVALID};
-		bool has_default{false};
-		bool valid{false};
-
-		field();
-		field(type t, bool valid_);
-
-		void push_back(value_t&&);
-
-		template <typename Cast>
-		static std::optional<Cast> try_cast_to(const value_t& value) {
-			return std::visit(
-				[](auto&& arg) -> std::optional<Cast> {
-					using T = std::decay_t<decltype(arg)>;
-					if constexpr (std::is_convertible_v<T, Cast>) {
-						return static_cast<Cast>(arg);
-					}
-					return std::nullopt;
-				},
-				value);
-		}
-
-		template <typename T>
-		const std::optional<T> cast_at(size_t i) const {
-			return try_cast_to<T>(values[i]);
-		}
-
-		const value_t& at(size_t i) const;
-	};
-
-	UTF();
-	UTF(const UTF&) = delete;
-	UTF(UTF&&) = default;
-	UTF& operator=(UTF&&) = default;
-
-	using storage_type = std::map<std::string, field, std::less<>>;
-	using size_type = storage_type::size_type;
-	using iterator = storage_type::iterator;
-	using const_iterator = storage_type::const_iterator;
-	const_iterator begin() const;
-	const_iterator end() const;
-	const_iterator cbegin() const;
-	const_iterator cend() const;
-
-	size_type num_cols() const noexcept;
-	bool contains_col(std::string_view name) const;
-	const_iterator find_col(std::string_view name) const;
-	bool empty() const noexcept;
-
-	std::ostream& operator<<(std::ostream& os) const;
-	friend std::ostream& operator<<(std::ostream&, const UTF&);
-
-	static UTF parse(std::span<const uint8_t> data);
-
-	static bool decipher(std::vector<char>&);
-
-protected:
-	storage_type _fields;
-};
 
 // ============================================================================
 // Compile-time column schema
 // ============================================================================
-
-#include <span>
-#include <utility>
 
 namespace schema {
 
@@ -141,10 +38,12 @@ struct column_def {
 template <typename... Cols>
 struct column_list {
 	static constexpr size_t count = sizeof...(Cols);
-	using storage = std::tuple<std::vector<typename Cols::type>...>;
 	static constexpr auto names = std::array<std::string_view, count>{static_cast<std::string_view>(Cols::name)...};
 	template <size_t I>
 	using column_type = typename std::tuple_element_t<I, std::tuple<Cols...>>::type;
+	template <template <typename> class Wrapper>
+	using apply = std::tuple<Wrapper<typename Cols::type>...>;
+
 	static constexpr size_t index_of(std::string_view n) noexcept {
 		for (size_t i = 0; i < count; ++i)
 			if (names[i] == n)
@@ -165,65 +64,232 @@ constexpr auto col() -> column_def<N, T> {
 
 } // namespace schema
 
-// ============================================================================
-// row_view<Schema> — lightweight row proxy
-// ============================================================================
+namespace utf {
 
-template <typename Schema>
-struct row_view {
-	using storage_t = typename Schema::storage;
-	const storage_t* columns;
-	size_t index;
-	template <size_t I>
-	const auto& get() const {
-		return std::get<I>(*columns)[index];
+enum class type : uint8_t {
+	UINT8 = 0,
+	INT8 = 1,
+	UINT16 = 2,
+	INT16 = 3,
+	UINT32 = 4,
+	INT32 = 5,
+	UINT64 = 6,
+	INT64 = 7,
+	FLOAT = 8,
+	DOUBLE = 9,
+	STRING = 0xA,
+	DATA = 0xB,
+};
+
+struct blob_ref {
+	uint64_t offset = 0;
+	uint32_t size = 0;
+};
+
+constexpr size_t type_size(type t) noexcept {
+	switch (t) {
+	case type::UINT8:
+	case type::INT8:
+		return 1;
+	case type::UINT16:
+	case type::INT16:
+		return 2;
+	case type::UINT32:
+	case type::INT32:
+	case type::FLOAT:
+	case type::STRING:
+		return 4;
+	case type::UINT64:
+	case type::INT64:
+	case type::DOUBLE:
+	case type::DATA:
+		return 8;
 	}
-};
-
-template <typename S>
-struct std::tuple_size<row_view<S>> : std::integral_constant<size_t, S::count> {};
-template <size_t I, typename S>
-struct std::tuple_element<I, row_view<S>> {
-	using type = typename S::template column_type<I>;
-};
-template <size_t I, typename S>
-decltype(auto) get(const row_view<S>& rv) {
-	return rv.template get<I>();
+	return 0;
 }
 
-template <schema::fixed_string Name, typename S>
-decltype(auto) get(const row_view<S>& rv) {
-	static_assert(S::index_of(Name) != static_cast<size_t>(-1), "Unknown column name");
-	constexpr size_t I = S::index_of(Name);
-	return rv.template get<I>();
+constexpr bool is_integer(type t) noexcept { return t <= type::INT64; }
+
+class parse_error : public std::runtime_error {
+public:
+	using std::runtime_error::runtime_error;
+};
+
+using value = std::variant<uint64_t, int64_t, double, std::string_view, blob_ref, std::monostate>;
+
+bool decipher(std::span<char> bytes);
+inline bool decipher(std::vector<char>& bytes) { return decipher(std::span<char>(bytes.data(), bytes.size())); }
+
+struct column_desc {
+	std::string_view name;
+	type type_ = type::UINT8;
+	bool has_default = false;
+	bool has_row_data = false;
+	bool valid = false;
+	size_t row_offset = 0;
+	const uint8_t* default_ptr = nullptr;
+	size_t default_size = 0;
+
+	size_t value_count(size_t rows) const noexcept { return has_row_data ? rows : (has_default ? 1 : 0); }
+};
+
+class raw_table {
+public:
+	raw_table() = default;
+
+	static raw_table parse(std::span<const uint8_t> data);
+
+	size_t row_count() const noexcept { return _rows; }
+	size_t column_count() const noexcept { return _columns.size(); }
+	const column_desc& column(size_t i) const { return _columns.at(i); }
+	const column_desc* find(std::string_view name) const noexcept;
+	std::span<const uint8_t> source() const noexcept { return _data; }
+
+	std::span<const uint8_t> blob(blob_ref ref) const;
+	std::string_view string_at(uint64_t offset) const;
+
+	const uint8_t* row_ptr(size_t row, const column_desc& column) const;
+	std::string_view read_string(const uint8_t* p) const;
+	blob_ref read_blob(const uint8_t* p) const;
+	uint64_t read_uint(const uint8_t* p, type t) const;
+	int64_t read_int(const uint8_t* p, type t) const;
+	double read_double(const uint8_t* p, type t) const;
+
+	value value_at(size_t row, size_t column) const;
+
+private:
+	std::span<const uint8_t> _data;
+	size_t _rows = 0;
+	size_t _row_length = 0;
+	size_t _rows_offset = 0;
+	size_t _string_offset = 0;
+	size_t _data_offset = 0;
+	std::vector<column_desc> _columns;
+};
+
+template <class T>
+constexpr type schema_type() {
+	if constexpr (std::is_same_v<T, uint8_t>)
+		return type::UINT8;
+	else if constexpr (std::is_same_v<T, int8_t>)
+		return type::INT8;
+	else if constexpr (std::is_same_v<T, uint16_t>)
+		return type::UINT16;
+	else if constexpr (std::is_same_v<T, int16_t>)
+		return type::INT16;
+	else if constexpr (std::is_same_v<T, uint32_t>)
+		return type::UINT32;
+	else if constexpr (std::is_same_v<T, int32_t>)
+		return type::INT32;
+	else if constexpr (std::is_same_v<T, uint64_t>)
+		return type::UINT64;
+	else if constexpr (std::is_same_v<T, int64_t>)
+		return type::INT64;
+	else if constexpr (std::is_same_v<T, float>)
+		return type::FLOAT;
+	else if constexpr (std::is_same_v<T, double>)
+		return type::DOUBLE;
+	else if constexpr (std::is_same_v<T, std::string_view>)
+		return type::STRING;
+	else if constexpr (std::is_same_v<T, blob_ref>)
+		return type::DATA;
+	else
+		static_assert(sizeof(T) == 0, "unsupported UTF schema type");
 }
 
-// ============================================================================
-// table<Schema> — typed column-major table, parses via existing UTF
-// ============================================================================
+template <class T>
+constexpr bool schema_compatible(type actual) {
+	constexpr type expected = schema_type<T>();
+	if (actual == expected)
+		return true;
+	if constexpr (std::is_integral_v<T>)
+		return is_integer(actual);
+	else if constexpr (std::is_same_v<T, double>)
+		return actual == type::FLOAT || actual == type::DOUBLE;
+	else
+		return false;
+}
 
-template <typename Schema>
+template <class T>
+struct column_storage {
+	std::vector<T> values;
+	std::optional<T> default_value;
+	bool has_row_data = false;
+	bool present = false;
+};
+
+template <class T>
+T read_value(const raw_table& raw, const column_desc& desc, const uint8_t* p);
+
+template <class T>
+class column_view {
+public:
+	column_view(const column_storage<T>* column, size_t rows) noexcept
+		: _column(column)
+		, _rows(rows) {}
+
+	size_t size() const noexcept { return _rows; }
+	bool empty() const noexcept { return _rows == 0; }
+	bool has_row_data() const noexcept { return _column->has_row_data; }
+	bool defaulted() const noexcept { return !_column->has_row_data && _column->default_value.has_value(); }
+	bool present() const noexcept { return _column->present; }
+
+	T operator[](size_t i) const {
+		if (_column->has_row_data)
+			return _column->values[i];
+		if (_column->default_value)
+			return *_column->default_value;
+		throw std::out_of_range("UTF column has no value");
+	}
+
+	T at(size_t i) const {
+		if (i >= _rows)
+			throw std::out_of_range("UTF column index out of range");
+		return (*this)[i];
+	}
+
+private:
+	const column_storage<T>* _column;
+	size_t _rows;
+};
+
+template <class Schema>
+class table;
+
+template <class Schema>
+struct row_view {
+	const table<Schema>* table_;
+	size_t index;
+};
+
+template <class Schema>
 class table {
 public:
-	using storage_t = typename Schema::storage;
+	using storage_t = typename Schema::template apply<column_storage>;
 	using row_type = row_view<Schema>;
 
-	row_type operator[](size_t i) const { return {&_columns, i}; }
+	table() = default;
+	table(const table&) = delete;
+	table& operator=(const table&) = delete;
+	table(table&&) = default;
+	table& operator=(table&&) = default;
 
 	class row_iterator {
-		const table* _tbl;
+		const table* _table;
 		size_t _row;
 
 	public:
 		using value_type = row_type;
 		using difference_type = std::ptrdiff_t;
+
 		row_iterator() noexcept
-			: _tbl(nullptr)
+			: _table(nullptr)
 			, _row(0) {}
 		row_iterator(const table* t, size_t r) noexcept
-			: _tbl(t)
+			: _table(t)
 			, _row(r) {}
-		row_type operator*() const noexcept { return {&_tbl->_columns, _row}; }
+
+		row_type operator*() const noexcept { return {_table, _row}; }
 		row_iterator& operator++() noexcept {
 			++_row;
 			return *this;
@@ -236,97 +302,107 @@ public:
 		bool operator==(const row_iterator& o) const noexcept = default;
 	};
 
-	row_iterator begin() const { return {this, 0}; }
-	row_iterator end() const { return {this, _num_rows}; }
-
-	template <size_t I>
-	auto& column() {
-		return std::get<I>(_columns);
-	}
-	template <size_t I>
-	const auto& column() const {
-		return std::get<I>(_columns);
-	}
-
-	template <schema::fixed_string Name>
-	auto& column() {
-		constexpr size_t I = Schema::index_of(Name);
-		static_assert(I != static_cast<size_t>(-1), "Unknown column name");
-		return column<I>();
-	}
-	template <schema::fixed_string Name>
-	const auto& column() const {
-		constexpr size_t I = Schema::index_of(Name);
-		static_assert(I != static_cast<size_t>(-1), "Unknown column name");
-		return column<I>();
-	}
-
-	template <schema::fixed_string... Names>
-	auto rows() const {
-		return std::views::zip(column<Names>()...);
-	}
-
-	template <schema::fixed_string... Names>
-	size_t row_count() const noexcept {
-		return (std::min)({column<Names>().size()...});
-	}
-
-	template <schema::fixed_string... Names>
-	auto rows() {
-		return std::views::zip(column<Names>()...);
-	}
-
-	template <schema::fixed_string... Names>
-	size_t row_count() noexcept {
-		return (std::min)({column<Names>().size()...});
-	}
-
-	static constexpr bool has_column(std::string_view name) noexcept {
-		return Schema::index_of(name) != static_cast<size_t>(-1);
-	}
-	static constexpr size_t column_index(std::string_view name) noexcept { return Schema::index_of(name); }
-
-	size_t size() const noexcept { return _num_rows; }
-	bool empty() const noexcept { return _num_rows == 0; }
-
 	static table parse(std::span<const uint8_t> data) {
-		auto utf = UTF::parse(data);
 		table t;
-		auto first = utf.find_col(Schema::names[0]);
-		t._num_rows = (first != utf.end()) ? first->second.values.size() : 0;
-		t.populate(std::move(utf), std::make_index_sequence<Schema::count>{});
+		t._raw = raw_table::parse(data);
+		t._rows = t._raw.row_count();
+		t.load(std::make_index_sequence<Schema::count>{});
 		return t;
 	}
 
+	size_t size() const noexcept { return _rows; }
+	bool empty() const noexcept { return _rows == 0; }
+	row_type operator[](size_t i) const noexcept { return {this, i}; }
+	row_iterator begin() const noexcept { return {this, 0}; }
+	row_iterator end() const noexcept { return {this, _rows}; }
+
+	template <size_t I>
+	auto column_at() const {
+		using T = typename Schema::template column_type<I>;
+		return column_view<T>(&std::get<I>(_columns), _rows);
+	}
+
+	template <schema::fixed_string Name>
+	auto column() const {
+		constexpr size_t I = Schema::index_of(Name);
+		static_assert(I != static_cast<size_t>(-1), "Unknown UTF column");
+		return column_at<I>();
+	}
+
+	std::span<const uint8_t> blob(blob_ref ref) const { return _raw.blob(ref); }
+	std::span<const uint8_t> source() const noexcept { return _raw.source(); }
+	const raw_table& raw() const noexcept { return _raw; }
+
 private:
+	raw_table _raw;
 	storage_t _columns{};
-	size_t _num_rows = 0;
+	size_t _rows = 0;
 
 	template <size_t... Is>
-	void populate(UTF&& utf, std::index_sequence<Is...>) {
-		((populate_one<Is>(utf)), ...);
+	void load(std::index_sequence<Is...>) {
+		(load_one<Is>(), ...);
 	}
 
 	template <size_t I>
-	void populate_one(UTF& utf) {
-		using ST = typename Schema::template column_type<I>;
-		auto it = utf.find_col(Schema::names[I]);
-		if (it == utf.end())
-			return;
-		auto& field = const_cast<UTF::field&>(it->second);
-		auto& vec = std::get<I>(_columns);
-		vec.reserve(field.values.size());
-		for (auto& val : field.values)
-			std::visit(
-				[&](auto&& v) {
-					using T = std::decay_t<decltype(v)>;
-					if constexpr (std::is_convertible_v<T, ST>)
-						vec.push_back(static_cast<ST>(std::move(v)));
-				},
-				val);
-		if (!vec.empty() && vec.size() < _num_rows) {
-			auto default_val = vec[0];
-			vec.resize(_num_rows, default_val);
+	void load_one() {
+		using T = typename Schema::template column_type<I>;
+		auto& column = std::get<I>(_columns);
+		const auto* desc = _raw.find(Schema::names[I]);
+		if (!desc)
+			throw parse_error("UTF table is missing column");
+		if (!schema_compatible<T>(desc->type_))
+			throw parse_error("UTF column has an incompatible type");
+
+		if (desc->has_default) {
+			column.default_value = read_value<T>(_raw, *desc, desc->default_ptr);
+			column.present = true;
 		}
+		if (desc->has_row_data) {
+			column.values.resize(_rows);
+			for (size_t row = 0; row < _rows; ++row)
+				column.values[row] = read_value<T>(_raw, *desc, _raw.row_ptr(row, *desc));
+			column.has_row_data = true;
+			column.present = true;
+		}
+		if (!column.present)
+			throw parse_error("UTF column has no row data or default");
 	}
+};
+
+template <class T>
+T read_value(const raw_table& raw, const column_desc& desc, const uint8_t* p) {
+	if constexpr (std::is_same_v<T, std::string_view>) {
+		return raw.read_string(p);
+	} else if constexpr (std::is_same_v<T, blob_ref>) {
+		return raw.read_blob(p);
+	} else if constexpr (std::is_integral_v<T>) {
+		if constexpr (std::is_signed_v<T>)
+			return static_cast<T>(raw.read_int(p, desc.type_));
+		else
+			return static_cast<T>(raw.read_uint(p, desc.type_));
+	} else if constexpr (std::is_floating_point_v<T>) {
+		return static_cast<T>(raw.read_double(p, desc.type_));
+	}
+}
+
+template <size_t I, class Schema>
+auto get(const row_view<Schema>& row) {
+	return row.table_->template column_at<I>()[row.index];
+}
+
+template <schema::fixed_string Name, class Schema>
+auto get(const row_view<Schema>& row) {
+	constexpr size_t I = Schema::index_of(Name);
+	static_assert(I != static_cast<size_t>(-1), "Unknown UTF column");
+	return row.table_->template column_at<I>()[row.index];
+}
+
+} // namespace utf
+
+template <class Schema>
+struct std::tuple_size<utf::row_view<Schema>> : std::integral_constant<size_t, Schema::count> {};
+
+template <size_t I, class Schema>
+struct std::tuple_element<I, utf::row_view<Schema>> {
+	using type = typename Schema::template column_type<I>;
 };

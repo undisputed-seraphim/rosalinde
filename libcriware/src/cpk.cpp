@@ -190,9 +190,9 @@ TopLevelCpk::TopLevelCpk(std::filesystem::path path)
 	const uint64_t size = read_header(ifs, CPK_magic);
 	_buffer.resize(size);
 	ifs.read(_buffer.data(), static_cast<std::streamsize>(size));
-	UTF::decipher(_buffer);
-	_table =
-		table<TopLevelCPKSchema>::parse(std::span(reinterpret_cast<const uint8_t*>(_buffer.data()), _buffer.size()));
+	utf::decipher(_buffer);
+	_table = utf::table<TopLevelCPKSchema>::parse(
+		std::span(reinterpret_cast<const uint8_t*>(_buffer.data()), _buffer.size()));
 }
 
 CPKTable TopLevelCpk::getTableOfContents() const {
@@ -202,9 +202,9 @@ CPKTable TopLevelCpk::getTableOfContents() const {
 	const uint64_t size = read_header(ifs, TOC_magic);
 	_buffer.resize(static_cast<size_t>(size));
 	ifs.read(_buffer.data(), static_cast<std::streamsize>(size));
-	UTF::decipher(_buffer);
+	utf::decipher(_buffer);
 	CPKTable table(_path, TocOffset);
-	table.parse_toc(std::span(reinterpret_cast<const uint8_t*>(_buffer.data()), _buffer.size()));
+	table.parse_toc(std::move(_buffer));
 	return table;
 }
 
@@ -216,7 +216,11 @@ CPKTable::CPKTable(std::filesystem::path path, uint64_t offset)
 	: _path(std::move(path))
 	, _offset(offset) {}
 
-void CPKTable::parse_toc(std::span<const uint8_t> data) { _table = table_type::parse(data); }
+void CPKTable::parse_toc(std::vector<char>&& data) {
+	_toc_storage = std::move(data);
+	_table = table_type::parse(
+		std::span(reinterpret_cast<const uint8_t*>(_toc_storage.data()), static_cast<size_t>(_toc_storage.size())));
+}
 
 void CPKTable::extract(const row_type& entry, std::vector<char>& out) const {
 	out.resize(static_cast<size_t>(get<"ExtractSize">(entry)));

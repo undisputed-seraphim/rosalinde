@@ -30,8 +30,12 @@ AssetLoader::AssetLoader(std::filesystem::path cpk_path)
 	for (const auto& [name, _] : Characters) {
 		_class_names.push_back(name);
 	}
-	for (const auto& [d, f] : _cpkt.rows<"DirName", "FileName">())
+	for (auto it = _cpkt.begin(); it != _cpkt.end(); ++it) {
+		auto row = *it;
+		std::string d(get<"DirName">(row));
+		std::string f(get<"FileName">(row));
 		_asset_index[lower(d + "/" + f)] = {d, f};
+	}
 }
 
 std::optional<Job::dir_and_path> AssetLoader::resolve(std::string_view path) const {

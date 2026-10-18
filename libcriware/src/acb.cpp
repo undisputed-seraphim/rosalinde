@@ -9,16 +9,20 @@
 namespace criware {
 namespace {
 
+using utf::blob_ref;
+using utf::row_view;
+using utf::table;
+
 using RootSchema = decltype(schema::make(
 	schema::col<"Version", uint32_t>(),
-	schema::col<"CueTable", UTF::field::data_t>(),
-	schema::col<"CueNameTable", UTF::field::data_t>(),
-	schema::col<"WaveformTable", UTF::field::data_t>(),
-	schema::col<"SynthTable", UTF::field::data_t>(),
-	schema::col<"TrackTable", UTF::field::data_t>(),
-	schema::col<"SequenceTable", UTF::field::data_t>(),
-	schema::col<"AwbFile", UTF::field::data_t>(),
-	schema::col<"StreamAwbAfs2Header", UTF::field::data_t>()));
+	schema::col<"CueTable", blob_ref>(),
+	schema::col<"CueNameTable", blob_ref>(),
+	schema::col<"WaveformTable", blob_ref>(),
+	schema::col<"SynthTable", blob_ref>(),
+	schema::col<"TrackTable", blob_ref>(),
+	schema::col<"SequenceTable", blob_ref>(),
+	schema::col<"AwbFile", blob_ref>(),
+	schema::col<"StreamAwbAfs2Header", blob_ref>()));
 
 using CueTableSchema = decltype(schema::make(
 	schema::col<"CueId", uint32_t>(),
@@ -36,7 +40,7 @@ using WaveformTableSchema = decltype(schema::make(
 	schema::col<"StreamAwbId", uint16_t>()));
 
 using SynthTableSchema =
-	decltype(schema::make(schema::col<"ReferenceItems", UTF::field::data_t>(), schema::col<"Type", uint8_t>()));
+	decltype(schema::make(schema::col<"ReferenceItems", blob_ref>(), schema::col<"Type", uint8_t>()));
 
 using TrackTableSchema = decltype(schema::make(
 	schema::col<"Scope", uint8_t>(),
@@ -44,7 +48,7 @@ using TrackTableSchema = decltype(schema::make(
 	schema::col<"TargetId", uint32_t>()));
 
 using CueNameTableSchema =
-	decltype(schema::make(schema::col<"CueIndex", uint16_t>(), schema::col<"CueName", std::string>()));
+	decltype(schema::make(schema::col<"CueIndex", uint16_t>(), schema::col<"CueName", std::string_view>()));
 
 static uint16_t read_be16(const uint8_t* p) {
 	uint16_t val;
@@ -86,24 +90,24 @@ ACB ACB::parse(std::span<const uint8_t> data) {
 	ACB acb;
 	auto root = table<RootSchema>::parse(data);
 
-	auto& version = root.column<"Version">();
-	acb._format_version = version.size() > 0 ? version[0] : 0;
+	auto version = root.column<"Version">();
+	acb._format_version = version.empty() ? 0 : version[0];
 	acb._raw_data = data;
 
-	auto& awbCol = root.column<"AwbFile">();
+	auto awbCol = root.column<"AwbFile">();
 	if (!awbCol.empty())
 		acb._awb_file = awbCol[0];
 
-	auto& cueCol = root.column<"CueTable">();
-	auto& cnCol = root.column<"CueNameTable">();
-	auto& wvCol = root.column<"WaveformTable">();
-	auto& stCol = root.column<"SynthTable">();
-	auto& tkCol = root.column<"TrackTable">();
+	auto cueCol = root.column<"CueTable">();
+	auto cnCol = root.column<"CueNameTable">();
+	auto wvCol = root.column<"WaveformTable">();
+	auto stCol = root.column<"SynthTable">();
+	auto tkCol = root.column<"TrackTable">();
 
-	auto sub = [&](const std::vector<UTF::field::data_t>& refs) -> std::span<const uint8_t> {
+	auto sub = [&](const auto& refs) -> std::span<const uint8_t> {
 		if (refs.empty())
 			return {};
-		return data.subspan(refs[0].offset, refs[0].size);
+		return root.blob(refs[0]);
 	};
 
 	auto cueSub = sub(cueCol);
@@ -115,16 +119,13 @@ ACB ACB::parse(std::span<const uint8_t> data) {
 	if (cueSub.empty() || wvSub.empty() || stSub.empty())
 		return acb;
 
-	uint64_t stBase = stCol[0].offset;
-
 	auto cueTable = table<CueTableSchema>::parse(cueSub);
 	auto waveformTable = table<WaveformTableSchema>::parse(wvSub);
 	auto synthTable = table<SynthTableSchema>::parse(stSub);
 
-	auto& cue_ids = cueTable.column<"CueId">();
-	auto& cue_rt = cueTable.column<"ReferenceType">();
-	auto& cue_ri = cueTable.column<"ReferenceIndex">();
-	bool rt_default = (cue_rt.size() == 1 && cue_ids.size() > 1);
+	auto cue_ids = cueTable.column<"CueId">();
+	auto cue_rt = cueTable.column<"ReferenceType">();
+	auto cue_ri = cueTable.column<"ReferenceIndex">();
 
 	for (size_t i = 0; i < waveformTable.size(); ++i)
 		acb._waveforms.push_back(build_waveform(waveformTable[i]));
@@ -136,7 +137,7 @@ ACB ACB::parse(std::span<const uint8_t> data) {
 	for (size_t i = 0; i < cue_ids.size(); ++i) {
 		ACBCue cue;
 		cue.cue_id = cue_ids[i];
-		cue.reference_type = rt_default ? cue_rt[0] : cue_rt[i];
+		cue.reference_type = cue_rt[i];
 		cue.reference_index = cue_ri[i];
 
 		uint16_t waveform_index = 0;
@@ -144,7 +145,7 @@ ACB ACB::parse(std::span<const uint8_t> data) {
 
 		if (cue.reference_index < synthTable.size()) {
 			auto synth_row = synthTable[cue.reference_index];
-			auto& ref_items = get<"ReferenceItems">(synth_row);
+			auto ref_items = get<"ReferenceItems">(synth_row);
 
 			switch (cue.reference_type) {
 			case 2:
@@ -157,7 +158,7 @@ ACB ACB::parse(std::span<const uint8_t> data) {
 				if (i == 0) {
 					ref_offset = ref_items.offset;
 					ref_size = ref_items.size;
-					ref_correction = ref_size - 2;
+					ref_correction = ref_size >= 2 ? ref_size - 2 : 0;
 				} else {
 					ref_correction += 4;
 				}
@@ -166,8 +167,8 @@ ACB ACB::parse(std::span<const uint8_t> data) {
 				break;
 			}
 
-			if (ref_size > 0 && ref_offset + ref_correction + 2 <= data.size()) {
-				waveform_index = read_be16(data.data() + stBase + ref_offset + ref_correction);
+			if (ref_size > 0 && ref_offset + ref_correction + 2 <= synthTable.source().size()) {
+				waveform_index = read_be16(synthTable.source().data() + ref_offset + ref_correction);
 				cue.waveform_index = waveform_index;
 				has_waveform = true;
 			}
@@ -192,10 +193,10 @@ ACB ACB::parse(std::span<const uint8_t> data) {
 
 			if (track.synth_index < synthTable.size()) {
 				auto synth_row = synthTable[track.synth_index];
-				auto& ref_items = get<"ReferenceItems">(synth_row);
+				auto ref_items = get<"ReferenceItems">(synth_row);
 
-				if (ref_items.size > 0 && ref_items.offset + ref_items.size - 2 + 2 <= data.size()) {
-					waveform_index = read_be16(data.data() + stBase + ref_items.offset + ref_items.size - 2);
+				if (ref_items.size >= 2 && ref_items.offset + ref_items.size <= synthTable.source().size()) {
+					waveform_index = read_be16(synthTable.source().data() + ref_items.offset + ref_items.size - 2);
 					track.waveform_index = waveform_index;
 					has_waveform = true;
 				}
@@ -214,7 +215,7 @@ ACB ACB::parse(std::span<const uint8_t> data) {
 			auto row = cueNameTable[i];
 			uint16_t cue_idx = get<"CueIndex">(row);
 			if (cue_idx < acb._cues.size())
-				acb._cues[cue_idx].cue_name = get<"CueName">(row);
+				acb._cues[cue_idx].cue_name = std::string(get<"CueName">(row));
 		}
 	}
 
