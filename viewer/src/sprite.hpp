@@ -27,6 +27,8 @@ struct CachedKeyframe {
 		uint16_t s1_id = 0;
 		uint16_t s2_id = 0;
 		uint16_t s0_id = 0;
+		uint8_t color_id = 0;
+		uint32_t alt_color[4] = {};
 		glm::vec2 uv[4];
 		glm::vec2 s1_center{};
 		glm::vec2 s1_topleft{};
@@ -80,6 +82,8 @@ struct LayerVisit {
 	uint16_t s1_id = 0;
 	uint16_t s2_id = 0;
 	uint16_t s0_id = 0;
+	uint8_t color_id = 0;
+	uint32_t alt_color[4] = {};
 	uint32_t s6_id = 0;
 	uint32_t s7_id = 0;
 	uint32_t s8_id = 0;

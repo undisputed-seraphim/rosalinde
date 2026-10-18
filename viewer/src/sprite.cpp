@@ -101,6 +101,10 @@ void SpriteData::preprocess() {
 			layer.s1_id = s4.s1_id;
 			layer.s2_id = s4.s2_id;
 			layer.s0_id = s4.s0_id;
+			layer.color_id = s4.color_id;
+			if (s4.color_id < v77.s0.size())
+				for (int k = 0; k < 4; ++k)
+					layer.alt_color[k] = v77.s0[s4.color_id].colors[k];
 			layer.attributes = s4.attributes;
 			layer.blend = s4.blend_id;
 			if (!notex) {
@@ -439,6 +443,9 @@ void SpriteInstance::for_each_layer(
 		v.s1_id = layer.s1_id;
 		v.s2_id = layer.s2_id;
 		v.s0_id = layer.s0_id;
+		v.color_id = layer.color_id;
+		for (int k = 0; k < 4; ++k)
+			v.alt_color[k] = layer.alt_color[k];
 		v.tex_id = layer.tex_id;
 		v.attributes = layer.attributes;
 		v.blend = layer.blend;

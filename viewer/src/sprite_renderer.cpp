@@ -3,10 +3,13 @@
 #include "shader.hpp"
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <glm/ext.hpp>
+#include <numeric>
 #include <span>
 #include <string>
 #include <utility>
@@ -171,7 +174,22 @@ void SpriteRenderer::draw(
 	shader.SetUniform("u_alpha", alpha);
 	const glm::mat4 view_offset = cam.lookAt() * model;
 	uint32_t n = inst.sa_count();
-	for (uint32_t i = 0; i < n; ++i) {
+	std::vector<uint32_t> run_order;
+	if (const char* order = std::getenv("VIEWER_RUN_ORDER")) {
+		run_order.resize(n);
+		std::iota(run_order.begin(), run_order.end(), 0u);
+		if (std::strcmp(order, "reverse") == 0) {
+			std::reverse(run_order.begin(), run_order.end());
+		} else if (std::strcmp(order, "track") == 0 && inst.data && inst.track_idx < inst.data->tracks.size()) {
+			const auto& runs = inst.data->tracks[inst.track_idx].runs;
+			std::stable_sort(run_order.begin(), run_order.end(), [&](uint32_t a, uint32_t b) {
+				return a < runs.size() && b < runs.size() && runs[a].track_id < runs[b].track_id;
+			});
+		}
+	}
+	auto run_at = [&](uint32_t at) { return run_order.empty() ? at : run_order[at]; };
+	for (uint32_t at = 0; at < n; ++at) {
+		const uint32_t i = run_at(at);
 		auto s7m = inst.transform_for_sa(i);
 		shader.SetUniform("u_mvp", projection * view_offset * s7m);
 
