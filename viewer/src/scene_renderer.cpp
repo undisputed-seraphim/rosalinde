@@ -92,6 +92,16 @@ std::string runs_json(const SpriteInstance& instance) {
 	return out;
 }
 
+asb::RuntimeEntity faded(const asb::RuntimeEntity& e, uint32_t frame) {
+	asb::RuntimeEntity view = e;
+	if (view.fade_duration <= 0 || frame < static_cast<uint32_t>(view.fade_start))
+		return view;
+	const float t =
+		std::clamp(static_cast<float>(frame - view.fade_start) / static_cast<float>(view.fade_duration), 0.0f, 1.0f);
+	view.alpha = static_cast<int>(std::lround(view.fade_from * (1.0f - t)));
+	return view;
+}
+
 } // namespace
 
 int SceneRenderer::choose_track(const SpriteAsset& asset, const asb::RuntimeEntity& e) {
@@ -222,12 +232,13 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 		if (e.name.empty() || e.mbs.empty() || e.ftx.empty() || !e.visible || !e.started)
 			continue;
 		seen[e.name] = true;
+		const auto view = faded(e, _frame);
 
 		auto it = _objects.find(e.name);
 		if (it != _objects.end()) {
 			const bool same_asset = it->second.state.mbs == e.mbs && it->second.state.ftx == e.ftx;
 			if (same_asset) {
-				apply(it->second, e);
+				apply(it->second, view);
 				continue;
 			}
 			_objects.erase(it);
@@ -237,7 +248,7 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 		if (!asset)
 			continue;
 		Object object;
-		rebuild(object, e, std::move(asset));
+		rebuild(object, view, std::move(asset));
 		_objects.emplace(e.name, std::move(object));
 	}
 

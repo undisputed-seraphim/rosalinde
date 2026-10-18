@@ -26,11 +26,14 @@ struct RuntimeEntity {
 	bool started = false;
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	float scale = 1.0f;
-	float dir_x = 1.0f; // facing: -1 mirrored, +1 default
-	int alpha = 255;	// 0-255, from DrUiSetColorA (0 = not yet faded in)
+	float dir_x = 1.0f;	 // facing: -1 mirrored, +1 default
+	int alpha = 255;	 // 0-255, from DrUiSetColorA (0 = not yet faded in)
+	long fade_start = 0; // DeleteSprite fade window (scene frame)
+	int fade_duration = 0;
+	int fade_from = 255;
 	int layer = -1;
 	bool visible = true;
-	bool reverse = false; // SetSpriteMoneReverse: play the selected track backward
+	bool reverse = false;			   // SetSpriteMoneReverse: play the selected track backward
 	unsigned layer_mask = 0xFFFFFFFFu; // DrSetLayerMask: visible layer bits
 	bool breath_off = false;		   // DrSetBreathOff
 	bool lipsync = false;			   // DrSetLipSync
@@ -78,9 +81,9 @@ struct RuntimeCamera {
 	bool param_set = false;
 	float origin[3] = {0.0f, 0.0f, 0.0f}; // cam+0xd0 base offset
 	CameraTween tween;
-	bool tebure = false;	   // DrTebureCamera (hand-held offset; rendering deferred)
-	bool wave = false;		   // DrWaveCamera
-	float demo_y = 0.0f;	   // SetDemoCameraPosY / ResetDemoCameraPosY
+	bool tebure = false;			 // DrTebureCamera (hand-held offset; rendering deferred)
+	bool wave = false;				 // DrWaveCamera
+	float demo_y = 0.0f;			 // SetDemoCameraPosY / ResetDemoCameraPosY
 	float demo_xz[2] = {0.0f, 0.0f}; // ResetDemoCameraPosXZ
 	float degree_offset = 0.0f;		 // SetCameraDegreeOffset
 };

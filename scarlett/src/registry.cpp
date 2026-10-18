@@ -1722,10 +1722,22 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			_timeline.effects.push_back(ev);
 		}
 		if (RuntimeEntity* e = ent(0)) {
+			const int fade = std::max({0, I(1), I(2)});
 			if (scene_trace())
 				std::fprintf(
-					stderr, "[vm f=%ld] delete %-22s \"%s\"\n", frame, std::string(name).c_str(), e->name.c_str());
-			e->visible = false;
+					stderr,
+					"[vm f=%ld] delete %-22s \"%s\" fade=%d\n",
+					frame,
+					std::string(name).c_str(),
+					e->name.c_str(),
+					fade);
+			if (fade > 0) {
+				e->fade_start = frame;
+				e->fade_duration = fade;
+				e->fade_from = e->alpha;
+			} else {
+				e->visible = false;
+			}
 			mark_dirty();
 		}
 		return true;
