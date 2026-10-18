@@ -414,8 +414,10 @@ void SceneRenderer::probe_layers(
 							   << ",\"s6\":" << layer.s6_id << ",\"s7\":" << layer.s7_id
 							   << ",\"s6_interp\":" << static_cast<unsigned>(layer.s6_interpolation)
 							   << ",\"s7_interp\":" << static_cast<unsigned>(layer.s7_interpolation)
-							   << ",\"s4\":" << layer.s4_id << ",\"s1\":" << layer.s1_id << ",\"s2\":" << layer.s2_id
-							   << ",\"s0\":" << layer.s0_id << ",\"color_id\":" << static_cast<unsigned>(layer.color_id)
+							   << ",\"s4\":" << layer.s4_id << ",\"s4_unk0\":" << layer.s4_unk0
+							   << ",\"s4_flags\":" << static_cast<unsigned>(layer.s4_flags) << ",\"s1\":" << layer.s1_id
+							   << ",\"s2\":" << layer.s2_id << ",\"s0\":" << layer.s0_id
+							   << ",\"color_id\":" << static_cast<unsigned>(layer.color_id)
 							   << ",\"alt_color\":" << color_json(layer.alt_color) << ",\"tex\":" << layer.tex_id
 							   << ",\"tex_w\":" << layer.tex_width << ",\"tex_h\":" << layer.tex_height
 							   << ",\"blend\":" << static_cast<unsigned>(layer.blend)

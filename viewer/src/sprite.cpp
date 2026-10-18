@@ -98,6 +98,8 @@ void SpriteData::preprocess() {
 			layer.notex = notex;
 			layer.tex_id = notex ? 0xFFFF : s4.tex_id;
 			layer.s4_id = s6.s4_id + j;
+			layer.s4_unk0 = s4._unk0;
+			layer.s4_flags = s4.flags;
 			layer.s1_id = s4.s1_id;
 			layer.s2_id = s4.s2_id;
 			layer.s0_id = s4.s0_id;
@@ -454,6 +456,8 @@ void SpriteInstance::for_each_layer(
 		LayerVisit v = base;
 		v.layer = static_cast<int32_t>(i);
 		v.s4_id = layer.s4_id;
+		v.s4_unk0 = layer.s4_unk0;
+		v.s4_flags = layer.s4_flags;
 		v.s1_id = layer.s1_id;
 		v.s2_id = layer.s2_id;
 		v.s0_id = layer.s0_id;
