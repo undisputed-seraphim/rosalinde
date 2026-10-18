@@ -1,9 +1,14 @@
 #include "sprite_renderer.hpp"
-#include <spdlog/spdlog.h>
+#include "screenshot.hpp"
 #include "shader.hpp"
+#include <spdlog/spdlog.h>
 
+#include <cctype>
+#include <cstdlib>
+#include <filesystem>
 #include <glm/ext.hpp>
 #include <span>
+#include <string>
 #include <utility>
 
 namespace {
@@ -78,7 +83,7 @@ SpriteRenderer::~SpriteRenderer() {
 		glDeleteTextures(1, &_texture_array);
 }
 
-void SpriteRenderer::upload_textures(const SpriteData& data) {
+void SpriteRenderer::upload_textures(const SpriteData& data, std::string_view label) {
 	uint32_t max_x = 0, max_y = 0;
 	for (const auto& t : data.textures) {
 		max_x = std::max(max_x, t.width);
@@ -104,12 +109,7 @@ void SpriteRenderer::upload_textures(const SpriteData& data) {
 		const size_t need = static_cast<size_t>(t.compressed_size) + t.uncompressed_size;
 		if (t.width == 0 || t.height == 0 || t.rgba.size() < need) {
 			spdlog::warn(
-				"tex: skip malformed texture {} ({}x{}, {} bytes, need {})",
-				i,
-				t.width,
-				t.height,
-				t.rgba.size(),
-				need);
+				"tex: skip malformed texture {} ({}x{}, {} bytes, need {})", i, t.width, t.height, t.rgba.size(), need);
 			continue;
 		}
 		const auto* raw = reinterpret_cast<const uint8_t*>(t.rgba.data());
@@ -117,6 +117,32 @@ void SpriteRenderer::upload_textures(const SpriteData& data) {
 		_deswizzler->upload_slice(_texture_array, static_cast<unsigned>(i), t.width, t.height, t.comp, payload);
 	}
 	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
+	const char* dump_dir = std::getenv("FTX_GPU_DUMP_DIR");
+	const char* match = std::getenv("FTX_GPU_DUMP_MATCH");
+	if (dump_dir && (!match || label.find(match) != std::string_view::npos)) {
+		const size_t pixels = static_cast<size_t>(max_x) * max_y * data.textures.size();
+		if (pixels == 0 || pixels > 64u * 1024u * 1024u) {
+			spdlog::warn("texture dump skipped: {} ({} pixels)", label, pixels);
+		} else {
+			std::filesystem::create_directories(dump_dir);
+			std::string name(label);
+			for (char& c : name)
+				if (!std::isalnum(static_cast<unsigned char>(c)) && c != '.' && c != '-')
+					c = '_';
+			if (name.empty())
+				name = "texture";
+			std::vector<uint8_t> pixels_rgba(pixels * 4);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, _texture_array);
+			glGetTexImage(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels_rgba.data());
+			const auto path = std::filesystem::path(dump_dir) / (name + ".png");
+			if (screenshot::write(path.string(), max_x, max_y * data.textures.size(), pixels_rgba))
+				spdlog::info("texture dump: {}", path.string());
+			else
+				spdlog::error("texture dump failed: {}", path.string());
+			glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+		}
+	}
 }
 
 void SpriteRenderer::draw(

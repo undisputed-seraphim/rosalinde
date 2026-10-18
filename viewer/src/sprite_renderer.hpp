@@ -9,6 +9,7 @@
 #include <glm/glm.hpp>
 #include <map>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 class SpriteRenderer {
@@ -19,7 +20,7 @@ public:
 	SpriteRenderer(SpriteRenderer&& other) noexcept;
 	SpriteRenderer& operator=(SpriteRenderer&& other) noexcept;
 
-	void upload_textures(const SpriteData& data);
+	void upload_textures(const SpriteData& data, std::string_view label = {});
 	GLuint texture_array() const { return _texture_array; }
 	void draw(
 		const SpriteInstance& inst,

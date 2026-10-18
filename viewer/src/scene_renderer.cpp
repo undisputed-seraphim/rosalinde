@@ -21,6 +21,16 @@ bool track_usable(const SpriteData& data, int index) {
 		   !data.tracks[index].runs.empty();
 }
 
+bool flip_v_for(const asb::RuntimeEntity& e) {
+	const char* match = std::getenv("VIEWER_FLIP_V");
+	if (!match || !*match)
+		return false;
+	const std::string_view value(match);
+	if (value == "1" || value == "all")
+		return true;
+	return e.mbs.find(value) != std::string::npos || e.ftx.find(value) != std::string::npos;
+}
+
 bool name_matches(const asb::RuntimeEntity& e, std::string_view name) {
 	if (e.name == name)
 		return true;
@@ -153,6 +163,7 @@ void SceneRenderer::rebuild(Object& object, const asb::RuntimeEntity& e, SpriteA
 				continue;
 			object.instances.emplace_back(&object.asset->data, i, 0xFFFFFFFFu);
 			object.instances.back().hold_finished = true;
+			object.instances.back().flip_v = flip_v_for(e);
 			object.instances.back().play(i);
 			spdlog::debug(
 				"bg:   track={} name={} runs={}",
@@ -166,6 +177,7 @@ void SceneRenderer::rebuild(Object& object, const asb::RuntimeEntity& e, SpriteA
 			return;
 		object.track_index = track;
 		object.instances.emplace_back(&object.asset->data, static_cast<uint32_t>(track), 0xFFFFFFFFu);
+		object.instances.back().flip_v = flip_v_for(e);
 		object.instances.back().play(static_cast<uint32_t>(track));
 	}
 	apply(object, e);
@@ -408,6 +420,7 @@ void SceneRenderer::probe_layers(
 							   << ",\"blend\":" << static_cast<unsigned>(layer.blend)
 							   << ",\"attributes\":" << layer.attributes
 							   << ",\"notex\":" << asb::trace::boolean(layer.notex)
+							   << ",\"flip_v\":" << asb::trace::boolean(layer.flip_v)
 							   << ",\"drawn\":" << asb::trace::boolean(layer.drawn) << ",\"skip\":" << quote(layer.skip)
 							   << ",\"depth\":" << number(layer.depth)
 							   << ",\"transition_t\":" << number(layer.transition_t)
@@ -415,7 +428,9 @@ void SceneRenderer::probe_layers(
 							   << ",\"s7_move\":" << vec3_json(layer.s7_move)
 							   << ",\"s7_rotate\":" << vec3_json(layer.s7_rotate)
 							   << ",\"s7_scale\":" << vec2_json(layer.s7_scale) << ",\"s7_fog\":" << layer.s7_fog
-							   << ",\"uv\":" << uv << ",\"uv_norm\":" << uv_norm << ",\"xy\":" << xy
+							   << ",\"s1_center\":" << vec2_json(layer.s1_center)
+							   << ",\"s1_topleft\":" << vec2_json(layer.s1_topleft) << ",\"uv\":" << uv
+							   << ",\"uv_norm\":" << uv_norm << ",\"xy\":" << xy
 							   << ",\"raw_color\":" << color_json(layer.raw_color)
 							   << ",\"color\":" << color_json(layer.color) << "}\n";
 			});

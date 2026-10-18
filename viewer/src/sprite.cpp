@@ -108,6 +108,8 @@ void SpriteData::preprocess() {
 				const auto texdim = glm::vec2{tex.width, tex.height};
 				for (int k = 0; k < 4; ++k)
 					layer.uv[k] = v77.s1[s4.s1_id].values[k] * texdim;
+				layer.s1_center = glm::vec2{v77.s1[s4.s1_id].center[0], v77.s1[s4.s1_id].center[1]} * texdim;
+				layer.s1_topleft = glm::vec2{v77.s1[s4.s1_id].topleft[0], v77.s1[s4.s1_id].topleft[1]} * texdim;
 			}
 			for (int k = 0; k < 4; ++k) {
 				layer.xy[k] = v77.s2[s4.s2_id].values[k];
@@ -441,12 +443,17 @@ void SpriteInstance::for_each_layer(
 		v.attributes = layer.attributes;
 		v.blend = layer.blend;
 		v.notex = layer.notex;
+		v.flip_v = flip_v;
 		if (!layer.notex && layer.tex_id < data->textures.size()) {
 			v.tex_width = data->textures[layer.tex_id].width;
 			v.tex_height = data->textures[layer.tex_id].height;
 		}
+		v.s1_center = layer.s1_center;
+		v.s1_topleft = layer.s1_topleft;
 		for (int k = 0; k < 4; ++k) {
 			v.uv[k] = layer.uv[k];
+			if (flip_v && v.tex_height)
+				v.uv[k].y = v.tex_height - v.uv[k].y;
 			v.xy[k] = layer.xy[k];
 			v.raw_color[k] = layer.color[k];
 			v.color[k] = layer.color[k];

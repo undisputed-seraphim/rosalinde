@@ -122,7 +122,7 @@ SpriteAssetPtr AssetLoader::make_asset(
 	}
 	{
 		viewer::trace::Scoped sc("make gpu upload " + class_name);
-		asset->renderer.upload_textures(asset->data);
+		asset->renderer.upload_textures(asset->data, ftx);
 	}
 	return asset;
 }
@@ -146,7 +146,7 @@ std::unique_ptr<SpriteLayer> AssetLoader::make_layer(
 		layer->layer_tints.try_emplace(s4.attributes, 1.0f, 1.0f, 1.0f, 1.0f);
 	{
 		viewer::trace::Scoped sc("make gpu upload " + class_name);
-		layer->renderer.upload_textures(layer->data);
+		layer->renderer.upload_textures(layer->data, class_name + ":" + variant_name);
 	}
 	layer->instance = SpriteInstance{&layer->data, trackid, layer->default_flags};
 	layer->instance.play(trackid);
@@ -172,7 +172,7 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 	bg.data = SpriteData::load(
 		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(mbs_buf.data()), mbs_buf.size()),
 		std::move(ftx_entries));
-	bg.renderer.upload_textures(bg.data);
+	bg.renderer.upload_textures(bg.data, job.ftx.path);
 
 	if (std::getenv("FTX_GPU_DUMP")) {
 		glBindTexture(GL_TEXTURE_2D_ARRAY, bg.renderer.texture_array());

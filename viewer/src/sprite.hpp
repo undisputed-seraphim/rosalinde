@@ -28,6 +28,8 @@ struct CachedKeyframe {
 		uint16_t s2_id = 0;
 		uint16_t s0_id = 0;
 		glm::vec2 uv[4];
+		glm::vec2 s1_center{};
+		glm::vec2 s1_topleft{};
 		glm::vec2 xy[4];
 		uint32_t color[4];
 		uint32_t attributes;
@@ -91,6 +93,7 @@ struct LayerVisit {
 	bool hidden = false;
 	bool drawn = false;
 	bool notex = false;
+	bool flip_v = false;
 	uint16_t tex_id = 0;
 	uint16_t tex_width = 0;
 	uint16_t tex_height = 0;
@@ -105,6 +108,8 @@ struct LayerVisit {
 	glm::vec2 s7_scale{1.0f};
 	uint32_t s7_fog = 0;
 	glm::vec2 uv[4] = {};
+	glm::vec2 s1_center{};
+	glm::vec2 s1_topleft{};
 	glm::vec2 xy[4] = {};
 	uint32_t raw_color[4] = {};
 	uint32_t color[4] = {};
@@ -127,6 +132,7 @@ struct SpriteInstance {
 	uint32_t _frame_counter = 0;
 	bool paused = false;
 	bool hold_finished = false;
+	bool flip_v = false;
 
 	std::vector<mbs::section_7> _transition_src_s7;
 	float _transition_t = 1.0f;
