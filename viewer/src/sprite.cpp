@@ -90,18 +90,22 @@ void SpriteData::preprocess() {
 		ck.layers.reserve(s6.s4_no);
 		for (uint32_t j = 0; j < s6.s4_no; ++j) {
 			const auto& s4 = v77.s4[s6.s4_id + j];
-			if (s4.tex_id >= textures.size())
+			const bool notex = (s4.flags & 0x04) != 0;
+			if (!notex && s4.tex_id >= textures.size())
 				continue;
 
-			const auto& tex = textures[s4.tex_id];
-			const auto texdim = glm::vec2{tex.width, tex.height};
-
 			CachedKeyframe::Layer layer;
-			layer.tex_id = s4.tex_id;
+			layer.notex = notex;
+			layer.tex_id = notex ? 0xFFFF : s4.tex_id;
 			layer.attributes = s4.attributes;
 			layer.blend = s4.blend_id;
+			if (!notex) {
+				const auto& tex = textures[s4.tex_id];
+				const auto texdim = glm::vec2{tex.width, tex.height};
+				for (int k = 0; k < 4; ++k)
+					layer.uv[k] = v77.s1[s4.s1_id].values[k] * texdim;
+			}
 			for (int k = 0; k < 4; ++k) {
-				layer.uv[k] = v77.s1[s4.s1_id].values[k] * texdim;
 				layer.xy[k] = v77.s2[s4.s2_id].values[k];
 				layer.color[k] = v77.s0[s4.s0_id].colors[k];
 			}
@@ -219,7 +223,10 @@ void SpriteInstance::play(const std::string& name) {
 }
 
 void SpriteInstance::update(float dt_seconds) {
-	constexpr float kTicksPerSecond = 60.0f;
+	// MBS animation sequences advance at 120 frames/s (script Wait/time units are
+	// 60 Hz). Confirmed against the opening reference: a 556-frame logo sequence
+	// ends at 4.6 s, and the title's flash phase lands at 14 s.
+	constexpr float kTicksPerSecond = 120.0f;
 	constexpr float kTransitionDuration = 0.15f;
 	_accum += dt_seconds * kTicksPerSecond;
 
@@ -264,11 +271,15 @@ void SpriteInstance::update(float dt_seconds) {
 						offsets[i] = run.loop_start;
 				}
 				// Background layers are static plates: hold their final frame.
-				// Other single-pass parts hide when the last frame is an end marker.
-				if (done[i])
-					hide[i] = hold_finished
-								  ? 0
-								  : ((data->v77.s8[run.s8_start + offsets[i]].flags & mbs::v77::s8flag::LAST) ? 1 : 0);
+				// Sprite runs hold their final pose while it is still visible
+				// (ACTIVE + non-zero fog alpha); frames that fade to transparent
+				// or clear ACTIVE terminate the run and stop drawing.
+				if (done[i]) {
+					const auto& end = data->v77.s8[run.s8_start + offsets[i]];
+					const uint32_t fog = data->v77.s7[end.s7_id].fog;
+					const bool visible_end = (end.flags & mbs::v77::s8flag::ACTIVE) && ((fog >> 24) != 0);
+					hide[i] = (hold_finished || visible_end) ? 0 : 1;
+				}
 				ticks[i] = data->v77.s8[run.s8_start + offsets[i]].frames;
 			}
 		}
@@ -291,6 +302,7 @@ void SpriteInstance::update(float dt_seconds) {
 void SpriteInstance::advance_frames(uint32_t frames) {
 	if (paused || !data || frames == 0)
 		return;
+	// `frames` are 60 Hz display frames; update() converts to 120 Hz MBS ticks.
 	constexpr float kFrameSeconds = 1.0f / 60.0f;
 	for (uint32_t i = 0; i < frames; ++i)
 		update(kFrameSeconds);
@@ -360,6 +372,27 @@ void SpriteInstance::build_vertices(
 			continue;
 		if (blend_filter >= 0 && layer.blend != blend_filter)
 			continue;
+		// NOTEX quads are solid fills without a texture. Full-screen veils
+		// (fades, backdrops, flashes) are drawn as solid quads; smaller ones
+		// are masks / letterbox / palette sources consumed elsewhere, and
+		// drawing them as flat fills would paint garbage over the scene.
+		if (layer.notex) {
+			float minx = layer.xy[0].x, maxx = layer.xy[0].x;
+			float miny = layer.xy[0].y, maxy = layer.xy[0].y;
+			bool achromatic = true;
+			for (int k = 0; k < 4; ++k) {
+				minx = std::min(minx, layer.xy[k].x);
+				maxx = std::max(maxx, layer.xy[k].x);
+				miny = std::min(miny, layer.xy[k].y);
+				maxy = std::max(maxy, layer.xy[k].y);
+				const uint32_t c = layer.color[k];
+				const uint32_t r = (c >> 0) & 0xFF, g = (c >> 8) & 0xFF, b = (c >> 16) & 0xFF;
+				achromatic = achromatic && (r == g && g == b);
+			}
+			const bool covers_screen = minx <= -959.0f && maxx >= 959.0f && miny <= -539.0f && maxy >= 539.0f;
+			if (!achromatic || !covers_screen)
+				continue;
+		}
 
 		uint32_t c0 = layer.color[0], c1 = layer.color[1], c2 = layer.color[2], c3 = layer.color[3];
 		if (tints) {

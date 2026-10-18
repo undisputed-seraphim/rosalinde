@@ -1629,10 +1629,6 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "SetSpriteMoneAnimation" || name == "SetSpriteMoneAnimationPaused") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track_index = I(1);
-			if (e->name == "ヴァニラロゴ") {
-				if (const char* o = std::getenv("VIEWER_LOGO_TRACK"))
-					e->track_index = std::atoi(o);
-			}
 			e->started = true;
 			e->anim_paused = name == "SetSpriteMoneAnimationPaused" ? I(2) != 0 : false;
 			if (scene_trace())

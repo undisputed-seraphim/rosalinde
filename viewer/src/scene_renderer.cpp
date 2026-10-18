@@ -63,7 +63,7 @@ void SceneRenderer::rebuild(Object& object, const asb::RuntimeEntity& e, SpriteA
 			if (!track_usable(object.asset->data, static_cast<int>(i)))
 				continue;
 			object.instances.emplace_back(&object.asset->data, i, 0xFFFFFFFFu);
-			object.instances.back().hold_finished = object.background || e.name != "ヴァニラロゴ";
+			object.instances.back().hold_finished = true;
 			object.instances.back().play(i);
 			spdlog::debug(
 				"bg:   track={} name={} runs={}",
@@ -290,7 +290,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				camera,
 				pos,
 				tints.empty() ? nullptr : &tints,
-				object->background,
+				true,
 				e.scale > 0.0f ? e.scale : 1.0f,
 				alpha,
 				flip,

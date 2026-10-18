@@ -27,6 +27,7 @@ struct CachedKeyframe {
 		uint32_t color[4];
 		uint32_t attributes;
 		uint8_t blend;
+		bool notex = false;
 	};
 	std::vector<Layer> layers;
 	glm::vec4 bounds;
