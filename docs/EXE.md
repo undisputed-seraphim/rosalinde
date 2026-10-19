@@ -631,18 +631,21 @@ Ghidra names applied during this pass:
 0x5c73cc texture_get_height
 0x581cf4 matrix4_identity
 0x5b1e78 render_object_base_ctor
-``` For the opening title, colored layers
-carry `s4_source_tile_id` 114–128 and white-mask layers 103–109, but nothing in the
-`sprite_build_matrix` path reads `atlas+0xd0` or `s4.s4_source_tile_id`. Its actual role, and
-the engine path that selects the title's lower-atlas colored art, remain open.
+``` For the opening title, the colored layer is
+`s4_source_tile_id=104`; its white-mask companion is `105`; nearby `103`/`109`
+layers are additional masks. Nothing in the `sprite_build_matrix` path reads
+`atlas+0xd0` or `s4.s4_source_tile_id`, so the engine's exact material selector
+remains open.
 
 The opening title is a useful discriminator:
 
-- Active title `s4` layers sample the **upper** half of `GUI_Opening010.ftx`
-  (white mask).
-- The same FTX contains the finished colored title in the **lower** half.
-- The viewer’s raw `s4`/`s1` path therefore renders the white mask, while the
-  engine reaches the colored atlas region through a path not yet identified.
+- The colored title layer is `s4_source_tile_id=104` (`flags=1`, `blend=0`) and
+  samples the **lower** half of `GUI_Opening010.ftx`.
+- Its white-silhouette companion is `s4_source_tile_id=105` (`flags=1`,
+  `blend=1`) and samples the **upper** half.
+- The viewer’s raw `s4`/`s1` path draws both; additive compositing of the white
+  layer erases the colored title. Skipping the `flags==1`/`blend==1` mask
+  companion exposes the colored layer correctly at 16 s.
 - A vertical UV flip or a constant V offset reaches the colored pixels but does
   not preserve the title layout; the colored composition is not a vertical
   translation of the mask.

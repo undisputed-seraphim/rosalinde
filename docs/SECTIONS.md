@@ -461,8 +461,16 @@ unconfirmed.
 Selects the blend mode; it must be honoured. Corpus distribution:
 `blend=0` ×7,564,990, `1` ×249,292, `2` ×35,269, `3` ×26,539. The exact engine
 enum is still unconfirmed, but the viewer's mapping (0=normal alpha,
-1=additive, 2=multiply, 3=screen) is the best-supported reading. Treating
-everything as normal alpha is wrong for glow/shadow layers.
+1=additive, 2=multiply, 3=screen) is the best-supported reading for glow
+layers. Treating everything as normal alpha is wrong for glow/shadow layers.
+
+One important exception is now known from `GUI/Opening010`: the colored title
+layer (`s4_source_tile_id=104`, `blend=0`) is paired with a white silhouette
+layer (`s4_source_tile_id=105`, `flags=1`, `blend=1`). Compositing that white
+layer additively overwrites the colored logo; the viewer now treats a
+`flags==1`/`blend==1` layer as a mask and does not draw it. `flags=17`/`blend=1`
+layers remain additive (Vanillaware-logo glow). The exact engine material
+blend for these two cases is still open.
 
 ### `flags`
 
@@ -471,7 +479,9 @@ everything as normal alpha is wrong for glow/shadow layers.
 | `0x01` | **ENABLED / valid layer** (strong corpus invariant; no direct renderer check found) — present on 7,765,217 corpus layers; `0x00` only 2,691. Combined `0x05` is `0x01|NOTEX`. |
 | `0x02` | `SKIP` |
 | `0x04` | `NOTEX` — no texture; solid colour/veil |
-| `0x08`, `0x10`, `0x20`, `0x40`, `0x80` | Rare/absent in the corpus; do not assign semantics without a code consumer. |
+| `0x08` | Present on 2,387 layers; exact renderer effect open. |
+| `0x10` | Present on 8,108 layers (mostly `0x11`); associated with additive glow layers in `Opening010`/`Logo`, but no direct renderer check yet. |
+| `0x20`, `0x40`, `0x80` | Rare/absent in the corpus; do not assign semantics without a code consumer. |
 
 The old "very common `0x01` unidentified" entry is resolved to the enabled/valid
 bit; the exact engine meaning of `SKIP` is still not mapped to a renderer call.
@@ -647,8 +657,8 @@ scene, for example, is a single texture-array-backed card.
 | header | `_unk2` | **Open.** `0x230` (664 files) or `0x30` (58 files); not section/texture/track/frame count. |
 | s4 | `s4_source_tile_id` | **Mostly resolved:** exporter/source tile/UV ID (1:1 with `s1_uv_id` in 655/722 files). Runtime consumer not found; exact effect still open. |
 | s4 | `attributes` | **Partially answered:** class/group high bits + variant low byte; exact engine per-layer test still open. |
-| s4 | `blend_id` | **Open:** 0–3; mapping not confirmed; viewer uses normal/add/multiply/screen as a guess. |
-| s4 | `flags` | **Partially answered:** `0x01` enabled/valid, `0x02` SKIP, `0x04` NOTEX; exact SKIP renderer behavior open. |
+| s4 | `blend_id` | **Partially answered:** 0–3; viewer uses normal/add/multiply/screen; `flags==1`/`blend==1` is a mask companion, `flags==17`/`blend==1` is additive glow. Exact engine enum open. |
+| s4 | `flags` | **Partially answered:** `0x01` enabled/valid, `0x02` SKIP, `0x04` NOTEX, `0x10` associated with additive layers; exact SKIP renderer behavior open. |
 | s5 | `s5_hitbox_kind` | **Open:** hitbox kind/group; not read by the interpolation functions. |
 | s5 | `s5_hitbox_control` | **Resolved:** bit0 no geometry, bit1 disable interpolation. |
 | s5 | `flags` | **Open:** hitbox flags; individual bits tested but not named. |
@@ -723,10 +733,12 @@ Dumped with `rosalinde --mbs-dump` (6 GUI, 14 BattleBG, 25 character, 1 FieldBG,
   checks `0x40` (skip update/draw) and `0x400` (suppress the generic render
   object) independently; do not equate `ACTIVE` with the whole engine gate.
 - **`0x40` is a hard hide** — `s8_frame_is_hidden` returns it, and both
-  `UcSpriteMone_update_plain` and `sprite_ease_and_build` return before updating or drawing.
+  `UcSpriteMone_update_plain` and `sprite_ease_and_build` return before drawing.
+  The viewer now gates `0x40` from the draw path; whether the track clock still
+  advances is still being matched against the engine.
 - **`0x400` is no-render, not inactive** — the frame clock still advances, but
-  `sprite_build_matrix` returns before creating a render object. The old viewer
-  behavior that treated it as a harmless ACTIVE modifier is not engine-faithful.
+  `sprite_build_matrix` returns before creating a render object. The viewer now
+  gates it from the draw path as well.
 - **`0x08` is the explicit hold** — no frame advance; do not use
   `s8_loop_target == 0` for that purpose.
 - **A finished single-pass part stops drawing** (`s8_intro_ticks < 0` → `hide`).
@@ -736,6 +748,11 @@ Dumped with `rosalinde --mbs-dump` (6 GUI, 14 BattleBG, 25 character, 1 FieldBG,
 - **Contiguous tiling ⇒ sequences play sequentially** (`VIEWER_RUNS=seq`) — still a
   hypothesis; the default stays parallel (characters are mostly single-sequence);
   not flipped globally yet.
+- **Viewer title status:** the `flags==1`/`blend==1` mask gate plus the
+  `HIDDEN`/`NODRAW` draw gates now produce the colored `UNICORN OVERLORD` title
+  at 16 s. The 14 s white-flash phase and the title's disappearance after the
+  one-shot sequences (~19 s) remain open; the reference still shows the colored
+  title there.
 - `JUMP` + `s8_loop_target == 0` **restarts at the first played frame**; it is
   not a hold. The viewer now uses the absolute target
   (`viewer/src/sprite.cpp`).
