@@ -157,14 +157,19 @@ std::string SceneRenderer::filter_reason(const asb::RuntimeEntity& e, bool stage
 	return {};
 }
 
-void SceneRenderer::set_stage(const std::string& mbs, const std::string& ftx) {
-	if (mbs == _stage_mbs && ftx == _stage_ftx)
+void SceneRenderer::set_stage(const std::string& mbs, const std::string& ftx, std::vector<StageLayer> layers) {
+	if (mbs == _stage_mbs && ftx == _stage_ftx && layers.empty() && _stage_layers.empty())
 		return;
 	_stage_mbs = mbs;
 	_stage_ftx = ftx;
 	_stage = Object{};
-	_stage_mpd.reset();
-	_stage_mpd_path.clear();
+	_stage.state.visible = true;
+	_stage.state.space =
+		mbs.rfind("FieldBG/", 0) == 0 || !layers.empty() ? asb::RuntimeEntity::Space::Ui : asb::RuntimeEntity::Space::World;
+	_stage_layers.clear();
+	_stage_layers.reserve(layers.size());
+	for (auto& layer : layers)
+		_stage_layers.push_back({std::move(layer), nullptr, false});
 }
 
 void SceneRenderer::rebuild(Object& object, const asb::RuntimeEntity& e, SpriteAssetPtr asset) {
@@ -284,17 +289,16 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			e.order = -100000;
 			e.alpha = 255;
 			rebuild(_stage, e, std::move(asset));
-
-			if (_stage_mbs.rfind("FieldBG/", 0) == 0) {
-				std::string mpd = _stage_mbs;
-				if (const size_t ext = mpd.rfind('.'); ext != std::string::npos)
-					mpd.replace(ext, std::string::npos, ".mpd");
-				if (mpd != _stage_mpd_path) {
-					_stage_mpd = MpdAsset::load(_library.loader(), mpd, _stage_ftx);
-					_stage_mpd_path = std::move(mpd);
-				}
-			}
 		}
+	}
+
+	for (auto& layer : _stage_layers) {
+		if (layer.attempted)
+			continue;
+		layer.attempted = true;
+		layer.asset = MpdAsset::load(_library.loader(), layer.spec.mpd, layer.spec.ftx);
+		if (!layer.asset)
+			spdlog::warn("stage: failed to load MPD {} ({})", layer.spec.mpd, layer.spec.ftx);
 	}
 }
 
@@ -600,9 +604,11 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 	glClear(GL_DEPTH_BUFFER_BIT);
 
 	static const Camera ui_camera;
-	if (_stage_mpd && _stage.state.visible && !stage_replaced()) {
+	if (_stage.state.visible && !stage_replaced()) {
 		const Camera& stage_camera = _stage.state.space == asb::RuntimeEntity::Space::Ui ? ui_camera : camera;
-		_stage_mpd->draw(projection, stage_camera);
+		for (auto& layer : _stage_layers)
+			if (layer.asset)
+				layer.asset->draw(projection, stage_camera);
 	}
 
 	std::vector<Object*> order;
@@ -750,6 +756,5 @@ void SceneRenderer::clear() {
 	_stage = Object{};
 	_stage_mbs.clear();
 	_stage_ftx.clear();
-	_stage_mpd.reset();
-	_stage_mpd_path.clear();
+	_stage_layers.clear();
 }

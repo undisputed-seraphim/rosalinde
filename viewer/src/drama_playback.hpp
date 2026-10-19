@@ -3,6 +3,7 @@
 #include "asset_loader.hpp"
 #include "camera.hpp"
 #include "effect_manager.hpp"
+#include "field_catalog.hpp"
 #include "probe.hpp"
 #include "runtime_data.hpp"
 #include "scene_renderer.hpp"
@@ -77,6 +78,7 @@ private:
 
 	const AssetLoader& _loader;
 	DramaPlaybackConfig _cfg;
+	FieldCatalog _fields;
 	ViewerRuntimeData _runtime;
 	asb::Host _host;
 	std::shared_ptr<asb::Module> _module;

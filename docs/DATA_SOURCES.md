@@ -74,9 +74,17 @@ hand-written character table that cannot be generated.
 applied:
 
 - **Stage table** `0x28920d0`, stride `0x50`, 103 entries: name `+0`, base level
-  `+0xc`; **stage cue table** `0x285d9f8`, stride `0x10`, 103 entries: name `+0`,
-  cue `+8`. Names are `ST_OW_*` and match the 103 `St_OW_*.asb` scripts.
-  → `viewer/data/stages.tsv`
+  `+0xc`, country `+0x10`; **stage cue table** `0x285d9f8`, stride `0x10`, 103
+  entries: name `+0`, cue `+8`. Names are `ST_OW_*` and match the 103
+  `St_OW_*.asb` scripts. → `viewer/data/stages.tsv`
+- **Field background catalog**: `FieldBG/Field.ufb` header `+0x60` is the asset
+  count (39), followed by `main/texture` path pairs in the trailing string
+  pool. The engine indexes the same pairs through `field_get_asset_record`
+  (`0x20fa10`): `manager->assets + id * 0x10`. Field backgrounds are selected by
+  the stage row's country and the stage-row variant, not by a script-name
+  prefix. `FieldBG/Field.ufb` also supplies the `_00P`, `_00F`, and numbered
+  field variants; the viewer catalog loads the exact pair names from this
+  table.
 - **Facility table** `0x27b31b0`, stride `0x90`, 485 entries: Japanese label `+8`,
   position `+0x1c/+0x20`; index-aligned with `ST_FACILITYID` (485 entries).
   → `viewer/data/facility_pos.tsv`

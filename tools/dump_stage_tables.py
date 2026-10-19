@@ -4,7 +4,8 @@
 The tables live in the engine's `.data` (not the CPK) and are indexed by the
 names/ids the scripts pass:
 
-- stage table    0x28920d0, stride 0x50, 103 records: name (+0), base level (+0xc)
+- stage table    0x28920d0, stride 0x50, 103 records: name (+0), base level (+0xc),
+  country (+0x10)
 - stage cue table 0x285d9f8, stride 0x10, 103 records: name (+0), cue id (+8)
 - facility table 0x27b31b0, stride 0x90, 485 records: label (+8), pos (+0x1c/+0x20)
 - drop table     0x26e5d30, stride 0x18, 733 records: start (+0x10), count (+0x14);
@@ -12,7 +13,7 @@ names/ids the scripts pass:
 
 Writes:
 
-    viewer/data/stages.tsv        stage  base_lv  cue
+    viewer/data/stages.tsv        stage  base_lv  cue  country
     viewer/data/facility_pos.tsv  key    label    x  y
     viewer/data/drop_tables.tsv   drop_table  item  weight  count  add_index
 
@@ -143,7 +144,8 @@ def main():
     for i in range(STAGE_COUNT):
         rec = STAGE_BASE + i * STAGE_STRIDE
         name = read_cstr(buf, segs, read_ptr(buf, segs, reloc, rec))
-        stage_rows.append((name, read_i32(buf, segs, rec + 0xC), cues.get(name, -1)))
+        country = read_i32(buf, segs, rec + 0x10)
+        stage_rows.append((name, read_i32(buf, segs, rec + 0xC), cues.get(name, -1), country))
 
     fac_rows = []
     for i in range(FAC_COUNT):
@@ -171,7 +173,7 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
     write_tsv(
         os.path.join(args.out_dir, "stages.tsv"),
-        "# stage\tbase_lv\tcue (generated from the engine stage/cue tables by tools/dump_stage_tables.py)",
+        "# stage\tbase_lv\tcue\tcountry (generated from the engine stage/cue tables by tools/dump_stage_tables.py)",
         stage_rows,
     )
     write_tsv(

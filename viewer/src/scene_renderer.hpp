@@ -4,6 +4,7 @@
 #include "camera.hpp"
 #include "mpd_asset.hpp"
 #include "sprite_asset.hpp"
+#include "stage_asset.hpp"
 
 #include <scarlett/scene.hpp>
 #include <scarlett/trace.hpp>
@@ -25,7 +26,7 @@ public:
 		: _library(loader) {}
 
 	void sync(const asb::SceneState& scene);
-	void set_stage(const std::string& mbs, const std::string& ftx);
+	void set_stage(const std::string& mbs, const std::string& ftx, std::vector<StageLayer> layers = {});
 	void set_trace(asb::TraceCallback fn);
 	void set_filters(std::vector<std::string> only, std::vector<std::string> hide, bool keep_stage);
 	void set_probe(ProbeWriter* probe) { _probe = probe; }
@@ -64,10 +65,15 @@ private:
 	long _frame = 0;
 	std::unordered_map<std::string, Object> _objects;
 	Object _stage;
+	struct LoadedStageLayer {
+		StageLayer spec;
+		std::unique_ptr<MpdAsset> asset;
+		bool attempted = false;
+	};
+
 	std::string _stage_mbs;
 	std::string _stage_ftx;
-	std::unique_ptr<MpdAsset> _stage_mpd;
-	std::string _stage_mpd_path;
+	std::vector<LoadedStageLayer> _stage_layers;
 	std::vector<std::string> _only;
 	std::vector<std::string> _hide;
 	bool _keep_stage = false;
