@@ -134,6 +134,7 @@ struct SpriteInstance {
 	std::vector<uint32_t> ticks;
 	std::vector<uint32_t> offsets;
 	std::vector<uint32_t> prev_offsets;
+	std::vector<uint32_t> last_visible_offsets;
 	std::vector<uint8_t> done; // per-run: a single-pass (once) run has finished
 	std::vector<uint8_t> hide; // per-run: a finished run that should stop drawing
 	uint32_t _phase = 0;	   // run index currently playing (sequential-runs mode)

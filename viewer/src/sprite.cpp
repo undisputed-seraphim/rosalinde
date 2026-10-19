@@ -191,6 +191,7 @@ void SpriteInstance::play(uint32_t track_id) {
 	ticks.assign(track.runs.size(), 0);
 	offsets.resize(track.runs.size());
 	prev_offsets.assign(track.runs.size(), UINT32_MAX);
+	last_visible_offsets.assign(track.runs.size(), UINT32_MAX);
 	done.assign(track.runs.size(), 0);
 	hide.assign(track.runs.size(), 0);
 	if (std::getenv("VIEWER_MAIN_ONLY")) {
@@ -250,6 +251,26 @@ void SpriteInstance::update(float dt_seconds) {
 
 	bool advanced = false;
 	const auto& track = data->tracks[track_idx];
+	static const bool hold_foreground = std::getenv("VIEWER_NO_FOREGROUND_HOLD") == nullptr;
+	auto can_hold = [&](uint32_t run_idx, uint32_t offset) {
+		const auto& run = track.runs[run_idx];
+		if (run.s8_start + offset >= data->v77.s8.size())
+			return false;
+		const auto& s8 = data->v77.s8[run.s8_start + offset];
+		if (s8.s6_keyframe_id >= data->keyframes.size())
+			return false;
+		const auto& ck = data->keyframes[s8.s6_keyframe_id];
+		const float width = std::abs(ck.bounds.z - ck.bounds.x);
+		const float height = std::abs(ck.bounds.w - ck.bounds.y);
+		if (width > 3000.0f || height > 3000.0f)
+			return false;
+		bool textured = false;
+		for (const auto& layer : ck.layers) {
+			if (!layer.notex)
+				textured = true;
+		}
+		return textured;
+	};
 
 	while (_accum >= 1.0f) {
 		_accum -= 1.0f;
@@ -259,9 +280,13 @@ void SpriteInstance::update(float dt_seconds) {
 			const auto& run = track.runs[i];
 			if (run.s8_count == 0 || (i < done.size() && done[i]) || offsets[i] >= run.s8_count)
 				continue;
+			const auto& current_s8 = data->v77.s8[run.s8_start + offsets[i]];
+			if ((current_s8.flags & mbs::v77::s8flag::ACTIVE) &&
+				((data->v77.s7[current_s8.s7_transform_id].fog >> 24) != 0))
+				last_visible_offsets[i] = offsets[i];
 			if (--ticks[i] == 0) {
 				advanced = true;
-				const auto& prev_s8 = data->v77.s8[run.s8_start + offsets[i]];
+				const auto& prev_s8 = current_s8;
 				prev_offsets[i] = offsets[i];
 				if (prev_s8.flags & mbs::v77::s8flag::JUMP) {
 					const int32_t target =
@@ -290,7 +315,11 @@ void SpriteInstance::update(float dt_seconds) {
 					const bool visible_end = (end.flags & mbs::v77::s8flag::ACTIVE) && ((fog >> 24) != 0);
 					const bool one_tick_last =
 						run.once && !hold_finished && end.s8_duration_ticks <= 1 && (end.flags & mbs::v77::s8flag::LAST);
-					if (one_tick_last && prev_offsets[i] != UINT32_MAX) {
+					if (one_tick_last && hold_foreground && track.runs.size() > 1 &&
+						last_visible_offsets[i] != UINT32_MAX && can_hold(i, last_visible_offsets[i])) {
+						offsets[i] = last_visible_offsets[i];
+						hide[i] = 0;
+					} else if (one_tick_last && prev_offsets[i] != UINT32_MAX) {
 						const auto& prev = data->v77.s8[run.s8_start + prev_offsets[i]];
 						const uint32_t prev_fog = data->v77.s7[prev.s7_transform_id].fog;
 						const bool prev_visible = (prev.flags & mbs::v77::s8flag::ACTIVE) && ((prev_fog >> 24) != 0);
@@ -368,9 +397,16 @@ void SpriteInstance::for_each_layer(
 		return;
 
 	const auto& track = data->tracks[track_idx];
+	static const bool main_lifetime = std::getenv("VIEWER_NO_MAIN_LIFETIME") == nullptr;
 	LayerVisit base;
 	base.run = sa_idx;
 	base.transition_t = _transition_t;
+	if (main_lifetime && track.runs.size() > 1 && track.sa_main_sequence < done.size() &&
+		done[track.sa_main_sequence]) {
+		base.skip = "main_done";
+		visit(base);
+		return;
+	}
 
 	if (sa_idx >= track.runs.size()) {
 		base.skip = "run";
