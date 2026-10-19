@@ -257,7 +257,7 @@ void SpriteInstance::update(float dt_seconds) {
 		const uint32_t last = seq_runs() ? std::min<uint32_t>(_phase + 1, track.runs.size()) : track.runs.size();
 		for (uint32_t i = first; i < last; ++i) {
 			const auto& run = track.runs[i];
-			if (run.s8_count == 0 || (i < done.size() && done[i]))
+			if (run.s8_count == 0 || (i < done.size() && done[i]) || offsets[i] >= run.s8_count)
 				continue;
 			if (--ticks[i] == 0) {
 				advanced = true;
@@ -413,11 +413,18 @@ void SpriteInstance::for_each_layer(
 	base.s7_transform_id = s8.s7_transform_id;
 	base.s6_keyframe_interpolation = s8.s6_keyframe_interpolation;
 	base.s7_transform_interpolation = s8.s7_transform_interpolation;
-	// Viewer draw gate. The engine additionally suppresses 0x40 (update+draw)
-	// and 0x400 (render object only); this viewer still draws ACTIVE frames that
-	// carry 0x400, so it remains an approximation of the engine path.
 	if (!(s8.flags & mbs::v77::s8flag::ACTIVE)) {
 		base.skip = "inactive";
+		visit(base);
+		return;
+	}
+	if (s8.flags & mbs::v77::s8flag::HIDDEN) {
+		base.skip = "s8_hidden";
+		visit(base);
+		return;
+	}
+	if (s8.flags & mbs::v77::s8flag::NODRAW) {
+		base.skip = "nodraw";
 		visit(base);
 		return;
 	}
@@ -448,8 +455,16 @@ void SpriteInstance::for_each_layer(
 	const float zrate = 1.0f / (visible + 1.0f);
 	float depths[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
+	static const int source_filter = [] {
+		const char* e = std::getenv("VIEWER_S4_SOURCE");
+		return e ? std::atoi(e) : -1;
+	}();
+	static const bool skip_unflagged_mask = std::getenv("VIEWER_KEEP_MASKS") == nullptr;
+
 	for (size_t i = 0; i < ck.layers.size(); ++i) {
 		const auto& layer = ck.layers[i];
+		if (source_filter >= 0 && layer.s4_source_tile_id != static_cast<uint32_t>(source_filter))
+			continue;
 		LayerVisit v = base;
 		v.layer = static_cast<int32_t>(i);
 		v.s4_layer_start = layer.s4_layer_start;
@@ -465,6 +480,14 @@ void SpriteInstance::for_each_layer(
 		v.attributes = layer.attributes;
 		v.blend = layer.blend;
 		v.notex = layer.notex;
+		// Opening010 pairs the colored title (flags=1, blend=0) with a white
+		// silhouette of the same logo (flags=1, blend=1). The white layer is a
+		// mask companion; compositing it additively erases the colored title.
+		if (skip_unflagged_mask && layer.blend == 1 && layer.s4_flags == 1) {
+			v.skip = "unflagged_mask";
+			visit(v);
+			continue;
+		}
 		v.flip_v = flip_v;
 		if (!layer.notex && layer.tex_id < data->textures.size()) {
 			v.tex_width = data->textures[layer.tex_id].width;
@@ -649,6 +672,8 @@ glm::vec4 SpriteInstance::content_bounds() const {
 		if (run.s8_count == 0 || i >= offsets.size())
 			continue;
 		const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
+		if (s8.flags & (mbs::v77::s8flag::HIDDEN | mbs::v77::s8flag::NODRAW))
+			continue;
 		const glm::mat4 m = mbs::s7_matrix(data->v77.s7[s8.s7_transform_id], false, false);
 		const glm::vec4 kb = data->keyframes[s8.s6_keyframe_id].bounds;
 		const glm::vec2 corners[4] = {{kb.x, kb.y}, {kb.z, kb.y}, {kb.x, kb.w}, {kb.z, kb.w}};
@@ -671,7 +696,7 @@ glm::vec4 SpriteInstance::render_bounds() const {
 		if (run.s8_count == 0 || i >= offsets.size())
 			continue;
 		const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
-		if (s8.flags & mbs::v77::s8flag::NODRAW)
+		if (s8.flags & (mbs::v77::s8flag::HIDDEN | mbs::v77::s8flag::NODRAW))
 			continue;
 		if ((s8.flags & mbs::v77::s8flag::LAST) && !(s8.flags & mbs::v77::s8flag::ACTIVE))
 			continue;

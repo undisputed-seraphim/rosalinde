@@ -17,6 +17,12 @@
 namespace {
 void set_blend_mode(uint8_t b) {
 	glBlendEquation(GL_FUNC_ADD);
+	static const int blend1 = [] {
+		const char* e = std::getenv("VIEWER_BLEND1");
+		return e ? std::atoi(e) : 1;
+	}();
+	if (b == 1)
+		b = static_cast<uint8_t>(blend1);
 	switch (b) {
 	case 1: // additive
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
