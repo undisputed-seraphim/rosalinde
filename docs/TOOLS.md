@@ -46,6 +46,10 @@ viewer-only. The old `asb_trace` binary is legacy.
 
 ## `viewer` — live trace and multi-frame capture
 
+The viewer is the canonical playback-dissection path: it owns live runtime state,
+renderer/assets, and frame-accurate capture. `asbrun` remains useful for static
+bytecode inspection and offline script lifts.
+
 ```bash
 ./build/viewer/viewer \
   --cpk ~/Unicorn.CPK \
@@ -63,14 +67,22 @@ Behavior:
   process, reusing the asset cache. Output names are `<prefix>-<frame:06>.png`.
 - `--scene-frame` is still used for a single deterministic screenshot via `--screenshot`.
 - `--trace` writes one JSON object per line. Each line has `frame`, `kind` and `event`.
-  Categories are `vm`, `stage`, `camera`, `asset`, `sprite` and `draw`.
+  Categories are `vm`, `stage`, `camera`, `asset`, `sprite`, `draw` and `timeline`.
 - `vm/call` events are complete native calls: call text, caller, handled status and
   return value. The viewer mirrors `asbrun`'s native-call trace.
 - `camera` events include both the script request (`pos`, `duration`, `delay`) and
   the per-frame evaluated camera state, including tween progress and ease ramps.
 - `asset` events include cache hits, load mode, path and elapsed milliseconds.
 - `sprite` events cover create/chara/animation/rebuild/track changes.
-- `draw` events contain the final per-frame object order, sort keys, instance count and bounds.
+- `draw` events contain the final per-frame object order, sort keys, instance count and bounds;
+  `draw/runs` carries each run's `s8`/`s6`/`s7`, offset, flags, and done/hidden state.
+- `timeline/step` is a compact per-frame step record with entity count, stage and camera.
+- `--trace-frames 820-880`, `--trace-object TEXT` (repeatable), and `--trace-limit N`
+  narrow traces before writing.
+- `--calls FILE` and `--calls-json FILE` write the native-call census: calls, stubs,
+  first/last frame, and imported-but-uncalled natives.
+- `--record FILE --record-every N` writes a compact runtime timeline (camera, stage,
+  objects, tracks, runs). `--record -` writes to stdout.
 - `--probe DIR` writes `state-<frame>.json`, `draw-<frame>.ndjson` and
   `summary-<frame>.txt` at `--probe-frames` (default: capture frames or `--scene-frame`).
   The draw dump is layer-level: MBS run/`s8`/`s6`/`s7`, UVs, effective colors,

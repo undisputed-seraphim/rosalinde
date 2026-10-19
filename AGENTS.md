@@ -93,8 +93,16 @@ SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
 - `--scene-frame N` advances deterministically before capture.
 - `--screenshot PATH` writes one PNG/PPM and exits.
 - `--capture-frames 0,60,420,480 --capture-dir DIR` reuses the asset cache for a batch.
-- `--trace FILE --trace-categories vm,stage,camera,sprite,draw` writes NDJSON. `vm/call`
-  events carry the full call text, caller, handled status, and return value.
+- `--trace FILE --trace-categories vm,stage,camera,asset,sprite,draw` writes NDJSON. `vm/call`
+  events carry the full call text, caller, handled status, and return value. `draw/runs`
+  events carry per-run `s8`/`s6`/`s7`, offset, flags, and done/hidden state.
+- `--trace-frames 820-880`, `--trace-object TEXT` (repeatable), and `--trace-limit N`
+  filter traces without dumping the whole frame. An object filter keeps events that
+  mention the object; structural stage/camera events remain unless they mention it.
+- `--calls FILE` / `--calls-json FILE` write a native-call census with call counts,
+  stubs, first/last frame, and imported-but-uncalled natives.
+- `--record FILE --record-every N` writes a compact runtime timeline (camera, stage,
+  objects, tracks, runs) instead of the full probe state. `-` writes to stdout.
 - `--probe DIR` writes `state-<frame>.json`, `draw-<frame>.ndjson`, and
   `summary-<frame>.txt` at `--probe-frames` (default: capture frames or `--scene-frame`).
   The draw dump is layer-level: run/`s8`/`s6`/`s7`, UVs, blend, fog, sort keys, and skip reasons.
