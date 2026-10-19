@@ -292,9 +292,10 @@ std::vector<table> build_tables(const mbs::v77& value) {
 		table out{
 			"s8",
 			section_labels[8],
-			{"s6_keyframe_id",	  "_pad0",		   "s7_transform_id", "s8_duration_ticks", "FLIPX",		"FLIPY",	   "JUMP",		  "ACTIVE",
-			 "EVENT",	  "NODRAW",		   "LAST",	"GLOBAL", "s8_loop_target", "s5s3_interp", "interp_rate", "s7_interp",
-			 "s6_interp", "s8_render_value", "s8_draw_offset", "s8_event_arg",  "s8_event_flag",		"s8_event_value",	   "s8_reserved"},
+			{"s6_keyframe_id",	  "_pad0",		   "s7_transform_id", "s8_duration_ticks", "FLIPX",		"FLIPY",	   "JUMP",		  "HOLD",
+			 "ACTIVE",	  "HIDDEN",		   "EVENT",		  "NODRAW",			   "LAST",		"STOP",		   "GLOBAL",	  "s8_loop_target",
+			 "s5s3_interp", "interp_rate", "s7_interp", "s6_interp", "s8_render_value", "s8_draw_offset", "s8_event_arg", "s8_event_flag",
+			 "s8_event_value", "s8_reserved"},
 			{}};
 		out.rows.reserve(value.s8.size());
 		for (const auto& item : value.s8) {
@@ -306,10 +307,13 @@ std::vector<table> build_tables(const mbs::v77& value) {
 				 cell::unum((item.flags & 0x01) ? 1 : 0),
 				 cell::unum((item.flags & 0x02) ? 1 : 0),
 				 cell::unum((item.flags & 0x04) ? 1 : 0),
+				 cell::unum((item.flags & 0x08) ? 1 : 0),
 				 cell::unum((item.flags & 0x20) ? 1 : 0),
+				 cell::unum((item.flags & 0x40) ? 1 : 0),
 				 cell::unum((item.flags & 0x80) ? 1 : 0),
 				 cell::unum((item.flags & 0x400) ? 1 : 0),
 				 cell::unum((item.flags & 0x800) ? 1 : 0),
+				 cell::unum((item.flags & 0x1000) ? 1 : 0),
 				 cell::unum((item.flags & 0x2000) ? 1 : 0),
 				 cell::unum(item.s8_loop_target),
 				 cell::unum(item.s5s3_hitbox_interpolation),
@@ -505,10 +509,13 @@ std::string flag_text(uint32_t flags) {
 	append(0x01, "FLIPX");
 	append(0x02, "FLIPY");
 	append(0x04, "JUMP");
+	append(0x08, "HOLD");
 	append(0x20, "ACTIVE");
+	append(0x40, "HIDDEN");
 	append(0x80, "EVENT");
 	append(0x400, "NODRAW");
 	append(0x800, "LAST");
+	append(0x1000, "STOP");
 	append(0x2000, "GLOBAL");
 	return text.empty() ? "none" : text;
 }

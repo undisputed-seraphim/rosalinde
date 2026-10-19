@@ -161,20 +161,23 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 	{
 		auto ofs = open("section_8.csv");
 		ofs << "s6_keyframe_id,_pad0,s7_transform_id,s8_duration_ticks,"
-			<< "FLIPX,FLIPY,JUMP,ACTIVE,EVENT,NODRAW,LAST,GLOBAL,"
+			<< "FLIPX,FLIPY,JUMP,HOLD,ACTIVE,HIDDEN,EVENT,NODRAW,LAST,STOP,GLOBAL,"
 			<< "s8_loop_target,s5s3_interp,interp_rate,s7_interp,s6_interp,s8_render_value,s8_draw_offset,s8_event_arg,s8_event_flag,s8_event_value,s8_reserved\n";
 		constexpr auto fmt = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n"sv;
-		constexpr auto flagfmt = "{},{},{},{},{},{},{},{}"sv;
+		constexpr auto flagfmt = "{},{},{},{},{},{},{},{},{},{},{}"sv;
 		for (const auto& s : v.s8) {
 			const auto flagstr = std::format(
 				flagfmt,
 				(s.flags & 0x01 ? 1 : 0),
 				(s.flags & 0x02 ? 1 : 0),
 				(s.flags & 0x04 ? 1 : 0),
+				(s.flags & 0x08 ? 1 : 0),
 				(s.flags & 0x20 ? 1 : 0),
+				(s.flags & 0x40 ? 1 : 0),
 				(s.flags & 0x80 ? 1 : 0),
 				(s.flags & 0x400 ? 1 : 0),
 				(s.flags & 0x800 ? 1 : 0),
+				(s.flags & 0x1000 ? 1 : 0),
 				(s.flags & 0x2000 ? 1 : 0));
 			ofs << std::format(
 				fmt,
