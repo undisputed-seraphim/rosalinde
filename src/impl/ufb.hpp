@@ -10,10 +10,12 @@
 
 // UFB field binary (FieldBG/Field.ufb). All multi-byte fields are little endian.
 //
-// The file is a fixed 0x88-byte header followed by a 0x30-byte prefix, a
-// 24-byte record stream, and a NUL-separated UTF-8 string pool. The 0x88-byte
-// header describes the overworld field grid and the sizes of the tables that
-// follow it.
+// UFB is the overworld field catalog and layout: world grid bounds, background
+// asset pairs, landmark/object names, NND-compatible tile names, region labels,
+// and the terrain/object record stream. The file is a fixed 0x88-byte header
+// followed by a 0x30-byte prefix, a 24-byte record stream, and a NUL-separated
+// UTF-8 string pool. The 0x88-byte header describes the overworld field grid and
+// the sizes of the tables that follow it.
 //
 //   0x00  char[4] "UCFB"
 //   0x04  u32     version          0x05fc4d71 in Field.ufb

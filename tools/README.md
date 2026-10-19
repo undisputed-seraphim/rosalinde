@@ -207,6 +207,7 @@ files.
 | `.nnd` | node/edge/name/link graph |
 | `.ftx` | texture dimensions, format, and sizes |
 | `.mbs` | tracks, sequences, frames, raw sections |
+| `.mpd` | field quad mesh and texture indices |
 | `.otm` | audio timeline |
 | `.ufb` | field header, 24-byte records, string pool |
 | `.ucb` | dense field grid cells |

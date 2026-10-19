@@ -11,7 +11,8 @@
 // row-major grid of 32-byte cells. In Field.ucb the grid is 2199x1311
 // (2,882,889 cells).
 //
-// UCB is the baked form of the engine's spatial object grid for UFB. The engine
+// UCB is a baked acceleration/cache grid: a precomputed spatial index over the
+// UFB object list, copied over the runtime grid to avoid rebuilding it. The engine
 // builds that grid from UFB's object list with 32-world-unit cells, then copies
 // UCB into it when the cell counts match (FUN_001c3ed0). UCB's width and height
 // therefore come from the UFB object bounds, not from the 138x105 UFB terrain

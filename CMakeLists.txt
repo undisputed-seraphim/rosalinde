@@ -79,6 +79,7 @@ add_executable(rosalinde
 	"tools/dump/fms.cpp"
 	"tools/dump/ftx.cpp"
 	"tools/dump/mbs.cpp"
+	"tools/dump/mpd.cpp"
 	"tools/dump/nnd.cpp"
 	"tools/dump/otm.cpp"
 	"tools/dump/ucb.cpp"
