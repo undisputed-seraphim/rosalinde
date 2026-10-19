@@ -11,7 +11,7 @@ namespace {
 
 bool is_supported(std::string_view extension) {
 	return extension == "acb" || extension == "acf" || extension == "nnd" || extension == "ftx" || extension == "mbs" ||
-		   extension == "otm" || extension == "fms";
+		   extension == "otm" || extension == "fms" || extension == "ufb" || extension == "ucb";
 }
 
 void report_unknown(const context& ctx, std::string_view extension) {
@@ -154,6 +154,10 @@ int dispatch(const cpk::archive& archive, const cpk::entry& item, std::string_vi
 		return dump_mbs(ctx, data);
 	if (extension == "otm")
 		return dump_otm(ctx, data);
+	if (extension == "ufb")
+		return dump_ufb(ctx, data);
+	if (extension == "ucb")
+		return dump_ucb(ctx, data);
 	if (extension == "fms")
 		return dump_fms(ctx, data);
 	return 1;

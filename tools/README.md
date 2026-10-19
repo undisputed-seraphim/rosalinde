@@ -208,6 +208,8 @@ files.
 | `.ftx` | texture dimensions, format, and sizes |
 | `.mbs` | tracks, sequences, frames, raw sections |
 | `.otm` | audio timeline |
+| `.ufb` | field header, 24-byte records, string pool |
+| `.ucb` | dense field grid cells |
 | `.fms` | string table |
 | `.asb` | deferred |
 | unknown | metadata, plus a 64-byte hex preview for files up to 1 MiB |

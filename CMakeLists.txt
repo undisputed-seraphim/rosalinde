@@ -81,6 +81,8 @@ add_executable(rosalinde
 	"tools/dump/mbs.cpp"
 	"tools/dump/nnd.cpp"
 	"tools/dump/otm.cpp"
+	"tools/dump/ucb.cpp"
+	"tools/dump/ufb.cpp"
 	"tools/dump/utf.cpp"
 )
 target_link_libraries(rosalinde PRIVATE eltolinde)
