@@ -1,7 +1,6 @@
 #include "Window.hpp"
 
 #include <array>
-#include <cstdlib>
 #include <glad/glad.h>
 #include <stdexcept>
 
@@ -32,7 +31,7 @@ Window::Window(const char* name, int width, int height)
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-	SDL_GL_SetSwapInterval(std::getenv("VIEWER_CAPTURE") ? 0 : 1);
+	SDL_GL_SetSwapInterval(1);
 	_gl.reset(SDL_GL_CreateContext(_window.get()));
 	SDL_GL_MakeCurrent(_window.get(), _gl.get());
 	SDL_ShowWindow(_window.get());

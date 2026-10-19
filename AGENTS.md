@@ -181,15 +181,12 @@ python3 visiontest/opening_diff.py \
 | `VIEWER_RUN_ONLY`, `VIEWER_RUN_FROM`, `VIEWER_MAIN_ONLY` | restrict MBS runs for debugging |
 | `VIEWER_RUNS=seq`, `VIEWER_SEQ_MAIN`, `VIEWER_ADVANCE`, `VIEWER_ONCE` | sequential-phase / start-offset / end-mode experiments |
 | `VIEWER_HIDE` | hide objects whose name contains the value |
-| `VIEWER_FORCE_START`, `VIEWER_FORCE_TRACK` | force matching created sprites to start, optionally on a specific track |
 | `VIEWER_DATA` | runtime data directory (same as `--data-dir`) |
 | `VIEWER_CAM_Y`, `VIEWER_ORTHO` | camera/design-space overrides |
 | `BG_DUMP`, `BG_LAYERS`, `FTX_GPU_DUMP` | MBS/FTX asset diagnostics |
 | `FTX_GPU_DUMP_DIR`, `FTX_GPU_DUMP_MATCH` | dump uploaded texture arrays to PNGs, optionally filtered by asset label |
 | `VIEWER_FLIP_V` | experimental UV V-flip by MBS/FTX substring for orientation diagnosis |
 | `VIEWER_RUN_ORDER` | experimental run draw order: `reverse` or `track` |
-| `VIEWER_NO_FOREGROUND_HOLD` | disable compound-track last-visible-pose hold |
-| `VIEWER_NO_MAIN_LIFETIME` | disable main-sequence lifetime culling |
 | `VIEWER_FONT`, `VIEWER_SIZE` | font override / offscreen size |
 
 ---

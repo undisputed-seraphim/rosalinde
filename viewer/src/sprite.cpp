@@ -251,7 +251,6 @@ void SpriteInstance::update(float dt_seconds) {
 
 	bool advanced = false;
 	const auto& track = data->tracks[track_idx];
-	static const bool hold_foreground = std::getenv("VIEWER_NO_FOREGROUND_HOLD") == nullptr;
 	auto can_hold = [&](uint32_t run_idx, uint32_t offset) {
 		const auto& run = track.runs[run_idx];
 		if (run.s8_start + offset >= data->v77.s8.size())
@@ -315,8 +314,8 @@ void SpriteInstance::update(float dt_seconds) {
 					const bool visible_end = (end.flags & mbs::v77::s8flag::ACTIVE) && ((fog >> 24) != 0);
 					const bool one_tick_last =
 						run.once && !hold_finished && end.s8_duration_ticks <= 1 && (end.flags & mbs::v77::s8flag::LAST);
-					if (one_tick_last && hold_foreground && track.runs.size() > 1 &&
-						last_visible_offsets[i] != UINT32_MAX && can_hold(i, last_visible_offsets[i])) {
+					if (one_tick_last && track.runs.size() > 1 && last_visible_offsets[i] != UINT32_MAX &&
+						can_hold(i, last_visible_offsets[i])) {
 						offsets[i] = last_visible_offsets[i];
 						hide[i] = 0;
 					} else if (one_tick_last && prev_offsets[i] != UINT32_MAX) {
@@ -397,12 +396,10 @@ void SpriteInstance::for_each_layer(
 		return;
 
 	const auto& track = data->tracks[track_idx];
-	static const bool main_lifetime = std::getenv("VIEWER_NO_MAIN_LIFETIME") == nullptr;
 	LayerVisit base;
 	base.run = sa_idx;
 	base.transition_t = _transition_t;
-	if (main_lifetime && track.runs.size() > 1 && track.sa_main_sequence < done.size() &&
-		done[track.sa_main_sequence]) {
+	if (track.runs.size() > 1 && track.sa_main_sequence < done.size() && done[track.sa_main_sequence]) {
 		base.skip = "main_done";
 		visit(base);
 		return;
@@ -495,7 +492,6 @@ void SpriteInstance::for_each_layer(
 		const char* e = std::getenv("VIEWER_S4_SOURCE");
 		return e ? std::atoi(e) : -1;
 	}();
-	static const bool skip_unflagged_mask = std::getenv("VIEWER_KEEP_MASKS") == nullptr;
 
 	for (size_t i = 0; i < ck.layers.size(); ++i) {
 		const auto& layer = ck.layers[i];
@@ -519,7 +515,7 @@ void SpriteInstance::for_each_layer(
 		// Opening010 pairs the colored title (flags=1, blend=0) with a white
 		// silhouette of the same logo (flags=1, blend=1). The white layer is a
 		// mask companion; compositing it additively erases the colored title.
-		if (skip_unflagged_mask && layer.blend == 1 && layer.s4_flags == 1) {
+		if (layer.blend == 1 && layer.s4_flags == 1) {
 			v.skip = "unflagged_mask";
 			visit(v);
 			continue;
