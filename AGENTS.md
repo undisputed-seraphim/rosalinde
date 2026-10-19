@@ -104,6 +104,36 @@ SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
 - `--data-dir DIR` selects the runtime tables (default: `viewer/data` or `$VIEWER_DATA`).
 - `--scene-fps` controls playback stepping; `--chara-table` overrides the viewer data table.
 
+### Perceptual opening regression (`visiontest/`)
+
+`visiontest/opening_diff.py` compares deterministic viewer captures against the
+reference video (`opening_cinematic.mp4`). It is an **approximate** regression:
+compressed video, camera differences, and watermarks mean pixel identity is not
+expected.
+
+```bash
+python3 visiontest/opening_diff.py \
+  --reference opening_cinematic.mp4 \
+  --out visiontest/out
+```
+
+- Requires `ffmpeg`; uses the Python standard library otherwise.
+- Captures with `SDL_VIDEODRIVER=offscreen` and `MESA_LOADER_DRIVER_OVERRIDE=radeonsi`
+  unless those variables are already set.
+- `visiontest/manifest.json` defines frame fixtures, normalized regions, thresholds,
+  and `known_open` frames.
+- The runner searches ±2 frames for temporal alignment, downscales and lightly blurs both
+  sources, then reports SSIM, gradient correlation, MAE/percentile error, saturation,
+  luminance, edge density, and histogram intersection per region.
+- Outputs `visiontest/out/report.json`, `visiontest/out/index.html`, and side-by-side/
+  difference images. `out/` is ignored.
+- A `known_open` failure is reported as `xfail` and does not fail the run; `--strict`
+  makes those failures fatal. Remove `known_open` only after the frame is reviewed and
+  the threshold is tightened.
+- Use `ignore_regions` in the manifest for watermarks or letterbox areas.
+- The reference video is not committed. The script is a test harness, not a runtime
+  asset-name/frame gate; keep such gates out of viewer code.
+
 ---
 
 ## Engine / runtime facts
@@ -240,6 +270,10 @@ printf 'open Dr_OW_0_Opening.asb\nsummary\nq\n' | ./build/tools/asb/asbrun --cpk
 SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
   ./build/viewer/viewer --cpk ~/Unicorn.CPK --script Script/Dr_OW_0_Opening.asb \
   --scene-frame 60 --screenshot /tmp/frame.png
+
+# Approximate opening regression against the reference video
+python3 visiontest/opening_diff.py --reference opening_cinematic.mp4
+# Use --strict to fail known-open frames too.
 ```
 
 ---
