@@ -183,7 +183,7 @@ void SpriteRenderer::draw(
 		} else if (std::strcmp(order, "track") == 0 && inst.data && inst.track_idx < inst.data->tracks.size()) {
 			const auto& runs = inst.data->tracks[inst.track_idx].runs;
 			std::stable_sort(run_order.begin(), run_order.end(), [&](uint32_t a, uint32_t b) {
-				return a < runs.size() && b < runs.size() && runs[a].track_id < runs[b].track_id;
+				return a < runs.size() && b < runs.size() && runs[a].sa_track_slot < runs[b].sa_track_slot;
 			});
 		}
 	}

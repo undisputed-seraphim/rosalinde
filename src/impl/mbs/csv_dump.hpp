@@ -109,7 +109,7 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 
 	{
 		auto ofs = open("section_4.csv");
-		ofs << "_unk0,color_id,flags,blend_id,tex_id,attributes,s1_id,s0_id,s2_id,_pad\n";
+		ofs << "_unk0,color_id,flags,blend_id,tex_id,attributes,s1_uv_id,s0_color_row_id,s2_vertex_id,_pad\n";
 		constexpr auto fmt = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
 		constexpr auto decfmt = "{},{},{},{},{},{},{},{},{},{}\n"sv;
 		for (const auto& s : v.s4) {
@@ -121,9 +121,9 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 				s.blend_id,
 				s.tex_id,
 				s.attributes,
-				s.s1_id,
-				s.s0_id,
-				s.s2_id,
+				s.s1_uv_id,
+				s.s0_color_row_id,
+				s.s2_vertex_id,
 				s._pad);
 		}
 	}
@@ -140,11 +140,11 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 
 	{
 		auto ofs = open("section_6.csv");
-		ofs << "left,top,right,bottom,s4_id,s5_id,s4_no,s5_no,flags,_pad0\n";
+		ofs << "left,top,right,bottom,s4_layer_start,s5_hitbox_start,s4_layer_count,s5_hitbox_count,flags,_pad0\n";
 		constexpr auto fmt = "{},{},{},{},{},{},{},{},{},{}\n"sv;
 		for (const auto& s : v.s6) {
 			ofs << std::format(
-				fmt, s.left, s.top, s.right, s.bottom, s.s4_id, s.s5_id, s.s4_no, s.s5_no, s.flags, s._pad0);
+				fmt, s.left, s.top, s.right, s.bottom, s.s4_layer_start, s.s5_hitbox_start, s.s4_layer_count, s.s5_hitbox_count, s.flags, s._pad0);
 		}
 	}
 
@@ -160,9 +160,9 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 
 	{
 		auto ofs = open("section_8.csv");
-		ofs << "s6_id,_pad0,s7_id,frames,"
+		ofs << "s6_keyframe_id,_pad0,s7_transform_id,s8_duration_ticks,"
 			<< "FLIPX,FLIPY,JUMP,0x20,0x80,HITBOX,LAST,0x2000,"
-			<< "loop_s8_id,s5s3_interp,interp_rate,s7_interp,s6_interp,s0s1s2_interp,n_180,_pad1,_pad2,sfx_mute,sfx_"
+			<< "s8_loop_offset,s5s3_interp,interp_rate,s7_interp,s6_interp,s0s1s2_interp,n_180,_pad1,_pad2,sfx_mute,sfx_"
 			   "id\n";
 		constexpr auto fmt = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n"sv;
 		constexpr auto flagfmt = "{},{},{},{},{},{},{},{}"sv;
@@ -179,16 +179,16 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 				(s.flags & 0x2000 ? 1 : 0));
 			ofs << std::format(
 				fmt,
-				s.s6_id,
+				s.s6_keyframe_id,
 				s._pad0,
-				s.s7_id,
-				s.frames,
+				s.s7_transform_id,
+				s.s8_duration_ticks,
 				flagstr,
-				s.loop_s8_id,
-				s.s5s3_interpolation,
+				s.s8_loop_offset,
+				s.s5s3_hitbox_interpolation,
 				s.interpolation_rate,
-				s.s7_interpolation,
-				s.s6_interpolation,
+				s.s7_transform_interpolation,
+				s.s6_keyframe_interpolation,
 				s.s0s1s2_interpolation,
 				s.n_180,
 				s._pad1,
@@ -200,7 +200,7 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 
 	{
 		auto ofs = open("section_9.csv");
-		ofs << "left,top,right,bottom,name,sa_set_id,sa_set_no,sa_set_main,sa_sb_set_id,sa_sb_set_no,disabled\n";
+		ofs << "left,top,right,bottom,name,sa_sequence_start,sa_sequence_count,sa_main_sequence,sa_sb_start,sa_sb_count,disabled\n";
 		constexpr auto fmt = "{},{},{},{},{},{},{},{},{},{},{}\n"sv;
 		for (const auto& s : v.s9) {
 			ofs << std::format(
@@ -210,31 +210,31 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 				s.right,
 				s.bottom,
 				s.name,
-				s.sa_set_id,
-				s.sa_set_no,
-				s.sa_set_main,
-				s.sa_sb_set_id,
-				s.sa_sb_set_no,
+				s.sa_sequence_start,
+				s.sa_sequence_count,
+				s.sa_main_sequence,
+				s.sa_sb_start,
+				s.sa_sb_count,
 				s.disabled);
 		}
 	}
 
 	{
 		auto ofs = open("section_a.csv");
-		ofs << "s8_id,s8_no,s8_sum,s8_sum_once,commit_ticks,sb_id,sb_no,s8_st,track_id,_pad\n";
+		ofs << "s8_frame_start,s8_frame_count,s8_total_ticks,s8_intro_ticks,commit_ticks,sb_id,sb_no,s8_start_offset,sa_track_slot,_pad\n";
 		constexpr auto fmt = "{},{},{},{},{},{},{},{},{},{}\n"sv;
 		for (const auto& s : v.sa) {
 			ofs << std::format(
 				fmt,
-				s.s8_id,
-				s.s8_no,
-				s.s8_sum,
-				s.s8_sum_once,
+				s.s8_frame_start,
+				s.s8_frame_count,
+				s.s8_total_ticks,
+				s.s8_intro_ticks,
 				s.commit_ticks,
 				s.sb_id,
 				s.sb_no,
-				s.s8_st,
-				s.track_id,
+				s.s8_start_offset,
+				s.sa_track_slot,
 				s._pad);
 		}
 	}

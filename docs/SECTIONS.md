@@ -23,7 +23,7 @@ game logic, not stored as data.**
 ## Field naming convention
 
 CSV column names map 1:1 to C++ struct fields in `src/impl/mbs/sections.hpp`.
-Where the struct has a named field, the CSV uses the struct name (e.g. `track_id`).
+Where the struct has a named field, the CSV uses the struct name (e.g. `sa_track_slot`).
 Where the struct uses `_unkN`, the CSV mirrors that.
 
 S9 bounding boxes are represented as `left, top, right, bottom` (float) — these vary
@@ -75,16 +75,16 @@ absent.
 
 ## Section 9 (s9) — Tracks
 
-**Struct:** `left(top right bottom)[4], name[24], sa_set_id(u16), sa_set_no(u8),
-sa_set_main(u8), sa_sb_set_id(u16), sa_sb_set_no(u8), disabled(u8)`
+**Struct:** `left(top right bottom)[4], name[24], sa_sequence_start(u16), sa_sequence_count(u8),
+sa_main_sequence(u8), sa_sb_start(u16), sa_sb_count(u8), disabled(u8)`
 
 | Field | Meaning |
 |-------|---------|
 | `left,top,right,bottom` | Camera framing hint for this track (not sprite bounds — vary wildly) |
 | `name` | Track identifier |
-| `sa_set_id` / `sa_set_no` | Starting index / count of `section_a` sequences |
-| `sa_set_main` | **0-based index of the track's main/default sequence**, not a boolean flag. Usually 0, but `GUI/Opening010.mbs` uses 6, 14, and 86 on its effect tracks. |
-| `sa_sb_set_id` / `sa_sb_set_no` | Track-level timing-modifier range into `section_b` (**characters only**) |
+| `sa_sequence_start` / `sa_sequence_count` | Starting index / count of `section_a` sequences |
+| `sa_main_sequence` | **0-based index of the track's main/default sequence**, not a boolean flag. Usually 0, but `GUI/Opening010.mbs` uses 6, 14, and 86 on its effect tracks. |
+| `sa_sb_start` / `sa_sb_count` | Track-level timing-modifier range into `section_b` (**characters only**) |
 | `disabled` | 1 = reserved/padding slot; skip |
 
 ### Track naming — character sprites
@@ -158,81 +158,81 @@ A background is a *set* of tracks, and only part of the set is live at once:
 - An `_1` suffix (oka_4_1, hikari_00_1, akari_02_1) is usually an **extra instance** of an
   element at a different placement, not a variant — keep it.
 
-### `sa_set_main` pattern (characters)
+### `sa_main_sequence` pattern (characters)
 
 Set to 1 on "middle" phase tracks: `KNOCKBACK`, `MAGIC_B_1/2`, `S05/S06 MAGIC_B`,
 `VICTORY_1/2`, `D_IDLE_A–F`, `D_SURPRISED_A2`/`D_EXPLAIN_A2`/`D_HAND_A2`/`D_GUTS_POSE_A2`,
 `FACEBATTLE`.
 
-### `sa_sb_set_id` linkage to section B (characters)
+### `sa_sb_start` linkage to section B (characters)
 
 Non-zero only on tracks needing timing modifiers (hitstop/speed curves): `DASH_1`,
 `MAGIC_A_3`, `MAGIC_B_END`, `LISTED`/`ORDER_1`/`STANCE_1`, `S01–S03 MAGIC_A_3`,
 `S05–S06 MAGIC_B_END`, `S18_QUICK_HEAL_1`/`S19_LISTED`, and the `D_WALK`/`D_DASH`
-directionals. `sa_sb_set_no = 1` means one `section_b` entry is used.
+directionals. `sa_sb_count = 1` means one `section_b` entry is used.
 
 ---
 
 ## Section A (sa) — Animation Sequences
 
-**Struct:** `s8_id(u16), s8_no(u16), s8_sum(u32), s8_sum_once(i32), commit_ticks(i32),
-sb_id(u16), sb_no(u8), s8_st(u8), track_id(u16), _pad(u16)`
+**Struct:** `s8_frame_start(u16), s8_frame_count(u16), s8_total_ticks(u32), s8_intro_ticks(i32), commit_ticks(i32),
+sb_id(u16), sb_no(u8), s8_start_offset(u8), sa_track_slot(u16), _pad(u16)`
 
 | Field | Meaning |
 |-------|---------|
-| `s8_id` | Starting index into `section_8` |
-| `s8_no` | Number of `section_8` frames in this sequence |
-| `s8_sum` | Total tick sum of all frame durations |
-| `s8_sum_once` | Intro ticks played once before looping. `-1` = none; `0` = whole sequence loops |
+| `s8_frame_start` | Starting index into `section_8` |
+| `s8_frame_count` | Number of `section_8` frames in this sequence |
+| `s8_total_ticks` | Total tick sum of all frame durations |
+| `s8_intro_ticks` | Intro ticks played once before looping. `-1` = none; `0` = whole sequence loops |
 | `commit_ticks` | Uninterruptible window (characters). `-1` = none |
 | `sb_id` / `sb_no` | Per-sequence timing modifier (characters) |
-| `s8_st` | **Dual-purpose** — see below |
-| `track_id` | Index of this sequence within its parent track; gaps = reserved slots |
+| `s8_start_offset` | **Dual-purpose** — see below |
+| `sa_track_slot` | Index of this sequence within its parent track; gaps = reserved slots |
 
 ### Two-phase playback model (characters)
 
 ```
-[s8_id ........ s8_id+s8_no-1]   (s8_no frames spanning s8_sum ticks)
+[s8_frame_start ........ s8_frame_start+s8_frame_count-1]   (s8_frame_count frames spanning s8_total_ticks ticks)
  |--- intro ---|------ loop body ------|
  |  guarded by   |  interruptible after  |
- | s8_sum_once   |       commit_ticks     |
+ | s8_intro_ticks   |       commit_ticks     |
 ```
 
-| s8_sum_once | commit_ticks | Interpretation |
+| s8_intro_ticks | commit_ticks | Interpretation |
 |-------------|--------------|----------------|
 | -1 | -1 | Single-pass sequence, no loop/commit (transitional) |
 | 0 | -1 | Full-loop, no intro |
-| >0 | = s8_sum_once | Simple attack loop: N ticks once, rest loops |
-| >0 | ≠ s8_sum_once | Complex attack with section_b timing (e.g. MAGIC_A_3: 99 intro / 59 commit) |
+| >0 | = s8_intro_ticks | Simple attack loop: N ticks once, rest loops |
+| >0 | ≠ s8_intro_ticks | Complex attack with section_b timing (e.g. MAGIC_A_3: 99 intro / 59 commit) |
 
-Backgrounds never use this: `s8_sum_once = -1` on all background sequences.
+Backgrounds never use this: `s8_intro_ticks = -1` on all background sequences.
 
 ### Example: character IDLE and MAGIC_A
 
 ```
-IDLE  track_id=0: s8_no=55 s8_sum=432 s8_sum_once=0   (6 sub-blocks × 72 ticks)
-MAGIC_A_1: s8_sum=102 s8_sum_once=18
-MAGIC_A_2: s8_sum=102 s8_sum_once=18
-MAGIC_A_3: s8_sum=155 s8_sum_once=99 commit_ticks=59 sb_id=2 s8_st=1
-MAGIC_A_4: s8_sum=96  s8_sum_once=40
-MAGIC_A_END: s8_sum=171 s8_sum_once=27 commit_ticks=27 s8_st=1
+IDLE  sa_track_slot=0: s8_frame_count=55 s8_total_ticks=432 s8_intro_ticks=0   (6 sub-blocks × 72 ticks)
+MAGIC_A_1: s8_total_ticks=102 s8_intro_ticks=18
+MAGIC_A_2: s8_total_ticks=102 s8_intro_ticks=18
+MAGIC_A_3: s8_total_ticks=155 s8_intro_ticks=99 commit_ticks=59 sb_id=2 s8_start_offset=1
+MAGIC_A_4: s8_total_ticks=96  s8_intro_ticks=40
+MAGIC_A_END: s8_total_ticks=171 s8_intro_ticks=27 commit_ticks=27 s8_start_offset=1
 ```
 
-### `s8_st` — dual semantics
+### `s8_start_offset` — dual semantics
 
-**Characters (`s8_st ∈ {0,1}`): "skip first frame".** `1` skips the first frame (a generic
-body keyframe shared across many animations) and starts at `s8_id+1`.
+**Characters (`s8_start_offset ∈ {0,1}`): "skip first frame".** `1` skips the first frame (a generic
+body keyframe shared across many animations) and starts at `s8_frame_start+1`.
 
-**Backgrounds (`s8_st ∈ {0..9}`): "sub-sprite index".** An element such as `kusa_01` can
-have sub-sprites at `s8_st = 0,1,2,3,4`, each a visual component with its own loop,
+**Backgrounds (`s8_start_offset ∈ {0..9}`): "sub-sprite index".** An element such as `kusa_01` can
+have sub-sprites at `s8_start_offset = 0,1,2,3,4`, each a visual component with its own loop,
 sharing the same texture regions but animating at its own cadence (natural sway).
 
 ---
 
 ## Section 8 (s8) — Animation Frames
 
-**Struct:** `s6_id(u16), _pad0(u16), s7_id(u16), frames(u16), flags(u32),
-loop_s8_id(u16), s5s3_interp(u8), interp_rate(u8), s7_interp(u8), s6_interp(u8),
+**Struct:** `s6_keyframe_id(u16), _pad0(u16), s7_transform_id(u16), s8_duration_ticks(u16), flags(u32),
+s8_loop_offset(u16), s5s3_interp(u8), interp_rate(u8), s7_interp(u8), s6_interp(u8),
 s0s1s2_interp(u8), n_180(u8), _pad1(u32), _pad2(u16), sfx_mute(u16), sfx_id(u32)`
 
 ### Flag bits (u32)
@@ -244,12 +244,12 @@ Names are early guesses (kept with `_` where unconfirmed). Ground truth from a
 |-----|-----------|---------|
 | 0x01 | common (`0x21`,`0x61`,`0x421`,`0x461`,`0x861`,`0xc21`) | FLIPX — horizontal mirror |
 | 0x02 | rare (`0x22`,`0x822`) | FLIPY — vertical mirror |
-| 0x04 | 129× | **JUMP / loop**: when set, `next = current + loop_s8_id` (relative). 125/129 such frames also have `loop_s8_id != 0`; they are almost always also `0x800` (`0x824`,`0x864`,`0x825`). |
+| 0x04 | 129× | **JUMP / loop**: when set, `next = current + s8_loop_offset` (relative). 125/129 such frames also have `s8_loop_offset != 0`; they are almost always also `0x800` (`0x824`,`0x864`,`0x825`). |
 | 0x20 | ~1160× (everything) | **ACTIVE / renderable** — cleared on non-rendered frames. |
 | 0x40 | common (`0x60`,`0x460`,`0x860`,`0xc60`) | unknown — present on block/entry frames (e.g. the first frames of a sequence); possibly "interpolate in / hold-from-previous". |
 | 0x80 | **never present** here | the old "POSE" guess is unconfirmed — do not rely on it. |
 | 0x400 | common (`0x420`,`0x460`,`0xc20`,`0xc60`) | unknown — the old "HITBOX-only" guess is wrong (it is a common modifier on normal frames). |
-| 0x800 | 287× | **END marker** (last frame of a sequence; usually `frames=1`). With `0x04` it is a *loop point*; **without `0x04` the sequence ends here**. |
+| 0x800 | 287× | **END marker** (last frame of a sequence; usually `s8_duration_ticks=1`). With `0x04` it is a *loop point*; **without `0x04` the sequence ends here**. |
 | 0x2000 | 2× (`0x2860`) | rare; unknown. |
 
 Notes:
@@ -259,12 +259,12 @@ Notes:
 - Frames without `0x800`/`0x04` simply advance (`0x20`, `0x40+0x20`, `0x400+0x20`).
 - A run's frames often start with `0x40` and/or `0x400` set, then drop to `0x20`.
 
-### JUMP + loop_s8_id
+### JUMP + s8_loop_offset
 
-`loop_s8_id` is a **relative** offset when `JUMP=1` (`0x04`): `next = current + loop_s8_id`
-(e.g. D_WALK loops back 17 frames). When `JUMP` is clear, `loop_s8_id` is a loop-back
+`s8_loop_offset` is a **relative** offset when `JUMP=1` (`0x04`): `next = current + s8_loop_offset`
+(e.g. D_WALK loops back 17 frames). When `JUMP` is clear, `s8_loop_offset` is a loop-back
 target interpreted by some frames as an absolute index (`0x822` frames carry
-`loop_s8_id=1`) — but the engine appears to ignore it unless `0x04` is set.
+`s8_loop_offset=1`) — but the engine appears to ignore it unless `0x04` is set.
 
 ### The old `s8sa_loop::preprocess` walk (commit `31e3c5d`, removed)
 
@@ -273,12 +273,12 @@ order + loop point**. It is worth recording because it encodes a *different*
 reading of the control flow than the current player uses:
 
 ```
-sav = sa.s8_id + sa.s8_st            // first frame (honours s8_st skip)
+sav = sa.s8_frame_start + sa.s8_start_offset            // first frame (honours s8_start_offset skip)
 j = 0; times = {}; loop = -1
 walk s8k = sav + j:
     if seen[s8k]: loop = index_of[s8k]; stop
     push s8k to times
-    if flags & JUMP:     j = loop_s8_id        // ABSOLUTE offset from sav
+    if flags & JUMP:     j = s8_loop_offset        // ABSOLUTE offset from sav
     else if flags & LAST: stop                 // 0x800 ends the sequence
     else:                 j += 1
 ```
@@ -286,11 +286,11 @@ walk s8k = sav + j:
 Key claims (unverified — the code was *imported wholesale from another,
 character-sprite-only animator*, so it may not even target the UO format):
 
-- `JUMP` + `loop_s8_id` is an **absolute** target **relative to `sav`**
-  (`next = sav + loop_s8_id`), not relative to the current frame.
-- `LAST` (`0x800`) **ends** the sequence regardless of `s8_sum_once`.
+- `JUMP` + `s8_loop_offset` is an **absolute** target **relative to `sav`**
+  (`next = sav + s8_loop_offset`), not relative to the current frame.
+- `LAST` (`0x800`) **ends** the sequence regardless of `s8_intro_ticks`.
 - The loop point is found by **revisiting a frame** (builds intro + loop body),
-  so it does not use `s8_sum_once` / `commit_ticks` at all.
+  so it does not use `s8_intro_ticks` / `commit_ticks` at all.
 
 Observed when tested in the viewer (`S8_DUMP`/captures): switching the JUMP
 target from relative to absolute **leaves the opening identical** and shifts a
@@ -298,7 +298,7 @@ walking character pose by ~9% of pixels — both poses plausible, so it is *not*
 conclusively correct. The current player keeps the relative reading.
 
 > TODO (applies to sibling sections too): the meanings of `0x40`/`0x400` here,
-> and of `sa.sa_set_main` / `sa.commit_ticks` / the `sa.track_id` reserved gaps,
+> and of `sa.sa_main_sequence` / `sa.commit_ticks` / the `sa.sa_track_slot` reserved gaps,
 > are still unconfirmed.
 
 ### Interpolation fields
@@ -368,8 +368,8 @@ orders background layers.
 
 ## Section 6 (s6) — Keyframes
 
-**Struct:** `left, top, right, bottom (float), s4_id(u16), s5_id(u16), s4_no(u16),
-s5_no(u8), flags(u8), _pad0(u16)`
+**Struct:** `left, top, right, bottom (float), s4_layer_start(u16), s5_hitbox_start(u16), s4_layer_count(u16),
+s5_hitbox_count(u8), flags(u8), _pad0(u16)`
 
 A keyframe = a bounding box plus a contiguous range of `section_4` layers and `section_5`
 hitbox entries. `left/top/right/bottom` are *bounds*, but they are not reliable content
@@ -381,10 +381,10 @@ accurate geometry use `section_2` vertices (below).
 ## Section 4 (s4) — Keyframe Layers
 
 **Struct:** `_unk0(u32), color_id(u8), flags(u8), blend_id(u8), tex_id(u8),
-attributes(u32), s1_id(u16), s0_id(u16), s2_id(u16), _pad(u16)`
+attributes(u32), s1_uv_id(u16), s0_color_row_id(u16), s2_vertex_id(u16), _pad(u16)`
 
-A layer references one texture quad: `s2_id` → vertices (`section_2`), `s1_id` → UVs
-(`section_1`), `s0_id` → colours (`section_0`), `tex_id` → the texture within the FTX
+A layer references one texture quad: `s2_vertex_id` → vertices (`section_2`), `s1_uv_id` → UVs
+(`section_1`), `s0_color_row_id` → colours (`section_0`), `tex_id` → the texture within the FTX
 atlas.
 
 ### `blend_id`
@@ -423,7 +423,7 @@ one (e.g. 262 entries) providing full-scene atmospheric perspective gradients.
 **Struct:** `speed_num(u32), speed_den(u16), _pad0(u32), _pad1(u16), oneshot(u16),
 _pad2(u32), _pad3(u16)`
 
-Referenced from `section_9` (`sa_sb_set_id`) and `section_a` (`sb_id`). Example values:
+Referenced from `section_9` (`sa_sb_start`) and `section_a` (`sb_id`). Example values:
 
 ```
 sb[0]: 7/2   oneshot=2   (DASH_1)
@@ -444,13 +444,13 @@ one-shot application. Pads are always 0. Backgrounds have no section B.
 
 ```
 Section 9 (Track) — named animation  "IDLE", "MAGIC_A_3"   (one active at a time)
-  └── sa_set_id → Section A (sequence list)
-        ├── s8_id → Section 8 (frames)
-        │     ├── s6_id → Section 6 (keyframe)
-        │     │     ├── s4_id → Section 4 (layers: tex, UV, vertex, colour)
-        │     │     └── s5_id → Section 5 (hitbox entries)
-        │     └── s7_id → Section 7 (transform)
-        ├── s8_sum_once / commit_ticks → two-phase playback timing
+  └── sa_sequence_start → Section A (sequence list)
+        ├── s8_frame_start → Section 8 (frames)
+        │     ├── s6_keyframe_id → Section 6 (keyframe)
+        │     │     ├── s4_layer_start → Section 4 (layers: tex, UV, vertex, colour)
+        │     │     └── s5_hitbox_start → Section 5 (hitbox entries)
+        │     └── s7_transform_id → Section 7 (transform)
+        ├── s8_intro_ticks / commit_ticks → two-phase playback timing
         └── sb_id → Section B (timing modifiers)
 ```
 
@@ -458,13 +458,13 @@ Section 9 (Track) — named animation  "IDLE", "MAGIC_A_3"   (one active at a ti
 
 ```
 Section 9 (Track) — element or state "kumo_01", "CLS_CHNG_BFR_ENKE_IDLE"
-  └── sa_set_id → Section A (sequence list)
-        ├── s8_st → sub-sprite index within this element
-        ├── s8_id → Section 8 (frames)
-        │     ├── s6_id → Section 6 (keyframe)
-        │     │     └── s4_id → Section 4 (texture region + UV + vertex)
-        │     └── s7_id → Section 7 (world placement + fog tint)
-        └── s8_sum → loop duration (long atmospheric loops, no intro/commit)
+  └── sa_sequence_start → Section A (sequence list)
+        ├── s8_start_offset → sub-sprite index within this element
+        ├── s8_frame_start → Section 8 (frames)
+        │     ├── s6_keyframe_id → Section 6 (keyframe)
+        │     │     └── s4_layer_start → Section 4 (texture region + UV + vertex)
+        │     └── s7_transform_id → Section 7 (world placement + fog tint)
+        └── s8_total_ticks → loop duration (long atmospheric loops, no intro/commit)
 ```
 
 ---
@@ -478,9 +478,9 @@ Section 9 (Track) — element or state "kumo_01", "CLS_CHNG_BFR_ENKE_IDLE"
 | Section 3 / 5 (hitboxes) | Present | Absent |
 | Section B (timing) | Present (hitstop, speed, one-shots) | Absent |
 | Section 7 `fog` | Per-frame limb/effect tint | Per-frame atmospheric/effect tint |
-| Section A `s8_st` | 0/1 (skip first frame) | 0–9 (sub-sprite index) |
+| Section A `s8_start_offset` | 0/1 (skip first frame) | 0–9 (sub-sprite index) |
 | Section 8 loops | Fast 6–72 frame cycles with JUMP | Long 50–300 frame atmospheric loops |
-| Frame sections | Two-phase intro/commit used | `s8_sum_once = -1` throughout |
+| Frame sections | Two-phase intro/commit used | `s8_intro_ticks = -1` throughout |
 
 ---
 
@@ -540,13 +540,13 @@ Dumped with `rosalinde --mbs-dump` (6 GUI, 14 BattleBG, 25 character, 1 FieldBG,
 
 ### section_9 (tracks)
 
-- `sa_set_no` (sequences per track): `0→508, 1→566, 2→106, 3→407, 4→407, 5→257,
+- `sa_sequence_count` (sequences per track): `0→508, 1→566, 2→106, 3→407, 4→407, 5→257,
   6→161, 7→56, …` up to 87. **58 % of tracks have >1 sequence.**
 - **Every multi-sequence track's sequences tile the `s8` array contiguously**
-  (`s8_id` ranges back-to-back; 1499/1499). The sequences are therefore *ordered
+  (`s8_frame_start` ranges back-to-back; 1499/1499). The sequences are therefore *ordered
   segments of one linear timeline*, not interleaved parallel parts.
-- `track_id` has reserved gaps in ~half of multi-seq tracks (758 gaps / 741 contiguous).
-- `sa_set_main` is a **0-based sequence index**, not a boolean. Many character and
+- `sa_track_slot` has reserved gaps in ~half of multi-seq tracks (758 gaps / 741 contiguous).
+- `sa_main_sequence` is a **0-based sequence index**, not a boolean. Many character and
   background tracks use 0; compound tracks use higher indices (e.g. `GUI/Opening010`
   track 1 uses 86, track 3 uses 6, track 5 uses 14).
 - `disabled=1` on 505 tracks (reserved/padding) — skip them.
@@ -555,9 +555,9 @@ Dumped with `rosalinde --mbs-dump` (6 GUI, 14 BattleBG, 25 character, 1 FieldBG,
 
 ### section_a (sequences)
 
-- `s8_sum_once`: **−1 (single-pass) 4874, 0 (full loop) 1986, >0 (intro+loop) 856**
+- `s8_intro_ticks`: **−1 (single-pass) 4874, 0 (full loop) 1986, >0 (intro+loop) 856**
   → most sequences are single-pass.
-- `s8_st != 0` on **3974/7716** sequences — `s8_st` is significant (characters:
+- `s8_start_offset != 0` on **3974/7716** sequences — `s8_start_offset` is significant (characters:
   skip-first-frame; backgrounds: sub-sprite index).
 - `commit_ticks != -1`: 847. `sb_id != 0` (link into section_b): only 197.
 
@@ -566,7 +566,7 @@ Dumped with `rosalinde --mbs-dump` (6 GUI, 14 BattleBG, 25 character, 1 FieldBG,
 - Bit counts: `0x20`(active) 46987, **inactive 20808**, `0x400` 9336,
   `0x800`(last) 7716, `0x04`(jump) 3606, `0x01` 3283, `0x2000` 849, `0x80` 229,
   `0x02` 125. (Counts over the whole sample — a frame can carry several bits.)
-- **`0x04` (JUMP) with `loop_s8_id == 0` is common: 2042/3606 (57 %).** Relative
+- **`0x04` (JUMP) with `s8_loop_offset == 0` is common: 2042/3606 (57 %).** Relative
   reading ⇒ self-loop / *hold*; absolute reading ⇒ loop to sequence start.
 - `0x400` is common ⇒ the old "HITBOX-only" name is wrong (it is a modifier).
 - `0x80` is rare in the sample ⇒ "POSE" is unconfirmed.
@@ -582,11 +582,11 @@ Dumped with `rosalinde --mbs-dump` (6 GUI, 14 BattleBG, 25 character, 1 FieldBG,
   gate, commit `9f7245a`) and verified on the opening: gating on `ACTIVE` removes
   black artifacts and un-skips the 82% of `GUI/Opening070` frames that carry
   `0x400` (a modifier, **not** a hitbox-only marker).
-- **A finished single-pass part stops drawing** (`s8_sum_once < 0` → `hide`).
+- **A finished single-pass part stops drawing** (`s8_intro_ticks < 0` → `hide`).
   Verified: *holding* the final `0x820` frame instead **freezes** the intro dragon
   and suppresses the title sequence — "hold" is wrong. A `0x820` frame is drawn
   on its own tick, then the part ends.
 - **Contiguous tiling ⇒ sequences play sequentially** (`VIEWER_RUNS=seq`) — still a
   hypothesis; the default stays parallel (characters are mostly single-sequence);
   not flipped globally yet.
-- `JUMP`+`loop_s8_id=0` may be an explicit **hold** (repeat the current frame).
+- `JUMP`+`s8_loop_offset=0` may be an explicit **hold** (repeat the current frame).

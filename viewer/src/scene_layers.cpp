@@ -89,9 +89,9 @@ build_layers(const AssetLoader& loader, const std::vector<LayerSpec>& specs, int
 				const auto& v77 = layer->data.v77;
 				for (uint32_t t = 0; t < v77.s9.size(); ++t) {
 					const auto& s9 = v77.s9[t];
-					if (s9.disabled || s9.sa_set_no == 0)
+					if (s9.disabled || s9.sa_sequence_count == 0)
 						continue;
-					if (s9.sa_set_id >= v77.sa.size() || v77.sa[s9.sa_set_id].s8_no == 0)
+					if (s9.sa_sequence_start >= v77.sa.size() || v77.sa[s9.sa_sequence_start].s8_frame_count == 0)
 						continue;
 					SpriteInstance inst{&layer->data, t, 0xFFFFFFFF};
 					inst.play(t);

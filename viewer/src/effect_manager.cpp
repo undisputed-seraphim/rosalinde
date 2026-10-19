@@ -52,7 +52,7 @@ long EffectManager::track_frames(const SpriteData& data, int track) {
 		for (uint32_t i = 0; i < run.s8_count; ++i) {
 			const size_t idx = static_cast<size_t>(run.s8_start) + i;
 			if (idx < data.v77.s8.size())
-				n += data.v77.s8[idx].frames;
+				n += data.v77.s8[idx].s8_duration_ticks;
 		}
 	}
 	return n;

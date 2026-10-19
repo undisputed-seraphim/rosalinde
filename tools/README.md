@@ -282,13 +282,13 @@ d BattleBG/BGBtPort_D.mbs --track 0 --seq 2
 
 ```text
 sequence[2] sa=2 s8[4..10) total_frames=211 once=0 commit=-1 track=7 loop=0
-  frame[0] s8=4 duration=42 flags=0x21 [FLIPX|ACTIVE] s6=37 s7=1 loop_s8_id=0 ...
-  frame[1] s8=5 duration=42 flags=0x21 [FLIPX|ACTIVE] s6=38 s7=1 loop_s8_id=0 ...
+  frame[0] s8=4 duration=42 flags=0x21 [FLIPX|ACTIVE] s6=37 s7=1 s8_loop_offset=0 ...
+  frame[1] s8=5 duration=42 flags=0x21 [FLIPX|ACTIVE] s6=38 s7=1 s8_loop_offset=0 ...
 ```
 
 - `frame[N]` is relative to the sequence
 - `s8=N` is the global section-8 index
-- `duration` is the section-8 `frames` field
+- `duration` is the section-8 `s8_duration_ticks` field
 - `total_frames` is the sum over the sequence
 - `--limit N` caps the number of frame rows
 - sections 4, 5, 6, and 7 are not expanded; their IDs are reported
@@ -311,7 +311,7 @@ frame[5] t=210 end=211 s8=9 duration=1 ...
 - `t` is the sum of preceding section-8 durations in the sequence
 - `end = t + duration`
 - JSON frame objects always include `t` and `end`, even without `--timeline`
-- the sequence header includes `s8_st`; the inspector shows raw section-8 rows
+- the sequence header includes `s8_start_offset`; the inspector shows raw section-8 rows
 
 ### Effective color/alpha
 
@@ -394,8 +394,8 @@ keeps both relative and global indices:
       "s8_index": 4,
       "duration": 42,
       "flags": 33,
-      "s6_id": 37,
-      "s7_id": 1
+      "s6_keyframe_id": 37,
+      "s7_transform_id": 1
     }
   ]
 }

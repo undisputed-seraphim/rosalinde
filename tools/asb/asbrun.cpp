@@ -349,7 +349,7 @@ private:
 					while (length < sizeof(track.name) && track.name[length] != '\0')
 						++length;
 					meta.track_names.emplace_back(track.name, length);
-					meta.track_runs.push_back(track.sa_set_no);
+					meta.track_runs.push_back(track.sa_sequence_count);
 				}
 			}
 		} catch (...) {

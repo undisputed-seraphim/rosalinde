@@ -44,7 +44,7 @@ long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int tra
 					for (const auto& run : sd.tracks[track_index].runs) {
 						long len = 0;
 						for (uint32_t i = 0; i < run.s8_count && run.s8_start + i < sd.v77.s8.size(); ++i)
-							len += sd.v77.s8[run.s8_start + i].frames;
+							len += sd.v77.s8[run.s8_start + i].s8_duration_ticks;
 						n = std::max(n, len);
 					}
 				}

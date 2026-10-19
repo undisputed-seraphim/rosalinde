@@ -23,12 +23,12 @@ struct CachedKeyframe {
 	struct Layer {
 		uint16_t tex_id;
 		uint16_t _pad;
-		uint32_t s4_id = 0;
+		uint32_t s4_layer_start = 0;
 		uint32_t s4_unk0 = 0;
 		uint8_t s4_flags = 0;
-		uint16_t s1_id = 0;
-		uint16_t s2_id = 0;
-		uint16_t s0_id = 0;
+		uint16_t s1_uv_id = 0;
+		uint16_t s2_vertex_id = 0;
+		uint16_t s0_color_row_id = 0;
 		uint8_t color_id = 0;
 		uint32_t alt_color[4] = {};
 		glm::vec2 uv[4];
@@ -54,16 +54,16 @@ struct SpriteData {
 	struct FrameRun {
 		uint32_t s8_start;
 		uint32_t s8_count;
-		uint8_t s8_st;
+		uint8_t s8_start_offset;
 		uint32_t loop_start;
-		bool once; // s8_sum_once < 0: play through once, then hold the last frame
-		uint16_t track_id;
+		bool once; // s8_intro_ticks < 0: play through once, then hold the last frame
+		uint16_t sa_track_slot;
 	};
 	struct Track {
 		std::string name;
 		std::vector<FrameRun> runs;
 		glm::vec4 bounds;
-		uint8_t sa_set_main = 0;
+		uint8_t sa_main_sequence = 0;
 		uint8_t disabled = 0;
 	};
 	std::vector<Track> tracks;
@@ -80,22 +80,22 @@ private:
 struct LayerVisit {
 	uint32_t run = 0;
 	int32_t layer = -1;
-	uint32_t s4_id = 0;
+	uint32_t s4_layer_start = 0;
 	uint32_t s4_unk0 = 0;
 	uint8_t s4_flags = 0;
-	uint16_t s1_id = 0;
-	uint16_t s2_id = 0;
-	uint16_t s0_id = 0;
+	uint16_t s1_uv_id = 0;
+	uint16_t s2_vertex_id = 0;
+	uint16_t s0_color_row_id = 0;
 	uint8_t color_id = 0;
 	uint32_t alt_color[4] = {};
-	uint32_t s6_id = 0;
-	uint32_t s7_id = 0;
-	uint32_t s8_id = 0;
+	uint32_t s6_keyframe_id = 0;
+	uint32_t s7_transform_id = 0;
+	uint32_t s8_frame_start = 0;
 	uint32_t s8_flags = 0;
 	uint16_t s8_frames = 0;
-	uint8_t s6_interpolation = 0;
-	uint8_t s7_interpolation = 0;
-	uint16_t track_id = 0;
+	uint8_t s6_keyframe_interpolation = 0;
+	uint8_t s7_transform_interpolation = 0;
+	uint16_t sa_track_slot = 0;
 	uint32_t offset = 0;
 	bool done = false;
 	bool hidden = false;

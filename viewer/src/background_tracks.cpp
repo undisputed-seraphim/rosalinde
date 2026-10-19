@@ -7,7 +7,7 @@ std::vector<uint32_t> select_background_tracks(const mbs::v77& v77) {
 	std::vector<uint32_t> enabled;
 	for (uint32_t i = 0; i < v77.s9.size(); ++i) {
 		const auto& s9 = v77.s9[i];
-		if (s9.disabled || v77.sa[s9.sa_set_id].s8_no == 0)
+		if (s9.disabled || v77.sa[s9.sa_sequence_start].s8_frame_count == 0)
 			continue;
 		enabled.push_back(i);
 	}

@@ -61,9 +61,9 @@ struct section_4 {
 	uint8_t blend_id;
 	uint8_t tex_id;
 	uint32_t attributes;
-	uint16_t s1_id; // id of texture uv
-	uint16_t s0_id; // id of fog color
-	uint16_t s2_id; // id of vertex
+	uint16_t s1_uv_id; // id of texture uv
+	uint16_t s0_color_row_id; // id of fog color
+	uint16_t s2_vertex_id; // id of vertex
 	uint16_t _pad;
 };
 
@@ -80,10 +80,10 @@ struct section_6 {
 	float top;
 	float right;
 	float bottom;
-	uint32_t s4_id; // starting layer id
-	uint16_t s5_id; // starting hitbox id
-	uint16_t s4_no; // nr of layers
-	uint8_t s5_no;	// nr of hitboxes
+	uint32_t s4_layer_start; // starting layer id
+	uint16_t s5_hitbox_start; // starting hitbox id
+	uint16_t s4_layer_count; // nr of layers
+	uint8_t s5_hitbox_count;	// nr of hitboxes
 	uint8_t flags;
 	uint16_t _pad0;
 };
@@ -96,16 +96,16 @@ struct section_7 {
 };
 
 struct section_8 {
-	uint16_t s6_id;
+	uint16_t s6_keyframe_id;
 	uint16_t _pad0;
-	uint16_t s7_id;
-	uint16_t frames;
+	uint16_t s7_transform_id;
+	uint16_t s8_duration_ticks;
 	uint32_t flags;
-	uint16_t loop_s8_id;
-	uint8_t s5s3_interpolation;
+	uint16_t s8_loop_offset;
+	uint8_t s5s3_hitbox_interpolation;
 	uint8_t interpolation_rate;
-	uint8_t s7_interpolation;
-	uint8_t s6_interpolation;
+	uint8_t s7_transform_interpolation;
+	uint8_t s6_keyframe_interpolation;
 	uint8_t s0s1s2_interpolation;
 	uint8_t n_180;
 	uint32_t _pad1;
@@ -120,24 +120,24 @@ struct section_9 {
 	float right;
 	float bottom;
 	char name[24];
-	uint16_t sa_set_id; // starting index into section_a
-	uint8_t sa_set_no;
-	uint8_t sa_set_main;
-	uint16_t sa_sb_set_id;
-	uint8_t sa_sb_set_no;
+	uint16_t sa_sequence_start; // starting index into section_a
+	uint8_t sa_sequence_count;
+	uint8_t sa_main_sequence;
+	uint16_t sa_sb_start;
+	uint8_t sa_sb_count;
 	uint8_t disabled; // 0 = enabled, 1 = disabled
 };
 
 struct section_a {
-	uint16_t s8_id;		  // starting index into section_8
-	uint16_t s8_no;		  // number of section_8 entries
-	uint32_t s8_sum;	  // total tick sum of all frame durations
-	int32_t s8_sum_once;  // intro portion (ticks played once before loop). -1 = no intro
+	uint16_t s8_frame_start;		  // starting index into section_8
+	uint16_t s8_frame_count;		  // number of section_8 entries
+	uint32_t s8_total_ticks;	  // total tick sum of all frame durations
+	int32_t s8_intro_ticks;  // intro portion (ticks played once before loop). -1 = no intro
 	int32_t commit_ticks; // uninterruptible window (ticks). -1 = no commit window
 	uint16_t sb_id;
 	uint8_t sb_no; // always 1 when sb_id > 0, else 0
-	uint8_t s8_st; // skip first frame: 0 = play [s8_id ..], 1 = play [s8_id+1 ..]
-	uint16_t track_id;
+	uint8_t s8_start_offset; // skip first frame: 0 = play [s8_frame_start ..], 1 = play [s8_frame_start+1 ..]
+	uint16_t sa_track_slot;
 	uint16_t _pad; // always 0
 };
 
@@ -177,7 +177,7 @@ struct v77 {
 		// clang-format off
 		FLIPX  = 0x01,   // horizontal mirror
 		FLIPY  = 0x02,   // vertical mirror (rare)
-		JUMP   = 0x04,   // control-flow: next = current + loop_s8_id (relative)
+		JUMP   = 0x04,   // control-flow: next = current + s8_loop_offset (relative)
 		ACTIVE = 0x20,   // frame is renderable (cleared on non-rendered frames)
 		POSE   = 0x80,   // unconfirmed (rare); legacy "non-idle pose" guess
 		HITBOX = 0x400,  // common modifier on normal frames -- NOT hitbox-only

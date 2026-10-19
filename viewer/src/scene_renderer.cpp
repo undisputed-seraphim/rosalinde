@@ -79,11 +79,11 @@ std::string runs_json(const SpriteInstance& instance) {
 		if (i)
 			out += ',';
 		const auto& state = states[i];
-		uint32_t track_id = 0;
+		uint32_t track_slot = 0;
 		if (instance.data && instance.track_idx < instance.data->tracks.size() &&
 			i < instance.data->tracks[instance.track_idx].runs.size())
-			track_id = instance.data->tracks[instance.track_idx].runs[i].track_id;
-		out += "{\"run\":" + std::to_string(i) + ",\"track_id\":" + std::to_string(track_id) +
+			track_slot = instance.data->tracks[instance.track_idx].runs[i].sa_track_slot;
+		out += "{\"run\":" + std::to_string(i) + ",\"track_id\":" + std::to_string(track_slot) +
 			   ",\"offset\":" + std::to_string(state.offset) + ",\"flags\":" + std::to_string(state.flags) +
 			   ",\"frames\":" + std::to_string(state.frames) + ",\"done\":" + asb::trace::boolean(state.done) +
 			   ",\"hidden\":" + asb::trace::boolean(state.hidden) + "}";
@@ -418,16 +418,16 @@ void SceneRenderer::probe_layers(
 							   << ",\"kind\":\"draw\",\"event\":\"layer\",\"object\":" << quote(object.state.name)
 							   << ",\"stage\":" << asb::trace::boolean(stage) << ",\"instance\":" << index
 							   << ",\"run\":" << layer.run << ",\"layer\":" << layer.layer
-							   << ",\"track\":" << instance.track_idx << ",\"track_id\":" << layer.track_id
+							   << ",\"track\":" << instance.track_idx << ",\"track_id\":" << layer.sa_track_slot
 							   << ",\"offset\":" << layer.offset << ",\"done\":" << asb::trace::boolean(layer.done)
-							   << ",\"hidden\":" << asb::trace::boolean(layer.hidden) << ",\"s8\":" << layer.s8_id
+							   << ",\"hidden\":" << asb::trace::boolean(layer.hidden) << ",\"s8\":" << layer.s8_frame_start
 							   << ",\"s8_flags\":" << layer.s8_flags << ",\"s8_frames\":" << layer.s8_frames
-							   << ",\"s6\":" << layer.s6_id << ",\"s7\":" << layer.s7_id
-							   << ",\"s6_interp\":" << static_cast<unsigned>(layer.s6_interpolation)
-							   << ",\"s7_interp\":" << static_cast<unsigned>(layer.s7_interpolation)
-							   << ",\"s4\":" << layer.s4_id << ",\"s4_unk0\":" << layer.s4_unk0
-							   << ",\"s4_flags\":" << static_cast<unsigned>(layer.s4_flags) << ",\"s1\":" << layer.s1_id
-							   << ",\"s2\":" << layer.s2_id << ",\"s0\":" << layer.s0_id
+							   << ",\"s6\":" << layer.s6_keyframe_id << ",\"s7\":" << layer.s7_transform_id
+							   << ",\"s6_interp\":" << static_cast<unsigned>(layer.s6_keyframe_interpolation)
+							   << ",\"s7_interp\":" << static_cast<unsigned>(layer.s7_transform_interpolation)
+							   << ",\"s4\":" << layer.s4_layer_start << ",\"s4_unk0\":" << layer.s4_unk0
+							   << ",\"s4_flags\":" << static_cast<unsigned>(layer.s4_flags) << ",\"s1\":" << layer.s1_uv_id
+							   << ",\"s2\":" << layer.s2_vertex_id << ",\"s0\":" << layer.s0_color_row_id
 							   << ",\"color_id\":" << static_cast<unsigned>(layer.color_id)
 							   << ",\"alt_color\":" << color_json(layer.alt_color) << ",\"tex\":" << layer.tex_id
 							   << ",\"tex_w\":" << layer.tex_width << ",\"tex_h\":" << layer.tex_height

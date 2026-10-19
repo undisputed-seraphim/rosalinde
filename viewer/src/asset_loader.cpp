@@ -194,12 +194,12 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 		for (uint32_t i = 0; i < v77.s9.size(); ++i) {
 			const auto& s9 = v77.s9[i];
 			spdlog::info(
-				"[s9 {:>2}] {:<26} disabled={} sa_set_id={} sa_set_no={}",
+				"[s9 {:>2}] {:<26} disabled={} sa_sequence_start={} sa_sequence_count={}",
 				i,
 				s9.name,
 				s9.disabled,
-				s9.sa_set_id,
-				s9.sa_set_no);
+				s9.sa_sequence_start,
+				s9.sa_sequence_count);
 		}
 		std::map<std::pair<uint32_t, uint32_t>, int> hist;
 		for (const auto& s4 : v77.s4)
@@ -210,9 +210,9 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 	}
 	for (uint32_t i : select_background_tracks(v77)) {
 		const auto& s9 = v77.s9[i];
-		const auto& sa = v77.sa[s9.sa_set_id];
-		const auto& s8 = v77.s8[sa.s8_id + sa.s8_st];
-		const auto& s7 = v77.s7[s8.s7_id];
+		const auto& sa = v77.sa[s9.sa_sequence_start];
+		const auto& s8 = v77.s8[sa.s8_frame_start + sa.s8_start_offset];
+		const auto& s7 = v77.s7[s8.s7_transform_id];
 		bool is_far = ((s7.fog >> 24) & 0xFF) == 0xFF;
 
 		if (dump)
@@ -250,15 +250,15 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 				if (run.s8_count == 0)
 					continue;
 				const auto& s8b = bg.data.v77.s8[run.s8_start + el.instance.offsets[r]];
-				const auto& s7b = bg.data.v77.s7[s8b.s7_id];
+				const auto& s7b = bg.data.v77.s7[s8b.s7_transform_id];
 				spdlog::info(
-					"          run {}/{} s8_st={} count={} s6={} s7.move=({:.1f},{:.1f},{:.1f}) "
+					"          run {}/{} s8_start_offset={} count={} s6={} s7.move=({:.1f},{:.1f},{:.1f}) "
 					"scale=({:.2f},{:.2f}) fog=0x{:08X}",
 					r,
 					tr.runs.size(),
-					run.s8_st,
+					run.s8_start_offset,
 					run.s8_count,
-					s8b.s6_id,
+					s8b.s6_keyframe_id,
 					s7b.move.x,
 					s7b.move.y,
 					s7b.move.z,
@@ -267,7 +267,7 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 					s7b.fog);
 
 				if (static_cast<int>(i) == layers_idx) {
-					const auto& ck = bg.data.keyframes[s8b.s6_id];
+					const auto& ck = bg.data.keyframes[s8b.s6_keyframe_id];
 					for (size_t li = 0; li < ck.layers.size(); ++li) {
 						const auto& L = ck.layers[li];
 						spdlog::info(
@@ -290,7 +290,7 @@ BackgroundScene AssetLoader::load_background(const Job& job) const {
 			}
 
 			if (static_cast<int>(i) == layers_idx) {
-				const auto& ck = bg.data.keyframes[s8.s6_id];
+				const auto& ck = bg.data.keyframes[s8.s6_keyframe_id];
 				for (size_t li = 0; li < ck.layers.size(); ++li) {
 					const auto& L = ck.layers[li];
 					spdlog::info(

@@ -20,7 +20,7 @@ glm::mat4 s7_matrix(const section_7& s7, bool flipx, bool flipy);
 }
 
 namespace {
-// How a finished single-pass (s8_sum_once < 0) sequence behaves:
+// How a finished single-pass (s8_intro_ticks < 0) sequence behaves:
 // 0 = hide the part (default), 1 = hold its final frame, 2 = loop (legacy).
 int once_mode() {
 	static const int m = [] {
@@ -82,14 +82,14 @@ SpriteData SpriteData::load(std::span<const uint8_t> data, std::vector<FTX::Entr
 
 void SpriteData::preprocess() {
 	keyframes.resize(v77.s6.size());
-	for (uint32_t s6_id = 0; s6_id < v77.s6.size(); ++s6_id) {
-		const auto& s6 = v77.s6[s6_id];
-		auto& ck = keyframes[s6_id];
+	for (uint32_t s6_keyframe_id = 0; s6_keyframe_id < v77.s6.size(); ++s6_keyframe_id) {
+		const auto& s6 = v77.s6[s6_keyframe_id];
+		auto& ck = keyframes[s6_keyframe_id];
 		ck.bounds = {s6.left, s6.top, s6.right, s6.bottom};
 
-		ck.layers.reserve(s6.s4_no);
-		for (uint32_t j = 0; j < s6.s4_no; ++j) {
-			const auto& s4 = v77.s4[s6.s4_id + j];
+		ck.layers.reserve(s6.s4_layer_count);
+		for (uint32_t j = 0; j < s6.s4_layer_count; ++j) {
+			const auto& s4 = v77.s4[s6.s4_layer_start + j];
 			const bool notex = (s4.flags & 0x04) != 0;
 			if (!notex && s4.tex_id >= textures.size())
 				continue;
@@ -97,12 +97,12 @@ void SpriteData::preprocess() {
 			CachedKeyframe::Layer layer;
 			layer.notex = notex;
 			layer.tex_id = notex ? 0xFFFF : s4.tex_id;
-			layer.s4_id = s6.s4_id + j;
+			layer.s4_layer_start = s6.s4_layer_start + j;
 			layer.s4_unk0 = s4._unk0;
 			layer.s4_flags = s4.flags;
-			layer.s1_id = s4.s1_id;
-			layer.s2_id = s4.s2_id;
-			layer.s0_id = s4.s0_id;
+			layer.s1_uv_id = s4.s1_uv_id;
+			layer.s2_vertex_id = s4.s2_vertex_id;
+			layer.s0_color_row_id = s4.s0_color_row_id;
 			layer.color_id = s4.color_id;
 			if (s4.color_id < v77.s0.size())
 				for (int k = 0; k < 4; ++k)
@@ -113,13 +113,13 @@ void SpriteData::preprocess() {
 				const auto& tex = textures[s4.tex_id];
 				const auto texdim = glm::vec2{tex.width, tex.height};
 				for (int k = 0; k < 4; ++k)
-					layer.uv[k] = v77.s1[s4.s1_id].values[k] * texdim;
-				layer.s1_center = glm::vec2{v77.s1[s4.s1_id].center[0], v77.s1[s4.s1_id].center[1]} * texdim;
-				layer.s1_topleft = glm::vec2{v77.s1[s4.s1_id].topleft[0], v77.s1[s4.s1_id].topleft[1]} * texdim;
+					layer.uv[k] = v77.s1[s4.s1_uv_id].values[k] * texdim;
+				layer.s1_center = glm::vec2{v77.s1[s4.s1_uv_id].center[0], v77.s1[s4.s1_uv_id].center[1]} * texdim;
+				layer.s1_topleft = glm::vec2{v77.s1[s4.s1_uv_id].topleft[0], v77.s1[s4.s1_uv_id].topleft[1]} * texdim;
 			}
 			for (int k = 0; k < 4; ++k) {
-				layer.xy[k] = v77.s2[s4.s2_id].values[k];
-				layer.color[k] = v77.s0[s4.s0_id].colors[k];
+				layer.xy[k] = v77.s2[s4.s2_vertex_id].values[k];
+				layer.color[k] = v77.s0[s4.s0_color_row_id].colors[k];
 			}
 			ck.layers.push_back(layer);
 		}
@@ -140,26 +140,26 @@ void SpriteData::preprocess() {
 		track.name = s9.name;
 		track.name = track.name.c_str();
 		track.bounds = {s9.left, s9.top, s9.right, s9.bottom};
-		track.sa_set_main = s9.sa_set_main;
+		track.sa_main_sequence = s9.sa_main_sequence;
 		track.disabled = s9.disabled;
-		track.runs.reserve(s9.sa_set_no);
-		for (uint32_t i = 0; i < s9.sa_set_no; ++i) {
-			const auto& sa = v77.sa[s9.sa_set_id + i];
+		track.runs.reserve(s9.sa_sequence_count);
+		for (uint32_t i = 0; i < s9.sa_sequence_count; ++i) {
+			const auto& sa = v77.sa[s9.sa_sequence_start + i];
 			uint32_t loop_start = 0;
-			if (sa.s8_sum_once > 0) {
+			if (sa.s8_intro_ticks > 0) {
 				uint32_t acc = 0;
-				for (uint32_t j = 0; j < sa.s8_no; ++j) {
-					acc += v77.s8[sa.s8_id + j].frames;
-					if (acc >= (uint32_t)sa.s8_sum_once) {
+				for (uint32_t j = 0; j < sa.s8_frame_count; ++j) {
+					acc += v77.s8[sa.s8_frame_start + j].s8_duration_ticks;
+					if (acc >= (uint32_t)sa.s8_intro_ticks) {
 						loop_start = j + 1;
 						break;
 					}
 				}
 			}
-			// s8_sum_once < 0 == single-pass ("transitional"/background); play
+			// s8_intro_ticks < 0 == single-pass ("transitional"/background); play
 			// through once and hold the final frame instead of looping.
 			track.runs.push_back(
-				{sa.s8_id, sa.s8_no, sa.s8_st, loop_start, sa.s8_sum_once < 0 && once_mode() != 2, sa.track_id});
+				{sa.s8_frame_start, sa.s8_frame_count, sa.s8_start_offset, loop_start, sa.s8_intro_ticks < 0 && once_mode() != 2, sa.sa_track_slot});
 		}
 	}
 }
@@ -181,7 +181,7 @@ void SpriteInstance::play(uint32_t track_id) {
 			if (run.s8_count == 0)
 				continue;
 			const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
-			_transition_src_s7[i] = data->v77.s7[s8.s7_id];
+			_transition_src_s7[i] = data->v77.s7[s8.s7_transform_id];
 		}
 		_transition_t = 0.0f;
 	}
@@ -195,7 +195,7 @@ void SpriteInstance::play(uint32_t track_id) {
 	hide.assign(track.runs.size(), 0);
 	if (std::getenv("VIEWER_MAIN_ONLY")) {
 		for (uint32_t i = 0; i < hide.size(); ++i)
-			hide[i] = i != track.sa_set_main;
+			hide[i] = i != track.sa_main_sequence;
 	}
 	if (const char* only = std::getenv("VIEWER_RUN_ONLY")) {
 		const int k = std::atoi(only);
@@ -209,14 +209,14 @@ void SpriteInstance::play(uint32_t track_id) {
 	}
 	_phase = 0;
 	if (seq_runs() && std::getenv("VIEWER_SEQ_MAIN"))
-		_phase = std::min<uint32_t>(track.sa_set_main, track.runs.size() ? track.runs.size() - 1 : 0);
+		_phase = std::min<uint32_t>(track.sa_main_sequence, track.runs.size() ? track.runs.size() - 1 : 0);
 	_accum = 0.0f;
 
 	for (uint32_t i = 0; i < track.runs.size(); ++i) {
 		const auto& run = track.runs[i];
-		offsets[i] = run.s8_st;
+		offsets[i] = run.s8_start_offset;
 		if (run.s8_count > 0 && run.s8_start < data->v77.s8.size()) {
-			ticks[i] = data->v77.s8[run.s8_start + offsets[i]].frames;
+			ticks[i] = data->v77.s8[run.s8_start + offsets[i]].s8_duration_ticks;
 		}
 	}
 	_frame_counter++;
@@ -264,8 +264,8 @@ void SpriteInstance::update(float dt_seconds) {
 				const auto& prev_s8 = data->v77.s8[run.s8_start + offsets[i]];
 				prev_offsets[i] = offsets[i];
 				if (prev_s8.flags & mbs::v77::s8flag::JUMP) {
-					if (prev_s8.loop_s8_id != 0) {
-						offsets[i] = (offsets[i] + prev_s8.loop_s8_id) % run.s8_count;
+					if (prev_s8.s8_loop_offset != 0) {
+						offsets[i] = (offsets[i] + prev_s8.s8_loop_offset) % run.s8_count;
 					} else if (prev_s8.flags & mbs::v77::s8flag::LAST) {
 						if (run.once) {
 							done[i] = 1;
@@ -288,13 +288,13 @@ void SpriteInstance::update(float dt_seconds) {
 				// or clear ACTIVE terminate the run and stop drawing.
 				if (done[i]) {
 					const auto& end = data->v77.s8[run.s8_start + offsets[i]];
-					const uint32_t fog = data->v77.s7[end.s7_id].fog;
+					const uint32_t fog = data->v77.s7[end.s7_transform_id].fog;
 					const bool visible_end = (end.flags & mbs::v77::s8flag::ACTIVE) && ((fog >> 24) != 0);
 					const bool one_tick_last =
-						run.once && !hold_finished && end.frames <= 1 && (end.flags & mbs::v77::s8flag::LAST);
+						run.once && !hold_finished && end.s8_duration_ticks <= 1 && (end.flags & mbs::v77::s8flag::LAST);
 					if (one_tick_last && prev_offsets[i] != UINT32_MAX) {
 						const auto& prev = data->v77.s8[run.s8_start + prev_offsets[i]];
-						const uint32_t prev_fog = data->v77.s7[prev.s7_id].fog;
+						const uint32_t prev_fog = data->v77.s7[prev.s7_transform_id].fog;
 						const bool prev_visible = (prev.flags & mbs::v77::s8flag::ACTIVE) && ((prev_fog >> 24) != 0);
 						if (prev_visible) {
 							offsets[i] = prev_offsets[i];
@@ -306,16 +306,16 @@ void SpriteInstance::update(float dt_seconds) {
 						hide[i] = (hold_finished || visible_end) ? 0 : 1;
 					}
 				}
-				ticks[i] = data->v77.s8[run.s8_start + offsets[i]].frames;
+				ticks[i] = data->v77.s8[run.s8_start + offsets[i]].s8_duration_ticks;
 			}
 		}
 		// Sequential-runs mode: once a phase finishes, start the next one.
 		if (seq_runs() && _phase < track.runs.size() && done[_phase] && _phase + 1 < track.runs.size()) {
 			++_phase;
 			const auto& r = track.runs[_phase];
-			offsets[_phase] = r.s8_st;
+			offsets[_phase] = r.s8_start_offset;
 			if (r.s8_count && r.s8_start < data->v77.s8.size())
-				ticks[_phase] = data->v77.s8[r.s8_start + offsets[_phase]].frames;
+				ticks[_phase] = data->v77.s8[r.s8_start + offsets[_phase]].s8_duration_ticks;
 			hide[_phase] = 0;
 			advanced = true;
 		}
@@ -381,7 +381,7 @@ void SpriteInstance::for_each_layer(
 	}
 
 	const auto& run = track.runs[sa_idx];
-	base.track_id = run.track_id;
+	base.sa_track_slot = run.sa_track_slot;
 	base.offset = sa_idx < offsets.size() ? offsets[sa_idx] : 0;
 	base.done = sa_idx < done.size() && done[sa_idx] != 0;
 	base.hidden = sa_idx < hide.size() && hide[sa_idx] != 0;
@@ -408,13 +408,13 @@ void SpriteInstance::for_each_layer(
 		return;
 	}
 	const auto& s8 = data->v77.s8[s8_index];
-	base.s8_id = s8_index;
+	base.s8_frame_start = s8_index;
 	base.s8_flags = s8.flags;
-	base.s8_frames = s8.frames;
-	base.s6_id = s8.s6_id;
-	base.s7_id = s8.s7_id;
-	base.s6_interpolation = s8.s6_interpolation;
-	base.s7_interpolation = s8.s7_interpolation;
+	base.s8_frames = s8.s8_duration_ticks;
+	base.s6_keyframe_id = s8.s6_keyframe_id;
+	base.s7_transform_id = s8.s7_transform_id;
+	base.s6_keyframe_interpolation = s8.s6_keyframe_interpolation;
+	base.s7_transform_interpolation = s8.s7_transform_interpolation;
 	// Draw only frames flagged ACTIVE (0x20). 0x400 is a common modifier bit
 	// that co-occurs with ACTIVE on normal frames (not a "hitbox-only" marker),
 	// and 0x800 without ACTIVE is a non-rendered end sentinel — both covered by
@@ -424,14 +424,14 @@ void SpriteInstance::for_each_layer(
 		visit(base);
 		return;
 	}
-	if (s8.s6_id >= data->keyframes.size() || s8.s7_id >= data->v77.s7.size()) {
+	if (s8.s6_keyframe_id >= data->keyframes.size() || s8.s7_transform_id >= data->v77.s7.size()) {
 		base.skip = "ids";
 		visit(base);
 		return;
 	}
 
-	const auto& ck = data->keyframes[s8.s6_id];
-	const auto& s7 = data->v77.s7[s8.s7_id];
+	const auto& ck = data->keyframes[s8.s6_keyframe_id];
+	const auto& s7 = data->v77.s7[s8.s7_transform_id];
 	base.s6_bounds = ck.bounds;
 	base.s7_move = s7.move;
 	base.s7_rotate = s7.rotate;
@@ -455,12 +455,12 @@ void SpriteInstance::for_each_layer(
 		const auto& layer = ck.layers[i];
 		LayerVisit v = base;
 		v.layer = static_cast<int32_t>(i);
-		v.s4_id = layer.s4_id;
+		v.s4_layer_start = layer.s4_layer_start;
 		v.s4_unk0 = layer.s4_unk0;
 		v.s4_flags = layer.s4_flags;
-		v.s1_id = layer.s1_id;
-		v.s2_id = layer.s2_id;
-		v.s0_id = layer.s0_id;
+		v.s1_uv_id = layer.s1_uv_id;
+		v.s2_vertex_id = layer.s2_vertex_id;
+		v.s0_color_row_id = layer.s0_color_row_id;
 		v.color_id = layer.color_id;
 		for (int k = 0; k < 4; ++k)
 			v.alt_color[k] = layer.alt_color[k];
@@ -598,7 +598,7 @@ glm::mat4 SpriteInstance::transform_for_sa(uint32_t sa_idx, bool* out_flipx, boo
 	if (out_flipy)
 		*out_flipy = flipy;
 
-	const auto& curr_s7 = data->v77.s7[s8.s7_id];
+	const auto& curr_s7 = data->v77.s7[s8.s7_transform_id];
 
 	if (_transition_t < 1.0f && !_transition_src_s7.empty()) {
 		uint32_t src_idx = sa_idx < _transition_src_s7.size() ? sa_idx : (_transition_src_s7.size() - 1);
@@ -606,13 +606,13 @@ glm::mat4 SpriteInstance::transform_for_sa(uint32_t sa_idx, bool* out_flipx, boo
 		return s7_matrix_interp(_transition_src_s7[src_idx], curr_s7, t, flipx, flipy);
 	}
 
-	if (s8.s7_interpolation == 0 || prev_offsets[sa_idx] == UINT32_MAX) {
+	if (s8.s7_transform_interpolation == 0 || prev_offsets[sa_idx] == UINT32_MAX) {
 		return mbs::s7_matrix(curr_s7, flipx, flipy);
 	}
 
 	const auto& prev_s8 = data->v77.s8[run.s8_start + prev_offsets[sa_idx]];
-	const auto& prev_s7 = data->v77.s7[prev_s8.s7_id];
-	float t = 1.0f - (float)ticks[sa_idx] / (float)s8.frames;
+	const auto& prev_s7 = data->v77.s7[prev_s8.s7_transform_id];
+	float t = 1.0f - (float)ticks[sa_idx] / (float)s8.s8_duration_ticks;
 	return s7_matrix_interp(prev_s7, curr_s7, t, flipx, flipy);
 }
 
@@ -633,7 +633,7 @@ std::vector<SpriteInstance::RunState> SpriteInstance::run_states() const {
 		if (run.s8_count > 0 && run.s8_start + state.offset < data->v77.s8.size()) {
 			const auto& s8 = data->v77.s8[run.s8_start + state.offset];
 			state.flags = s8.flags;
-			state.frames = s8.frames;
+			state.frames = s8.s8_duration_ticks;
 		}
 		out.push_back(state);
 	}
@@ -652,8 +652,8 @@ glm::vec4 SpriteInstance::content_bounds() const {
 		if (run.s8_count == 0 || i >= offsets.size())
 			continue;
 		const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
-		const glm::mat4 m = mbs::s7_matrix(data->v77.s7[s8.s7_id], false, false);
-		const glm::vec4 kb = data->keyframes[s8.s6_id].bounds;
+		const glm::mat4 m = mbs::s7_matrix(data->v77.s7[s8.s7_transform_id], false, false);
+		const glm::vec4 kb = data->keyframes[s8.s6_keyframe_id].bounds;
 		const glm::vec2 corners[4] = {{kb.x, kb.y}, {kb.z, kb.y}, {kb.x, kb.w}, {kb.z, kb.w}};
 		for (const auto& c : corners) {
 			const glm::vec4 p = m * glm::vec4{c.x, c.y, 0.0f, 1.0f};
@@ -680,10 +680,10 @@ glm::vec4 SpriteInstance::render_bounds() const {
 			continue;
 		// Skip heavily-scaled runs (light shafts, insert flashes): they are
 		// overlays and would otherwise blow up the framing bounds.
-		const auto& s7 = data->v77.s7[s8.s7_id];
+		const auto& s7 = data->v77.s7[s8.s7_transform_id];
 		if (std::max(std::abs(s7.scale.x), std::abs(s7.scale.y)) > 4.0f)
 			continue;
-		const auto& ck = data->keyframes[s8.s6_id];
+		const auto& ck = data->keyframes[s8.s6_keyframe_id];
 		if (ck.layers.empty())
 			continue;
 

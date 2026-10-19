@@ -215,7 +215,7 @@ std::vector<table> build_tables(const mbs::v77& value) {
 		table out{
 			"s4",
 			section_labels[4],
-			{"_unk0", "color_id", "flags", "blend_id", "tex_id", "attributes", "s1_id", "s0_id", "s2_id", "_pad"},
+			{"_unk0", "color_id", "flags", "blend_id", "tex_id", "attributes", "s1_uv_id", "s0_color_row_id", "s2_vertex_id", "_pad"},
 			{}};
 		out.rows.reserve(value.s4.size());
 		for (const auto& item : value.s4) {
@@ -226,9 +226,9 @@ std::vector<table> build_tables(const mbs::v77& value) {
 				 cell::unum(item.blend_id),
 				 cell::unum(item.tex_id),
 				 cell::unum(item.attributes),
-				 cell::unum(item.s1_id),
-				 cell::unum(item.s0_id),
-				 cell::unum(item.s2_id),
+				 cell::unum(item.s1_uv_id),
+				 cell::unum(item.s0_color_row_id),
+				 cell::unum(item.s2_vertex_id),
 				 cell::unum(item._pad)});
 		}
 		tables.push_back(std::move(out));
@@ -247,7 +247,7 @@ std::vector<table> build_tables(const mbs::v77& value) {
 		table out{
 			"s6",
 			section_labels[6],
-			{"left", "top", "right", "bottom", "s4_id", "s5_id", "s4_no", "s5_no", "flags", "_pad0"},
+			{"left", "top", "right", "bottom", "s4_layer_start", "s5_hitbox_start", "s4_layer_count", "s5_hitbox_count", "flags", "_pad0"},
 			{}};
 		out.rows.reserve(value.s6.size());
 		for (const auto& item : value.s6) {
@@ -256,10 +256,10 @@ std::vector<table> build_tables(const mbs::v77& value) {
 				 cell::real(item.top),
 				 cell::real(item.right),
 				 cell::real(item.bottom),
-				 cell::unum(item.s4_id),
-				 cell::unum(item.s5_id),
-				 cell::unum(item.s4_no),
-				 cell::unum(item.s5_no),
+				 cell::unum(item.s4_layer_start),
+				 cell::unum(item.s5_hitbox_start),
+				 cell::unum(item.s4_layer_count),
+				 cell::unum(item.s5_hitbox_count),
 				 cell::unum(item.flags),
 				 cell::unum(item._pad0)});
 		}
@@ -292,17 +292,17 @@ std::vector<table> build_tables(const mbs::v77& value) {
 		table out{
 			"s8",
 			section_labels[8],
-			{"s6_id",	  "_pad0",		   "s7_id", "frames", "FLIPX",		"FLIPY",	   "JUMP",		  "0x20",
-			 "0x80",	  "HITBOX",		   "LAST",	"0x2000", "loop_s8_id", "s5s3_interp", "interp_rate", "s7_interp",
+			{"s6_keyframe_id",	  "_pad0",		   "s7_transform_id", "s8_duration_ticks", "FLIPX",		"FLIPY",	   "JUMP",		  "0x20",
+			 "0x80",	  "HITBOX",		   "LAST",	"0x2000", "s8_loop_offset", "s5s3_interp", "interp_rate", "s7_interp",
 			 "s6_interp", "s0s1s2_interp", "n_180", "_pad1",  "_pad2",		"sfx_mute",	   "sfx_id"},
 			{}};
 		out.rows.reserve(value.s8.size());
 		for (const auto& item : value.s8) {
 			out.rows.push_back(
-				{cell::unum(item.s6_id),
+				{cell::unum(item.s6_keyframe_id),
 				 cell::unum(item._pad0),
-				 cell::unum(item.s7_id),
-				 cell::unum(item.frames),
+				 cell::unum(item.s7_transform_id),
+				 cell::unum(item.s8_duration_ticks),
 				 cell::unum((item.flags & 0x01) ? 1 : 0),
 				 cell::unum((item.flags & 0x02) ? 1 : 0),
 				 cell::unum((item.flags & 0x04) ? 1 : 0),
@@ -311,11 +311,11 @@ std::vector<table> build_tables(const mbs::v77& value) {
 				 cell::unum((item.flags & 0x400) ? 1 : 0),
 				 cell::unum((item.flags & 0x800) ? 1 : 0),
 				 cell::unum((item.flags & 0x2000) ? 1 : 0),
-				 cell::unum(item.loop_s8_id),
-				 cell::unum(item.s5s3_interpolation),
+				 cell::unum(item.s8_loop_offset),
+				 cell::unum(item.s5s3_hitbox_interpolation),
 				 cell::unum(item.interpolation_rate),
-				 cell::unum(item.s7_interpolation),
-				 cell::unum(item.s6_interpolation),
+				 cell::unum(item.s7_transform_interpolation),
+				 cell::unum(item.s6_keyframe_interpolation),
 				 cell::unum(item.s0s1s2_interpolation),
 				 cell::unum(item.n_180),
 				 cell::unum(item._pad1),
@@ -335,11 +335,11 @@ std::vector<table> build_tables(const mbs::v77& value) {
 			 "right",
 			 "bottom",
 			 "name",
-			 "sa_set_id",
-			 "sa_set_no",
-			 "sa_set_main",
-			 "sa_sb_set_id",
-			 "sa_sb_set_no",
+			 "sa_sequence_start",
+			 "sa_sequence_count",
+			 "sa_main_sequence",
+			 "sa_sb_start",
+			 "sa_sb_count",
 			 "disabled"},
 			{}};
 		out.rows.reserve(value.s9.size());
@@ -350,11 +350,11 @@ std::vector<table> build_tables(const mbs::v77& value) {
 				 cell::real(item.right),
 				 cell::real(item.bottom),
 				 cell::str(fixed_name(item.name)),
-				 cell::unum(item.sa_set_id),
-				 cell::unum(item.sa_set_no),
-				 cell::unum(item.sa_set_main),
-				 cell::unum(item.sa_sb_set_id),
-				 cell::unum(item.sa_sb_set_no),
+				 cell::unum(item.sa_sequence_start),
+				 cell::unum(item.sa_sequence_count),
+				 cell::unum(item.sa_main_sequence),
+				 cell::unum(item.sa_sb_start),
+				 cell::unum(item.sa_sb_count),
 				 cell::unum(item.disabled)});
 		}
 		tables.push_back(std::move(out));
@@ -364,20 +364,20 @@ std::vector<table> build_tables(const mbs::v77& value) {
 		table out{
 			"sa",
 			section_labels[10],
-			{"s8_id", "s8_no", "s8_sum", "s8_sum_once", "commit_ticks", "sb_id", "sb_no", "s8_st", "track_id", "_pad"},
+			{"s8_frame_start", "s8_frame_count", "s8_total_ticks", "s8_intro_ticks", "commit_ticks", "sb_id", "sb_no", "s8_start_offset", "sa_track_slot", "_pad"},
 			{}};
 		out.rows.reserve(value.sa.size());
 		for (const auto& item : value.sa) {
 			out.rows.push_back(
-				{cell::unum(item.s8_id),
-				 cell::unum(item.s8_no),
-				 cell::unum(item.s8_sum),
-				 cell::snum(item.s8_sum_once),
+				{cell::unum(item.s8_frame_start),
+				 cell::unum(item.s8_frame_count),
+				 cell::unum(item.s8_total_ticks),
+				 cell::snum(item.s8_intro_ticks),
 				 cell::snum(item.commit_ticks),
 				 cell::unum(item.sb_id),
 				 cell::unum(item.sb_no),
-				 cell::unum(item.s8_st),
-				 cell::unum(item.track_id),
+				 cell::unum(item.s8_start_offset),
+				 cell::unum(item.sa_track_slot),
 				 cell::unum(item._pad)});
 		}
 		tables.push_back(std::move(out));
@@ -462,15 +462,15 @@ bool valid_section(std::string_view section) {
 }
 
 size_t track_sequence_count(const mbs::v77& value, const mbs::section_9& track) {
-	if (track.sa_set_id >= value.sa.size())
+	if (track.sa_sequence_start >= value.sa.size())
 		return 0;
-	return std::min<size_t>(track.sa_set_no, value.sa.size() - track.sa_set_id);
+	return std::min<size_t>(track.sa_sequence_count, value.sa.size() - track.sa_sequence_start);
 }
 
 size_t sequence_frame_count(const mbs::v77& value, const mbs::section_a& sequence) {
-	if (sequence.s8_id >= value.s8.size())
+	if (sequence.s8_frame_start >= value.s8.size())
 		return 0;
-	return std::min<size_t>(sequence.s8_no, value.s8.size() - sequence.s8_id);
+	return std::min<size_t>(sequence.s8_frame_count, value.s8.size() - sequence.s8_frame_start);
 }
 
 struct sequence_metrics {
@@ -483,11 +483,11 @@ sequence_metrics measure_sequence(const mbs::v77& value, const mbs::section_a& s
 	uint32_t accumulated = 0;
 	const size_t count = sequence_frame_count(value, sequence);
 	for (size_t i = 0; i < count; ++i) {
-		const auto frames = value.s8[sequence.s8_id + i].frames;
+		const auto frames = value.s8[sequence.s8_frame_start + i].s8_duration_ticks;
 		metrics.total_frames += frames;
 		accumulated += frames;
-		if (sequence.s8_sum_once > 0 && metrics.loop_start == 0 &&
-			accumulated >= static_cast<uint32_t>(sequence.s8_sum_once))
+		if (sequence.s8_intro_ticks > 0 && metrics.loop_start == 0 &&
+			accumulated >= static_cast<uint32_t>(sequence.s8_intro_ticks))
 			metrics.loop_start = static_cast<uint32_t>(i + 1);
 	}
 	return metrics;
@@ -544,23 +544,23 @@ std::string color_text(const effective_color& color) {
 }
 
 uint32_t frame_fog(const mbs::v77& value, const mbs::section_8& frame) {
-	return frame.s7_id < value.s7.size() ? value.s7[frame.s7_id].fog : 0;
+	return frame.s7_transform_id < value.s7.size() ? value.s7[frame.s7_transform_id].fog : 0;
 }
 
 void write_frame_colors_text(const mbs::v77& value, const mbs::section_8& frame) {
-	if (frame.s6_id >= value.s6.size())
+	if (frame.s6_keyframe_id >= value.s6.size())
 		return;
-	const auto& keyframe = value.s6[frame.s6_id];
-	if (keyframe.s4_id >= value.s4.size())
+	const auto& keyframe = value.s6[frame.s6_keyframe_id];
+	if (keyframe.s4_layer_start >= value.s4.size())
 		return;
 	const uint32_t fog = frame_fog(value, frame);
-	const size_t count = std::min<size_t>(keyframe.s4_no, value.s4.size() - keyframe.s4_id);
+	const size_t count = std::min<size_t>(keyframe.s4_layer_count, value.s4.size() - keyframe.s4_layer_start);
 	for (size_t i = 0; i < count; ++i) {
-		const auto& layer = value.s4[keyframe.s4_id + i];
-		if (layer.s0_id >= value.s0.size())
+		const auto& layer = value.s4[keyframe.s4_layer_start + i];
+		if (layer.s0_color_row_id >= value.s0.size())
 			continue;
-		const auto colors = effective_colors(value.s0[layer.s0_id], fog);
-		std::cout << "    layer[" << i << "] s4=" << (keyframe.s4_id + i) << " s0=" << layer.s0_id
+		const auto colors = effective_colors(value.s0[layer.s0_color_row_id], fog);
+		std::cout << "    layer[" << i << "] s4=" << (keyframe.s4_layer_start + i) << " s0=" << layer.s0_color_row_id
 				  << " attr=" << std::format("{:#x}", layer.attributes)
 				  << " flags=" << std::format("{:#x}", static_cast<unsigned>(layer.flags))
 				  << " blend=" << static_cast<unsigned>(layer.blend_id)
@@ -575,24 +575,24 @@ void write_frame_colors_text(const mbs::v77& value, const mbs::section_8& frame)
 }
 
 void write_frame_colors_json(json_writer& json, const mbs::v77& value, const mbs::section_8& frame) {
-	if (frame.s6_id >= value.s6.size())
+	if (frame.s6_keyframe_id >= value.s6.size())
 		return;
-	const auto& keyframe = value.s6[frame.s6_id];
-	if (keyframe.s4_id >= value.s4.size())
+	const auto& keyframe = value.s6[frame.s6_keyframe_id];
+	if (keyframe.s4_layer_start >= value.s4.size())
 		return;
 	const uint32_t fog = frame_fog(value, frame);
-	const size_t count = std::min<size_t>(keyframe.s4_no, value.s4.size() - keyframe.s4_id);
+	const size_t count = std::min<size_t>(keyframe.s4_layer_count, value.s4.size() - keyframe.s4_layer_start);
 	json.field("fog", fog);
 	json.begin_array("layers");
 	for (size_t i = 0; i < count; ++i) {
-		const auto& layer = value.s4[keyframe.s4_id + i];
-		if (layer.s0_id >= value.s0.size())
+		const auto& layer = value.s4[keyframe.s4_layer_start + i];
+		if (layer.s0_color_row_id >= value.s0.size())
 			continue;
-		const auto colors = effective_colors(value.s0[layer.s0_id], fog);
+		const auto colors = effective_colors(value.s0[layer.s0_color_row_id], fog);
 		json.begin_object();
 		json.field("index", i);
-		json.field("s4_index", keyframe.s4_id + i);
-		json.field("s0_index", layer.s0_id);
+		json.field("s4_index", keyframe.s4_layer_start + i);
+		json.field("s0_index", layer.s0_color_row_id);
 		json.field("attributes", layer.attributes);
 		json.field("flags", layer.flags);
 		json.field("blend_id", layer.blend_id);
@@ -614,8 +614,8 @@ void write_track_summary_text(const mbs::v77& value, size_t index) {
 	const auto& track = value.s9[index];
 	const size_t sequence_count = track_sequence_count(value, track);
 	std::cout << "track[" << index << "] " << fixed_name(track.name) << " seqs=" << sequence_count
-			  << " sa=" << track.sa_set_id << " bounds=(" << track.left << "," << track.top << "," << track.right << ","
-			  << track.bottom << ") main=" << static_cast<unsigned>(track.sa_set_main)
+			  << " sa=" << track.sa_sequence_start << " bounds=(" << track.left << "," << track.top << "," << track.right << ","
+			  << track.bottom << ") main=" << static_cast<unsigned>(track.sa_main_sequence)
 			  << " disabled=" << static_cast<unsigned>(track.disabled) << '\n';
 }
 
@@ -625,13 +625,13 @@ void dump_track_text(const mbs::v77& value, size_t index, const options& opt) {
 	const size_t count = track_sequence_count(value, track);
 	const size_t shown = opt.limit_set ? std::min(opt.limit, count) : count;
 	for (size_t i = 0; i < shown; ++i) {
-		const size_t sa_index = track.sa_set_id + i;
+		const size_t sa_index = track.sa_sequence_start + i;
 		const auto& sequence = value.sa[sa_index];
 		const auto metrics = measure_sequence(value, sequence);
-		std::cout << "  seq[" << i << "] sa=" << sa_index << " s8[" << sequence.s8_id << ".."
-				  << (sequence.s8_id + sequence.s8_no) << ") total_frames=" << metrics.total_frames
-				  << " once=" << sequence.s8_sum_once << " commit=" << sequence.commit_ticks
-				  << " track=" << sequence.track_id << " loop=" << metrics.loop_start << '\n';
+		std::cout << "  seq[" << i << "] sa=" << sa_index << " s8[" << sequence.s8_frame_start << ".."
+				  << (sequence.s8_frame_start + sequence.s8_frame_count) << ") total_frames=" << metrics.total_frames
+				  << " once=" << sequence.s8_intro_ticks << " commit=" << sequence.commit_ticks
+				  << " track=" << sequence.sa_track_slot << " loop=" << metrics.loop_start << '\n';
 	}
 	if (shown < count)
 		std::cout << "  ... " << (count - shown) << " more sequences\n";
@@ -640,32 +640,32 @@ void dump_track_text(const mbs::v77& value, size_t index, const options& opt) {
 void dump_sequence_text(const mbs::v77& value, size_t track_index, size_t sequence_index, const options& opt) {
 	write_track_summary_text(value, track_index);
 	const auto& track = value.s9[track_index];
-	const size_t sa_index = track.sa_set_id + sequence_index;
+	const size_t sa_index = track.sa_sequence_start + sequence_index;
 	const auto& sequence = value.sa[sa_index];
 	const auto metrics = measure_sequence(value, sequence);
 	const size_t count = sequence_frame_count(value, sequence);
 	const size_t shown = opt.limit_set ? std::min(opt.limit, count) : count;
 
-	std::cout << "sequence[" << sequence_index << "] sa=" << sa_index << " s8[" << sequence.s8_id << ".."
-			  << (sequence.s8_id + sequence.s8_no) << ") total_frames=" << metrics.total_frames
-			  << " once=" << sequence.s8_sum_once << " commit=" << sequence.commit_ticks
-			  << " s8_st=" << static_cast<unsigned>(sequence.s8_st) << " track=" << sequence.track_id
+	std::cout << "sequence[" << sequence_index << "] sa=" << sa_index << " s8[" << sequence.s8_frame_start << ".."
+			  << (sequence.s8_frame_start + sequence.s8_frame_count) << ") total_frames=" << metrics.total_frames
+			  << " once=" << sequence.s8_intro_ticks << " commit=" << sequence.commit_ticks
+			  << " s8_start_offset=" << static_cast<unsigned>(sequence.s8_start_offset) << " track=" << sequence.sa_track_slot
 			  << " loop=" << metrics.loop_start << '\n';
 	uint32_t timeline = 0;
 	for (size_t i = 0; i < shown; ++i) {
-		const size_t s8_index = sequence.s8_id + i;
+		const size_t s8_index = sequence.s8_frame_start + i;
 		const auto& frame = value.s8[s8_index];
-		const uint32_t end = timeline + frame.frames;
+		const uint32_t end = timeline + frame.s8_duration_ticks;
 		std::cout << "  frame[" << i << "]";
 		if (opt.timeline)
 			std::cout << " t=" << timeline << " end=" << end;
-		std::cout << " s8=" << s8_index << " duration=" << frame.frames
+		std::cout << " s8=" << s8_index << " duration=" << frame.s8_duration_ticks
 				  << " flags=" << std::format("{:#x}", frame.flags) << " [" << flag_text(frame.flags)
-				  << "] s6=" << frame.s6_id << " s7=" << frame.s7_id << " loop_s8_id=" << frame.loop_s8_id
-				  << " s5s3=" << static_cast<unsigned>(frame.s5s3_interpolation)
+				  << "] s6=" << frame.s6_keyframe_id << " s7=" << frame.s7_transform_id << " s8_loop_offset=" << frame.s8_loop_offset
+				  << " s5s3=" << static_cast<unsigned>(frame.s5s3_hitbox_interpolation)
 				  << " rate=" << static_cast<unsigned>(frame.interpolation_rate)
-				  << " s7i=" << static_cast<unsigned>(frame.s7_interpolation)
-				  << " s6i=" << static_cast<unsigned>(frame.s6_interpolation)
+				  << " s7i=" << static_cast<unsigned>(frame.s7_transform_interpolation)
+				  << " s6i=" << static_cast<unsigned>(frame.s6_keyframe_interpolation)
 				  << " s0s1s2=" << static_cast<unsigned>(frame.s0s1s2_interpolation)
 				  << " n_180=" << static_cast<unsigned>(frame.n_180) << " sfx=" << frame.sfx_id
 				  << " mute=" << frame.sfx_mute;
@@ -691,32 +691,32 @@ void write_track_json(json_writer& json, const mbs::v77& value, size_t index) {
 	json.number(track.right);
 	json.number(track.bottom);
 	json.end_array();
-	json.field("sa_index", track.sa_set_id);
+	json.field("sa_index", track.sa_sequence_start);
 	json.field("sequence_count", track_sequence_count(value, track));
-	json.field("sa_sb_index", track.sa_sb_set_id);
-	json.field("sa_sb_count", track.sa_sb_set_no);
-	json.field("main", track.sa_set_main);
+	json.field("sa_sb_index", track.sa_sb_start);
+	json.field("sa_sb_count", track.sa_sb_count);
+	json.field("main", track.sa_main_sequence);
 	json.field("disabled", track.disabled != 0);
 	json.end_object();
 }
 
 void write_sequence_json(json_writer& json, const mbs::v77& value, size_t track_index, size_t sequence_index) {
 	const auto& track = value.s9[track_index];
-	const size_t sa_index = track.sa_set_id + sequence_index;
+	const size_t sa_index = track.sa_sequence_start + sequence_index;
 	const auto& sequence = value.sa[sa_index];
 	const auto metrics = measure_sequence(value, sequence);
 	json.begin_object();
 	json.field("sequence_index", sequence_index);
 	json.field("sa_index", sa_index);
-	json.field("s8_index", sequence.s8_id);
-	json.field("s8_count", sequence.s8_no);
-	json.field("s8_sum", sequence.s8_sum);
-	json.field("s8_sum_once", sequence.s8_sum_once);
+	json.field("s8_index", sequence.s8_frame_start);
+	json.field("s8_count", sequence.s8_frame_count);
+	json.field("s8_total_ticks", sequence.s8_total_ticks);
+	json.field("s8_intro_ticks", sequence.s8_intro_ticks);
 	json.field("commit_ticks", sequence.commit_ticks);
 	json.field("sb_id", sequence.sb_id);
 	json.field("sb_no", sequence.sb_no);
-	json.field("s8_st", sequence.s8_st);
-	json.field("track_id", sequence.track_id);
+	json.field("s8_start_offset", sequence.s8_start_offset);
+	json.field("sa_track_slot", sequence.sa_track_slot);
 	json.field("total_frames", metrics.total_frames);
 	json.field("loop_start", metrics.loop_start);
 	json.end_object();
@@ -736,15 +736,15 @@ void write_frame_json(
 	json.field("s8_index", s8_index);
 	json.field("t", timeline);
 	json.field("end", end);
-	json.field("s6_id", frame.s6_id);
-	json.field("s7_id", frame.s7_id);
-	json.field("duration", frame.frames);
+	json.field("s6_keyframe_id", frame.s6_keyframe_id);
+	json.field("s7_transform_id", frame.s7_transform_id);
+	json.field("duration", frame.s8_duration_ticks);
 	json.field("flags", frame.flags);
-	json.field("loop_s8_id", frame.loop_s8_id);
-	json.field("s5s3_interpolation", frame.s5s3_interpolation);
+	json.field("s8_loop_offset", frame.s8_loop_offset);
+	json.field("s5s3_hitbox_interpolation", frame.s5s3_hitbox_interpolation);
 	json.field("interpolation_rate", frame.interpolation_rate);
-	json.field("s7_interpolation", frame.s7_interpolation);
-	json.field("s6_interpolation", frame.s6_interpolation);
+	json.field("s7_transform_interpolation", frame.s7_transform_interpolation);
+	json.field("s6_keyframe_interpolation", frame.s6_keyframe_interpolation);
 	json.field("s0s1s2_interpolation", frame.s0s1s2_interpolation);
 	json.field("n_180", frame.n_180);
 	json.field("sfx_mute", frame.sfx_mute);
@@ -783,7 +783,7 @@ void dump_sequence_query_json(
 	size_t track_index,
 	size_t sequence_index) {
 	const auto& track = value.s9[track_index];
-	const size_t sa_index = track.sa_set_id + sequence_index;
+	const size_t sa_index = track.sa_sequence_start + sequence_index;
 	const auto& sequence = value.sa[sa_index];
 	const size_t count = sequence_frame_count(value, sequence);
 	const size_t shown = ctx.opt.limit_set ? std::min(ctx.opt.limit, count) : count;
@@ -800,9 +800,9 @@ void dump_sequence_query_json(
 	json.begin_array("frames");
 	uint32_t timeline = 0;
 	for (size_t i = 0; i < shown; ++i) {
-		const size_t s8_index = sequence.s8_id + i;
+		const size_t s8_index = sequence.s8_frame_start + i;
 		const auto& frame = value.s8[s8_index];
-		const uint32_t end = timeline + frame.frames;
+		const uint32_t end = timeline + frame.s8_duration_ticks;
 		write_frame_json(json, value, frame, i, s8_index, timeline, end, ctx.opt.colors);
 		timeline = end;
 	}
@@ -930,7 +930,7 @@ int dump_mbs(const context& ctx, std::span<char> data) {
 			else if (sequence_count > 1)
 				std::cout << " [0.." << (sequence_count - 1) << "]";
 			std::cout << " bounds=(" << track.left << "," << track.top << "," << track.right << "," << track.bottom
-					  << ") main=" << static_cast<unsigned>(track.sa_set_main)
+					  << ") main=" << static_cast<unsigned>(track.sa_main_sequence)
 					  << " disabled=" << static_cast<unsigned>(track.disabled) << '\n';
 		}
 		if (track_limit < value.s9.size())

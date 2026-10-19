@@ -335,11 +335,11 @@ caller is `FUN_005ace40` (the large per-sprite update/render).
 | `+0x328` | f32 | `offset_z` |
 
 `anim_eval_track` (`0x590e00`) indexes **section_9** (stride `0x30`:
-`sa_set_id@+0x28`, `sa_set_no@+0x2a`, `disabled@+0x2f`) and, **if `disabled==0`**,
+`sa_sequence_start@+0x28`, `sa_sequence_count@+0x2a`, `disabled@+0x2f`) and, **if `disabled==0`**,
 allocates `count*0xf0` bytes and creates **one element per section_a sequence**
-(`sa_set_id + i`). `anim_init_element` (`0x58bf58`) then indexes **section_a**
-(stride `0x18`) and **section_8** (stride `0x20`), reading `s8_st@0x13`,
-`track_id@0x14`; `frames@+6`, `flags@+8`.
+(`sa_sequence_start + i`). `anim_init_element` (`0x58bf58`) then indexes **section_a**
+(stride `0x18`) and **section_8** (stride `0x20`), reading `s8_start_offset@0x13`,
+`sa_track_slot@0x14`; `s8_duration_ticks@+6`, `flags@+8`.
 
 `anim_update` (`0x5acb10`) takes `dt` in `s0`, accumulates a timer (`obj+0xd0`),
 derives an integer **frame step** (`>>6` + magic multiply = `dt / frame_ms`),
@@ -348,7 +348,7 @@ calls `anim_eval_track(inst, inst->track)` for each.
 
 **Consequences for our viewer**
 - The engine materialises one element **per sequence of the selected track**;
-  `sa_set_no` drives the count.
+  `sa_sequence_count` drives the count.
 - Multi-track applies to **true backgrounds only** (`BattleBG/`, `FieldBG/`): the
   engine animates several `TrackInstance`s (windmill+grass+sky) and the viewer must
   instantiate all their enabled tracks (fixed the empty capitals montage). **Do not**
@@ -362,18 +362,18 @@ calls `anim_eval_track(inst, inst->track)` for each.
 
 ```
 section_9  (track)    stride 0x30
-  sa_set_id    u16 @0x28
-  sa_set_no    u8  @0x2a
-  sa_set_main  u8  @0x2b
-  sa_sb_set_id u16 @0x2c
-  sa_sb_set_no u8  @0x2e
+  sa_sequence_start    u16 @0x28
+  sa_sequence_count    u8  @0x2a
+  sa_main_sequence  u8  @0x2b
+  sa_sb_start u16 @0x2c
+  sa_sb_count u8  @0x2e
   disabled     u8  @0x2f
 section_a  (sequence) stride 0x18
-  s8_id u16@0x0  s8_no u16@0x2  s8_sum u32@0x4  s8_sum_once i32@0x8
-  commit_ticks i32@0xc  sb_id u16@0x10  sb_no u8@0x12  s8_st u8@0x13
-  track_id u16@0x14
+  s8_frame_start u16@0x0  s8_frame_count u16@0x2  s8_total_ticks u32@0x4  s8_intro_ticks i32@0x8
+  commit_ticks i32@0xc  sb_id u16@0x10  sb_no u8@0x12  s8_start_offset u8@0x13
+  sa_track_slot u16@0x14
 section_8  (frame)    stride 0x20
-  s6_id u16@0x0  s7_id u16@0x4  frames u16@0x6  flags u32@0x8  loop_s8_id u16@0xc
+  s6_keyframe_id u16@0x0  s7_transform_id u16@0x4  s8_duration_ticks u16@0x6  flags u32@0x8  s8_loop_offset u16@0xc
 ```
 
 ### The `0xf0` element — `anim_init_element` `0x58bf58(elem, seq_idx, inst)`
@@ -382,13 +382,13 @@ section_8  (frame)    stride 0x20
 element (0xf0 bytes):
   +0x80/0x88/0x90/0x98 = 0
   +0xa8 = owner TrackInstance*        (== the "inst" the renderer offsets!)
-  +0xb0 = frames * 1000               (u32; ms per frame at 1x)
+  +0xb0 = s8_duration_ticks * 1000               (u32; ms per frame at 1x)
   +0xb4/+0xbc/+0xc4 = 0
-  +0xc8 = section_8.frames            (u16, @s8+6)
+  +0xc8 = section_8.s8_duration_ticks            (u16, @s8+6)
   +0xca = sequence index              (u16)
-  +0xcc = section_a.track_id          (u16, @sa+0x14)
+  +0xcc = section_a.sa_track_slot          (u16, @sa+0x14)
   +0xd0 = element index               (set by anim_eval_track)
-  +0xd2 = section_a.s8_st             (u8,  @sa+0x13)
+  +0xd2 = section_a.s8_start_offset             (u8,  @sa+0x13)
   +0xd4 = 0xffffffffffffffff
   +0xdc = 0xffffffff ; +0xe0 = -1.0
   +0xec = element flags
@@ -397,9 +397,9 @@ element (0xf0 bytes):
 Indexing: the **atlas/MBS object** holds the section bases —
 `atlas+0xf0 = section_8` (stride `0x20`), `atlas+0xf8 = section_9` (stride `0x30`),
 `atlas+0x100 = section_a` (stride `0x18`). `anim_init_element` resolves
-`section_a[seq_idx]` → `section_8[s8_id + s8_st]`.
+`section_a[seq_idx]` → `section_8[s8_frame_start + s8_start_offset]`.
 
-`anim_eval_track` also: sets `track = -1` sentinel, `count = section_9.sa_set_no`,
+`anim_eval_track` also: sets `track = -1` sentinel, `count = section_9.sa_sequence_count`,
 allocates `count * 0xf0`, stamps each element's index at `+0xd0`, and
 `field_0x2f0 = count * max(track+0x71, mirror+0x71)`; `elements` is `[inst+0x268]`.
 
@@ -424,7 +424,7 @@ Mask convention is **`mask(i) = 1 << i`**, from the rodata bit table
 1. Resolve the runtime table `0x28c30d0` (find its initializer) to **name** the
    flags bits (0/1/2/12/13/24 live only there).
 2. The `inst->offset_{x,y,z}` (`+0x320..`) writer (per-instance render offset).
-3. `sa_set_main`, `commit_ticks` — still never observed being read.
+3. `sa_main_sequence`, `commit_ticks` — still never observed being read.
 
 ---
 
@@ -486,9 +486,9 @@ bl 0x58c700               ; variant 1
 bl 0x58cab0               ; variant 2
 ```
 
-The functions are gated by `section_6.s5_no` (`+0x18`) and index
+The functions are gated by `section_6.s5_hitbox_count` (`+0x18`) and index
 `section_5[entry].s3_id` into the `0x50`-byte `section_3` rows. They do **not**
-read `section_4`. For the opening title `s6.s5_no == 0`, so this path never runs.
+read `section_4`. For the opening title `s6.s5_hitbox_count == 0`, so this path never runs.
 
 `FUN_0058bc9c` confirms the asset header order. It copies:
 
@@ -819,9 +819,9 @@ The chara object shares the big `+0x2390` region with the UI object (common base
 3. **Render-pass bits** `flags & mask(18)/mask(22)/mask(25)/mask(26)` and bit 23 —
    read the `sprite_build_matrix` / `anim_init_element` blocks they gate.
 4. **s8 `flags` bits** (our parser's `0x40`/`0x400`) — cross-check with
-   `anim_init_element`: reads `frames@+6`, `flags@+8`; bit 31 (`< 0`) routes to an
+   `anim_init_element`: reads `s8_duration_ticks@+6`, `flags@+8`; bit 31 (`< 0`) routes to an
    alternate element type via vtable `+0xa0`.
-5. **`sa_set_main` / `commit_ticks` / `sb.oneshot`** — still never observed being
+5. **`sa_main_sequence` / `commit_ticks` / `sb.oneshot`** — still never observed being
    read; confirm the engine ignores them.
 6. **`pos → 2D view`** — decide whether `pos` ever reaches the sprite layer (best
    supported answer today: **no**; the pan is `inst->offset_*`), else locate the
