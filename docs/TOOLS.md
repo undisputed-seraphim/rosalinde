@@ -64,17 +64,31 @@ Behavior:
 - `--scene-frame` is still used for a single deterministic screenshot via `--screenshot`.
 - `--trace` writes one JSON object per line. Each line has `frame`, `kind` and `event`.
   Categories are `vm`, `stage`, `camera`, `asset`, `sprite` and `draw`.
+- `vm/call` events are complete native calls: call text, caller, handled status and
+  return value. The viewer mirrors `asbrun`'s native-call trace.
 - `camera` events include both the script request (`pos`, `duration`, `delay`) and
   the per-frame evaluated camera state, including tween progress and ease ramps.
 - `asset` events include cache hits, load mode, path and elapsed milliseconds.
 - `sprite` events cover create/chara/animation/rebuild/track changes.
-- `draw` events contain the final per-frame object order, instance count and bounds.
+- `draw` events contain the final per-frame object order, sort keys, instance count and bounds.
+- `--probe DIR` writes `state-<frame>.json`, `draw-<frame>.ndjson` and
+  `summary-<frame>.txt` at `--probe-frames` (default: capture frames or `--scene-frame`).
+  The draw dump is layer-level: MBS run/`s8`/`s6`/`s7`, UVs, effective colors,
+  blend/fog, and per-layer skip reasons.
+- `--only NAME`, `--hide TEXT` and `--keep-stage` isolate objects for texture/order
+  experiments. `--clear-color #RRGGBB[AA]` sets a neutral background; `--data-dir`
+  selects the runtime tables.
+- `FTX_GPU_DUMP_DIR=DIR FTX_GPU_DUMP_MATCH=Opening010` dumps the uploaded texture
+  array to a PNG for atlas/UV auditing. `VIEWER_FLIP_V` and `VIEWER_RUN_ORDER`
+  (`reverse`/`track`) are experimental orientation/order probes, not rendering fixes.
 
 ## Suggested workflow
 
 1. Use `asbrun trace` (or `timeline`) to identify the exact script frame and native arguments.
 2. Use `rosalinde`'s `d ... --track/--seq` to inspect the referenced track and frames
    in memory (no extraction).
-3. Use `viewer --capture-frames` to produce comparison frames.
-4. Use `viewer --trace` with only the categories needed when a visual result is
+3. Use `viewer --probe` at that frame to inspect the live entities, resolved MBS runs,
+   draw order, and per-layer UV/color/skip decisions.
+4. Use `viewer --capture-frames` to produce comparison frames.
+5. Use `viewer --trace` with only the categories needed when a visual result is
    unexpected.

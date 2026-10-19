@@ -83,7 +83,7 @@ sa_set_main(u8), sa_sb_set_id(u16), sa_sb_set_no(u8), disabled(u8)`
 | `left,top,right,bottom` | Camera framing hint for this track (not sprite bounds — vary wildly) |
 | `name` | Track identifier |
 | `sa_set_id` / `sa_set_no` | Starting index / count of `section_a` sequences |
-| `sa_set_main` | 1 on "middle" phase tracks of compound animations (KNOCKBACK, MAGIC_B_*, dialogue `_A2` phases) |
+| `sa_set_main` | **0-based index of the track's main/default sequence**, not a boolean flag. Usually 0, but `GUI/Opening010.mbs` uses 6, 14, and 86 on its effect tracks. |
 | `sa_sb_set_id` / `sa_sb_set_no` | Track-level timing-modifier range into `section_b` (**characters only**) |
 | `disabled` | 1 = reserved/padding slot; skip |
 
@@ -237,21 +237,69 @@ s0s1s2_interp(u8), n_180(u8), _pad1(u32), _pad2(u16), sfx_mute(u16), sfx_id(u32)
 
 ### Flag bits (u32)
 
-| Bit | Name | Meaning |
-|-----|------|---------|
-| 0x01 | FLIPX | Horizontal mirror (directional variant key) |
-| 0x02 | FLIPY | Vertical mirror (rare) |
-| 0x04 | JUMP | Control-flow: the frame after this one is at `current + loop_s8_id` |
-| 0x20 | ACTIVE | Frame is emitted to the renderer (clear on hitbox-only / transition frames) |
-| 0x80 | POSE | Non-idle body pose (GUARD, KNOCKBACK, DOWN, SIT) |
-| 0x400 | HITBOX | Hitbox-only frame (no sprite layers) |
-| 0x800 | LAST | End-of-sequence marker; with JUMP it is the loop point |
-| 0x2000 | — | Rarely set; purpose unclear |
+Names are early guesses (kept with `_` where unconfirmed). Ground truth from a
+`S8_ALL` dump of `GUI/Opening010.mbs` + `GUI/Opening070.mbs` (all 1688 frames):
+
+| Bit | Occurrence | Meaning |
+|-----|-----------|---------|
+| 0x01 | common (`0x21`,`0x61`,`0x421`,`0x461`,`0x861`,`0xc21`) | FLIPX — horizontal mirror |
+| 0x02 | rare (`0x22`,`0x822`) | FLIPY — vertical mirror |
+| 0x04 | 129× | **JUMP / loop**: when set, `next = current + loop_s8_id` (relative). 125/129 such frames also have `loop_s8_id != 0`; they are almost always also `0x800` (`0x824`,`0x864`,`0x825`). |
+| 0x20 | ~1160× (everything) | **ACTIVE / renderable** — cleared on non-rendered frames. |
+| 0x40 | common (`0x60`,`0x460`,`0x860`,`0xc60`) | unknown — present on block/entry frames (e.g. the first frames of a sequence); possibly "interpolate in / hold-from-previous". |
+| 0x80 | **never present** here | the old "POSE" guess is unconfirmed — do not rely on it. |
+| 0x400 | common (`0x420`,`0x460`,`0xc20`,`0xc60`) | unknown — the old "HITBOX-only" guess is wrong (it is a common modifier on normal frames). |
+| 0x800 | 287× | **END marker** (last frame of a sequence; usually `frames=1`). With `0x04` it is a *loop point*; **without `0x04` the sequence ends here**. |
+| 0x2000 | 2× (`0x2860`) | rare; unknown. |
+
+Notes:
+
+- Every "end" frame is `0x800`; if also `0x20` the final frame is still drawn
+  (e.g. `0x820`), otherwise it is a non-rendered sentinel (`0x800` alone, 43×).
+- Frames without `0x800`/`0x04` simply advance (`0x20`, `0x40+0x20`, `0x400+0x20`).
+- A run's frames often start with `0x40` and/or `0x400` set, then drop to `0x20`.
 
 ### JUMP + loop_s8_id
 
-`loop_s8_id` is a **relative** offset when `JUMP=1`: `next = current + loop_s8_id`
-(e.g. D_WALK loops back 17 frames).
+`loop_s8_id` is a **relative** offset when `JUMP=1` (`0x04`): `next = current + loop_s8_id`
+(e.g. D_WALK loops back 17 frames). When `JUMP` is clear, `loop_s8_id` is a loop-back
+target interpreted by some frames as an absolute index (`0x822` frames carry
+`loop_s8_id=1`) — but the engine appears to ignore it unless `0x04` is set.
+
+### The old `s8sa_loop::preprocess` walk (commit `31e3c5d`, removed)
+
+A long-removed helper walked each `sa` sequence and **linearised it into a play
+order + loop point**. It is worth recording because it encodes a *different*
+reading of the control flow than the current player uses:
+
+```
+sav = sa.s8_id + sa.s8_st            // first frame (honours s8_st skip)
+j = 0; times = {}; loop = -1
+walk s8k = sav + j:
+    if seen[s8k]: loop = index_of[s8k]; stop
+    push s8k to times
+    if flags & JUMP:     j = loop_s8_id        // ABSOLUTE offset from sav
+    else if flags & LAST: stop                 // 0x800 ends the sequence
+    else:                 j += 1
+```
+
+Key claims (unverified — the code was *imported wholesale from another,
+character-sprite-only animator*, so it may not even target the UO format):
+
+- `JUMP` + `loop_s8_id` is an **absolute** target **relative to `sav`**
+  (`next = sav + loop_s8_id`), not relative to the current frame.
+- `LAST` (`0x800`) **ends** the sequence regardless of `s8_sum_once`.
+- The loop point is found by **revisiting a frame** (builds intro + loop body),
+  so it does not use `s8_sum_once` / `commit_ticks` at all.
+
+Observed when tested in the viewer (`S8_DUMP`/captures): switching the JUMP
+target from relative to absolute **leaves the opening identical** and shifts a
+walking character pose by ~9% of pixels — both poses plausible, so it is *not*
+conclusively correct. The current player keeps the relative reading.
+
+> TODO (applies to sibling sections too): the meanings of `0x40`/`0x400` here,
+> and of `sa.sa_set_main` / `sa.commit_ticks` / the `sa.track_id` reserved gaps,
+> are still unconfirmed.
 
 ### Interpolation fields
 
@@ -265,6 +313,16 @@ s0s1s2_interp(u8), n_180(u8), _pad1(u32), _pad2(u16), sfx_mute(u16), sfx_id(u32)
 
 Tiers: none (all 0), light (`s7_interp=1`, `s5s3_interp=1`), heavy
 (`s7_interp=2`, `s0s1s2_interp=2`).
+
+**Engine binding note (runtime, not a file field):** the engine's `TrackInstance`
+holds **two MBS asset pointers** (`+0x08` and `+0x98`), bound together by the track
+vtable entry `FUN_0058ff78`. `sprite_build_matrix` reads both (`asset+0x160`) and
+its s0/s1/s2 interpolation path uses the pair. This suggests `s0s1s2_interp` is a
+**two-source** blend (current/previous asset or sequence set), not only an
+adjacent-frame UV/colour lerp. The viewer currently binds only one asset per
+object, which is the leading explanation for missing two-asset transitions such
+as the white-to-coloured title phase. This is an engine observation and still
+needs confirmation across other MBS files.
 
 ### Other fields
 
@@ -472,3 +530,63 @@ scene, for example, is a single texture-array-backed card.
 | s8 | `n_180` | 0–24 on turn frames; exact semantics unconfirmed |
 | sb | `speed_num`/`speed_den`/`oneshot` | Likely timing numerator/denominator/one-shot flag |
 | — | Background layer depth order | Not reliably encoded in `fog`; possible track-order or another key |
+
+---
+
+## Corpus statistics (46-file MBS sample)
+
+Dumped with `rosalinde --mbs-dump` (6 GUI, 14 BattleBG, 25 character, 1 FieldBG,
+…) and tallied per column.
+
+### section_9 (tracks)
+
+- `sa_set_no` (sequences per track): `0→508, 1→566, 2→106, 3→407, 4→407, 5→257,
+  6→161, 7→56, …` up to 87. **58 % of tracks have >1 sequence.**
+- **Every multi-sequence track's sequences tile the `s8` array contiguously**
+  (`s8_id` ranges back-to-back; 1499/1499). The sequences are therefore *ordered
+  segments of one linear timeline*, not interleaved parallel parts.
+- `track_id` has reserved gaps in ~half of multi-seq tracks (758 gaps / 741 contiguous).
+- `sa_set_main` is a **0-based sequence index**, not a boolean. Many character and
+  background tracks use 0; compound tracks use higher indices (e.g. `GUI/Opening010`
+  track 1 uses 86, track 3 uses 6, track 5 uses 14).
+- `disabled=1` on 505 tracks (reserved/padding) — skip them.
+- `left/top/right/bottom` is a framing rect: only **6/2573** tracks exceed ±5000,
+  so it is usually sane (`TITLELOGO` is one outlier at ±10000).
+
+### section_a (sequences)
+
+- `s8_sum_once`: **−1 (single-pass) 4874, 0 (full loop) 1986, >0 (intro+loop) 856**
+  → most sequences are single-pass.
+- `s8_st != 0` on **3974/7716** sequences — `s8_st` is significant (characters:
+  skip-first-frame; backgrounds: sub-sprite index).
+- `commit_ticks != -1`: 847. `sb_id != 0` (link into section_b): only 197.
+
+### section_8 (frames)
+
+- Bit counts: `0x20`(active) 46987, **inactive 20808**, `0x400` 9336,
+  `0x800`(last) 7716, `0x04`(jump) 3606, `0x01` 3283, `0x2000` 849, `0x80` 229,
+  `0x02` 125. (Counts over the whole sample — a frame can carry several bits.)
+- **`0x04` (JUMP) with `loop_s8_id == 0` is common: 2042/3606 (57 %).** Relative
+  reading ⇒ self-loop / *hold*; absolute reading ⇒ loop to sequence start.
+- `0x400` is common ⇒ the old "HITBOX-only" name is wrong (it is a modifier).
+- `0x80` is rare in the sample ⇒ "POSE" is unconfirmed.
+
+### section_b
+
+- 224 rows; `oneshot ∈ {0×90, 1×113, 2×14, 3×7}`, but `sa.sb_id != 0` is only 197 —
+  section_b is used but rarely linked. Likely per-sequence timing/hitstop.
+
+### Playback implications
+
+- **`0x20` clear ⇒ don't draw** — *implemented* (`viewer/src/sprite.cpp` render
+  gate, commit `9f7245a`) and verified on the opening: gating on `ACTIVE` removes
+  black artifacts and un-skips the 82% of `GUI/Opening070` frames that carry
+  `0x400` (a modifier, **not** a hitbox-only marker).
+- **A finished single-pass part stops drawing** (`s8_sum_once < 0` → `hide`).
+  Verified: *holding* the final `0x820` frame instead **freezes** the intro dragon
+  and suppresses the title sequence — "hold" is wrong. A `0x820` frame is drawn
+  on its own tick, then the part ends.
+- **Contiguous tiling ⇒ sequences play sequentially** (`VIEWER_RUNS=seq`) — still a
+  hypothesis; the default stays parallel (characters are mostly single-sequence);
+  not flipped globally yet.
+- `JUMP`+`loop_s8_id=0` may be an explicit **hold** (repeat the current frame).

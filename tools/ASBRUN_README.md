@@ -236,8 +236,10 @@ resolved MBS track name/run count. `drawn` is a runtime predicate
 (`started && visible && alpha > 0 && resolved track`); it is not a renderer probe
 and does not include asset-load failures or actual GPU draw bounds.
 
-Known limitation: `state` is a CLI/runtime snapshot. For true renderer state
-(asset loaded, instances, bounds), use the viewer; `asbrun` remains CLI-only.
+Known limitation: `state` is a CLI/runtime snapshot. It does not supply the MBS
+track-length/name callbacks, so `WaitSpriteMoneAnimationEnd`, `DrAnimationWait`, and
+`DrTurn` do not carry real time here. For frame-accurate state plus renderer state,
+use the viewer's `--probe` output; `asbrun` remains CLI-only.
 
 ### `record` alias
 

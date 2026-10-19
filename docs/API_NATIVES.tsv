@@ -1,0 +1,687 @@
+group	full	decl	scripts	calls	handler	line	status	wiring	note
+UI/archive/HUD	CloseArchive	void CloseArchive(in const string&, in const array<int>&)	356	1068	==	2386	record-only	record-only:ui	
+UI/archive/HUD	CreateFacilityName	void CreateFacilityName(in const string&, int, in const FnVector2&, int, bool)	424	1579	==	2392	record-only	record-only:ui	
+UI/archive/HUD	CreateStaffRoll	void CreateStaffRoll(in const string&, int)	7	285	==	2439	deferred/approx	record-only:ui	scroll timing not modelled
+UI/archive/HUD	DeleteFacilityName	void DeleteFacilityName(int)	424	1579	==	2398	record-only	record-only:ui	
+UI/archive/HUD	EnableTitleLibrary	void EnableTitleLibrary()	2	2	==	2506	record-only	record-only:ui	
+UI/archive/HUD	GetOfflineRank	int GetOfflineRank()	3	3	==	2450	deferred/approx	return computed/default	
+UI/archive/HUD	IsSecondRanking	bool IsSecondRanking()	3	3	==	2455	deferred/approx	return computed/default	
+UI/archive/HUD	OpenArchive	void OpenArchive(in const string&, in const array<int>&)	610	4602	==	2386	record-only	record-only:ui	
+UI/archive/HUD	OpenClassPedia	void OpenClassPedia(bool)	3	3	==	2424	record-only	record-only:ui	
+UI/archive/HUD	OpenDifficultyChoiceUI	void OpenDifficultyChoiceUI()	1	1	==	2488	record-only	record-only:ui	
+UI/archive/HUD	OpenShopUI	void OpenShopUI(int)	1	1	==	2492	record-only	record-only:ui	
+UI/archive/HUD	OpenUnitInfoUI	void OpenUnitInfoUI()	3	3	==	2484	record-only	record-only:ui	
+UI/archive/HUD	OpenUpgradeEquipUI	void OpenUpgradeEquipUI()	356	356	==	2480	record-only	record-only:ui	
+UI/archive/HUD	SetClassPedia_ByDefName	void SetClassPedia_ByDefName(in const string&)	13	26	==	2420	record-only	record-only:ui	
+UI/archive/HUD	SetDisableBackLog	void SetDisableBackLog(bool)	2	12	==	2496	record-only	record-only:ui	
+UI/archive/HUD	SetDisableChara	void SetDisableChara(in const string&, bool)	103	1980	==	852	state-only	save	
+UI/archive/HUD	SetDisableOption	void SetDisableOption(bool)	2	12	==	2501	record-only	record-only:ui	
+UI/archive/HUD	SetScrollStaffRollFlag	void SetScrollStaffRollFlag(bool, float)	5	14	==	2444	record-only	record-only:ui	
+UI/archive/HUD	ShowExStageTitle	void ShowExStageTitle(int, int)	424	424	==	2416	record-only	record-only:ui	
+UI/archive/HUD	ShowFacilityInfo	void ShowFacilityInfo(int, in const string&, int, int)	238	292	==	2406	record-only	record-only:ui	
+UI/archive/HUD	ShowFieldInfo	void ShowFieldInfo()	307	344	==	2402	record-only	record-only:ui	
+UI/archive/HUD	ShowResource	void ShowResource()	356	364	==	2572	state-only	other	
+UI/archive/HUD	ShowTips	void ShowTips(in const string&, int, bool)	378	8714	==	1320	state-only	other	
+UI/archive/HUD	UnlockTrophy	void UnlockTrophy(int, int)	365	367	==	2511	record-only	record-only:ui	
+UI/archive/HUD	UnlockTrophyAllDelivery	void UnlockTrophyAllDelivery()	1	1	==	2521	record-only	record-only:ui	
+audio/timing	AmbVolumeSyncByFade	void AmbVolumeSyncByFade(float)	307	320	==	2225	record-only	record-only:audio (no playback)	
+audio/timing	GetSoundLength	int GetSoundLength(int)	18	81	==	2245	query	computed timing/length	
+audio/timing	PlayActionCue	void PlayActionCue(int)	5	50	==	2231	record-only	record-only:audio (no playback)	
+audio/timing	PlayBGM	void PlayBGM(int, int, int, int)	522	847	==	2207	record-only	record-only:audio (no playback)	
+audio/timing	PlayBGMWithTime	void PlayBGMWithTime(int, int, int, int)	11	11	==	2229	record-only	record-only:audio (no playback)	
+audio/timing	PlayDefaultBGM	void PlayDefaultBGM(int, int, int)	357	9848	==	2209	record-only	record-only:audio (no playback)	
+audio/timing	PlaySE	void PlaySE(int, int)	449	1422	==	2211	record-only	record-only:audio (no playback)	
+audio/timing	PlaySE_Chara	void PlaySE_Chara(int, in const string&, int)	512	2588	==	2213	record-only	record-only:audio (no playback)	
+audio/timing	SetAmbVolume	void SetAmbVolume(float, int)	307	616	==	2223	record-only	record-only:audio (no playback)	
+audio/timing	SetBGMVolume	void SetBGMVolume(float, int)	15	30	==	2219	record-only	record-only:audio (no playback)	
+audio/timing	SetBattleBGM	void SetBattleBGM(in const string&, int)	100	138	==	2235	record-only	record-only:audio (no playback)	
+audio/timing	SetBattleBGM	void SetBattleBGM(int)	3	8	==	2235	record-only	record-only:audio (no playback)	
+audio/timing	SetSeVolume	void SetSeVolume(float, int)	20	48	==	2221	record-only	record-only:audio (no playback)	
+audio/timing	SetStageBGM	void SetStageBGM(int)	3	8	==	2227	record-only	record-only:audio (no playback)	
+audio/timing	UC_SEC	int UC_SEC(float)	109	1652	==	2240	query	computed timing/length	
+battle/stage	AddBattleBefore	void AddBattleBefore(in const string&)	51	204	==	661	no-op	return true; no state/record	
+battle/stage	AddBattleDie	void AddBattleDie(in const string&, in const string&)	28	40	==	662	no-op	return true; no state/record	
+battle/stage	AddBattleFlag	void AddBattleFlag(in const string&, bool, bool, bool)	2	20	==	662	no-op	return true; no state/record	
+battle/stage	BtFindChara	bool BtFindChara(in const string&)	51	327	==	665	state-only	battle; save	
+battle/stage	StActionEnd	void StActionEnd(in const string&)	424	460	==	585	no-op	return true	
+battle/stage	StActionEnd_AllPlayerArmy	void StActionEnd_AllPlayerArmy()	3	4	==	585	no-op	return true	
+battle/stage	StAddBrave	void StAddBrave(int)	6	6	==	527	state-only	battle	
+battle/stage	StAddEncountAfter	void StAddEncountAfter(in const string&)	100	115	==	661	no-op	return true; no state/record	
+battle/stage	StAddEncountBefore	void StAddEncountBefore(in const string&)	12	20	==	661	no-op	return true; no state/record	
+battle/stage	StAddGambitState	void StAddGambitState(in const string&, int, int, in const FnVector2&, in const string&, int, int, int)	37	60	==	682	no-op	return true	
+battle/stage	StAddGambitState	void StAddGambitState(in const string&, int, int, in const string&, int, int, int)	357	1887	==	682	no-op	return true	
+battle/stage	StAddLoseMessage	void StAddLoseMessage(in const string&, int)	103	320	==	658	no-op	return true	
+battle/stage	StAddSelectableCommand	void StAddSelectableCommand(int)	1	4	==	721	state-only	battle	
+battle/stage	StAddSelectableObject	void StAddSelectableObject(in const string&)	2	10	==	716	state-only	battle	
+battle/stage	StAddStamina	void StAddStamina(in const string&, int)	2	2	==	525	state-only	other	
+battle/stage	StAddTalkEvent	void StAddTalkEvent(in const string&, in const string&, in const string&)	12	31	==	590	no-op	return true; no state/record	
+battle/stage	StAddTargetableObject	void StAddTargetableObject(in const string&)	2	9	==	717	state-only	battle	
+battle/stage	StAddUnitAiAlarmByLookoutRegion	void StAddUnitAiAlarmByLookoutRegion(in const string&)	21	63	starts	679	no-op	return true	
+battle/stage	StAddUnitAiBoard	void StAddUnitAiBoard(in const string&, in const string&)	357	720	starts	679	no-op	return true	
+battle/stage	StAddUnitAiChase	void StAddUnitAiChase(in const string&, inout UcStChaseParam&, int)	10	19	starts	679	no-op	return true	
+battle/stage	StAddUnitAiChaseByArmyType	void StAddUnitAiChaseByArmyType(in const string&, int, int)	357	496	starts	679	no-op	return true	
+battle/stage	StAddUnitAiChaseByLookoutRegion	void StAddUnitAiChaseByLookoutRegion(in const string&, int)	5	9	starts	679	no-op	return true	
+battle/stage	StAddUnitAiChaseInCircle	void StAddUnitAiChaseInCircle(in const string&, int, in const FnVector2&, float, int, bool)	2	2	starts	679	no-op	return true	
+battle/stage	StAddUnitAiConquer	void StAddUnitAiConquer(in const string&, in const string&)	58	283	starts	679	no-op	return true	
+battle/stage	StAddUnitAiConquerNear	void StAddUnitAiConquerNear(in const string&)	4	6	starts	679	no-op	return true	
+battle/stage	StAddUnitAiDestroy	void StAddUnitAiDestroy(in const string&, in const string&)	1	1	starts	679	no-op	return true	
+battle/stage	StAddUnitAiMakeChase	void StAddUnitAiMakeChase(in const string&, float)	36	103	starts	679	no-op	return true	
+battle/stage	StAddUnitAiMove	void StAddUnitAiMove(in const string&, int)	357	2548	starts	679	no-op	return true	
+battle/stage	StAddUnitAiMovePos	void StAddUnitAiMovePos(in const string&, in const FnVector2&)	8	19	starts	679	no-op	return true	
+battle/stage	StAddUnitAiMovePosStraight	void StAddUnitAiMovePosStraight(in const string&, in const FnVector2&)	357	7572	starts	679	no-op	return true	
+battle/stage	StAddUnitAiMoveTurn	void StAddUnitAiMoveTurn(in const string&, int, float)	357	727	starts	679	no-op	return true	
+battle/stage	StAddUnitAiMoveWait	void StAddUnitAiMoveWait(in const string&, int)	357	6088	starts	679	no-op	return true	
+battle/stage	StAddUnitAiSearchEnemy	void StAddUnitAiSearchEnemy(in const string&, float, int, int)	357	789	starts	679	no-op	return true	
+battle/stage	StAddWinMessage	void StAddWinMessage(in const string&, int)	103	321	==	658	no-op	return true	
+battle/stage	StAddWinMessageCommander	void StAddWinMessageCommander(in const string&)	104	112	==	659	no-op	return true	
+battle/stage	StAddZouenAiConquer	void StAddZouenAiConquer(in const string&, in const string&)	15	44	starts	684	no-op	return true	
+battle/stage	StAddZouenUnitSet	void StAddZouenUnitSet(in const string&, int)	424	429	starts	684	no-op	return true	
+battle/stage	StBoard	void StBoard(in const string&, in const string&)	36	90	==	592	no-op	return true; no state/record	
+battle/stage	StChangeArmyType	void StChangeArmyType(in const string&, int)	5	8	==	508	state-only	other	
+battle/stage	StClearCommandSelected	void StClearCommandSelected()	1	3	==	723	state-only	battle	
+battle/stage	StClearGambitState	void StClearGambitState(in const string&)	1	4	==	683	no-op	return true	
+battle/stage	StClearLoseMessage	void StClearLoseMessage()	10	10	==	660	no-op	return true	
+battle/stage	StClearMoveTarget	void StClearMoveTarget(in const string&)	3	3	==	680	no-op	return true	
+battle/stage	StClearPartnerSelect	void StClearPartnerSelect()	356	714	==	2469	record-only	record-only:ui	
+battle/stage	StClearUnitAi	void StClearUnitAi(in const string&)	23	52	==	679	no-op	return true	
+battle/stage	StClearUnitAiMove	void StClearUnitAiMove(in const string&)	3	4	==	679	no-op	return true	
+battle/stage	StClearWinMessage	void StClearWinMessage()	11	13	==	660	no-op	return true	
+battle/stage	StClearZouenUnitSet	void StClearZouenUnitSet(in const string&)	2	3	==	684	no-op	return true	
+battle/stage	StCloseTutorialMsg	void StCloseTutorialMsg()	2	12	==	1197	state-only	other	
+battle/stage	StCreateCircleRegionObject	void StCreateCircleRegionObject(in const string&, in const FnVector2&, float)	1	1	==	709	no-op	return true; no state/record	
+battle/stage	StCreateCloud	void StCreateCloud(in const string&, in const FnVector2&, int, bool)	1	9	==	708	no-op	return true; no state/record	
+battle/stage	StCreateCloudGenerator	void StCreateCloudGenerator(in const string&, int, in const FnVector2&, in const FnVector2&, int, int, int)	3	20	==	709	no-op	return true; no state/record	
+battle/stage	StCreateDemoUnit	void StCreateDemoUnit(in const string&, in const string&, in const FnVector2&, int, int)	28	119	==	475	state-only	other	
+battle/stage	StCreateDemoUnit	void StCreateDemoUnit(in const string&, int, in const FnVector2&, int)	8	95	==	475	state-only	other	
+battle/stage	StCreateEntryUnit	string StCreateEntryUnit(in const string&, int, in const FnVector2&, int, int)	17	32	==	466	deferred/approx	TODO	
+battle/stage	StCreateFacility	void StCreateFacility(in const string&, int, in const FnVector2&)	99	452	==	690	state-only	game	
+battle/stage	StCreateFacility_DefName	void StCreateFacility_DefName(in const string&)	1	1	==	691	state-only	game	
+battle/stage	StCreateFacility_StageRect	void StCreateFacility_StageRect()	103	111	==	706	no-op	return true; no state/record	
+battle/stage	StCreateFire	void StCreateFire(in const string&, in const FnVector2&)	4	36	==	708	no-op	return true; no state/record	
+battle/stage	StCreateGimmick	void StCreateGimmick(in const string&, int, in const FnVector2&, int)	56	419	==	708	no-op	return true; no state/record	
+battle/stage	StCreateKanketusen	void StCreateKanketusen(in const string&, in const FnVector2&, int, int, int, bool)	1	14	==	685	no-op	return true	
+battle/stage	StCreateLookoutRegionObject	void StCreateLookoutRegionObject(in const string&, in const FnVector2&, float)	34	85	==	710	no-op	return true; no state/record	
+battle/stage	StCreateSwitchObject	void StCreateSwitchObject(in const string&, in const FnVector2&, in const string&, in const string&, int)	1	1	==	710	no-op	return true; no state/record	
+battle/stage	StCreateTempUnit	string StCreateTempUnit(in const string&, int, in const FnVector2&, int, int)	104	121	==	466	deferred/approx	TODO	
+battle/stage	StCreateTimer	void StCreateTimer(in const string&, int)	103	228	==	606	state-only	battle	
+battle/stage	StCreateUnit	string StCreateUnit(in const string&, int, in const FnVector2&, int, int)	103	1730	==	466	deferred/approx	TODO	
+battle/stage	StCreateVehicle	void StCreateVehicle(in const string&, int, in const FnVector2&, int, int)	43	111	==	485	state-only	other	
+battle/stage	StCreateZouenSpot	void StCreateZouenSpot(in const string&, in const FnVector2&)	2	2	==	685	no-op	return true	
+battle/stage	StDbClearStage	void StDbClearStage(in const string&)	356	649	==	2972	record-only	record-only:field	
+battle/stage	StDeleteAllDemoUnit	void StDeleteAllDemoUnit()	424	468	==	496	state-only	battle; save	
+battle/stage	StDeleteAllFacility	void StDeleteAllFacility()	3	5	==	692	state-only	game	
+battle/stage	StDeleteAllGimmick	void StDeleteAllGimmick()	3	5	==	707	no-op	return true; no state/record	
+battle/stage	StDeleteAllSelectableCommand	void StDeleteAllSelectableCommand()	1	3	==	722	state-only	battle	
+battle/stage	StDeleteAllSelectableObject	void StDeleteAllSelectableObject()	2	9	==	718	state-only	battle	
+battle/stage	StDeleteAllTargetableObject	void StDeleteAllTargetableObject()	2	9	==	719	state-only	battle	
+battle/stage	StDeleteAllUnit	void StDeleteAllUnit()	8	10	==	491	state-only	battle; save	
+battle/stage	StDeleteAllVehicle	void StDeleteAllVehicle()	2	4	==	496	state-only	battle; save	
+battle/stage	StDeleteArmyBase	void StDeleteArmyBase(in const string&)	1	1	==	591	no-op	return true; no state/record	
+battle/stage	StDeleteSelectableObject	void StDeleteSelectableObject(in const string&)	1	4	==	720	state-only	battle	
+battle/stage	StDeleteTalkEvent	void StDeleteTalkEvent(in const string&, in const string&, in const string&)	2	113	==	590	no-op	return true; no state/record	
+battle/stage	StDisableBattle	void StDisableBattle(in const string&, bool)	1	2	==	588	no-op	return true; no state/record	
+battle/stage	StDisableGroundMoveEffect	void StDisableGroundMoveEffect(in const string&, bool)	10	48	==	589	no-op	return true; no state/record	
+battle/stage	StEmote	void StEmote(in const string&, int, int)	2	6	==	586	no-op	return true; no state/record	
+battle/stage	StGetBoardingArmyType	int StGetBoardingArmyType(in const string&)	4	4	==	699	query/stub	return computed/default	
+battle/stage	StGetElapsedClockHour	int StGetElapsedClockHour()	3	3	==	654	state-only	game	
+battle/stage	StGetElapsedClockMin	int StGetElapsedClockMin()	1	2	==	655	state-only	game	
+battle/stage	StGetEnemyUnitNum	int StGetEnemyUnitNum()	4	6	==	543	state-only	battle; save	
+battle/stage	StGetPartnerCharaDefName	string StGetPartnerCharaDefName()	358	362	==	582	state-only	other	
+battle/stage	StGetPlayerUnitNum	int StGetPlayerUnitNum()	103	108	==	542	query/stub	return computed/default	
+battle/stage	StGetSkillUseNum	int StGetSkillUseNum(in const string&, in const string&)	6	11	==	540	query/stub	return computed/default	
+battle/stage	StGetStageStartParam	int StGetStageStartParam()	50	50	==	2973	state-only	game	
+battle/stage	StGetStamina	int StGetStamina(in const string&)	2	6	==	524	query/stub	return computed/default	
+battle/stage	StGetState	int StGetState(in const string&)	103	215	==	510	query/stub	return computed/default	
+battle/stage	StGetStayingArmyType	int StGetStayingArmyType(in const string&)	424	655	==	694	state-only	battle	
+battle/stage	StGetStayingUnitObjectName	string StGetStayingUnitObjectName(in const string&)	1	4	==	575	state-only	battle	
+battle/stage	StGetTimer	uint64 StGetTimer(in const string&)	103	117	==	615	state-only	battle	
+battle/stage	StGetUnitNameFoundLast	string StGetUnitNameFoundLast()	104	1174	==	541	state-only	battle	
+battle/stage	StGetUnitNumInCircle	int StGetUnitNumInCircle(int, in const FnVector2&, float)	103	111	==	550	state-only	battle; save	
+battle/stage	StGetUnitObjectName	string StGetUnitObjectName(int, int)	3	6	==	563	state-only	battle; save	
+battle/stage	StHeal	void StHeal(in const string&, int, bool)	5	7	==	512	state-only	other	
+battle/stage	StHealAllPlayerUnit	void StHealAllPlayerUnit()	1	1	==	519	state-only	battle; save	
+battle/stage	StHideSearchRange	void StHideSearchRange(in const string&)	357	433	==	680	no-op	return true	
+battle/stage	StIsArmyInSearchAreaByFacilityType	bool StIsArmyInSearchAreaByFacilityType(int, int, float, int)	103	721	starts	727	query/stub	return computed/default	
+battle/stage	StIsArmyInSearchAreaByGimmickType	bool StIsArmyInSearchAreaByGimmickType(int, int, float, int)	103	310	starts	727	query/stub	return computed/default	
+battle/stage	StIsArmyInSearchAreaByTreasure	bool StIsArmyInSearchAreaByTreasure(int, float, int)	103	103	starts	727	query/stub	return computed/default	
+battle/stage	StIsArmyInSearchAreaByVehicleType	bool StIsArmyInSearchAreaByVehicleType(int, int, float, int)	103	206	starts	727	query/stub	return computed/default	
+battle/stage	StIsCommandSelected	bool StIsCommandSelected(int)	1	2	==	724	state-only	battle	
+battle/stage	StIsConquerFacility	bool StIsConquerFacility(in const string&, int)	424	1375	==	539	query/stub	return computed/default	
+battle/stage	StIsEnableOpenPartnerSelect	bool StIsEnableOpenPartnerSelect()	2	2	==	2474	query/stub	return computed/default	
+battle/stage	StIsFound	bool StIsFound(in const string&)	5	10	==	537	query/stub	return computed/default	
+battle/stage	StIsLowerHpRate	bool StIsLowerHpRate(in const string&, int)	424	972	==	528	query/stub	return computed/default	
+battle/stage	StIsLowerHpRateByChara	bool StIsLowerHpRateByChara(in const string&, int)	2	3	==	529	state-only	battle; save	
+battle/stage	StIsMoving	bool StIsMoving(in const string&)	3	5	==	538	query/stub	return computed/default	
+battle/stage	StIsPartnerSelect	bool StIsPartnerSelect()	358	363	==	2465	query/stub	return computed/default	
+battle/stage	StIsPartnerSelectCharaDefName	bool StIsPartnerSelectCharaDefName(in const string&)	384	35724	==	915	state-only	save	
+battle/stage	StIsPartnerSelectRequired	bool StIsPartnerSelectRequired()	7	7	==	2474	query/stub	return computed/default	
+battle/stage	StIsTimeLimit	bool StIsTimeLimit()	103	103	==	644	state-only	battle; game	
+battle/stage	StIsUnitInRectByArmyType	bool StIsUnitInRectByArmyType(int, in const array<FnVector2>&)	28	74	starts	728	query/stub	return computed/default	
+battle/stage	StIsUnitInRectByObjName	bool StIsUnitInRectByObjName(in const string&, in const array<FnVector2>&)	356	5525	starts	728	query/stub	return computed/default	
+battle/stage	StIsUnitInSearchAreaByArmyType	bool StIsUnitInSearchAreaByArmyType(in const string&, int, float, int)	104	246	starts	727	query/stub	return computed/default	
+battle/stage	StIsUnitInSearchAreaByObjName	bool StIsUnitInSearchAreaByObjName(in const string&, in const string&, float, int)	9	18	starts	727	query/stub	return computed/default	
+battle/stage	StLeave	void StLeave(in const string&)	9	23	==	506	state-only	battle; save	
+battle/stage	StLoadNodeNetwork	void StLoadNodeNetwork()	103	109	==	737	no-op	return true; no state/record	
+battle/stage	StOpenCoAEditor	void StOpenCoAEditor(in const string&)	1	1	==	589	no-op	return true; no state/record	
+battle/stage	StOpenPartnerSelect	void StOpenPartnerSelect()	367	380	==	2460	record-only	record-only:ui	
+battle/stage	StResetTimeLimit	void StResetTimeLimit()	2	2	==	638	state-only	battle	
+battle/stage	StRestartSkipEnd	void StRestartSkipEnd()	424	424	==	592	no-op	return true; no state/record	
+battle/stage	StSetArmyBase	void StSetArmyBase(in const string&, int, int)	102	245	==	591	no-op	return true; no state/record	
+battle/stage	StSetBattleBG	void StSetBattleBG(in const string&, int)	3	24	==	605	state-only	battle	
+battle/stage	StSetBattleScene	void StSetBattleScene(in const string&, bool)	6	13	==	597	state-only	battle	
+battle/stage	StSetBrave	void StSetBrave(int)	103	104	==	526	state-only	battle	
+battle/stage	StSetDefaultStageAi	void StSetDefaultStageAi(bool)	95	283	==	736	no-op	return true; no state/record	
+battle/stage	StSetEncountOff	void StSetEncountOff(in const string&, bool)	2	4	==	588	no-op	return true; no state/record	
+battle/stage	StSetFacilityArmyType	void StSetFacilityArmyType(in const string&, int, bool)	424	904	==	693	state-only	battle	
+battle/stage	StSetFacilityDir	void StSetFacilityDir(in const string&, int)	1	12	==	707	no-op	return true; no state/record	
+battle/stage	StSetFacilityEvent	void StSetFacilityEvent(in const string&, in const string&)	103	178	==	706	no-op	return true; no state/record	
+battle/stage	StSetFocusReturnPosV	void StSetFocusReturnPosV(in const FnVector2&)	2	5	==	591	no-op	return true; no state/record	
+battle/stage	StSetForcePause	void StSetForcePause(bool)	2	15	==	587	no-op	return true; no state/record	
+battle/stage	StSetGateBreakAfter	void StSetGateBreakAfter(in const string&, in const string&)	2	2	==	711	no-op	return true; no state/record	
+battle/stage	StSetHp	void StSetHp(in const string&, int, int)	3	5	==	511	state-only	other	
+battle/stage	StSetMiasumaAllUnit	void StSetMiasumaAllUnit(int)	1	1	==	589	no-op	return true; no state/record	
+battle/stage	StSetMoveAiPermissionInDemo	void StSetMoveAiPermissionInDemo(in const string&, bool)	5	28	==	587	no-op	return true	
+battle/stage	StSetMoveSpeedRate	void StSetMoveSpeedRate(in const string&, float)	51	200	==	587	no-op	return true; no state/record	
+battle/stage	StSetNightMask	void StSetNightMask(bool, int)	2	7	==	588	no-op	return true; no state/record	
+battle/stage	StSetStageAi	void StSetStageAi(bool)	5	8	==	736	no-op	return true; no state/record	
+battle/stage	StSetStageCoatOfArms	void StSetStageCoatOfArms(int)	102	102	==	735	no-op	return true; no state/record	
+battle/stage	StSetStageMapImageById	void StSetStageMapImageById(int)	4	9	==	734	no-op	return true; no state/record	
+battle/stage	StSetStageMapImageByName	void StSetStageMapImageByName(in const string&)	2	2	==	735	no-op	return true; no state/record	
+battle/stage	StSetStageRect	void StSetStageRect(in const array<FnVector2>&)	103	109	==	734	no-op	return true; no state/record	
+battle/stage	StSetStageRectA	void StSetStageRectA(int, int)	7	21	==	734	no-op	return true	
+battle/stage	StSetStageTimer	void StSetStageTimer(int)	2	3	==	656	no-op	return true	
+battle/stage	StSetStageUnitBaseLv	void StSetStageUnitBaseLv(int)	104	310	==	536	state-only	battle	
+battle/stage	StSetState	void StSetState(in const string&, int)	103	736	==	509	state-only	other	
+battle/stage	StSetStationItem	void StSetStationItem(in const string&, int)	103	103	==	707	no-op	return true; no state/record	
+battle/stage	StSetTalkEventMoveBack	void StSetTalkEventMoveBack(bool)	3	3	==	590	no-op	return true; no state/record	
+battle/stage	StSetTimeLimit	void StSetTimeLimit(int, int, int)	2	2	==	623	state-only	battle	
+battle/stage	StSetTimeLimitOff	void StSetTimeLimitOff(bool)	102	103	==	630	state-only	battle	
+battle/stage	StSetUnitAnimation	void StSetUnitAnimation(in const string&, int, bool)	9	41	==	586	no-op	return true; no state/record	
+battle/stage	StSetUnitMov	void StSetUnitMov(in const string&, float)	38	129	==	586	no-op	return true; no state/record	
+battle/stage	StSetUnitStageAi	void StSetUnitStageAi(in const string&, bool)	39	90	==	736	no-op	return true; no state/record	
+battle/stage	StSetUnitStageAiConquer	void StSetUnitStageAiConquer(in const string&, bool)	2	3	==	737	no-op	return true; no state/record	
+battle/stage	StSetZouen	void StSetZouen(in const string&, bool)	9	59	starts	683	no-op	return true	
+battle/stage	StSetZouenInterval	void StSetZouenInterval(in const string&, int, int)	424	437	starts	683	no-op	return true	
+battle/stage	StSetZouenMaxNum	void StSetZouenMaxNum(in const string&, int)	424	441	starts	683	no-op	return true	
+battle/stage	StSetZouenStageAi	void StSetZouenStageAi(in const string&, bool)	4	4	starts	683	no-op	return true	
+battle/stage	StSetZouenStageAiConquer	void StSetZouenStageAiConquer(in const string&, bool)	5	11	starts	683	no-op	return true	
+battle/stage	StSetZouenStageAiSearch	void StSetZouenStageAiSearch(in const string&, bool)	1	6	starts	683	no-op	return true	
+battle/stage	StShowLoseMessage	void StShowLoseMessage(in const string&, int)	103	318	==	659	no-op	return true	
+battle/stage	StShowTutorialMsg	void StShowTutorialMsg(int, in const string&)	2	11	==	1163	record-only	record-only:texts	
+battle/stage	StShowWinMessage	void StShowWinMessage(in const string&, int)	103	321	==	658	no-op	return true	
+battle/stage	StShowWinMessageCommander	void StShowWinMessageCommander(in const string&)	103	115	==	660	no-op	return true	
+battle/stage	StStation	void StStation(in const string&, in const string&)	102	643	==	700	deferred/approx	battle	
+battle/stage	StUnitDefaultActionLookoutOff	void StUnitDefaultActionLookoutOff(in const string&, bool)	10	19	==	682	no-op	return true	
+battle/stage	StUnitDefaultActionOff	void StUnitDefaultActionOff(in const string&, bool)	30	72	==	680	no-op	return true	
+battle/stage	StUnitDefaultActionRevengeOff	void StUnitDefaultActionRevengeOff(in const string&, bool)	357	727	==	681	no-op	return true	
+battle/stage	StUnitDefaultActionSearchOff	void StUnitDefaultActionSearchOff(in const string&, bool)	357	737	==	681	no-op	return true	
+battle/stage	StUnitWaitSkip	void StUnitWaitSkip(in const string&)	2	5	==	585	scheduler	parks script	
+battle/stage	StopBGM	void StopBGM(int, int)	580	3359	==	2215	record-only	record-only:audio (no playback)	
+battle/stage	StopSE	void StopSE(int, int)	6	42	==	2217	record-only	record-only:audio (no playback)	
+battle/stage	StopShakeFadeoutAll	void StopShakeFadeoutAll()	25	41	==	2975	live	live:shakes	
+drama/cutscene	DrActionWait	void DrActionWait(in const string&)	307	2550	==	770	scheduler	parks script	
+drama/cutscene	DrAlwaysUpdateMsgPos	void DrAlwaysUpdateMsgPos(in const string&, bool)	7	32	==	1197	state-only	other	
+drama/cutscene	DrAnimation	void DrAnimation(in const string&, in const string&, in const string&, in const string&)	186	782	==	1461	live	live:entity:mbs,name,track,track_index	
+drama/cutscene	DrAnimationAsync	void DrAnimationAsync(in const string&, in const string&, in const string&, in const string&)	307	3196	==	1461	live	live:entity:mbs,name,track,track_index	
+drama/cutscene	DrAnimationWait	void DrAnimationWait(in const string&)	9	18	==	1325	live	live:entity:mbs,name,track_index	
+drama/cutscene	DrCameraMoveWait	void DrCameraMoveWait()	43	55	==	1750	scheduler	parks script	
+drama/cutscene	DrCameraStop	void DrCameraStop()	1	1	==	1884	live	live:camera	
+drama/cutscene	DrClearCamera	void DrClearCamera()	1	1	==	892	live	live:camera	
+drama/cutscene	DrCopyCharaInfo	void DrCopyCharaInfo(in const string&, in const string&, bool)	11	152	==	1902	state-only	other	src/dst direction assumed
+drama/cutscene	DrCreateChara	void DrCreateChara(in const string&, in const string&, int)	292	2015	==	1387	live	live:entity	
+drama/cutscene	DrCreateDrama	void DrCreateDrama(in const string&)	358	4141	==	2797	record-only	record-only:field	
+drama/cutscene	DrCreateEffect	void DrCreateEffect(in const string&, in const string&, in const string&, int, in const FnVector3&, int, float, bool, int, int)	307	649	==	1981	live	live:effects	
+drama/cutscene	DrCreateNpc	void DrCreateNpc(in const string&, in const string&, int, int)	33	327	==	1387	live	live:entity	
+drama/cutscene	DrCreatePointLight	void DrCreatePointLight(in const string&, in const FnVector3&, in const FnColor&, in const FnColor&, in const FnColor&, float, float, float, float, float, float)	307	1586	==	2076	live	live:point_lights	
+drama/cutscene	DrCreateStage	void DrCreateStage(int, int, int, int)	293	439	==	1372	record-only	record-only:stages	
+drama/cutscene	DrDeleteEffect	void DrDeleteEffect(in const string&, int)	307	2380	==	1502	live	live:effects,entity:name,visible	
+drama/cutscene	DrDeletePointLight	void DrDeletePointLight(in const string&, int)	307	2844	==	2097	live	live:point_lights	
+drama/cutscene	DrEnableBalconyFlagBRU	void DrEnableBalconyFlagBRU()	1	1	==	1913	state-only	other	
+drama/cutscene	DrEnableBalconyFlagSCR	void DrEnableBalconyFlagSCR()	1	1	==	1917	state-only	other	
+drama/cutscene	DrFollowCamera	void DrFollowCamera(in const string&, int, int)	1	1	==	1735	live	live:camera,entity:pos	
+drama/cutscene	DrGetBalconyFlagBRU	bool DrGetBalconyFlagBRU()	1	1	==	1921	query/stub	return computed/default	
+drama/cutscene	DrGetBalconyFlagSCR	bool DrGetBalconyFlagSCR()	1	1	==	1925	query/stub	return computed/default	
+drama/cutscene	DrGetCameraPosV	FnVector3 DrGetCameraPosV()	15	19	==	1523	query	reads scene state	
+drama/cutscene	DrGetCollisionPosV	FnVector3 DrGetCollisionPosV(in const string&, int, int)	6	7	==	1284	query	reads scene state	
+drama/cutscene	DrGetDirX	int DrGetDirX(in const string&)	307	1553	==	1294	query	reads scene state	
+drama/cutscene	DrGetPosV	FnVector3 DrGetPosV(in const string&)	307	766	==	1284	query	reads scene state	
+drama/cutscene	DrIsArchiveMode	bool DrIsArchiveMode()	307	372	==	1597	query/stub	return computed/default	
+drama/cutscene	DrJump	void DrJump(in const string&, float, float, in const string&, float, in const string&)	1	5	==	1700	deferred/approx	live:entity:dir_x,name,pos,pos	arc axis assumed
+drama/cutscene	DrJumpAsync	void DrJumpAsync(in const string&, float, float, in const string&, float, in const string&)	35	92	==	1700	deferred/approx	live:entity:dir_x,name,pos,pos	arc axis assumed
+drama/cutscene	DrMove	void DrMove(in const string&, in const FnVector3&, in const string&, float, int, int, in const string&)	15	21	==	1234	live	live:entity:name,pos,pos	
+drama/cutscene	DrMoveAbs	void DrMoveAbs(in const string&, in const FnVector3&, in const string&, float, int, int, in const string&)	71	222	==	1233	live	live:entity:name,pos,pos	
+drama/cutscene	DrMoveAbsAsync	void DrMoveAbsAsync(in const string&, in const FnVector3&, in const string&, float, int, int, in const string&)	255	1382	==	1233	live	live:entity:name,pos,pos	
+drama/cutscene	DrMoveAbsByTimeAsync	void DrMoveAbsByTimeAsync(in const string&, in const FnVector3&, in const string&, int, in const string&)	9	43	==	1658	live	live:entity:name,pos,pos	
+drama/cutscene	DrMoveAsync	void DrMoveAsync(in const string&, in const FnVector3&, in const string&, float, int, int, in const string&)	90	310	==	1233	live	live:entity:name,pos,pos	
+drama/cutscene	DrMoveEffect	void DrMoveEffect(in const string&, in const FnVector3&, int, int, int)	2	7	==	2047	live	live:effects	
+drama/cutscene	DrMoveEffectAsync	void DrMoveEffectAsync(in const string&, in const FnVector3&, int, int, int)	12	51	==	2047	live	live:effects	
+drama/cutscene	DrResetCameraParam	void DrResetCameraParam()	80	89	==	1729	live	live:camera	
+drama/cutscene	DrResetCameraZoomParam	void DrResetCameraZoomParam()	1	1	==	1893	state-only	other	
+drama/cutscene	DrRotateEffectAsync	void DrRotateEffectAsync(in const string&, float, int)	26	82	==	2037	live	live:effects	
+drama/cutscene	DrScaleEffectAsync	void DrScaleEffectAsync(in const string&, float, int)	7	158	==	2059	live	live:effects	
+drama/cutscene	DrSetBreathOff	void DrSetBreathOff(in const string&, bool)	10	12	==	1625	state-only	ignored:breath_off	field recorded but viewer ignores
+drama/cutscene	DrSetCameraParam	void DrSetCameraParam(float, float)	175	282	==	1553	live	live:camera	
+drama/cutscene	DrSetCameraPosV	void DrSetCameraPosV(in const FnVector3&, int, int)	293	2485	==	1531	live	live:camera	
+drama/cutscene	DrSetCameraZoom	void DrSetCameraZoom(float, int, int)	293	1528	==	1544	live	live:camera	
+drama/cutscene	DrSetCharaColor	void DrSetCharaColor(in const string&, int, int, int, int)	1	7	==	2161	live	live:entity:color	
+drama/cutscene	DrSetCharaToEffect	void DrSetCharaToEffect(in const string&, in const string&)	307	332	==	2018	live	live:effects	
+drama/cutscene	DrSetCharaToPointLight	void DrSetCharaToPointLight(in const string&, in const string&, in const FnVector3&)	307	657	==	2106	live	live:point_lights	
+drama/cutscene	DrSetDLPrio	void DrSetDLPrio(in const string&, int)	5	20	==	2140	live	live:entity:dlprio	
+drama/cutscene	DrSetDirX	void DrSetDirX(in const string&, int)	278	1951	==	1483	live	live:entity:dir_x	
+drama/cutscene	DrSetEffectCharaCollision	void DrSetEffectCharaCollision(in const string&, in const string&, int, int)	307	655	==	2007	live	live:effects	
+drama/cutscene	DrSetEffectDirX	void DrSetEffectDirX(in const string&, int)	307	639	==	1998	live	live:effects	
+drama/cutscene	DrSetEffectOffsetV	void DrSetEffectOffsetV(in const string&, in const FnVector3&)	307	1296	==	1393	live	live:entity:pos (MISROUTED; effects are not entities)	BUG: routed to entity pos; effect record not updated
+drama/cutscene	DrSetEffectPosV	void DrSetEffectPosV(in const string&, in const FnVector3&)	1	2	==	1393	live	live:entity:pos (MISROUTED; effects are not entities)	BUG: routed to entity pos; effect record not updated
+drama/cutscene	DrSetFogColor	void DrSetFogColor(in const string&, in const FnColor&)	1	4	==	2169	live	live:fog	
+drama/cutscene	DrSetGradientMap	void DrSetGradientMap(int, float, int)	17	24	==	2179	record-only	record-only:gradients	
+drama/cutscene	DrSetIdleAnimation	void DrSetIdleAnimation(in const string&, in const string&)	307	5229	==	1461	live	live:entity:mbs,name,track,track_index	
+drama/cutscene	DrSetLayerMask	void DrSetLayerMask(in const string&, in const string&, bool)	307	4610	==	1601	live	live:entity:layer_mask	layer_mask consumed; bit->part mapping approximate
+drama/cutscene	DrSetLipSync	void DrSetLipSync(in const string&, bool)	35	405	==	1632	state-only	ignored:lipsync	field recorded but viewer ignores
+drama/cutscene	DrSetOffsetPosV	void DrSetOffsetPosV(in const string&, in const FnVector3&)	5	5	==	1393	live	live:entity:pos	
+drama/cutscene	DrSetPointLightCharaCollision	void DrSetPointLightCharaCollision(in const string&, in const string&, int, int)	307	312	==	2115	live	live:effects	
+drama/cutscene	DrSetPosV	void DrSetPosV(in const string&, in const FnVector3&)	292	2609	==	1392	live	live:entity:pos	
+drama/cutscene	DrSetPrerenderOnForce	void DrSetPrerenderOnForce(in const string&, bool)	5	5	==	2154	live	live:entity:prerender_force	
+drama/cutscene	DrSetScale	void DrSetScale(in const string&, float)	4	4	==	1415	live	live:entity:scale	
+drama/cutscene	DrSetShadowOff	void DrSetShadowOff(in const string&, bool)	10	11	==	2126	state-only	ignored:shadow_off	field recorded but no shadow pass
+drama/cutscene	DrSetShake	int DrSetShake(int, int)	66	411	==	1758	deferred/approx	live:shakes	shake consumed; int preset envelope approximate
+drama/cutscene	DrSetSortIDOffset	void DrSetSortIDOffset(in const string&, int)	9	9	==	2133	live	live:entity:sort_id_offset	
+drama/cutscene	DrSetThunderVolumeLevel	void DrSetThunderVolumeLevel(int)	12	14	==	2233	record-only	record-only:audio (no playback)	
+drama/cutscene	DrSetVariationType	void DrSetVariationType(in const string&, bool)	23	130	==	1615	live	live:variations	variation consumed; bit mapping approximate
+drama/cutscene	DrSetWindowIDOffset	void DrSetWindowIDOffset(in const string&, int)	3	6	==	2147	live	live:entity:window_id_offset	
+drama/cutscene	DrShortMove	void DrShortMove(in const string&, in const FnVector3&, in const string&, float, int, int)	7	13	==	1674	live	live:entity:name,pos,pos	
+drama/cutscene	DrShortMoveAbsAsync	void DrShortMoveAbsAsync(in const string&, in const FnVector3&, in const string&, float, int, int)	12	331	==	1674	live	live:entity:name,pos,pos	
+drama/cutscene	DrShortMoveAsync	void DrShortMoveAsync(in const string&, in const FnVector3&, in const string&, float, int, int)	33	257	==	1233	live	live:entity:name,pos,pos	
+drama/cutscene	DrStopShake	void DrStopShake(int)	18	54	==	1808	live	live:shakes	
+drama/cutscene	DrStopShakeFadeoutAll	void DrStopShakeFadeoutAll()	1	1	==	1895	live	live:shakes	
+drama/cutscene	DrTebureCamera	void DrTebureCamera(bool)	238	351	==	1724	live	live:camera	
+drama/cutscene	DrTurn	void DrTurn(in const string&, in const string&)	186	584	==	1639	live	live:entity:mbs,track,track_index	
+drama/cutscene	DrTurnAsync	void DrTurnAsync(in const string&, in const string&)	307	796	==	1273	live	live:entity:dir_x,pos	
+drama/cutscene	DrUiCreateChara	void DrUiCreateChara(in const string&, in const string&, in const string&, in const string&, int)	1	48	==	1383	live	live:entity; UI space	space=Ui consumed (design space)
+drama/cutscene	DrUiDeleteChara	void DrUiDeleteChara(in const string&, int, int)	1	47	==	1502	live	live:effects,entity:name,visible	
+drama/cutscene	DrUiSetAnimation	void DrUiSetAnimation(in const string&, int, int)	1	47	==	1452	live	live:entity:name,track_index	
+drama/cutscene	DrUiSetColorA	void DrUiSetColorA(in const string&, int, int)	1	94	==	1494	live	live:entity:alpha	
+drama/cutscene	DrUiSetDirX	void DrUiSetDirX(in const string&, int)	1	47	==	1483	live	live:entity:dir_x	
+drama/cutscene	DrUiSetPosV	void DrUiSetPosV(in const string&, in const FnVector2&, int, int, int)	1	94	==	1392	live	live:entity:pos	
+drama/cutscene	DrUiSetScale	void DrUiSetScale(in const string&, float, int, int, int)	1	47	==	1415	live	live:entity:scale	
+drama/cutscene	DrWaveCamera	void DrWaveCamera(bool)	8	15	==	1888	live	live:camera	
+field/overworld	FlAddPort	void FlAddPort(in const string&, in const string&, int, in const string&)	356	388	==	2791	record-only	record-only:field	
+field/overworld	FlAddState	void FlAddState(in const string&, int)	2	4	==	2651	state-only	ignored:state	state recorded but viewer ignores
+field/overworld	FlAddSymbolAiMove	void FlAddSymbolAiMove(in const string&, in const FnVector2&)	357	22333	==	2711	deferred/approx	live:entity:name,pos,pos; record-only:field	one-shot tween vs persistent AI
+field/overworld	FlAddSymbolAiMoveTurn	void FlAddSymbolAiMoveTurn(in const string&, int)	357	740	==	2733	live	live:entity:dir_x	
+field/overworld	FlAddSymbolAiMoveWait	void FlAddSymbolAiMoveWait(in const string&, int)	357	6160	==	2732	record-only	record-only:field	
+field/overworld	FlAddTownLvUpEvent	void FlAddTownLvUpEvent(in const string&, in const string&)	356	2681	==	2821	record-only	record-only:field	
+field/overworld	FlAddWeatherRegion	void FlAddWeatherRegion(in const array<FnVector2>&, int, in const string&)	5	8	==	2661	record-only	record-only:field	
+field/overworld	FlAllTownLvMax	void FlAllTownLvMax()	103	103	==	2820	record-only	record-only:field; state:game	
+field/overworld	FlBackHomeSymbol	void FlBackHomeSymbol()	23	65	==	2691	record-only	record-only:field	
+field/overworld	FlCatchChicken	void FlCatchChicken(bool)	356	712	==	2801	record-only	record-only:field	
+field/overworld	FlChangeCharaSymbolPlayer	void FlChangeCharaSymbolPlayer(in const string&)	250	499	==	2690	state-only	game	
+field/overworld	FlClearStateIcon	void FlClearStateIcon(in const string&)	2	4	==	2653	state-only	ignored:state_icon	state_icon recorded but viewer ignores
+field/overworld	FlCreateBonFire	void FlCreateBonFire(in const string&, in const FnVector2&)	4	4	==	2787	record-only	record-only:field	
+field/overworld	FlCreateCharaSymbol	void FlCreateCharaSymbol(in const string&, in const string&, in const string&, in const FnVector2&, int, int)	424	62956	==	2667	live	live:entity	entity asset from S(1)/S(2); verify
+field/overworld	FlCreateChaseChara	void FlCreateChaseChara(in const string&, in const string&, in const string&, in const FnVector2&, int, int)	2	2	==	2753	live	live:entity	entity asset from S(1)/S(2); verify
+field/overworld	FlCreateChaseEnemy	void FlCreateChaseEnemy(in const string&, int, in const FnVector2&, int, int, in const string&)	356	18290	==	2746	live+record	live:entity (no MBS/FTX); record-only:field	entity created without MBS/FTX; invisible; field record only
+field/overworld	FlCreateCollision	void FlCreateCollision(in const string&, in const array<FnVector2>&)	356	1812	==	2770	record-only	record-only:field	
+field/overworld	FlCreateEnemy	void FlCreateEnemy(in const string&, in const string&, int, in const FnVector2&, int, int)	356	7889	==	2740	live	live:entity; asset uses S(1) as MBS (wrong)	entity asset uses S(1) (likely def name) as MBS; verify
+field/overworld	FlCreateExStage	void FlCreateExStage(in const string&, in const FnVector2&, in const string&, int)	356	2850	==	2790	record-only	record-only:field	
+field/overworld	FlCreateFleeChara	void FlCreateFleeChara(in const string&, in const string&, in const string&, in const FnVector2&, int, int)	6	36	==	2753	live	live:entity	entity asset from S(1)/S(2); verify
+field/overworld	FlCreateFreeMap	void FlCreateFreeMap(in const string&, in const FnVector2&, in const string&, int)	356	378	==	2788	record-only	record-only:field	
+field/overworld	FlCreateGatheringSpot	void FlCreateGatheringSpot(in const string&, in const FnVector2&, int, in const string&)	1	535	==	2786	record-only	record-only:field	
+field/overworld	FlCreateGradientMapRegion	void FlCreateGradientMapRegion(in const string&, in const array<FnVector2>&, int, float)	356	23333	==	2794	record-only	record-only:field	
+field/overworld	FlCreatePortal	void FlCreatePortal(in const string&, in const FnVector2&, in const FnVector2&, int, int, in const string&, in const string&)	356	1451	==	2773	record-only	record-only:field	
+field/overworld	FlCreateSearchPoint	void FlCreateSearchPoint(in const string&, in const string&, in const FnVector2&, float)	356	1099	==	2785	record-only	record-only:field	
+field/overworld	FlCreateStage	void FlCreateStage(in const string&, int)	356	404	==	2789	record-only	record-only:field	
+field/overworld	FlCreateTalkPoint	void FlCreateTalkPoint(in const string&, in const FnVector2&, int)	356	1068	==	2784	record-only	record-only:field	
+field/overworld	FlCreateVehicle	void FlCreateVehicle(in const string&, int, in const FnVector2&, int, int)	356	772	==	2764	live	live:entity (no MBS/FTX)	entity created without MBS/FTX; invisible
+field/overworld	FlDelRegionChaseEnemy	void FlDelRegionChaseEnemy(in const string&)	356	4984	==	2759	live	live:entity:visible	
+field/overworld	FlDelWeatherRegion	void FlDelWeatherRegion(in const string&)	4	4	==	2662	record-only	record-only:field	
+field/overworld	FlDeleteCollision	void FlDeleteCollision(in const string&)	356	1800	==	2771	record-only	record-only:field	
+field/overworld	FlDeleteEnemy	void FlDeleteEnemy(in const string&, bool)	356	18282	==	2759	live	live:entity:visible	
+field/overworld	FlDeleteEnemyNotify	void FlDeleteEnemyNotify()	424	424	==	2763	state-only	other	
+field/overworld	FlDeleteGradientMapRegion	void FlDeleteGradientMapRegion(in const string&, bool)	356	23331	==	2795	record-only	record-only:field	
+field/overworld	FlDeleteMarker	void FlDeleteMarker(in const string&)	424	424	==	2793	record-only	record-only:field	
+field/overworld	FlDeleteTalkPoint	void FlDeleteTalkPoint(in const string&)	356	1074	==	2759	live	live:entity:visible	
+field/overworld	FlDisableWorldMap	void FlDisableWorldMap(bool)	356	724	==	2808	record-only	record-only:field; state:game,save	
+field/overworld	FlEmote	void FlEmote(in const string&, int, int)	4	16	==	2698	state-only	ignored:emote; record-only:field	emote recorded but viewer ignores
+field/overworld	FlGetBreakthroughRate	float FlGetBreakthroughRate()	3	35	==	2824	query/stub	return computed/default	returns 0; state-dependent
+field/overworld	FlGetClockHour	int FlGetClockHour()	252	253	==	2657	state-only	game	
+field/overworld	FlGetClockMinute	int FlGetClockMinute()	248	248	==	2658	state-only	game	
+field/overworld	FlGetItemChangeNum	int FlGetItemChangeNum()	356	712	==	2827	state-only	game	
+field/overworld	FlGetItemChangeShopLevel	int FlGetItemChangeShopLevel()	356	1424	==	2826	state-only	game	
+field/overworld	FlGetPlayerSymbolName	string FlGetPlayerSymbolName()	424	129590	==	2673	query	reads scene state	
+field/overworld	FlGetPlayerSymbolPosV	FnVector2 FlGetPlayerSymbolPosV()	424	23805	==	2678	query	reads scene state	
+field/overworld	FlGetResultExStageStartDialog	int FlGetResultExStageStartDialog()	356	396	==	2829	state-only	game	
+field/overworld	FlGetState	int FlGetState(in const string&)	356	30101	==	2650	query	reads scene state	
+field/overworld	FlGetTownLv	int FlGetTownLv(in const string&)	356	356	==	2825	state-only	game	
+field/overworld	FlIsNightTime	bool FlIsNightTime()	654	2017	==	1597	query/stub	return computed/default	
+field/overworld	FlIsSymbolInCircle	bool FlIsSymbolInCircle(in const string&, in const FnVector2&, int)	424	6928	==	2699	query	reads scene state	
+field/overworld	FlOnlyOneTownLvMax	void FlOnlyOneTownLvMax(in const string&)	1	10	==	2819	record-only	record-only:field; state:game	
+field/overworld	FlOpenExStageStartDialog	void FlOpenExStageStartDialog(int, in const string&)	356	396	==	2830	record-only	record-only:field	
+field/overworld	FlOpenItemChangeShop	void FlOpenItemChangeShop()	356	712	==	2828	record-only	record-only:field	
+field/overworld	FlPauseClock	void FlPauseClock(bool)	102	104	==	2659	record-only	record-only:field; state:game	
+field/overworld	FlPauseSymbol	void FlPauseSymbol(in const string&)	1	1	==	2692	state-only	ignored:paused	paused recorded but viewer ignores
+field/overworld	FlRebuildAreaCollision	void FlRebuildAreaCollision()	424	871	==	2772	state-only	other	
+field/overworld	FlRebuildAreaCollisionAsync	void FlRebuildAreaCollisionAsync()	356	1070	==	2772	state-only	other	
+field/overworld	FlRebuildAreaCollisionWait	void FlRebuildAreaCollisionWait()	356	1071	==	2772	state-only	other	
+field/overworld	FlRemoveDeliveryCamera	void FlRemoveDeliveryCamera(bool)	424	425	==	2799	record-only	record-only:field	
+field/overworld	FlSetAnimation	void FlSetAnimation(in const string&, int, bool)	356	4671	==	2695	live	live:entity:track_index; ignored:reverse	track consumed; reverse ignored
+field/overworld	FlSetAreaCollisionEnabled	void FlSetAreaCollisionEnabled(in const string&, bool)	424	2453	==	2814	record-only	record-only:field	
+field/overworld	FlSetAreaObjectAnimeOffset	void FlSetAreaObjectAnimeOffset(in const string&, int)	9	107	==	2813	record-only	record-only:field	
+field/overworld	FlSetAreaObjectDisplay	void FlSetAreaObjectDisplay(in const string&, bool, int)	424	7269	==	2812	record-only	record-only:field	
+field/overworld	FlSetAutoDirOff	void FlSetAutoDirOff(in const string&, bool)	356	6203	==	2694	state-only	ignored:auto_dir_off	auto_dir_off recorded but viewer ignores
+field/overworld	FlSetBattleAfter	void FlSetBattleAfter(in const string&, in const string&)	356	364	==	2806	record-only	record-only:field; state:battle,game	
+field/overworld	FlSetBattleDieAfter	void FlSetBattleDieAfter(in const string&, in const string&)	4	8	==	2807	record-only	record-only:field; state:battle,game	
+field/overworld	FlSetBattleMode	void FlSetBattleMode(in const string&, bool)	356	364	==	2805	record-only	record-only:field; state:battle,game	
+field/overworld	FlSetChipClip	void FlSetChipClip(bool)	1	2	==	2810	record-only	record-only:field	
+field/overworld	FlSetClock	void FlSetClock(int, int, int)	72	131	==	2654	record-only	record-only:field; state:game	
+field/overworld	FlSetClockHour	void FlSetClockHour(int)	356	858	==	2655	record-only	record-only:field; state:game	
+field/overworld	FlSetClockMinute	void FlSetClockMinute(int)	248	497	==	2656	record-only	record-only:field; state:game	
+field/overworld	FlSetDemoMode	void FlSetDemoMode(bool)	424	28368	==	2804	record-only	record-only:field; state:game	
+field/overworld	FlSetDemoMoveSpeed	void FlSetDemoMoveSpeed(in const string&, int)	1	1	==	2737	record-only	record-only:field	
+field/overworld	FlSetDispGrid	void FlSetDispGrid(int, int, int, int)	4	8	==	2809	record-only	record-only:field	
+field/overworld	FlSetFacilityAfter	void FlSetFacilityAfter(in const string&, in const string&)	2	4	==	2816	record-only	record-only:field	
+field/overworld	FlSetFacilityDisable	void FlSetFacilityDisable(in const string&, bool)	424	14249	==	2817	record-only	record-only:field	
+field/overworld	FlSetGateOpenSettingToAreaCollision	void FlSetGateOpenSettingToAreaCollision(in const string&, bool)	356	362	==	2815	record-only	record-only:field	
+field/overworld	FlSetGradientMap	void FlSetGradientMap(int, float, int)	356	726	==	2796	record-only	record-only:field	
+field/overworld	FlSetHeight	void FlSetHeight(in const string&, float, int)	3	10	==	2697	state-only	ignored:height	height recorded but viewer ignores
+field/overworld	FlSetMoveAiPatRolType	void FlSetMoveAiPatRolType(in const string&, int)	357	5415	==	2734	record-only	record-only:field	
+field/overworld	FlSetMoveAiPermissionInDemo	void FlSetMoveAiPermissionInDemo(in const string&, bool)	5	21	==	2736	state-only	ignored:paused	paused recorded but viewer ignores
+field/overworld	FlSetReverseX	void FlSetReverseX(in const string&, bool)	8	24	==	2696	state-only	ignored:reverse_x	reverse_x recorded but viewer ignores
+field/overworld	FlSetRevivePosV	void FlSetRevivePosV(in const FnVector2&)	424	424	==	2792	state-only	game	
+field/overworld	FlSetScreenFilterDisplay	void FlSetScreenFilterDisplay(in const string&, bool, int)	357	1438	==	2811	record-only	record-only:field	
+field/overworld	FlSetSearchFlag	void FlSetSearchFlag(in const string&, bool)	1	4	==	2818	state-only	ignored:search_flag	search_flag recorded but viewer ignores
+field/overworld	FlSetStageStartParam	void FlSetStageStartParam(in const string&, int)	356	2851	==	2822	record-only	record-only:field; state:game	
+field/overworld	FlSetState	void FlSetState(in const string&, int)	356	56479	==	2649	state-only	ignored:state	state recorded but viewer ignores
+field/overworld	FlSetStateIcon	void FlSetStateIcon(in const string&, int)	356	7527	==	2652	state-only	ignored:state_icon	state_icon recorded but viewer ignores
+field/overworld	FlSetupWeatherByCamera	void FlSetupWeatherByCamera()	248	496	==	2660	record-only	record-only:field	
+field/overworld	FlStartDigGame	void FlStartDigGame(in const FnVector2&, in const string&, in const string&, bool)	4	8	==	2800	record-only	record-only:field	
+field/overworld	FlUnpauseSymbol	void FlUnpauseSymbol(in const string&)	1	1	==	2693	state-only	ignored:paused	paused recorded but viewer ignores
+field/overworld	FlWeatherFade	void FlWeatherFade(int, int)	3	9	==	2663	record-only	record-only:field	
+item/treasure	CreateDbItem	void CreateDbItem(int, in const array<int>&)	103	721	==	2320	record-only	record-only:items; state:game	
+item/treasure	CreateItem	void CreateItem(in const string&, int, bool)	356	4070	==	2257	record-only	record-only:items; state:game	
+item/treasure	CreateItem	void CreateItem(int, bool)	356	498	==	2257	record-only	record-only:items; state:game	
+item/treasure	CreateTreasure	void CreateTreasure(in const string&, in const FnVector2&, int, in const string&)	357	12841	==	2347	record-only	record-only:items	
+item/treasure	DeleteItem	void DeleteItem(in const string&, int, bool)	356	2170	==	2297	record-only	record-only:items; state:game	
+math	atan	float atan(float)	424	0	==	930	query/stub	return computed/default	
+math	atan2	float atan2(float, float)	424	1272	==	934	query/stub	return computed/default	
+math	cos	float cos(float)	424	7144	==	926	query/stub	return computed/default	
+math	sin	float sin(float)	424	8840	==	922	query/stub	return computed/default	
+misc/debug/platform	$beh0	void FnColor::$beh0()	676	9149	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh0	void FnColor::$beh0(int, int, int, int)	675	13177	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh0	void FnVector2::$beh0()	428	120055	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh0	void FnVector2::$beh0(float)	356	357	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh0	void FnVector2::$beh0(float, float)	525	378383	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh0	void FnVector2::$beh0(in const FnVector2&)	676	536609	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh0	void FnVector3::$beh0()	4	4	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh0	void FnVector3::$beh0(float, float, float)	307	20231	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh0	void FnVector3::$beh0(in const FnVector2&)	307	2313	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh0	void FnVector3::$beh0(in const FnVector3&)	307	1219	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh0	void string::$beh0()	282	119	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh0	void string::$beh0(in const string&)	448	1306527	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh2	void string::$beh2()	450	2462222	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh3	UcMsgBalloonParam@ $beh3()	676	187263	==	287	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh3	UcSpriteTextParam@ $beh3()	676	13032	==	287	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$beh3	UcStChaseParam@ $beh3()	10	12	==	287	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$fact	array<FnVector2>@ $fact()	424	1272	==	287	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$fact	array<int>@ $fact()	424	3816	==	287	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$fact	array<int>@ $fact(int)	668	323726	==	287	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$list	array<FnVector2>@ $list(in int&)	424	31936	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$list	array<float>@ $list(in int&)	1	1	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$list	array<int>@ $list(in int&)	668	201427	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	$list	array<string>@ $list(in int&)	5	2	unmatched	0	add-on/internal	VM/add-on (not a registry native)	
+misc/debug/platform	AutoSave	void AutoSave()	45	153	==	2572	state-only	other	
+misc/debug/platform	BokashiFadeAsync	void BokashiFadeAsync(bool, bool, int, float)	555	1637	==	1815	live	live:bokashi	
+misc/debug/platform	BokashiFadeStop	void BokashiFadeStop()	251	251	==	2183	live	live:bokashi	
+misc/debug/platform	CameraMoveWait	void CameraMoveWait()	424	14896	==	890	scheduler	parks script	
+misc/debug/platform	CancelAllSkipMode	void CancelAllSkipMode()	424	706	==	1929	state-only	other	
+misc/debug/platform	CancelSkipMode	void CancelSkipMode()	654	3194	==	1593	state-only	other	
+misc/debug/platform	ClassChangeChara	void ClassChangeChara(in const string&, bool, bool)	406	31759	==	844	state-only	save	
+misc/debug/platform	ClearCamera	void ClearCamera()	424	14867	==	892	live	live:camera	
+misc/debug/platform	ClearQuestMarker	void ClearQuestMarker(int)	356	777	==	2965	record-only	record-only:field	
+misc/debug/platform	ClearQuestTarget	void ClearQuestTarget(int)	356	2265	==	2970	record-only	record-only:field	
+misc/debug/platform	ColorFade	void ColorFade(in const FnColor&, int)	676	1835	==	1562	state-only	other	
+misc/debug/platform	ColorFade2	void ColorFade2(in const FnColor&, int)	555	679	==	1562	state-only	other	
+misc/debug/platform	ColorFade2Async	void ColorFade2Async(in const FnColor&, int)	676	5908	==	1562	state-only	other	
+misc/debug/platform	ColorFadeAsync	void ColorFadeAsync(in const FnColor&, int)	676	4678	==	1562	state-only	other	
+misc/debug/platform	CreateSpriteCoA	void CreateSpriteCoA(in const string&, int, in const FnVector2&, int, float)	424	1573	==	1363	live	live:entity	
+misc/debug/platform	CreateSpriteEffect	void CreateSpriteEffect(in const string&, in const string&, in const string&, int, in const FnVector2&, int, float, bool, int, int)	24	48	==	1351	live	live:entity	
+misc/debug/platform	CreateSpriteMone	void CreateSpriteMone(in const string&, in const string&, in const string&, int, in const FnVector2&, int, float, bool, int, int, int)	399	1451	==	1351	live	live:entity; layer arg ignored	layer arg recorded but viewer ignores
+misc/debug/platform	CreateSpriteMoneStageStart	void CreateSpriteMoneStageStart(in const string&, in const FnVector2&, int, float, bool, int, int, int)	424	424	==	1357	live	live:entity	
+misc/debug/platform	CreateSpriteMoneWorld	void CreateSpriteMoneWorld(in const string&, in const string&, in const string&, int, in const FnVector2&, int, float, bool, float)	424	1735	==	1351	live	live:entity	
+misc/debug/platform	CrossFadeAsync	void CrossFadeAsync(int)	435	2302	==	1568	live	live:fades	
+misc/debug/platform	DbAddFriendshipAllChara	void DbAddFriendshipAllChara(int, int)	15	20	==	2571	state-only	other	
+misc/debug/platform	DbClearNotify	void DbClearNotify()	1	1	==	2571	state-only	other	
+misc/debug/platform	DbGetDebugParam	int DbGetDebugParam(in const string&)	424	4734	==	1306	query/stub	return computed/default	
+misc/debug/platform	DbGetLocalParam	float DbGetLocalParam(in const string&)	676	2192	==	1311	query/stub	return computed/default	
+misc/debug/platform	DbInt	void DbInt(int, in const string&)	1	1	==	2571	state-only	other	
+misc/debug/platform	DbIsDebugDrama	bool DbIsDebugDrama()	307	763	==	1597	query/stub	return computed/default	
+misc/debug/platform	DbIsDebugStage	bool DbIsDebugStage()	103	310	==	2575	query/stub	return computed/default	
+misc/debug/platform	DbIsKeyTrigger	bool DbIsKeyTrigger(in const string&)	3	3	==	2575	query/stub	return computed/default	
+misc/debug/platform	DbPrint	int DbPrint(in const string&)	424	424	==	2567	query/stub	return computed/default	
+misc/debug/platform	DbSetDebugParam	void DbSetDebugParam(in const string&, int)	103	13460	==	1302	state-only	other	
+misc/debug/platform	ExecOpeningEffect	void ExecOpeningEffect()	1	1	==	2069	live	live:effects	
+misc/debug/platform	FollowCamera	void FollowCamera(in const string&, int, int)	424	6285	==	1850	live	live:camera,entity:pos	
+misc/debug/platform	FollowCameraBySpeed	void FollowCameraBySpeed(in const string&, float, int)	12	41	==	1850	live	live:camera,entity:pos	
+misc/debug/platform	FollowDir	void FollowDir(in const string&, in const string&)	356	3900	==	1273	live	live:entity:dir_x,pos	
+misc/debug/platform	FollowDirClear	void FollowDirClear(in const string&)	46	204	==	1865	live	live:entity:dir_x	
+misc/debug/platform	FollowOffsetV	void FollowOffsetV(in const FnVector2&)	103	112	==	1872	state-only	other	
+misc/debug/platform	HideResource	void HideResource()	356	372	==	2572	state-only	other	
+misc/debug/platform	Move	void Move(in const string&, in const FnVector2&, int, int)	424	2849	==	1216	live	live:entity:name,pos,pos	
+misc/debug/platform	MoveAbs	void MoveAbs(in const string&, in const FnVector2&, int, int)	424	13162	==	1216	live	live:entity:name,pos,pos	
+misc/debug/platform	MoveAbsByTime	void MoveAbsByTime(in const string&, in const FnVector2&, int, int, int)	2	8	==	1956	state-only	other	
+misc/debug/platform	MoveBack	void MoveBack(in const string&, in const FnVector2&, int, int)	356	495	==	1960	state-only	other	negative-relative approximation
+misc/debug/platform	MoveBackAbs	void MoveBackAbs(in const string&, in const FnVector2&, int, int)	27	61	==	1958	state-only	other	approximation
+misc/debug/platform	MoveBackAbsByTime	void MoveBackAbsByTime(in const string&, in const FnVector2&, int, int, int)	1	3	==	1956	state-only	other	approximation
+misc/debug/platform	MoveWait	void MoveWait(in const string&)	357	2474	==	1258	scheduler	parks script	
+misc/debug/platform	MoveWaitAll	void MoveWaitAll()	424	9582	==	1258	scheduler	parks script	
+misc/debug/platform	ObjectDeleteWait	void ObjectDeleteWait(in const string&)	4	10	==	1962	scheduler	parks script	
+misc/debug/platform	ObjectSetupWait	void ObjectSetupWait()	668	29775	==	770	scheduler	parks script	
+misc/debug/platform	ReconstTown	void ReconstTown()	424	1798	==	2798	state-only	other	
+misc/debug/platform	ResetCameraParam	void ResetCameraParam()	424	2636	==	1879	live	live:camera	
+misc/debug/platform	ResetDemoCameraPosXZ	void ResetDemoCameraPosXZ(int)	424	672	==	1840	live	live:camera	
+misc/debug/platform	ResetDemoCameraPosY	void ResetDemoCameraPosY(int)	424	7824	==	1835	live	live:camera	
+misc/debug/platform	TutorialFadeAsync	void TutorialFadeAsync(in const FnColor&, int)	23	138	==	1966	state-only	other	
+misc/debug/platform	UpdateQuestText	void UpdateQuestText(int)	356	419	==	2962	record-only	record-only:field	
+misc/debug/platform	Wait	void Wait(int)	677	123580	==	750	scheduler	parks script	
+misc/debug/platform	WaitAnyButton	void WaitAnyButton(int)	13	13	==	1972	scheduler	parks script	
+misc/debug/platform	WaitFadeDone	void WaitFadeDone()	654	10372	==	759	scheduler	parks script	
+misc/debug/platform	WaitOKButton	void WaitOKButton(int)	1	1	==	1972	scheduler	parks script	
+misc/debug/platform	WaitSpriteMoneAnimationEnd	void WaitSpriteMoneAnimationEnd(in const string&)	3	6	==	1325	scheduler	parks script	
+misc/debug/platform	length	uint array<string>::length()	425	425	unmatched	0	state-only	other	
+misc/debug/platform	opAssign	array<T>& array<T>::opAssign(in const array<T>&)	424	5088	==	1096	state-only	text-param	
+misc/debug/platform	opIndex	FnVector2& array<FnVector2>::opIndex(uint)	424	2545	unmatched	0	state-only	other	
+misc/debug/platform	opIndex	const string& array<string>::opIndex(uint)	3	4	unmatched	0	state-only	other	
+misc/debug/platform	opIndex	float& array<float>::opIndex(uint)	1	1	unmatched	0	state-only	other	
+misc/debug/platform	opIndex	int& array<int>::opIndex(uint)	425	3394	unmatched	0	state-only	other	
+misc/debug/platform	opIndex	string& array<string>::opIndex(uint)	426	426	unmatched	0	state-only	other	
+state/save/data	AddCharaSaveData	void AddCharaSaveData(in const string&, int, bool, int)	676	44885	==	809	state-only	save	
+state/save/data	AddFame	void AddFame(int, int, bool)	3	3	==	2931	state-only	game	
+state/save/data	AddFriendshipPoint	void AddFriendshipPoint(in const string&, in const string&, int, bool)	4	15	==	2955	state-only	game	
+state/save/data	AddGlobalBitFlag	void AddGlobalBitFlag(int)	4	18	==	2946	state-only	game	
+state/save/data	AddGold	void AddGold(int)	356	727	==	2929	state-only	game	
+state/save/data	AddOpeningResource	void AddOpeningResource(in const string&)	1	1	==	2572	state-only	other	
+state/save/data	AddQuestMarker	void AddQuestMarker(in const string&, int, in const FnVector2&)	361	818	==	2963	record-only	record-only:field	
+state/save/data	AddQuestTargetStage	void AddQuestTargetStage(int, in const string&)	356	3672	==	2966	record-only	record-only:field	
+state/save/data	AddQuestTargetTalkTo	void AddQuestTargetTalkTo(int, in const string&)	356	360	==	2967	record-only	record-only:field	
+state/save/data	AddQuestTargetText	void AddQuestTargetText(int, in const string&, in const string&, int)	361	1477	==	2961	record-only	record-only:field	
+state/save/data	AddSlotBitFlag	void AddSlotBitFlag(int)	424	4216	==	2932	state-only	save	
+state/save/data	AddStageBitFlag	void AddStageBitFlag(int)	103	108	==	2934	state-only	game	
+state/save/data	AddStageFlag	void AddStageFlag(int, int)	17	40	==	2937	state-only	game	
+state/save/data	AddToHelpList	void AddToHelpList(in const string&, int)	377	23814	==	1316	state-only	other	
+state/save/data	AddUnitSaveData	void AddUnitSaveData(int, int, bool)	103	57069	==	864	state-only	save	
+state/save/data	DelSlotBitFlag	void DelSlotBitFlag(int)	424	11654	==	2933	state-only	save	
+state/save/data	DeleteCharaSaveData	void DeleteCharaSaveData(in const string&)	15	70	==	813	state-only	save	
+state/save/data	DeleteObject	void DeleteObject(in const string&, int, int)	436	40094	==	1503	live	live:effects,entity:name,visible	
+state/save/data	DeleteQuestMarker	void DeleteQuestMarker(in const string&)	7	17	==	2964	record-only	record-only:field	
+state/save/data	DeleteSprite	void DeleteSprite(in const string&, int, int)	449	3349	==	1502	live	live:effects,entity:name,visible	
+state/save/data	DeleteVeryHardDie	void DeleteVeryHardDie(in const string&)	1	1	==	2977	state-only	other	
+state/save/data	GetArmyType	int GetArmyType(in const string&)	103	1219	==	903	query/stub	return computed/default	
+state/save/data	GetCameraPosV	FnVector2 GetCameraPosV()	424	4622	==	971	query	reads scene state	
+state/save/data	GetCharaAverageLv	int GetCharaAverageLv(int)	357	1735	==	903	query/stub	return computed/default	
+state/save/data	GetCharaDefNameByCharaSet	string GetCharaDefNameByCharaSet(int)	1	2	==	2844	state-only	other	
+state/save/data	GetCharaLv	int GetCharaLv(in const string&)	356	358	==	903	query/stub	return computed/default	
+state/save/data	GetCharaNameByCharaDefName	string GetCharaNameByCharaDefName(in const string&)	1	2	==	2852	state-only	other	
+state/save/data	GetClearedStageNum	int GetClearedStageNum()	1	4	==	2939	deferred/approx	game	
+state/save/data	GetCountryByPos	int GetCountryByPos(in const FnVector2&)	356	2136	==	2921	query/stub	return computed/default	
+state/save/data	GetFacilityFieldPosV	FnVector2 GetFacilityFieldPosV(in const string&)	424	4484	==	2831	query	reads scene state	
+state/save/data	GetFameRank	int GetFameRank()	356	1429	==	908	state-only	game	
+state/save/data	GetFieldCueId	int GetFieldCueId(in const string&, bool)	27	27	==	2903	query/stub	return computed/default	
+state/save/data	GetFriendshipLV	int GetFriendshipLV(in const string&, in const string&)	2	2	==	2957	state-only	game	
+state/save/data	GetGlobalBitFlag	bool GetGlobalBitFlag(int)	1	1	==	2947	state-only	game	
+state/save/data	GetGlobalFlag	int GetGlobalFlag(int)	16	16	==	2945	state-only	game	
+state/save/data	GetGold	int GetGold()	356	722	==	907	state-only	game	
+state/save/data	GetItemNum	int GetItemNum(in const string&)	356	2198	==	909	state-only	game	
+state/save/data	GetObjectNameByCharaDefName	string GetObjectNameByCharaDefName(in const string&, int)	424	4636	==	781	state-only	other	
+state/save/data	GetPosV	FnVector2 GetPosV(in const string&)	429	40378	==	980	query	reads scene state	
+state/save/data	GetRandom	int GetRandom(int, int)	356	358	==	2553	query/stub	return computed/default	
+state/save/data	GetSlotBitFlag	bool GetSlotBitFlag(int)	376	20896	==	830	state-only	save	
+state/save/data	GetSlotFlag	int GetSlotFlag(int)	411	37166	==	825	state-only	save	
+state/save/data	GetSpriteMoneFindCallbackTiming	int GetSpriteMoneFindCallbackTiming(in const string&, int)	7	143	==	1438	query/stub	return computed/default	
+state/save/data	GetStageBaseLevel	int GetStageBaseLevel(in const string&)	357	34156	==	2877	query/stub	return computed/default	
+state/save/data	GetStageBitFlag	bool GetStageBitFlag(int)	103	528	==	840	state-only	game	
+state/save/data	GetStageCueId	int GetStageCueId(in const string&)	12	13	==	2882	query/stub	return computed/default	
+state/save/data	GetStageFlag	int GetStageFlag(int)	41	249	==	2938	state-only	game	
+state/save/data	GetStagePos	FnVector2 GetStagePos(in const string&)	356	7892	==	2887	state-only	other	
+state/save/data	GetStationFacilityName	string GetStationFacilityName(in const string&)	1	6	==	2861	state-only	battle	
+state/save/data	GetTextLanguage	int GetTextLanguage()	1	2	==	2585	query/stub	return computed/default	
+state/save/data	GetUnitDegree	int GetUnitDegree(in const string&)	424	41569	==	885	query/stub	return computed/default	
+state/save/data	GetVoiceLanguage	int GetVoiceLanguage()	7	7	==	2585	query/stub	return computed/default	
+state/save/data	GetWinIDByFlBGLane	int GetWinIDByFlBGLane(int)	2	2	==	2896	query/stub	return computed/default	
+state/save/data	IsClassChangeChara	bool IsClassChangeChara(in const string&)	362	1106	==	848	state-only	save	
+state/save/data	IsDisableChara	bool IsDisableChara(in const string&)	424	424	==	860	state-only	save	
+state/save/data	IsEmptyPlayerCharaList	bool IsEmptyPlayerCharaList()	307	324	==	915	state-only	save	
+state/save/data	IsEmptyPlayerUnitList	bool IsEmptyPlayerUnitList()	101	103	==	2959	state-only	save	
+state/save/data	IsExistCharaSaveData	bool IsExistCharaSaveData(in const string&)	433	4411	==	817	state-only	save	
+state/save/data	IsExistCharaSaveData	bool IsExistCharaSaveData(int)	1	4	==	817	state-only	save	
+state/save/data	IsExistPinnedQuest	bool IsExistPinnedQuest()	356	356	==	2952	state-only	game	
+state/save/data	IsExistSprite	bool IsExistSprite(in const string&)	424	1280	==	775	query/stub	return computed/default	
+state/save/data	IsFacilityRegisteredToWM	bool IsFacilityRegisteredToWM(in const string&)	356	3953	==	2954	state-only	game	
+state/save/data	IsFriendshipTalkReplay	bool IsFriendshipTalkReplay()	356	605	==	2575	query/stub	return computed/default	
+state/save/data	IsJapanese	bool IsJapanese()	4	42	==	2580	query/stub	return computed/default	
+state/save/data	IsLeader	bool IsLeader(in const string&)	424	859	==	915	state-only	save	
+state/save/data	IsObjectExist	bool IsObjectExist(in const string&)	424	66186	==	775	query/stub	return computed/default	
+state/save/data	IsOfflineFirstUnit	bool IsOfflineFirstUnit()	2	2	==	2576	query/stub	return computed/default	
+state/save/data	IsPlayStation	bool IsPlayStation()	23	23	==	2576	query/stub	return computed/default	
+state/save/data	IsQuestCompleted	bool IsQuestCompleted(int)	364	21226	==	874	state-only	game	
+state/save/data	IsQuestOpened	bool IsQuestOpened(int)	356	9812	==	874	state-only	game	
+state/save/data	IsQuestPreOpened	bool IsQuestPreOpened(int)	356	712	==	2949	state-only	game	
+state/save/data	IsSkipMode	bool IsSkipMode()	6	9	==	1589	query/stub	return computed/default	
+state/save/data	IsTreasureOpenedAny	bool IsTreasureOpenedAny()	2	5	==	2960	state-only	game	
+state/save/data	IsVeryHard	bool IsVeryHard()	356	362	==	2576	query/stub	return computed/default	
+state/save/data	IsVeryHardDie	bool IsVeryHardDie(in const string&)	1	1	==	2976	query/stub	return computed/default	
+state/save/data	IsXBX	bool IsXBX()	23	23	==	2576	query/stub	return computed/default	
+state/save/data	QuestComplete	void QuestComplete(int, bool)	356	17079	==	870	state-only	game	
+state/save/data	QuestFailed	void QuestFailed(int)	2	2	==	2950	state-only	game	
+state/save/data	QuestOpen	void QuestOpen(int, bool)	361	14967	==	870	state-only	game	
+state/save/data	QuestPreOpen	void QuestPreOpen(int)	356	746	==	2948	state-only	game	
+state/save/data	RegisterFacilityToWM	void RegisterFacilityToWM(in const string&)	424	7377	==	2953	state-only	game	
+state/save/data	RemoveEquipItem	void RemoveEquipItem(in const string&, in const string&)	356	356	==	2958	state-only	game	
+state/save/data	SetAddClassPediaFlag	void SetAddClassPediaFlag(bool)	1	2	==	2434	record-only	record-only:ui	
+state/save/data	SetAllOpenClassPediaBG	void SetAllOpenClassPediaBG()	356	356	==	2429	record-only	record-only:ui	
+state/save/data	SetAllSymbolColorA	void SetAllSymbolColorA(int, int, int)	356	361	==	2589	record-only	record-only:ui	
+state/save/data	SetCameraDegreeOffset	void SetCameraDegreeOffset(float, int, int)	424	5755	==	1845	live	live:camera	
+state/save/data	SetCameraParam	void SetCameraParam(float, float)	424	3940	==	1553	live	live:camera	
+state/save/data	SetCameraPosV	void SetCameraPosV(in const FnVector2&)	424	9674	==	1531	live	live:camera	
+state/save/data	SetCameraTargetPosV	void SetCameraTargetPosV(in const FnVector2&, int, int)	424	21430	==	1531	live	live:camera	
+state/save/data	SetCameraTargetPosVBySpeed	void SetCameraTargetPosVBySpeed(in const FnVector2&, float, int)	424	5236	==	1532	live	live:camera	
+state/save/data	SetCharaGradientMapCommon	void SetCharaGradientMapCommon(in const string&, int)	1	1	==	2573	state-only	other	
+state/save/data	SetColor	void SetColor(in const string&, in const FnColor&, int)	27	233	==	2593	record-only	record-only:ui	
+state/save/data	SetColorA	void SetColorA(in const string&, int, int)	452	55753	==	1494	live	live:entity:alpha	
+state/save/data	SetDSPSnapshot	string SetDSPSnapshot(in const string&, int)	17	20	==	2602	state-only	other	
+state/save/data	SetDemoCameraPosY	void SetDemoCameraPosY(float, int, int)	424	12645	==	1827	deferred/approx	live:camera	absolute Y assumption
+state/save/data	SetDemoClipRange	void SetDemoClipRange(float, float, float, float)	1	1	==	1964	state-only	other	
+state/save/data	SetDrCharaToSpriteEffect	void SetDrCharaToSpriteEffect(in const string&, in const string&, in const FnVector2&)	24	48	==	2027	live	live:effects	
+state/save/data	SetFieldStageAllEnvSE	void SetFieldStageAllEnvSE(bool)	248	496	==	2664	record-only	record-only:field	
+state/save/data	SetGlobalFlag	void SetGlobalFlag(int, int)	2	2	==	2944	state-only	game	
+state/save/data	SetGold	void SetGold(int)	103	1135	==	2930	state-only	game	
+state/save/data	SetPosV	void SetPosV(in const string&, in const FnVector2&)	424	10098	==	1392	live	live:entity:pos	
+state/save/data	SetQuestMarker	void SetQuestMarker(in const string&, int, in const FnVector2&)	361	6095	==	2963	record-only	record-only:field	
+state/save/data	SetQuestPin	void SetQuestPin(int)	356	366	==	2951	state-only	game	
+state/save/data	SetQuestTargetBattle	void SetQuestTargetBattle(int, in const string&)	3	4	==	2968	record-only	record-only:field; state:battle	
+state/save/data	SetQuestTargetDestination	void SetQuestTargetDestination(int, in const string&)	2	2	==	2969	record-only	record-only:field	
+state/save/data	SetQuestTargetStage	void SetQuestTargetStage(int, in const string&)	356	736	==	2966	record-only	record-only:field	
+state/save/data	SetQuestTargetTalkTo	void SetQuestTargetTalkTo(int, in const string&)	356	380	==	2967	record-only	record-only:field	
+state/save/data	SetQuestTargetText	void SetQuestTargetText(int, in const string&, in const string&, int)	361	17962	==	2961	record-only	record-only:field	
+state/save/data	SetShake	int SetShake(in const FnVector2&, int, float, float, float, float, float, float, int)	356	426	==	1758	deferred/approx	live:shakes	shake consumed; int preset envelope approximate
+state/save/data	SetShake	int SetShake(int, int)	1	1	==	1758	deferred/approx	live:shakes	shake consumed; int preset envelope approximate
+state/save/data	SetSkipDisable	void SetSkipDisable(bool)	424	1700	==	770	state-only	other	
+state/save/data	SetSlotBitFlag	void SetSlotBitFlag(int, bool)	366	743	==	836	state-only	save	
+state/save/data	SetSlotFlag	void SetSlotFlag(int, int)	423	23356	==	821	state-only	save	
+state/save/data	SetSpriteColorA	void SetSpriteColorA(in const string&, int, int)	367	1050	==	1494	live	live:entity:alpha	
+state/save/data	SetSpriteMoneAnimation	void SetSpriteMoneAnimation(in const string&, int, int, int)	13	423	==	1443	live	live:entity:name,track_index	
+state/save/data	SetSpriteMoneAnimationPaused	void SetSpriteMoneAnimationPaused(in const string&, int, int)	6	41	==	1443	live	live:entity:track_index; pause ignored	pause arg ignored; only track set
+state/save/data	SetSpriteMoneDispOffFrameList	void SetSpriteMoneDispOffFrameList(in const string&, in const array<int>&, bool)	2	11	==	1435	state-only	other	
+state/save/data	SetSpriteMonePreRenderAll	void SetSpriteMonePreRenderAll(in const string&, bool)	1	1	==	1435	state-only	other	
+state/save/data	SetSpriteMoneReverse	void SetSpriteMoneReverse(in const string&, bool)	356	356	==	1428	state-only	ignored:reverse	reverse recorded but viewer ignores
+state/save/data	SetSpriteMoneScale	void SetSpriteMoneScale(in const string&, float)	1	4	==	1415	live	live:entity:scale	
+state/save/data	SetSpriteMoneStopSE	void SetSpriteMoneStopSE(in const string&, bool)	8	13	==	1435	state-only	other	
+state/save/data	SetSpritePosV	void SetSpritePosV(in const string&, in const FnVector2&, int, int, float, float)	429	661	==	1392	live	live:entity:pos	
+state/save/data	SetSpriteScale	void SetSpriteScale(in const string&, float, int, int, float, float)	430	1792	==	1415	live	live:entity:scale	
+state/save/data	SetSpriteToAnchor	void SetSpriteToAnchor(in const string&, in const string&, int)	8	85	==	1407	live	live:entity:parent	
+state/save/data	SetStageBitFlag	void SetStageBitFlag(int, bool)	50	310	==	2935	state-only	game	
+state/save/data	SetStageFlag	void SetStageFlag(int, int)	72	140	==	2936	state-only	game	
+state/save/data	SetTimerColorTableIndex	void SetTimerColorTableIndex(int)	14	20	==	2573	state-only	other	
+state/save/data	SetUnitDir	void SetUnitDir(in const string&, int, bool)	424	57593	==	881	state-only	other	
+state/save/data	SetUnitDirAsync	void SetUnitDirAsync(in const string&, int, bool)	424	1006	==	2974	live	live:entity:dir_x	
+text/UI	CloseMessage	void CloseMessage()	424	868	==	1174	record-only	record-only:texts	
+text/UI	CloseMsg	void CloseMsg(in const string&)	422	4654	==	1192	record-only	record-only:texts	
+text/UI	CommonMsg	void CommonMsg(in const string&, int)	1	1	==	1159	record-only	record-only:texts	
+text/UI	CreateSpriteText	int CreateSpriteText(in const string&, in const string&, int, in const FnVector2&, inout const UcSpriteTextParam&, int, int, int, bool, int, int)	427	3721	==	1203	record-only	record-only:texts	
+text/UI	Dialog	void Dialog(in const string&, int, bool)	372	4910	==	1153	record-only	record-only:texts	
+text/UI	GetResultSelectMsg	int GetResultSelectMsg()	402	5742	==	1199	query/stub	return computed/default	
+text/UI	GetYNDialogResult	int GetYNDialogResult()	654	1854	==	1199	query/stub	return computed/default	
+text/UI	Message	void Message(in const string&, int)	424	848	==	1167	record-only	record-only:texts	
+text/UI	Msg	void Msg(in const string&, in const string&, in const array<int>&, inout const UcMsgBalloonParam&, in const FnVector2&)	662	154523	==	1135	record-only	record-only:texts	
+text/UI	MsgAsync	void MsgAsync(in const string&, in const string&, in const array<int>&, inout const UcMsgBalloonParam&, in const FnVector2&)	541	2198	==	1140	record-only	record-only:texts	
+text/UI	MsgFinishWait	void MsgFinishWait(in const string&)	540	2300	==	1183	record-only	record-only:texts	
+text/UI	MsgScreen	void MsgScreen(in const string&, in const string&, in const array<int>&, inout const UcMsgBalloonParam&, in const FnVector2&)	447	10486	==	1135	record-only	record-only:texts	
+text/UI	MsgScreenAsync	void MsgScreenAsync(in const string&, in const string&, in const array<int>&, inout const UcMsgBalloonParam&, in const FnVector2&)	432	436	==	1140	record-only	record-only:texts	
+text/UI	MsgStageVoice	void MsgStageVoice(in const string&, int, inout const UcMsgBalloonParam&, in const FnVector2&)	103	103	==	1149	record-only	record-only:texts	
+text/UI	MulSpriteTextOffsetY	void MulSpriteTextOffsetY(in const string&, float)	21	72	==	1208	state-only	other	
+text/UI	SelectMsg	void SelectMsg(in const string&, in const string&, in const array<int>&, inout const UcMsgBalloonParam&, in const FnVector2&)	387	4008	==	1144	record-only	record-only:texts	
+text/UI	SelectMsgScreen	void SelectMsgScreen(in const string&, in const string&, in const array<int>&, inout const UcMsgBalloonParam&, in const FnVector2&)	377	1094	==	1144	record-only	record-only:texts	
+text/UI	SetMsgFaceAnimation	void SetMsgFaceAnimation(in const string&, in const string&)	424	868	==	1210	state-only	other	
+text/UI	SetMsgFaceLayerMask	void SetMsgFaceLayerMask(in const string&, in const string&, bool)	424	3032	==	1210	state-only	other	
+text/UI	ShowAddCharaDialog	void ShowAddCharaDialog(in const string&)	426	2579	==	1210	state-only	other	
+text/UI	SpriteTextFinishWait	void SpriteTextFinishWait(in const string&)	36	99	==	1208	state-only	other	
+text/UI	YNDialog	void YNDialog(in const string&, int, bool)	654	1854	==	1153	record-only	record-only:texts	
+value/add-on: $obj	$obj::opAssign	int& $obj::opAssign(in int&)	248	1745	==	1096	add-on/internal	VM/add-on (not a registry native)	
+value/add-on: FnVector2	FnVector2::IncDegDistance	void FnVector2::IncDegDistance(float, float)	424	1696	==	959	state-only	other	
+value/add-on: FnVector2	FnVector2::IncDistance	void FnVector2::IncDistance(float, float)	424	424	==	2535	state-only	other	
+value/add-on: FnVector2	FnVector2::Length	float FnVector2::Length()	424	1480	==	941	query/stub	return computed/default	
+value/add-on: FnVector2	FnVector2::LengthSq	float FnVector2::LengthSq()	2	2	==	2530	query/stub	return computed/default	
+value/add-on: FnVector2	FnVector2::Normalize	float FnVector2::Normalize(float)	424	858	==	946	query/stub	return computed/default	
+value/add-on: FnVector2	FnVector2::opAdd	FnVector2 FnVector2::opAdd(in const FnVector2&)	425	24447	==	997	state-only	other	
+value/add-on: FnVector2	FnVector2::opAssign	FnVector2& FnVector2::opAssign(in const FnVector2&)	429	127512	==	1096	state-only	text-param	
+value/add-on: FnVector2	FnVector2::opAssign	FnVector2& FnVector2::opAssign(in const FnVector3&)	13	0	==	1096	state-only	text-param	
+value/add-on: FnVector2	FnVector2::opDiv	FnVector2 FnVector2::opDiv(float)	4	6	==	997	state-only	other	
+value/add-on: FnVector2	FnVector2::opEquals	bool FnVector2::opEquals(in const FnVector2&)	5	5	==	2546	query/stub	return computed/default	
+value/add-on: FnVector2	FnVector2::opMul	FnVector2 FnVector2::opMul(float)	424	1326	==	997	state-only	other	
+value/add-on: FnVector2	FnVector2::opMulAssign	const FnVector2& FnVector2::opMulAssign(float)	424	1272	==	998	state-only	other	
+value/add-on: FnVector2	FnVector2::opSub	FnVector2 FnVector2::opSub(in const FnVector2&)	424	3651	==	997	state-only	other	
+value/add-on: FnVector3	FnVector3::opAdd	FnVector3 FnVector3::opAdd(in const FnVector3&)	307	7617	==	997	state-only	other	
+value/add-on: FnVector3	FnVector3::opAddAssign	const FnVector3& FnVector3::opAddAssign(in const FnVector3&)	307	619	==	997	state-only	other	
+value/add-on: FnVector3	FnVector3::opAssign	FnVector3& FnVector3::opAssign(in const FnVector3&)	4	39	==	1096	state-only	text-param	
+value/add-on: FnVector3	FnVector3::opSub	FnVector3 FnVector3::opSub(in const FnVector3&)	7	23	==	997	state-only	other	
+value/add-on: UcMsgBalloonParam	UcMsgBalloonParam::AddBalloonFlag	void UcMsgBalloonParam::AddBalloonFlag(uint)	676	10335	==	1092	state-only	text-param	
+value/add-on: UcMsgBalloonParam	UcMsgBalloonParam::DelBalloonFlag	void UcMsgBalloonParam::DelBalloonFlag(uint)	676	27484	==	1094	state-only	text-param	
+value/add-on: UcMsgBalloonParam	UcMsgBalloonParam::SetDispName	void UcMsgBalloonParam::SetDispName(int)	440	1375	==	1088	state-only	text-param	
+value/add-on: UcMsgBalloonParam	UcMsgBalloonParam::SetDispType	void UcMsgBalloonParam::SetDispType(int)	676	15153	==	1086	state-only	text-param	
+value/add-on: UcMsgBalloonParam	UcMsgBalloonParam::SetFaceDirX	void UcMsgBalloonParam::SetFaceDirX(int)	424	3400	==	1090	state-only	text-param	
+value/add-on: UcMsgBalloonParam	UcMsgBalloonParam::opAssign	UcMsgBalloonParam& UcMsgBalloonParam::opAssign(in const UcMsgBalloonParam&)	676	16462	==	1096	state-only	text-param	
+value/add-on: UcSpriteTextParam	UcSpriteTextParam::SetAlign	void UcSpriteTextParam::SetAlign(int)	676	6451	==	1105	state-only	other	
+value/add-on: UcSpriteTextParam	UcSpriteTextParam::SetBaseLine	void UcSpriteTextParam::SetBaseLine(int)	676	4755	==	1119	state-only	other	
+value/add-on: UcSpriteTextParam	UcSpriteTextParam::SetColorB	void UcSpriteTextParam::SetColorB(int)	676	4752	==	1115	state-only	other	
+value/add-on: UcSpriteTextParam	UcSpriteTextParam::SetColorG	void UcSpriteTextParam::SetColorG(int)	676	4752	==	1113	state-only	other	
+value/add-on: UcSpriteTextParam	UcSpriteTextParam::SetColorR	void UcSpriteTextParam::SetColorR(int)	676	4752	==	1111	state-only	other	
+value/add-on: UcSpriteTextParam	UcSpriteTextParam::SetFontType	void UcSpriteTextParam::SetFontType(int)	676	4755	==	1107	state-only	other	
+value/add-on: UcSpriteTextParam	UcSpriteTextParam::SetForceInstant	void UcSpriteTextParam::SetForceInstant(bool)	676	4756	==	1121	state-only	other	
+value/add-on: UcSpriteTextParam	UcSpriteTextParam::SetOutline	void UcSpriteTextParam::SetOutline(bool)	676	4755	==	1109	state-only	other	
+value/add-on: UcSpriteTextParam	UcSpriteTextParam::SetScale	void UcSpriteTextParam::SetScale(float)	676	4756	==	1117	state-only	other	
+value/add-on: UcSpriteTextParam	UcSpriteTextParam::opAssign	UcSpriteTextParam& UcSpriteTextParam::opAssign(in const UcSpriteTextParam&)	676	8277	==	1096	state-only	text-param	
+value/add-on: UcStChaseParam	UcStChaseParam::SetObjectName	void UcStChaseParam::SetObjectName(in const string&)	10	12	==	592	no-op	return true	
+value/add-on: string	string::opAdd	string string::opAdd(float)	424	424	==	997	add-on/internal	VM/add-on (not a registry native)	
+value/add-on: string	string::opAdd	string string::opAdd(in const string&)	429	1013523	==	997	add-on/internal	VM/add-on (not a registry native)	
+value/add-on: string	string::opAdd	string string::opAdd(int64)	430	3494	==	997	add-on/internal	VM/add-on (not a registry native)	
+value/add-on: string	string::opAssign	string& string::opAssign(in const string&)	278	1060	==	1096	add-on/internal	VM/add-on (not a registry native)	
+value/add-on: string	string::opAssign	string& string::opAssign(int64)	12	0	==	1096	add-on/internal	VM/add-on (not a registry native)	
+value/add-on: string	string::opEquals	bool string::opEquals(in const string&)	676	121761	==	2546	add-on/internal	VM/add-on (not a registry native)	

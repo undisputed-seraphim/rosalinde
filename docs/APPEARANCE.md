@@ -92,5 +92,9 @@ as `viewer/data/charaset.tsv` for reference.
   single-group classes (Cleric, Witch, Swordsman, …); classes whose characters
   combine several attribute groups (e.g. the princesses) may still be
   approximations until the engine's exact per-layer test is reversed.
-- A handful of CharaSets have a class/gender with no entry in `classes.tsv`
-  (e.g. `Unify_M`) and are skipped.
+- `classes.tsv` is now extracted from the executable (`tools/dump_chara_table.py`),
+  so the class → asset mapping is exact. Only `variants.tsv` (the per-class
+  appearance masks) is still produced by the older heuristic process.
+- A few CharaSets pick an asset slot the class leaves empty (e.g. `TEST_E53`
+  is `WEREFOX` gender `M`, but only `Chara/WereFox_F.mbs` exists); the engine
+  falls back to the filled slot — an asset-resolver concern, not a table one.

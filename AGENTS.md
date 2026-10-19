@@ -93,7 +93,15 @@ SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
 - `--scene-frame N` advances deterministically before capture.
 - `--screenshot PATH` writes one PNG/PPM and exits.
 - `--capture-frames 0,60,420,480 --capture-dir DIR` reuses the asset cache for a batch.
-- `--trace FILE --trace-categories vm,stage,camera,sprite,draw` writes NDJSON.
+- `--trace FILE --trace-categories vm,stage,camera,sprite,draw` writes NDJSON. `vm/call`
+  events carry the full call text, caller, handled status, and return value.
+- `--probe DIR` writes `state-<frame>.json`, `draw-<frame>.ndjson`, and
+  `summary-<frame>.txt` at `--probe-frames` (default: capture frames or `--scene-frame`).
+  The draw dump is layer-level: run/`s8`/`s6`/`s7`, UVs, blend, fog, sort keys, and skip reasons.
+- `--only NAME` isolates an object (exact name or alias); `--hide TEXT` removes matches;
+  `--keep-stage` retains the stage with `--only`. `--clear-color #RRGGBB[AA]` overrides
+  the background (default is the blue-gray editor clear).
+- `--data-dir DIR` selects the runtime tables (default: `viewer/data` or `$VIEWER_DATA`).
 - `--scene-fps` controls playback stepping; `--chara-table` overrides the viewer data table.
 
 ---
@@ -115,6 +123,9 @@ SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
 - **Space**: stage/field content uses the drama field camera. `CreateSpriteMone` overlays live
   in design space (1920×1080, fixed camera); `CreateSpriteMoneWorld` and
   `CreateSpriteMoneStageStart` stay in field space. `DrUiCreateChara` is UI space.
+- **Viewer host**: the viewer supplies all runtime providers: chara tables, track
+  name/length callbacks, facility names, stage tables, drop tables, and ACB sound
+  lengths. `asbrun` remains a script-only inspector and does not model animation waits.
 - **Formats**: `.asb` → `docs/ASB.md`; MBS/FTX → `docs/SECTIONS.md`; engine tables and native
   registration → `docs/EXE.md`; combat/stage surface → `docs/COMBAT.md`.
 
@@ -131,8 +142,12 @@ SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
 | `VIEWER_RUN_ONLY`, `VIEWER_RUN_FROM`, `VIEWER_MAIN_ONLY` | restrict MBS runs for debugging |
 | `VIEWER_RUNS=seq`, `VIEWER_SEQ_MAIN`, `VIEWER_ADVANCE`, `VIEWER_ONCE` | sequential-phase / start-offset / end-mode experiments |
 | `VIEWER_HIDE` | hide objects whose name contains the value |
+| `VIEWER_DATA` | runtime data directory (same as `--data-dir`) |
 | `VIEWER_CAM_Y`, `VIEWER_ORTHO` | camera/design-space overrides |
 | `BG_DUMP`, `BG_LAYERS`, `FTX_GPU_DUMP` | MBS/FTX asset diagnostics |
+| `FTX_GPU_DUMP_DIR`, `FTX_GPU_DUMP_MATCH` | dump uploaded texture arrays to PNGs, optionally filtered by asset label |
+| `VIEWER_FLIP_V` | experimental UV V-flip by MBS/FTX substring for orientation diagnosis |
+| `VIEWER_RUN_ORDER` | experimental run draw order: `reverse` or `track` |
 | `VIEWER_FONT`, `VIEWER_SIZE` | font override / offscreen size |
 
 ---
