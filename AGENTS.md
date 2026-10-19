@@ -178,6 +178,8 @@ python3 visiontest/opening_diff.py \
 | `FTX_GPU_DUMP_DIR`, `FTX_GPU_DUMP_MATCH` | dump uploaded texture arrays to PNGs, optionally filtered by asset label |
 | `VIEWER_FLIP_V` | experimental UV V-flip by MBS/FTX substring for orientation diagnosis |
 | `VIEWER_RUN_ORDER` | experimental run draw order: `reverse` or `track` |
+| `VIEWER_NO_FOREGROUND_HOLD` | disable compound-track last-visible-pose hold |
+| `VIEWER_NO_MAIN_LIFETIME` | disable main-sequence lifetime culling |
 | `VIEWER_FONT`, `VIEWER_SIZE` | font override / offscreen size |
 
 ---

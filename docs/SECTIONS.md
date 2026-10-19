@@ -750,9 +750,9 @@ Dumped with `rosalinde --mbs-dump` (6 GUI, 14 BattleBG, 25 character, 1 FieldBG,
   not flipped globally yet.
 - **Viewer title status:** the `flags==1`/`blend==1` mask gate plus the
   `HIDDEN`/`NODRAW` draw gates now produce the colored `UNICORN OVERLORD` title
-  at 16 s. The 14 s white-flash phase and the title's disappearance after the
-  one-shot sequences (~19 s) remain open; the reference still shows the colored
-  title there.
+  at 16 s and 19 s. Compound tracks hold their last visible foreground pose
+  until their main sequence ends, so the title stops before the sanctum shot.
+  The 14 s white-flash phase remains open.
 - `JUMP` + `s8_loop_target == 0` **restarts at the first played frame**; it is
   not a hold. The viewer now uses the absolute target
   (`viewer/src/sprite.cpp`).
