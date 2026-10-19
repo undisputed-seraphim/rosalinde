@@ -13,10 +13,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <glad/glad.h>
 #include <glm/ext.hpp>
 #include <imgui.h>
+#include <iostream>
 #include <span>
 #include <stdexcept>
 #include <unordered_map>
@@ -123,10 +125,25 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
 		_cfg.scene_frame = std::max(_cfg.scene_frame, _cfg.probe_frames.back());
 		_probe_mode = !_capture_mode;
 	}
-	if (!_cfg.trace.empty())
+	if (!_cfg.trace.empty()) {
 		_trace.open(_cfg.trace, _cfg.trace_categories);
+		_trace.set_filter(_cfg.trace_frames, _cfg.trace_objects, _cfg.trace_limit);
+	}
 	if (!_cfg.probe_dir.empty())
 		_probe.open(_cfg.probe_dir, _cfg.probe_frames);
+	if (!_cfg.record.empty()) {
+		if (_cfg.record == "-") {
+			_record_out = &std::cout;
+		} else {
+			const auto parent = std::filesystem::path(_cfg.record).parent_path();
+			if (!parent.empty())
+				std::filesystem::create_directories(parent);
+			_record_file.open(_cfg.record, std::ios::binary | std::ios::trunc);
+			if (!_record_file)
+				throw std::runtime_error("cannot write record: " + _cfg.record);
+			_record_out = &_record_file;
+		}
+	}
 	auto trace_cb = [this](const asb::TraceEvent& e) {
 		if (e.kind == "vm" && e.event == "call")
 			return;
@@ -134,7 +151,10 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
 			_trace.write(e);
 	};
 	_host.set_trace(trace_cb);
-	_host.set_native_call([this](const asb::NativeCall& call) { _trace.write_native_call(call); });
+	_host.set_native_call([this](const asb::NativeCall& call) {
+		_census.observe(call);
+		_trace.write_native_call(call);
+	});
 	_renderer.set_trace(trace_cb);
 	_renderer.set_filters(_cfg.only, _cfg.hide, _cfg.keep_stage);
 	if (const char* o = std::getenv("VIEWER_ORTHO")) {
@@ -157,6 +177,7 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
 		asb::parse(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size()));
 	if (!mod.error.empty())
 		throw std::runtime_error("failed to decode " + _cfg.entry + ": " + mod.error);
+	_module = std::make_shared<asb::Module>(std::move(mod));
 
 	const std::string data_dir = _cfg.data_dir.empty() ? viewer_data_dir() : _cfg.data_dir;
 	_runtime = load_viewer_runtime_data(_loader.cpk(), _cfg.chara_table, data_dir);
@@ -166,14 +187,15 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
 	_host.set_track_frames([this](const std::string& mbs, int idx) { return mbs_track_frames(_loader, mbs, idx); });
 	_host.set_resolve_track(
 		[this](const std::string& mbs, const std::string& name) { return mbs_resolve_track(_loader, mbs, name); });
-	_host.register_module(mod);
+	_host.register_module(*_module);
 	if (!_host.load(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size())))
 		throw std::runtime_error("failed to load " + _cfg.entry);
 
-	asb::Scene scene = asb::extract_scene(mod);
+	asb::Scene scene = asb::extract_scene(*_module);
 	const asb::SceneFunction* picked = asb::pick_scene_function(scene, _cfg.func);
 	if (!picked)
 		throw std::runtime_error("no scene function in " + _cfg.entry);
+	_entry_name = picked->name;
 	asIScriptFunction* fn = _host.find_function({picked->name});
 	if (!fn)
 		throw std::runtime_error("scene function not found: " + picked->name);
@@ -191,9 +213,37 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
 		return {0.0f, 0.0f};
 	});
 	_started = true;
+	if (_record_out)
+		write_record(0);
 }
 
-DramaPlayback::~DramaPlayback() = default;
+DramaPlayback::~DramaPlayback() { write_calls(); }
+
+void DramaPlayback::write_calls() {
+	if ((_cfg.calls.empty() && _cfg.calls_json.empty()) || !_module)
+		return;
+	auto emit = [](const std::string& path, const std::string& text) {
+		if (path == "-") {
+			std::cout << text;
+			if (!text.empty() && text.back() != '\n')
+				std::cout << '\n';
+			return;
+		}
+		const auto parent = std::filesystem::path(path).parent_path();
+		if (!parent.empty())
+			std::filesystem::create_directories(parent);
+		std::ofstream out(path, std::ios::binary | std::ios::trunc);
+		if (!out) {
+			spdlog::error("calls: cannot write {}", path);
+			return;
+		}
+		out << text;
+	};
+	if (!_cfg.calls.empty())
+		emit(_cfg.calls, asb::diag::call_census_text(*_module, _census, _cfg.entry, _entry_name));
+	if (!_cfg.calls_json.empty())
+		emit(_cfg.calls_json, asb::diag::call_census_json(*_module, _census, _cfg.entry, _entry_name) + "\n");
+}
 
 bool DramaPlayback::handle_inputs() { return _quit; }
 
@@ -208,6 +258,14 @@ void DramaPlayback::step() {
 		return;
 	}
 	_frame = _session->frame();
+	spdlog::trace(
+		"step: frame={} entities={} stage={} cam=({:.1f},{:.1f}) zoom={:.3f}",
+		trace_frame,
+		_session->scene().entities.size(),
+		_session->scene().stage.stage_type,
+		_session->scene().camera.pos[0],
+		_session->scene().camera.pos[1],
+		_session->scene().camera.zoom);
 	if ((trace_frame % 60) == 0)
 		spdlog::debug(
 			"play: frame={} entities={} stage={} cam=({:.1f},{:.1f}) zoom={:.3f}",
@@ -228,6 +286,30 @@ void DramaPlayback::step() {
 		_renderer.advance(1);
 		_effects.tick(1.0f / 60.0f);
 	}
+	const auto& scene = _session->scene();
+	_trace.write({_frame,
+				  "timeline",
+				  "step",
+				  "\"entities\":" + std::to_string(scene.entities.size()) + ",\"stage\":" +
+					  std::to_string(scene.stage.stage_type) + ",\"camera_pos\":" + asb::trace::vec3(scene.camera.pos) +
+					  ",\"camera_zoom\":" + asb::trace::number(scene.camera.zoom)});
+	if (_record_out && (_frame % _cfg.record_every) == 0)
+		write_record(_frame);
+}
+
+void DramaPlayback::write_record(long frame) {
+	if (!_record_out || !_session)
+		return;
+	const auto& scene = _session->scene();
+	float fade[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+	asb::fade_at(scene.fades, scene.frame, fade);
+	*_record_out << "{\"frame\":" << frame << ",\"camera\":{\"pos\":" << asb::trace::vec3(scene.camera.pos)
+				 << ",\"zoom\":" << asb::trace::number(scene.camera.zoom) << "},\"fade\":[" << asb::trace::number(fade[0])
+				 << "," << asb::trace::number(fade[1]) << "," << asb::trace::number(fade[2]) << ","
+				 << asb::trace::number(fade[3]) << "],\"stage\":{\"type\":" << scene.stage.stage_type
+				 << ",\"weather\":" << scene.stage.weather_type << ",\"coa\":" << scene.stage.coa_preset
+				 << ",\"flag\":" << scene.stage.flag_color << "},\"renderer\":" << _renderer.timeline_json(scene)
+				 << "}\n";
 }
 
 void DramaPlayback::update(float dt) {

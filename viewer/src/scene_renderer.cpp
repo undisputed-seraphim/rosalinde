@@ -84,9 +84,11 @@ std::string runs_json(const SpriteInstance& instance) {
 			i < instance.data->tracks[instance.track_idx].runs.size())
 			track_slot = instance.data->tracks[instance.track_idx].runs[i].sa_track_slot;
 		out += "{\"run\":" + std::to_string(i) + ",\"track_id\":" + std::to_string(track_slot) +
-			   ",\"offset\":" + std::to_string(state.offset) + ",\"flags\":" + std::to_string(state.flags) +
-			   ",\"frames\":" + std::to_string(state.frames) + ",\"done\":" + asb::trace::boolean(state.done) +
-			   ",\"hidden\":" + asb::trace::boolean(state.hidden) + "}";
+			   ",\"offset\":" + std::to_string(state.offset) + ",\"s8\":" + std::to_string(state.s8) +
+			   ",\"s6\":" + std::to_string(state.s6) + ",\"s7\":" + std::to_string(state.s7) +
+			   ",\"flags\":" + std::to_string(state.flags) + ",\"frames\":" + std::to_string(state.frames) +
+			   ",\"done\":" + asb::trace::boolean(state.done) + ",\"hidden\":" + asb::trace::boolean(state.hidden) +
+			   "}";
 	}
 	out += ']';
 	return out;
@@ -492,6 +494,48 @@ std::string SceneRenderer::state_json(const asb::SceneState& scene) const {
 	return out;
 }
 
+std::string SceneRenderer::timeline_json(const asb::SceneState& scene) const {
+	std::vector<const Object*> objects;
+	objects.reserve(_objects.size() + 1);
+	for (const auto& [_, object] : _objects)
+		objects.push_back(&object);
+	if (_stage.asset)
+		objects.push_back(&_stage);
+	std::sort(objects.begin(), objects.end(), [](const Object* a, const Object* b) {
+		if (a->state.order != b->state.order)
+			return a->state.order < b->state.order;
+		return a->state.name < b->state.name;
+	});
+
+	std::string out = "{\"scene_frame\":" + std::to_string(scene.frame) + ",\"objects\":[";
+	bool first = true;
+	for (const Object* object : objects) {
+		if (!first)
+			out += ',';
+		first = false;
+		const auto& e = object->state;
+		out += "{\"name\":" + quote(e.name) + ",\"kind\":" + quote(e.kind) + ",\"mbs\":" + quote(e.mbs) +
+			   ",\"order\":" + std::to_string(e.order) + ",\"alpha\":" + std::to_string(e.alpha) +
+			   ",\"visible\":" + asb::trace::boolean(e.visible) +
+			   ",\"started\":" + asb::trace::boolean(e.started) +
+			   ",\"background\":" + asb::trace::boolean(object->background) + ",\"track\":" +
+			   std::to_string(object->track_index) + ",\"instances\":[";
+		for (size_t i = 0; i < object->instances.size(); ++i) {
+			if (i)
+				out += ',';
+			const auto& instance = object->instances[i];
+			std::string track_name;
+			if (instance.data && instance.track_idx < instance.data->tracks.size())
+				track_name = instance.data->tracks[instance.track_idx].name;
+			out += "{\"index\":" + std::to_string(i) + ",\"track\":" + std::to_string(instance.track_idx) +
+				   ",\"track_name\":" + quote(track_name) + ",\"runs\":" + runs_json(instance) + "}";
+		}
+		out += "]}";
+	}
+	out += "]}";
+	return out;
+}
+
 std::string SceneRenderer::summary(const asb::SceneState& scene) const {
 	std::ostringstream out;
 	out << "frame: " << scene.frame << " entities: " << scene.entities.size() << " objects: " << _objects.size()
@@ -645,6 +689,13 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 		}
 		for (size_t i = 0; i < object->instances.size(); ++i) {
 			auto& instance = object->instances[i];
+			if (_trace)
+				_trace({_frame,
+						"draw",
+						"runs",
+						"\"object\":\"" + asb::trace::quote(e.name) + "\",\"instance\":" + std::to_string(i) +
+							",\"track\":" + std::to_string(instance.track_idx) + ",\"runs\":" +
+							runs_json(instance)});
 			if (_probe) {
 				probe_instance(*object, object == &_stage, i);
 				probe_layers(*object, i, object == &_stage, tints);

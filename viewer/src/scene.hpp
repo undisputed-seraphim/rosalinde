@@ -24,6 +24,13 @@ struct ViewerConfig {
 	float scene_fps = 60.0f; // playback frame step rate
 	std::string trace;		 // optional NDJSON event trace
 	std::string trace_categories;
+	std::vector<long> trace_frames;
+	std::vector<std::string> trace_objects;
+	int trace_limit = 0;
+	std::string calls;		 // optional native-call census text
+	std::string calls_json;	 // optional native-call census JSON
+	std::string record;		 // optional compact runtime timeline NDJSON
+	long record_every = 1;
 	std::vector<long> capture_frames;
 	std::string capture_dir;
 	std::string capture_prefix = "frame";

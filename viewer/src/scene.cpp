@@ -38,6 +38,13 @@ Scene::Scene(ViewerConfig config)
 	dc.fps = _config.scene_fps;
 	dc.trace = _config.trace;
 	dc.trace_categories = _config.trace_categories;
+	dc.trace_frames = _config.trace_frames;
+	dc.trace_objects = _config.trace_objects;
+	dc.trace_limit = _config.trace_limit;
+	dc.calls = _config.calls;
+	dc.calls_json = _config.calls_json;
+	dc.record = _config.record;
+	dc.record_every = _config.record_every;
 	dc.capture_frames = _config.capture_frames;
 	dc.capture_dir = _config.capture_dir;
 	dc.capture_prefix = _config.capture_prefix;

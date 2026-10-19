@@ -687,9 +687,12 @@ std::vector<SpriteInstance::RunState> SpriteInstance::run_states() const {
 		state.done = i < done.size() && done[i] != 0;
 		state.hidden = i < hide.size() && hide[i] != 0;
 		if (run.s8_count > 0 && run.s8_start + state.offset < data->v77.s8.size()) {
+			state.s8 = static_cast<int32_t>(run.s8_start + state.offset);
 			const auto& s8 = data->v77.s8[run.s8_start + state.offset];
 			state.flags = s8.flags;
 			state.frames = s8.s8_duration_ticks;
+			state.s6 = s8.s6_keyframe_id;
+			state.s7 = s8.s7_transform_id;
 		}
 		out.push_back(state);
 	}

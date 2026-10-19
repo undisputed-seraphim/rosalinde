@@ -176,6 +176,9 @@ struct SpriteInstance {
 		uint32_t offset = 0;
 		uint32_t flags = 0;
 		uint32_t frames = 0;
+		int32_t s8 = -1;
+		uint32_t s6 = 0;
+		uint32_t s7 = 0;
 		bool done = false;
 		bool hidden = false;
 	};

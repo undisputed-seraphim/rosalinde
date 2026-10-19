@@ -22,8 +22,17 @@ std::vector<long> parse_frames(const std::string& text) {
 	while (start < text.size()) {
 		const size_t comma = text.find(',', start);
 		const std::string item = text.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
-		if (!item.empty())
-			frames.push_back(std::stol(item));
+		if (!item.empty()) {
+			const size_t dash = item.find('-', 1);
+			if (dash != std::string::npos) {
+				const long first = std::stol(item.substr(0, dash));
+				const long last = std::stol(item.substr(dash + 1));
+				for (long frame = first; frame <= last; ++frame)
+					frames.push_back(frame);
+			} else {
+				frames.push_back(std::stol(item));
+			}
+		}
 		if (comma == std::string::npos)
 			break;
 		start = comma + 1;
@@ -70,6 +79,7 @@ int main(int argc, char* argv[]) try {
 	ViewerConfig config;
 	std::string clear_color_text;
 	std::string probe_frames_text;
+	std::string trace_frames_text;
 	::boost::program_options::options_description desc;
 	desc.add_options()("help,h", "Print this help message")(
 		"cpk", ::boost::program_options::value<std::filesystem::path>(&config.cpk)->required(), "Path to Unicorn.cpk")(
@@ -96,7 +106,28 @@ int main(int argc, char* argv[]) try {
 		"Write structured NDJSON events to this file")(
 		"trace-categories",
 		::boost::program_options::value<std::string>(&config.trace_categories)->default_value("all"),
-		"Comma-separated trace categories: vm,stage,camera,asset,sprite,draw (default: all)")(
+		"Comma-separated trace categories: vm,stage,camera,asset,sprite,draw,timeline (default: all)")(
+		"trace-frames",
+		::boost::program_options::value<std::string>(&trace_frames_text),
+		"Only trace these scene frames (comma-separated, ranges allowed)")(
+		"trace-object",
+		::boost::program_options::value<std::vector<std::string>>(&config.trace_objects)->composing(),
+		"Only trace events mentioning this object/call text (repeatable)")(
+		"trace-limit",
+		::boost::program_options::value<int>(&config.trace_limit)->default_value(0),
+		"Maximum trace events (0 = unlimited)")(
+		"calls",
+		::boost::program_options::value<std::string>(&config.calls),
+		"Write native-call census text to this file")(
+		"calls-json",
+		::boost::program_options::value<std::string>(&config.calls_json),
+		"Write native-call census JSON to this file")(
+		"record",
+		::boost::program_options::value<std::string>(&config.record),
+		"Write compact runtime timeline NDJSON to this file")(
+		"record-every",
+		::boost::program_options::value<long>(&config.record_every)->default_value(1),
+		"Record one timeline row every N scene frames")(
 		"capture-frames",
 		::boost::program_options::value<std::string>(),
 		"Capture comma-separated scene frames in one run (e.g. 0,60,480)")(
@@ -159,6 +190,25 @@ int main(int argc, char* argv[]) try {
 	}
 	if (!clear_color_text.empty() && !parse_color(clear_color_text, config.clear_color)) {
 		spdlog::error("invalid --clear-color: {}", clear_color_text);
+		return 1;
+	}
+	if (!trace_frames_text.empty()) {
+		config.trace_frames = parse_frames(trace_frames_text);
+		if (config.trace_frames.empty()) {
+			spdlog::error("--trace-frames is empty");
+			return 1;
+		}
+		if (std::any_of(config.trace_frames.begin(), config.trace_frames.end(), [](long f) { return f < 0; })) {
+			spdlog::error("--trace-frames must be non-negative");
+			return 1;
+		}
+	}
+	if (config.trace_limit < 0) {
+		spdlog::error("--trace-limit must be non-negative");
+		return 1;
+	}
+	if (config.record_every <= 0) {
+		spdlog::error("--record-every must be positive");
 		return 1;
 	}
 	if (!probe_frames_text.empty()) {

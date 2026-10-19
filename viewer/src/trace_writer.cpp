@@ -2,7 +2,9 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <filesystem>
+#include <utility>
 
 namespace {
 
@@ -38,25 +40,61 @@ bool TraceWriter::open(const std::string& path, std::string_view categories) {
 	}
 	if (_categories.contains("all"))
 		_all = true;
+	_written = 0;
 	return true;
+}
+
+void TraceWriter::set_filter(std::vector<long> frames, std::vector<std::string> objects, int limit) {
+	_frames = std::move(frames);
+	_objects = std::move(objects);
+	_limit = std::max(0, limit);
+	std::sort(_frames.begin(), _frames.end());
+	_frames.erase(std::unique(_frames.begin(), _frames.end()), _frames.end());
 }
 
 bool TraceWriter::enabled(std::string_view kind) const {
 	return _out.is_open() && (_all || _categories.contains(std::string(kind)));
 }
 
+bool TraceWriter::frame_allowed(long frame) const {
+	return _frames.empty() || std::binary_search(_frames.begin(), _frames.end(), frame);
+}
+
+bool TraceWriter::object_allowed(std::string_view fields, std::string_view call) const {
+	if (_objects.empty())
+		return true;
+	const bool has_target_field =
+		fields.find("\"object\"") != std::string_view::npos || fields.find("\"name\"") != std::string_view::npos;
+	if (!has_target_field && call.empty())
+		return true;
+	for (const auto& object : _objects) {
+		if (fields.find(object) != std::string_view::npos || call.find(object) != std::string_view::npos)
+			return true;
+	}
+	return false;
+}
+
+bool TraceWriter::emit_allowed(long frame, std::string_view fields, std::string_view call) const {
+	if (!frame_allowed(frame) || !object_allowed(fields, call))
+		return false;
+	return _limit == 0 || _written < static_cast<size_t>(_limit);
+}
+
+void TraceWriter::count_event() { ++_written; }
+
 void TraceWriter::write(const asb::TraceEvent& event) {
-	if (!enabled(event.kind))
+	if (!enabled(event.kind) || !emit_allowed(event.frame, event.fields))
 		return;
 	_out << "{\"frame\":" << event.frame << ",\"kind\":\"" << asb::trace::quote(event.kind) << "\",\"event\":\""
 		 << asb::trace::quote(event.event) << '"';
 	if (!event.fields.empty())
 		_out << ',' << event.fields;
 	_out << "}\n";
+	count_event();
 }
 
 void TraceWriter::write_native_call(const asb::NativeCall& call) {
-	if (!enabled("vm"))
+	if (!enabled("vm") || !emit_allowed(call.frame, call.name + " " + call.call, call.call))
 		return;
 	_out << "{\"frame\":" << call.frame << ",\"kind\":\"vm\",\"event\":\"call\",\"name\":\""
 		 << asb::trace::quote(call.name) << "\",\"call\":\"" << asb::trace::quote(call.call) << "\",\"caller\":\""
@@ -66,4 +104,5 @@ void TraceWriter::write_native_call(const asb::NativeCall& call) {
 			 << asb::trace::quote(call.result) << '"';
 	}
 	_out << "}\n";
+	count_event();
 }

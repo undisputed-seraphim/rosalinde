@@ -9,10 +9,12 @@
 #include "screen_fade.hpp"
 #include "trace_writer.hpp"
 
+#include <scarlett/call_census.hpp>
 #include <scarlett/host.hpp>
 #include <scarlett/runtime.hpp>
 
 #include <cstdint>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -29,6 +31,13 @@ struct DramaPlaybackConfig {
 	float fps = 60.0f;
 	std::string trace;
 	std::string trace_categories;
+	std::vector<long> trace_frames;
+	std::vector<std::string> trace_objects;
+	int trace_limit = 0;
+	std::string calls;
+	std::string calls_json;
+	std::string record;
+	long record_every = 1;
 	std::vector<long> capture_frames;
 	std::string capture_dir;
 	std::string capture_prefix = "frame";
@@ -62,12 +71,17 @@ private:
 	void apply_camera();
 	void sync_stage();
 	void draw_text();
+	void write_calls();
+	void write_record(long frame);
 	bool write_screenshot(const std::string& path);
 
 	const AssetLoader& _loader;
 	DramaPlaybackConfig _cfg;
 	ViewerRuntimeData _runtime;
 	asb::Host _host;
+	std::shared_ptr<asb::Module> _module;
+	std::string _entry_name;
+	asb::diag::CallCensus _census;
 	std::unique_ptr<asb::RuntimeSession> _session;
 	SceneRenderer _renderer;
 	EffectManager _effects;
@@ -76,6 +90,8 @@ private:
 	ScreenFadeOverlay _fade;
 	TraceWriter _trace;
 	ProbeWriter _probe;
+	std::ofstream _record_file;
+	std::ostream* _record_out = nullptr;
 
 	long _frame = 0;
 	double _accum = 0.0;
