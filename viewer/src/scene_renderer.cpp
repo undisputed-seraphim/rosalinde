@@ -669,31 +669,29 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				tints[s4.attributes] = tint;
 		}
 
-		if (std::getenv("VIEWER_TRACE_SPRITES")) {
-			spdlog::debug("draw: {} pos=({:.1f},{:.1f}) instances={}", e.name, pos.x, pos.y, object->instances.size());
-			for (size_t i = 0; i < object->instances.size(); ++i) {
-				const auto& in = object->instances[i];
-				const auto b = in.render_bounds();
+		spdlog::debug("draw: {} pos=({:.1f},{:.1f}) instances={}", e.name, pos.x, pos.y, object->instances.size());
+		for (size_t i = 0; i < object->instances.size(); ++i) {
+			const auto& in = object->instances[i];
+			const auto b = in.render_bounds();
+			spdlog::debug(
+				"draw:   {} track={} sa={} bounds=({:.1f},{:.1f},{:.1f},{:.1f})",
+				i,
+				in.track_idx,
+				in.sa_count(),
+				b.x,
+				b.y,
+				b.z,
+				b.w);
+			const auto states = in.run_states();
+			for (size_t k = 0; k < states.size(); ++k)
 				spdlog::debug(
-					"draw:   {} track={} sa={} bounds=({:.1f},{:.1f},{:.1f},{:.1f})",
-					i,
-					in.track_idx,
-					in.sa_count(),
-					b.x,
-					b.y,
-					b.z,
-					b.w);
-				const auto states = in.run_states();
-				for (size_t k = 0; k < states.size(); ++k)
-					spdlog::debug(
-						"draw:     run={} offset={} flags=0x{:X} frames={} done={} hidden={}",
-						k,
-						states[k].offset,
-						states[k].flags,
-						states[k].frames,
-						states[k].done,
-						states[k].hidden);
-			}
+					"draw:     run={} offset={} flags=0x{:X} frames={} done={} hidden={}",
+					k,
+					states[k].offset,
+					states[k].flags,
+					states[k].frames,
+					states[k].done,
+					states[k].hidden);
 		}
 		for (size_t i = 0; i < object->instances.size(); ++i) {
 			auto& instance = object->instances[i];

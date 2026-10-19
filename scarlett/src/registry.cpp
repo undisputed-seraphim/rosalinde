@@ -2,6 +2,7 @@
 
 #include <angelscript.h>
 #include <scriptarray/scriptarray.h>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cmath>
@@ -15,11 +16,6 @@
 namespace asb {
 
 namespace {
-
-bool wait_trace() {
-	static const bool on = std::getenv("SCENE_TRACE") != nullptr;
-	return on;
-}
 
 std::string read_string(asIScriptGeneric* gen, int i) {
 	auto* p = static_cast<const std::string*>(gen->GetArgAddress(i));
@@ -41,15 +37,9 @@ void read_color(asIScriptGeneric* gen, int i, float* out) {
 
 bool plausible_scale(float s) { return std::isfinite(s) && s > 1e-4f && s < 1e4f; }
 
-// Opt-in trace (SCENE_TRACE) of the scene-relevant natives as the module runs.
-bool scene_trace() {
-	static const bool on = std::getenv("SCENE_TRACE") != nullptr;
-	return on;
-}
-
 // Opt-in trace (ASB_TEXT) of the dialogue/balloon messages a script emits.
 bool text_trace() {
-	static const bool on = std::getenv("ASB_TEXT") != nullptr || std::getenv("SCENE_TRACE") != nullptr;
+	static const bool on = std::getenv("ASB_TEXT") != nullptr;
 	return on;
 }
 
@@ -345,8 +335,6 @@ void Registry::create_sprite(
 	const float* pos3,
 	int layer,
 	float scale) {
-	if (scene_trace())
-		std::fprintf(stderr, "[vm f=%ld] create %-22s \"%s\" mbs=%s\n", frame, kind.c_str(), id.c_str(), mbs.c_str());
 	trace_event(
 		"sprite",
 		"create",
@@ -385,12 +373,6 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 	std::string id = names.size() >= 2 ? names[1] : (names.empty() ? std::string() : names[0]);
 	if (id.empty() && !names.empty())
 		id = names[0];
-	if (scene_trace()) {
-		std::fprintf(stderr, "[vm f=%ld] chara  %-22s \"%s\"", frame, kind.c_str(), id.c_str());
-		for (const auto& n : names)
-			std::fprintf(stderr, " [%s]", n.c_str());
-		std::fprintf(stderr, "\n");
-	}
 	{
 		std::string aliases;
 		for (const auto& n : names)
@@ -935,8 +917,6 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "Wait") {
 		long n = static_cast<long>(gen->GetArgDWord(0));
 		pending_wait = std::max(1L, n);
-		if (wait_trace())
-			std::fprintf(stderr, "[wait f=%ld] Wait %ld -> end %ld\n", frame, pending_wait, frame + pending_wait);
 		trace_event("vm", "wait", "\"frames\":" + trace::integer(n) + ",\"end\":" + trace::integer(frame + n));
 		if (asIScriptContext* ctx = asGetActiveContext())
 			ctx->Suspend();
@@ -946,8 +926,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		const long end = fade_end();
 		if (end > frame) {
 			pending_wait = end - frame;
-			if (wait_trace())
-				std::fprintf(stderr, "[wait f=%ld] FadeDone -> end %ld\n", frame, frame + pending_wait);
+			spdlog::debug("wait: FadeDone frame={} end={}", frame, frame + pending_wait);
 			if (asIScriptContext* ctx = asGetActiveContext())
 				ctx->Suspend();
 		}
@@ -1196,7 +1175,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	// --- Dialogue / text (Phase 4a). Scripts pass the message text literally,
 	// so record it (with speaker, balloon style and position) and model the
 	// UcMsgBalloonParam / UcSpriteTextParam objects the setters mutate. Pixel
-	// rendering is deferred (4b); `ASB_TEXT`/`SCENE_TRACE` logs the text.
+	// rendering is deferred (4b); `ASB_TEXT` logs the text.
 	asITypeInfo* ot = fn->GetObjectType();
 	const std::string otn = (ot && ot->GetName()) ? ot->GetName() : "";
 	void* self = gen->GetObject();
@@ -1260,8 +1239,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		const long end = _timeline.texts.back().end;
 		const long d = std::max(1L, end - frame);
 		pending_wait = d;
-		if (wait_trace())
-			std::fprintf(stderr, "[wait f=%ld] text -> end %ld\n", frame, end);
+		spdlog::debug("wait: text frame={} end={}", frame, end);
 		if (asIScriptContext* ctx = asGetActiveContext())
 			ctx->Suspend();
 		return true;
@@ -1512,16 +1490,13 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		RuntimeEntity* e = ent(0);
 		if (e && _track_frames)
 			n = _track_frames(e->mbs, e->track_index);
-		if (wait_trace())
-			std::fprintf(
-				stderr,
-				"[wait f=%ld] AnimEnd \"%s\" track=%d mbs=%s -> +%ld (end %ld)\n",
-				frame,
-				e ? e->name.c_str() : "?",
-				e ? e->track_index : -1,
-				e ? e->mbs.c_str() : "",
-				n,
-				frame + n);
+		spdlog::debug(
+			"wait: animation end name={} track={} mbs={} frames={} end={}",
+			e ? e->name : "?",
+			e ? e->track_index : -1,
+			e ? e->mbs : "",
+			n,
+			frame + n);
 		if (n > 0) {
 			pending_wait = n;
 			if (asIScriptContext* ctx = asGetActiveContext())
@@ -1644,14 +1619,6 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			e->track_index = I(1);
 			e->started = true;
 			e->anim_paused = name == "SetSpriteMoneAnimationPaused" ? I(2) != 0 : false;
-			if (scene_trace())
-				std::fprintf(
-					stderr,
-					"[vm f=%ld] anim   \"%s\" track=%d paused=%d\n",
-					frame,
-					e->name.c_str(),
-					e->track_index,
-					e->anim_paused ? 1 : 0);
 			trace_event(
 				"sprite",
 				"anim",
@@ -1665,8 +1632,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track_index = I(1);
 			e->started = true;
-			if (scene_trace())
-				std::fprintf(stderr, "[vm f=%ld] anim   \"%s\" track=%d\n", frame, e->name.c_str(), e->track_index);
+			spdlog::debug("anim: {} track={}", e->name, e->track_index);
 			mark_dirty();
 		}
 		return true;
@@ -1681,14 +1647,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 				if (ti >= 0)
 					e->track_index = ti;
 			}
-			if (scene_trace())
-				std::fprintf(
-					stderr,
-					"[vm f=%ld] anim   \"%s\" track=\"%s\" idx=%d\n",
-					frame,
-					e->name.c_str(),
-					e->track.c_str(),
-					e->track_index);
+			spdlog::debug("anim: {} track={} index={}", e->name, e->track, e->track_index);
 			mark_dirty();
 		}
 		return true;
@@ -1726,14 +1685,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		}
 		if (RuntimeEntity* e = ent(0)) {
 			const int fade = std::max({0, I(1), I(2)});
-			if (scene_trace())
-				std::fprintf(
-					stderr,
-					"[vm f=%ld] delete %-22s \"%s\" fade=%d\n",
-					frame,
-					std::string(name).c_str(),
-					e->name.c_str(),
-					fade);
+			spdlog::debug("delete: {} target={} fade={}", name, e->name, fade);
 			if (fade > 0) {
 				e->fade_start = frame;
 				e->fade_duration = fade;
@@ -2545,8 +2497,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		// still TODO (we only need the length for Wait(GetSoundLength(cue)+60)).
 		const int cue = I(0);
 		const int len = _sound_length ? _sound_length(cue) : 0;
-		if (std::getenv("SCENE_TRACE"))
-			std::fprintf(stderr, "[snd] GetSoundLength(%d)=%d\n", cue, len);
+		spdlog::debug("sound: GetSoundLength({})={}", cue, len);
 		gen->SetReturnDWord(static_cast<asDWORD>(len));
 		return true;
 	}

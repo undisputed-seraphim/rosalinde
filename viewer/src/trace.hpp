@@ -5,18 +5,12 @@
 #include <chrono>
 #include <cstdarg>
 #include <cstdio>
-#include <cstdlib>
 #include <string>
 
 // Lightweight stage tracing for startup timing: prints "[trace +NNN.Nms] ..."
 // relative to the last reset_trace() (called at the top of main()). Per-scope
-// detail lines (Scoped) are only printed when $VIEWER_TRACE_DETAIL is set.
+// detail lines are debug-level and controlled by VIEWER_LOG_LEVEL.
 namespace viewer::trace {
-
-inline bool detail_enabled() {
-	static const bool enabled = std::getenv("VIEWER_TRACE_DETAIL") != nullptr;
-	return enabled;
-}
 
 inline std::chrono::steady_clock::time_point& origin() {
 	static std::chrono::steady_clock::time_point t = std::chrono::steady_clock::now();
@@ -50,8 +44,6 @@ public:
 	Scoped& operator=(const Scoped&) = delete;
 
 	~Scoped() {
-		if (!detail_enabled())
-			return;
 		const auto d = std::chrono::steady_clock::now() - _t0;
 		spdlog::debug(
 			"[trace +{:9.1f}ms]   {}: {:.1f}ms",

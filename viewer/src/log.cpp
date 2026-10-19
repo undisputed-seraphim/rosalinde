@@ -12,8 +12,6 @@ spdlog::level::level_enum configured_level() {
 	std::string_view name;
 	if (const char* value = std::getenv("VIEWER_LOG_LEVEL"))
 		name = value;
-	else if (std::getenv("SCENE_TRACE") || std::getenv("VIEWER_TRACE_DETAIL") || std::getenv("VIEWER_TRACE_SPRITES"))
-		name = "debug";
 	else
 		name = "info";
 
