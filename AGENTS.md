@@ -183,6 +183,7 @@ python3 visiontest/opening_diff.py \
 | `VIEWER_RUN_ONLY`, `VIEWER_RUN_FROM`, `VIEWER_MAIN_ONLY` | restrict MBS runs for debugging |
 | `VIEWER_RUNS=seq`, `VIEWER_SEQ_MAIN`, `VIEWER_ADVANCE`, `VIEWER_ONCE` | sequential-phase / start-offset / end-mode experiments |
 | `VIEWER_HIDE` | hide objects whose name contains the value |
+| `VIEWER_FORCE_START`, `VIEWER_FORCE_TRACK` | force matching created sprites to start, optionally on a specific track |
 | `VIEWER_DATA` | runtime data directory (same as `--data-dir`) |
 | `VIEWER_CAM_Y`, `VIEWER_ORTHO` | camera/design-space overrides |
 | `BG_DUMP`, `BG_LAYERS`, `FTX_GPU_DUMP` | MBS/FTX asset diagnostics |

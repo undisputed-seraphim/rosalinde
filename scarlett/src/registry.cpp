@@ -361,8 +361,11 @@ void Registry::create_sprite(
 	// stay in field space.
 	e.space = kind == "CreateSpriteMone" ? RuntimeEntity::Space::Ui : RuntimeEntity::Space::World;
 	e.started = false;
-	if (const char* o = std::getenv("VIEWER_FORCE_START"); o && id.find(o) != std::string::npos)
+	if (const char* o = std::getenv("VIEWER_FORCE_START"); o && id.find(o) != std::string::npos) {
 		e.started = true;
+		if (const char* t = std::getenv("VIEWER_FORCE_TRACK"))
+			e.track_index = std::atoi(t);
+	}
 	if (!id.empty() && e.aliases.empty())
 		e.aliases.push_back(id);
 	if (!mbs.empty())
