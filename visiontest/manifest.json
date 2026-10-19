@@ -1,0 +1,78 @@
+{
+  "config": {
+    "width": 960,
+    "height": 540,
+    "blur_sigma": 1.0,
+    "align_window": 2
+  },
+  "ignore_regions": [],
+  "regions": {
+    "full": [0.0, 0.0, 1.0, 1.0],
+    "title": [0.05, 0.06, 0.95, 0.82],
+    "background": [0.0, 0.55, 1.0, 1.0]
+  },
+  "frames": [
+    {
+      "frame": 60,
+      "name": "vanilla logo",
+      "known_open": true,
+      "checks": [
+        { "metric": "pair.full.ssim", "op": ">=", "value": 0.12 },
+        { "metric": "viewer.title.saturation_mean", "op": ">=", "value": 0.02 }
+      ]
+    },
+    {
+      "frame": 420,
+      "name": "city establishing",
+      "checks": [
+        { "metric": "pair.full.ssim", "op": ">=", "value": 0.45 },
+        { "metric": "pair.full.hist_intersection", "op": ">=", "value": 0.35 }
+      ]
+    },
+    {
+      "frame": 480,
+      "name": "city establishing",
+      "checks": [
+        { "metric": "pair.full.ssim", "op": ">=", "value": 0.5 },
+        { "metric": "pair.full.hist_intersection", "op": ">=", "value": 0.35 }
+      ]
+    },
+    {
+      "frame": 840,
+      "name": "title white flash",
+      "known_open": true,
+      "checks": [
+        { "metric": "viewer.title.saturation_mean", "op": "<=", "value": 0.04 },
+        { "metric": "viewer.title.luma_mean", "op": ">=", "value": 190.0 }
+      ]
+    },
+    {
+      "frame": 960,
+      "name": "colored title",
+      "checks": [
+        { "metric": "pair.title.gradient_correlation", "op": ">=", "value": 0.45 },
+        { "metric": "pair.title.ssim", "op": ">=", "value": 0.3 },
+        { "metric": "viewer.title.saturation_mean", "op": ">=", "value": 0.05 },
+        { "metric": "pair.full.ssim", "op": ">=", "value": 0.4 }
+      ]
+    },
+    {
+      "frame": 1140,
+      "name": "colored title",
+      "known_open": true,
+      "checks": [
+        { "metric": "pair.title.gradient_correlation", "op": ">=", "value": 0.3 },
+        { "metric": "viewer.title.saturation_mean", "op": ">=", "value": 0.05 }
+      ]
+    },
+    {
+      "frame": 1500,
+      "name": "sanctum",
+      "known_open": true,
+      "checks": [
+        { "metric": "pair.full.ssim", "op": ">=", "value": 0.2 },
+        { "metric": "pair.full.hist_intersection", "op": ">=", "value": 0.35 }
+      ]
+    }
+  ]
+}

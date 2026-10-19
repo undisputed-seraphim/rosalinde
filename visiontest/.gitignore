@@ -1,0 +1,4 @@
+out/
+*.ppm
+__pycache__/
+*.pyc
