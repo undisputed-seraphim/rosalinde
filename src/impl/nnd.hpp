@@ -7,7 +7,14 @@
 #include <string>
 #include <vector>
 
-// NND (node network data, NodeNetworkData/*.nnd). All fields little endian.
+// NND (node network data, NodeNetworkData/*.nnd) is the overworld
+// army-movement graph. Each file covers one world-space rectangle named by its
+// filename; the ground and FLY_ files are parallel movement layers over the
+// same rectangle. Nodes and weighted edges form the graph, and named link
+// groups associate pairs of edges with places such as gates, bridges, towns and
+// overworld tiles. It is overworld navigation data, not a battle map.
+//
+// All fields little endian.
 //
 // 8-byte header:
 //   0x00  u32 version
@@ -48,8 +55,6 @@
 //     codes (34 distinct pairs; (1, 1) and (0, 0) dominate); their meaning is
 //     not decoded.
 //   - link pairs connect two edge ids at a named place; exact semantics open.
-//
-// This is the overworld/field army movement graph, not a battle map.
 //
 //   - The filename rectangle is the stage/world rectangle. There are 151
 //     ground files and 151 FLY_ files, and every ground rectangle has an

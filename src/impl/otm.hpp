@@ -7,9 +7,13 @@
 #include <string>
 #include <vector>
 
-// OTBM container (Criware ".otm", Unicorn Overlord). All multi-byte fields are
-// little endian. The 120-byte header is followed by three offset-delimited
-// arrays:
+// OTM (OTBM container) is the audio timeline for an MBS. It is not a
+// colour/appearance table: track i corresponds to MBS section_9 track i, each
+// event selects a cue record, and each cue's cue_id resolves to a CRI ACB sound
+// or voice cue. cue.frame is a frame offset within its track.
+//
+// All multi-byte fields are little endian. The 120-byte header is followed by
+// three offset-delimited arrays:
 //
 //   0x00  char[4]  "OTBM"
 //   0x04  u32      data_size   = file size - 120
@@ -56,8 +60,6 @@
 //     variants, not body-part meshes. Their maximum voice cue IDs follow:
 //       male   1110045 + (style - 1) * 600 + (branch - 1) * 100
 //       female 1110345 + (style - 1) * 600 + (branch - 1) * 100
-//   - OTM is an audio timeline, not a colour/appearance table. Colour selection
-//     lives in the MBS layer data.
 namespace otm {
 
 #pragma pack(push, 1)
