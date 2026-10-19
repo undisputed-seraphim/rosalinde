@@ -24,7 +24,7 @@ struct CachedKeyframe {
 		uint16_t tex_id;
 		uint16_t _pad;
 		uint32_t s4_layer_start = 0;
-		uint32_t s4_unk0 = 0;
+		uint32_t s4_source_tile_id = 0;
 		uint8_t s4_flags = 0;
 		uint16_t s1_uv_id = 0;
 		uint16_t s2_vertex_id = 0;
@@ -81,7 +81,7 @@ struct LayerVisit {
 	uint32_t run = 0;
 	int32_t layer = -1;
 	uint32_t s4_layer_start = 0;
-	uint32_t s4_unk0 = 0;
+	uint32_t s4_source_tile_id = 0;
 	uint8_t s4_flags = 0;
 	uint16_t s1_uv_id = 0;
 	uint16_t s2_vertex_id = 0;

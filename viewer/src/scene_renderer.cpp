@@ -425,7 +425,7 @@ void SceneRenderer::probe_layers(
 							   << ",\"s6\":" << layer.s6_keyframe_id << ",\"s7\":" << layer.s7_transform_id
 							   << ",\"s6_interp\":" << static_cast<unsigned>(layer.s6_keyframe_interpolation)
 							   << ",\"s7_interp\":" << static_cast<unsigned>(layer.s7_transform_interpolation)
-							   << ",\"s4\":" << layer.s4_layer_start << ",\"s4_unk0\":" << layer.s4_unk0
+							   << ",\"s4\":" << layer.s4_layer_start << ",\"s4_source_tile_id\":" << layer.s4_source_tile_id
 							   << ",\"s4_flags\":" << static_cast<unsigned>(layer.s4_flags) << ",\"s1\":" << layer.s1_uv_id
 							   << ",\"s2\":" << layer.s2_vertex_id << ",\"s0\":" << layer.s0_color_row_id
 							   << ",\"color_id\":" << static_cast<unsigned>(layer.color_id)

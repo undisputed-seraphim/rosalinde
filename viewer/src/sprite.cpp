@@ -98,7 +98,7 @@ void SpriteData::preprocess() {
 			layer.notex = notex;
 			layer.tex_id = notex ? 0xFFFF : s4.tex_id;
 			layer.s4_layer_start = s6.s4_layer_start + j;
-			layer.s4_unk0 = s4._unk0;
+			layer.s4_source_tile_id = s4.s4_source_tile_id;
 			layer.s4_flags = s4.flags;
 			layer.s1_uv_id = s4.s1_uv_id;
 			layer.s2_vertex_id = s4.s2_vertex_id;
@@ -264,15 +264,13 @@ void SpriteInstance::update(float dt_seconds) {
 				const auto& prev_s8 = data->v77.s8[run.s8_start + offsets[i]];
 				prev_offsets[i] = offsets[i];
 				if (prev_s8.flags & mbs::v77::s8flag::JUMP) {
-					if (prev_s8.s8_loop_offset != 0) {
-						offsets[i] = (offsets[i] + prev_s8.s8_loop_offset) % run.s8_count;
-					} else if (prev_s8.flags & mbs::v77::s8flag::LAST) {
-						if (run.once) {
-							done[i] = 1;
-							offsets[i] = run.s8_count - 1;
-						} else {
-							offsets[i] = 0;
-						}
+					const int32_t target =
+						static_cast<int32_t>(run.s8_start_offset) + static_cast<int16_t>(prev_s8.s8_loop_target);
+					if (target >= 0 && static_cast<uint32_t>(target) < run.s8_count) {
+						offsets[i] = static_cast<uint32_t>(target);
+					} else {
+						done[i] = 1;
+						offsets[i] = run.s8_count - 1;
 					}
 				} else if (run.once && offsets[i] + 1 >= run.s8_count) {
 					done[i] = 1;
@@ -415,10 +413,9 @@ void SpriteInstance::for_each_layer(
 	base.s7_transform_id = s8.s7_transform_id;
 	base.s6_keyframe_interpolation = s8.s6_keyframe_interpolation;
 	base.s7_transform_interpolation = s8.s7_transform_interpolation;
-	// Draw only frames flagged ACTIVE (0x20). 0x400 is a common modifier bit
-	// that co-occurs with ACTIVE on normal frames (not a "hitbox-only" marker),
-	// and 0x800 without ACTIVE is a non-rendered end sentinel — both covered by
-	// the ACTIVE test.
+	// Viewer draw gate. The engine additionally suppresses 0x40 (update+draw)
+	// and 0x400 (render object only); this viewer still draws ACTIVE frames that
+	// carry 0x400, so it remains an approximation of the engine path.
 	if (!(s8.flags & mbs::v77::s8flag::ACTIVE)) {
 		base.skip = "inactive";
 		visit(base);
@@ -456,7 +453,7 @@ void SpriteInstance::for_each_layer(
 		LayerVisit v = base;
 		v.layer = static_cast<int32_t>(i);
 		v.s4_layer_start = layer.s4_layer_start;
-		v.s4_unk0 = layer.s4_unk0;
+		v.s4_source_tile_id = layer.s4_source_tile_id;
 		v.s4_flags = layer.s4_flags;
 		v.s1_uv_id = layer.s1_uv_id;
 		v.s2_vertex_id = layer.s2_vertex_id;
@@ -674,7 +671,7 @@ glm::vec4 SpriteInstance::render_bounds() const {
 		if (run.s8_count == 0 || i >= offsets.size())
 			continue;
 		const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
-		if (s8.flags & mbs::v77::s8flag::HITBOX)
+		if (s8.flags & mbs::v77::s8flag::NODRAW)
 			continue;
 		if ((s8.flags & mbs::v77::s8flag::LAST) && !(s8.flags & mbs::v77::s8flag::ACTIVE))
 			continue;

@@ -55,7 +55,7 @@ struct section_3 {
 
 // Keyframe Layer
 struct section_4 {
-	uint32_t _unk0;
+	uint32_t s4_source_tile_id; // source tile/UV id; usually 1:1 with s1_uv_id
 	uint8_t color_id;
 	uint8_t flags;
 	uint8_t blend_id;
@@ -69,9 +69,9 @@ struct section_4 {
 
 struct section_5 {
 	uint16_t s3_id;
-	uint8_t _unk0; // all 0
-	uint8_t _unk1; // all 0
-	uint32_t flags;
+	uint8_t s5_hitbox_kind; // hitbox kind/group; gameplay use not mapped
+	uint8_t s5_hitbox_control; // bit0: no geometry; bit1: disable interpolation
+	uint32_t flags; // hitbox flags; exact bits not mapped
 };
 
 // Keyframe
@@ -84,7 +84,7 @@ struct section_6 {
 	uint16_t s5_hitbox_start; // starting hitbox id
 	uint16_t s4_layer_count; // nr of layers
 	uint8_t s5_hitbox_count;	// nr of hitboxes
-	uint8_t flags;
+	uint8_t flags; // keyframe flags; exact bits not mapped
 	uint16_t _pad0;
 };
 
@@ -101,17 +101,17 @@ struct section_8 {
 	uint16_t s7_transform_id;
 	uint16_t s8_duration_ticks;
 	uint32_t flags;
-	uint16_t s8_loop_offset;
+	uint16_t s8_loop_target; // absolute target offset; engine treats negative as 0
 	uint8_t s5s3_hitbox_interpolation;
 	uint8_t interpolation_rate;
 	uint8_t s7_transform_interpolation;
 	uint8_t s6_keyframe_interpolation;
-	uint8_t s0s1s2_interpolation;
-	uint8_t n_180;
-	uint32_t _pad1;
-	uint16_t _pad2;
-	uint16_t sfx_mute;
-	uint32_t sfx_id;
+	uint8_t s8_render_value; // render-object +0x1e4; exact visual meaning open
+	uint8_t s8_draw_offset; // signed draw/sort offset, not a turn count
+	uint32_t s8_event_arg; // 0x80 callback payload word 0; nonzero in 43 frames
+	uint16_t s8_event_flag; // 0x80 callback flag index; nonzero in 3562 frames
+	uint16_t s8_event_value; // 0x80 callback payload; nonzero in 8 frames
+	uint32_t s8_reserved; // zero in all 969315 corpus frames
 };
 
 struct section_9 {
@@ -142,14 +142,15 @@ struct section_a {
 };
 
 struct section_b {
-	uint32_t speed_num; // per-frame speed numerator (3–75)
-	uint16_t speed_den; // per-frame speed denominator (1–17)
-	uint32_t _pad0;		// always 0
-	uint16_t _pad1;		// always 0
-	uint16_t oneshot;	// one-shot flag (0–3)
-	uint32_t _pad2;		// always 0
-	uint16_t _pad3;		// always 0
+	uint32_t speed_num; // per-frame speed numerator
+	uint16_t speed_den; // per-frame speed denominator
+	uint16_t _pad0;		// always 0
+	uint32_t timing_a;	// 0 on characters; 40-140 on BGBtRoad_h
+	uint16_t oneshot;	// 0-3 on characters; 10 on BGBtRoad_h
+	uint16_t timing_b;	// 0 on characters; 10-100 on BGBtRoad_h
+	uint32_t _pad1;		// always 0
 };
+static_assert(sizeof(section_b) == 0x14);
 #pragma pack(pop)
 
 struct v77 {
@@ -169,20 +170,25 @@ struct v77 {
 	friend std::istream& operator>>(std::istream&, v77&);
 
 	enum s4flag : uint8_t {
+		ENABLED = 0x01,
 		SKIP = 0x02,
 		NOTEX = 0x04,
 	};
 
 	enum s8flag : uint32_t {
 		// clang-format off
-		FLIPX  = 0x01,   // horizontal mirror
-		FLIPY  = 0x02,   // vertical mirror (rare)
-		JUMP   = 0x04,   // control-flow: next = current + s8_loop_offset (relative)
-		ACTIVE = 0x20,   // frame is renderable (cleared on non-rendered frames)
-		POSE   = 0x80,   // unconfirmed (rare); legacy "non-idle pose" guess
-		HITBOX = 0x400,  // common modifier on normal frames -- NOT hitbox-only
-		LAST   = 0x800,  // end-of-sequence marker (loop point when also JUMP)
-		//?    = 0x2000, // rarely set, purpose unclear
+		FLIPX    = 0x01,   // horizontal mirror
+		FLIPY    = 0x02,   // vertical mirror (rare)
+		JUMP     = 0x04,   // next frame offset = s8_loop_target (sequence-relative absolute)
+		HOLD     = 0x08,   // no frame advance; holds the current frame
+		ACTIVE   = 0x20,   // frame is renderable
+		HIDDEN   = 0x40,   // skip update and draw (s8_frame_is_hidden / sprite_ease_and_build)
+		EVENT    = 0x80,   // invokes the TrackInstance +0xa0 payload callback
+		NODRAW   = 0x400,  // update continues, but sprite_build_matrix creates no render object
+		LAST     = 0x800,  // end-of-sequence marker (loop point when also JUMP)
+		STOP     = 0x1000, // same no-advance path as LAST; one corpus occurrence
+		GLOBAL   = 0x2000, // sets global renderer flags; exact pass not mapped
+		// 0x10, 0x100, 0x200 never occurred in 722 files
 		// clang-format on
 	};
 };

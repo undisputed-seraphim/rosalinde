@@ -215,12 +215,12 @@ std::vector<table> build_tables(const mbs::v77& value) {
 		table out{
 			"s4",
 			section_labels[4],
-			{"_unk0", "color_id", "flags", "blend_id", "tex_id", "attributes", "s1_uv_id", "s0_color_row_id", "s2_vertex_id", "_pad"},
+			{"s4_source_tile_id", "color_id", "flags", "blend_id", "tex_id", "attributes", "s1_uv_id", "s0_color_row_id", "s2_vertex_id", "_pad"},
 			{}};
 		out.rows.reserve(value.s4.size());
 		for (const auto& item : value.s4) {
 			out.rows.push_back(
-				{cell::unum(item._unk0),
+				{cell::unum(item.s4_source_tile_id),
 				 cell::unum(item.color_id),
 				 cell::unum(item.flags),
 				 cell::unum(item.blend_id),
@@ -235,11 +235,11 @@ std::vector<table> build_tables(const mbs::v77& value) {
 	}
 
 	{
-		table out{"s5", section_labels[5], {"s3_id", "_unk0", "_unk1", "flags"}, {}};
+		table out{"s5", section_labels[5], {"s3_id", "s5_hitbox_kind", "s5_hitbox_control", "flags"}, {}};
 		out.rows.reserve(value.s5.size());
 		for (const auto& item : value.s5)
 			out.rows.push_back(
-				{cell::unum(item.s3_id), cell::unum(item._unk0), cell::unum(item._unk1), cell::unum(item.flags)});
+				{cell::unum(item.s3_id), cell::unum(item.s5_hitbox_kind), cell::unum(item.s5_hitbox_control), cell::unum(item.flags)});
 		tables.push_back(std::move(out));
 	}
 
@@ -292,9 +292,9 @@ std::vector<table> build_tables(const mbs::v77& value) {
 		table out{
 			"s8",
 			section_labels[8],
-			{"s6_keyframe_id",	  "_pad0",		   "s7_transform_id", "s8_duration_ticks", "FLIPX",		"FLIPY",	   "JUMP",		  "0x20",
-			 "0x80",	  "HITBOX",		   "LAST",	"0x2000", "s8_loop_offset", "s5s3_interp", "interp_rate", "s7_interp",
-			 "s6_interp", "s0s1s2_interp", "n_180", "_pad1",  "_pad2",		"sfx_mute",	   "sfx_id"},
+			{"s6_keyframe_id",	  "_pad0",		   "s7_transform_id", "s8_duration_ticks", "FLIPX",		"FLIPY",	   "JUMP",		  "ACTIVE",
+			 "EVENT",	  "NODRAW",		   "LAST",	"GLOBAL", "s8_loop_target", "s5s3_interp", "interp_rate", "s7_interp",
+			 "s6_interp", "s8_render_value", "s8_draw_offset", "s8_event_arg",  "s8_event_flag",		"s8_event_value",	   "s8_reserved"},
 			{}};
 		out.rows.reserve(value.s8.size());
 		for (const auto& item : value.s8) {
@@ -311,17 +311,17 @@ std::vector<table> build_tables(const mbs::v77& value) {
 				 cell::unum((item.flags & 0x400) ? 1 : 0),
 				 cell::unum((item.flags & 0x800) ? 1 : 0),
 				 cell::unum((item.flags & 0x2000) ? 1 : 0),
-				 cell::unum(item.s8_loop_offset),
+				 cell::unum(item.s8_loop_target),
 				 cell::unum(item.s5s3_hitbox_interpolation),
 				 cell::unum(item.interpolation_rate),
 				 cell::unum(item.s7_transform_interpolation),
 				 cell::unum(item.s6_keyframe_interpolation),
-				 cell::unum(item.s0s1s2_interpolation),
-				 cell::unum(item.n_180),
-				 cell::unum(item._pad1),
-				 cell::unum(item._pad2),
-				 cell::unum(item.sfx_mute),
-				 cell::unum(item.sfx_id)});
+				 cell::unum(item.s8_render_value),
+				 cell::unum(item.s8_draw_offset),
+				 cell::unum(item.s8_event_arg),
+				 cell::unum(item.s8_event_flag),
+				 cell::unum(item.s8_event_value),
+				 cell::unum(item.s8_reserved)});
 		}
 		tables.push_back(std::move(out));
 	}
@@ -385,17 +385,17 @@ std::vector<table> build_tables(const mbs::v77& value) {
 
 	{
 		table out{
-			"sb", section_labels[11], {"speed_num", "speed_den", "_pad0", "_pad1", "oneshot", "_pad2", "_pad3"}, {}};
+			"sb", section_labels[11], {"speed_num", "speed_den", "_pad0", "timing_a", "oneshot", "timing_b", "_pad1"}, {}};
 		out.rows.reserve(value.sb.size());
 		for (const auto& item : value.sb) {
 			out.rows.push_back(
 				{cell::unum(item.speed_num),
 				 cell::unum(item.speed_den),
 				 cell::unum(item._pad0),
-				 cell::unum(item._pad1),
+				 cell::unum(item.timing_a),
 				 cell::unum(item.oneshot),
-				 cell::unum(item._pad2),
-				 cell::unum(item._pad3)});
+				 cell::unum(item.timing_b),
+				 cell::unum(item._pad1)});
 		}
 		tables.push_back(std::move(out));
 	}
@@ -506,10 +506,10 @@ std::string flag_text(uint32_t flags) {
 	append(0x02, "FLIPY");
 	append(0x04, "JUMP");
 	append(0x20, "ACTIVE");
-	append(0x80, "POSE");
-	append(0x400, "HITBOX");
+	append(0x80, "EVENT");
+	append(0x400, "NODRAW");
 	append(0x800, "LAST");
-	append(0x2000, "0x2000");
+	append(0x2000, "GLOBAL");
 	return text.empty() ? "none" : text;
 }
 
@@ -661,14 +661,15 @@ void dump_sequence_text(const mbs::v77& value, size_t track_index, size_t sequen
 			std::cout << " t=" << timeline << " end=" << end;
 		std::cout << " s8=" << s8_index << " duration=" << frame.s8_duration_ticks
 				  << " flags=" << std::format("{:#x}", frame.flags) << " [" << flag_text(frame.flags)
-				  << "] s6=" << frame.s6_keyframe_id << " s7=" << frame.s7_transform_id << " s8_loop_offset=" << frame.s8_loop_offset
+				  << "] s6=" << frame.s6_keyframe_id << " s7=" << frame.s7_transform_id << " s8_loop_target=" << frame.s8_loop_target
 				  << " s5s3=" << static_cast<unsigned>(frame.s5s3_hitbox_interpolation)
 				  << " rate=" << static_cast<unsigned>(frame.interpolation_rate)
 				  << " s7i=" << static_cast<unsigned>(frame.s7_transform_interpolation)
 				  << " s6i=" << static_cast<unsigned>(frame.s6_keyframe_interpolation)
-				  << " s0s1s2=" << static_cast<unsigned>(frame.s0s1s2_interpolation)
-				  << " n_180=" << static_cast<unsigned>(frame.n_180) << " sfx=" << frame.sfx_id
-				  << " mute=" << frame.sfx_mute;
+				  << " s8_render_value=" << static_cast<unsigned>(frame.s8_render_value)
+				  << " s8_draw_offset=" << static_cast<unsigned>(frame.s8_draw_offset) << " s8_reserved=" << frame.s8_reserved
+				  << " event_arg=" << frame.s8_event_arg << " event_flag=" << frame.s8_event_flag
+				  << " event_value=" << frame.s8_event_value;
 		if (opt.colors)
 			std::cout << " fog=" << std::format("{:#x}", frame_fog(value, frame));
 		std::cout << '\n';
@@ -740,15 +741,17 @@ void write_frame_json(
 	json.field("s7_transform_id", frame.s7_transform_id);
 	json.field("duration", frame.s8_duration_ticks);
 	json.field("flags", frame.flags);
-	json.field("s8_loop_offset", frame.s8_loop_offset);
+	json.field("s8_loop_target", frame.s8_loop_target);
 	json.field("s5s3_hitbox_interpolation", frame.s5s3_hitbox_interpolation);
 	json.field("interpolation_rate", frame.interpolation_rate);
 	json.field("s7_transform_interpolation", frame.s7_transform_interpolation);
 	json.field("s6_keyframe_interpolation", frame.s6_keyframe_interpolation);
-	json.field("s0s1s2_interpolation", frame.s0s1s2_interpolation);
-	json.field("n_180", frame.n_180);
-	json.field("sfx_mute", frame.sfx_mute);
-	json.field("sfx_id", frame.sfx_id);
+	json.field("s8_render_value", frame.s8_render_value);
+	json.field("s8_draw_offset", frame.s8_draw_offset);
+	json.field("s8_event_arg", frame.s8_event_arg);
+	json.field("s8_event_flag", frame.s8_event_flag);
+	json.field("s8_event_value", frame.s8_event_value);
+	json.field("s8_reserved", frame.s8_reserved);
 	if (colors)
 		write_frame_colors_json(json, value, frame);
 	json.end_object();

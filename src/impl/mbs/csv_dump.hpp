@@ -109,13 +109,13 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 
 	{
 		auto ofs = open("section_4.csv");
-		ofs << "_unk0,color_id,flags,blend_id,tex_id,attributes,s1_uv_id,s0_color_row_id,s2_vertex_id,_pad\n";
+		ofs << "s4_source_tile_id,color_id,flags,blend_id,tex_id,attributes,s1_uv_id,s0_color_row_id,s2_vertex_id,_pad\n";
 		constexpr auto fmt = "{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x},{:#x}\n"sv;
 		constexpr auto decfmt = "{},{},{},{},{},{},{},{},{},{}\n"sv;
 		for (const auto& s : v.s4) {
 			ofs << std::format(
 				decfmt,
-				s._unk0,
+				s.s4_source_tile_id,
 				s.color_id,
 				s.flags,
 				s.blend_id,
@@ -130,11 +130,11 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 
 	{
 		auto ofs = open("section_5.csv");
-		ofs << "s3_id,_unk0,_unk1,flags\n";
+		ofs << "s3_id,s5_hitbox_kind,s5_hitbox_control,flags\n";
 		constexpr auto fmt = "{:#x},{:#x},{:#x},{:#x}\n"sv;
 		constexpr auto decfmt = "{},{},{},{}\n"sv;
 		for (const auto& s : v.s5) {
-			ofs << std::format(decfmt, s.s3_id, s._unk0, s._unk1, s.flags);
+			ofs << std::format(decfmt, s.s3_id, s.s5_hitbox_kind, s.s5_hitbox_control, s.flags);
 		}
 	}
 
@@ -161,9 +161,8 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 	{
 		auto ofs = open("section_8.csv");
 		ofs << "s6_keyframe_id,_pad0,s7_transform_id,s8_duration_ticks,"
-			<< "FLIPX,FLIPY,JUMP,0x20,0x80,HITBOX,LAST,0x2000,"
-			<< "s8_loop_offset,s5s3_interp,interp_rate,s7_interp,s6_interp,s0s1s2_interp,n_180,_pad1,_pad2,sfx_mute,sfx_"
-			   "id\n";
+			<< "FLIPX,FLIPY,JUMP,ACTIVE,EVENT,NODRAW,LAST,GLOBAL,"
+			<< "s8_loop_target,s5s3_interp,interp_rate,s7_interp,s6_interp,s8_render_value,s8_draw_offset,s8_event_arg,s8_event_flag,s8_event_value,s8_reserved\n";
 		constexpr auto fmt = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n"sv;
 		constexpr auto flagfmt = "{},{},{},{},{},{},{},{}"sv;
 		for (const auto& s : v.s8) {
@@ -184,17 +183,17 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 				s.s7_transform_id,
 				s.s8_duration_ticks,
 				flagstr,
-				s.s8_loop_offset,
+				s.s8_loop_target,
 				s.s5s3_hitbox_interpolation,
 				s.interpolation_rate,
 				s.s7_transform_interpolation,
 				s.s6_keyframe_interpolation,
-				s.s0s1s2_interpolation,
-				s.n_180,
-				s._pad1,
-				s._pad2,
-				s.sfx_mute,
-				s.sfx_id);
+				s.s8_render_value,
+				s.s8_draw_offset,
+				s.s8_event_arg,
+				s.s8_event_flag,
+				s.s8_event_value,
+				s.s8_reserved);
 		}
 	}
 
@@ -241,10 +240,10 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 
 	{
 		auto ofs = open("section_b.csv");
-		ofs << "speed_num,speed_den,_pad0,_pad1,oneshot,_pad2,_pad3\n";
+		ofs << "speed_num,speed_den,_pad0,timing_a,oneshot,timing_b,_pad1\n";
 		constexpr auto fmt = "{},{},{},{},{},{},{}\n"sv;
 		for (const auto& s : v.sb) {
-			ofs << std::format(fmt, s.speed_num, s.speed_den, s._pad0, s._pad1, s.oneshot, s._pad2, s._pad3);
+			ofs << std::format(fmt, s.speed_num, s.speed_den, s._pad0, s.timing_a, s.oneshot, s.timing_b, s._pad1);
 		}
 	}
 }
