@@ -9,6 +9,7 @@
 #include <glm/glm.hpp>
 #include <map>
 #include <memory>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -21,7 +22,13 @@ public:
 	SpriteRenderer& operator=(SpriteRenderer&& other) noexcept;
 
 	void upload_textures(const SpriteData& data, std::string_view label = {});
+	void upload_textures(std::span<const FTX::Entry> textures, std::string_view label = {});
 	GLuint texture_array() const { return _texture_array; }
+	void draw_raw(
+		std::span<const SpriteVertex> verts,
+		std::span<const uint32_t> indices,
+		const glm::mat4& mvp,
+		float alpha = 1.0f);
 	void draw(
 		const SpriteInstance& inst,
 		const glm::mat4& projection,

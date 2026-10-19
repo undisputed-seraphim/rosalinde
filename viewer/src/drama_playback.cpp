@@ -19,6 +19,7 @@
 #include <glm/ext.hpp>
 #include <imgui.h>
 #include <iostream>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <unordered_map>
@@ -87,18 +88,76 @@ int mbs_resolve_track(const AssetLoader& loader, const std::string& mbs, const s
 	return idx;
 }
 
-std::string stage_background_name(int type) {
+std::string stage_name_at(int type) {
+	static const std::vector<std::string> names = [] {
+		std::vector<std::string> out;
+		std::ifstream f(viewer_data_dir() + "/stages.tsv");
+		std::string line;
+		while (std::getline(f, line)) {
+			if (line.empty() || line[0] == '#')
+				continue;
+			const size_t tab = line.find('\t');
+			out.push_back(line.substr(0, tab));
+		}
+		return out;
+	}();
+	if (type < 1 || static_cast<size_t>(type) > names.size())
+		return {};
+	return names[type - 1];
+}
+
+int field_area(char region) {
+	switch (region) {
+	case 'C':
+		return 0;
+	case 'A':
+		return 1;
+	case 'B':
+		return 2;
+	case 'D':
+		return 3;
+	case 'E':
+		return 4;
+	case 'Z':
+		return 10;
+	default:
+		return -1;
+	}
+}
+
+std::optional<Job> stage_background(int type, std::string_view entry) {
 	switch (type) {
 	case 179:
 	case 180:
-		return "BGOpening010";
+		if (auto it = BattleBGs.find("BGOpening010"); it != BattleBGs.end())
+			return it->second;
+		break;
 	case 82:
 	case 83:
 	case 78:
-		return "BGOpening090";
+		if (auto it = BattleBGs.find("BGOpening090"); it != BattleBGs.end())
+			return it->second;
+		break;
 	default:
-		return {};
+		break;
 	}
+
+	int area = -1;
+	if (const size_t drama = entry.find("Dr_OW_"); drama != std::string_view::npos && drama + 6 < entry.size())
+		area = field_area(entry[drama + 6]);
+	if (area < 0) {
+		const std::string stage = stage_name_at(type);
+		if (stage.rfind("ST_OW_", 0) == 0 && stage.size() >= 7)
+			area = field_area(stage[6]);
+	}
+	if (area < 0)
+		return std::nullopt;
+
+	const std::string prefix = "AC" + (area < 10 ? std::string("0") : std::string()) + std::to_string(area);
+	Job job;
+	job.mbs = {"FieldBG", prefix + "_00P.mbs"};
+	job.ftx = {"FieldBG", prefix + "_00P.ftx"};
+	return job;
 }
 
 } // namespace
@@ -357,17 +416,17 @@ void DramaPlayback::sync_stage() {
 	if (type == _stage_type)
 		return;
 	_stage_type = type;
-	const std::string name = stage_background_name(type);
-	spdlog::debug("stage: frame={} type={} -> {}", _session->scene().frame, type, name);
-	auto it = BattleBGs.find(name);
-	if (it == BattleBGs.end()) {
+	auto background = stage_background(type, _cfg.entry);
+	if (!background) {
+		spdlog::debug("stage: frame={} type={} -> none", _session->scene().frame, type);
 		_renderer.set_stage({}, {});
 		return;
 	}
 	const std::string mbs =
-		it->second.mbs.dir.empty() ? it->second.mbs.path : it->second.mbs.dir + "/" + it->second.mbs.path;
+		background->mbs.dir.empty() ? background->mbs.path : background->mbs.dir + "/" + background->mbs.path;
 	const std::string ftx =
-		it->second.ftx.dir.empty() ? it->second.ftx.path : it->second.ftx.dir + "/" + it->second.ftx.path;
+		background->ftx.dir.empty() ? background->ftx.path : background->ftx.dir + "/" + background->ftx.path;
+	spdlog::debug("stage: frame={} type={} -> {}", _session->scene().frame, type, mbs);
 	_renderer.set_stage(mbs, ftx);
 	_trace.write(
 		{static_cast<long>(_session->scene().frame),

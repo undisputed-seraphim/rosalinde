@@ -169,6 +169,10 @@ python3 visiontest/opening_diff.py \
   lengths. `asbrun` remains a script-only inspector and does not model animation waits.
 - **Formats**: `.asb` → `docs/ASB.md`; MBS/FTX → `docs/SECTIONS.md`; engine tables and native
   registration → `docs/EXE.md`; combat/stage surface → `docs/COMBAT.md`.
+- **Field stages**: `Dr_OW_<region>_...` uses `FieldBG/ACxx_00P.mbs`/`.ftx` plus the
+  matching `.mpd` quad list. The MPD is a 0xA0-byte record stream: id, texture
+  index in the low byte of the flags word, four `x,y,z,color,u,v` vertices, then
+  a short name. MPD UVs are normalized and must be scaled by the FTX texture size.
 
 ---
 

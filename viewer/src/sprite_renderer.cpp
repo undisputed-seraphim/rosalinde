@@ -87,8 +87,12 @@ SpriteRenderer::~SpriteRenderer() {
 }
 
 void SpriteRenderer::upload_textures(const SpriteData& data, std::string_view label) {
+	upload_textures(data.textures, label);
+}
+
+void SpriteRenderer::upload_textures(std::span<const FTX::Entry> textures, std::string_view label) {
 	uint32_t max_x = 0, max_y = 0;
-	for (const auto& t : data.textures) {
+	for (const auto& t : textures) {
 		max_x = std::max(max_x, t.width);
 		max_y = std::max(max_y, t.height);
 	}
@@ -103,12 +107,12 @@ void SpriteRenderer::upload_textures(const SpriteData& data, std::string_view la
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_ALWAYS);
 
-	glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, max_x, max_y, data.textures.size());
+	glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, max_x, max_y, textures.size());
 
 	if (!_deswizzler)
 		_deswizzler = std::make_unique<Deswizzler>();
-	for (size_t i = 0; i < data.textures.size(); ++i) {
-		const auto& t = data.textures[i];
+	for (size_t i = 0; i < textures.size(); ++i) {
+		const auto& t = textures[i];
 		const size_t need = static_cast<size_t>(t.compressed_size) + t.uncompressed_size;
 		if (t.width == 0 || t.height == 0 || t.rgba.size() < need) {
 			spdlog::warn(
@@ -124,7 +128,7 @@ void SpriteRenderer::upload_textures(const SpriteData& data, std::string_view la
 	const char* dump_dir = std::getenv("FTX_GPU_DUMP_DIR");
 	const char* match = std::getenv("FTX_GPU_DUMP_MATCH");
 	if (dump_dir && (!match || label.find(match) != std::string_view::npos)) {
-		const size_t pixels = static_cast<size_t>(max_x) * max_y * data.textures.size();
+		const size_t pixels = static_cast<size_t>(max_x) * max_y * textures.size();
 		if (pixels == 0 || pixels > 64u * 1024u * 1024u) {
 			spdlog::warn("texture dump skipped: {} ({} pixels)", label, pixels);
 		} else {
@@ -139,7 +143,7 @@ void SpriteRenderer::upload_textures(const SpriteData& data, std::string_view la
 			glBindTexture(GL_TEXTURE_2D_ARRAY, _texture_array);
 			glGetTexImage(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels_rgba.data());
 			const auto path = std::filesystem::path(dump_dir) / (name + ".png");
-			if (screenshot::write(path.string(), max_x, max_y * data.textures.size(), pixels_rgba))
+			if (screenshot::write(path.string(), max_x, max_y * textures.size(), pixels_rgba))
 				spdlog::info("texture dump: {}", path.string());
 			else
 				spdlog::error("texture dump failed: {}", path.string());
@@ -204,4 +208,24 @@ void SpriteRenderer::draw(
 			_ebo.drawElements(gl::Mode::TRIANGLES);
 		}
 	}
+}
+
+void SpriteRenderer::draw_raw(
+	std::span<const SpriteVertex> verts,
+	std::span<const uint32_t> indices,
+	const glm::mat4& mvp,
+	float alpha) {
+	if (verts.empty() || indices.empty() || _texture_array == 0)
+		return;
+	const auto& shader = GetKeyframeShader().Use();
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, _texture_array);
+	glBindVertexArray(_vao);
+	shader.SetUniform("u_tex", 0);
+	shader.SetUniform("u_alpha", alpha);
+	shader.SetUniform("u_mvp", mvp);
+	set_blend_mode(0);
+	_vbo.bind().setData(gl::buffer::Usage::STATIC_DRAW, verts);
+	_ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, indices);
+	_ebo.drawElements(gl::Mode::TRIANGLES);
 }

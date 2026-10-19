@@ -2,12 +2,14 @@
 
 #include "asset_library.hpp"
 #include "camera.hpp"
+#include "mpd_asset.hpp"
 #include "sprite_asset.hpp"
 
 #include <scarlett/scene.hpp>
 #include <scarlett/trace.hpp>
 
 #include <glm/glm.hpp>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -64,6 +66,8 @@ private:
 	Object _stage;
 	std::string _stage_mbs;
 	std::string _stage_ftx;
+	std::unique_ptr<MpdAsset> _stage_mpd;
+	std::string _stage_mpd_path;
 	std::vector<std::string> _only;
 	std::vector<std::string> _hide;
 	bool _keep_stage = false;

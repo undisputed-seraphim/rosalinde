@@ -163,6 +163,8 @@ void SceneRenderer::set_stage(const std::string& mbs, const std::string& ftx) {
 	_stage_mbs = mbs;
 	_stage_ftx = ftx;
 	_stage = Object{};
+	_stage_mpd.reset();
+	_stage_mpd_path.clear();
 }
 
 void SceneRenderer::rebuild(Object& object, const asb::RuntimeEntity& e, SpriteAssetPtr asset) {
@@ -277,9 +279,21 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			e.kind = "StageBG";
 			e.mbs = _stage_mbs;
 			e.ftx = _stage_ftx;
+			e.space = _stage_mbs.rfind("FieldBG/", 0) == 0 ? asb::RuntimeEntity::Space::Ui
+															 : asb::RuntimeEntity::Space::World;
 			e.order = -100000;
 			e.alpha = 255;
 			rebuild(_stage, e, std::move(asset));
+
+			if (_stage_mbs.rfind("FieldBG/", 0) == 0) {
+				std::string mpd = _stage_mbs;
+				if (const size_t ext = mpd.rfind('.'); ext != std::string::npos)
+					mpd.replace(ext, std::string::npos, ".mpd");
+				if (mpd != _stage_mpd_path) {
+					_stage_mpd = MpdAsset::load(_library.loader(), mpd, _stage_ftx);
+					_stage_mpd_path = std::move(mpd);
+				}
+			}
 		}
 	}
 }
@@ -585,6 +599,12 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 	enable_depth(GL_ALWAYS);
 	glClear(GL_DEPTH_BUFFER_BIT);
 
+	static const Camera ui_camera;
+	if (_stage_mpd && _stage.state.visible && !stage_replaced()) {
+		const Camera& stage_camera = _stage.state.space == asb::RuntimeEntity::Space::Ui ? ui_camera : camera;
+		_stage_mpd->draw(projection, stage_camera);
+	}
+
 	std::vector<Object*> order;
 	order.reserve(_objects.size());
 	for (auto& [_, object] : _objects)
@@ -644,7 +664,6 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 		}
 		_trace({_frame, "draw", "list", "\"objects\":[" + objects + "]"});
 	}
-	static const Camera ui_camera;
 	for (Object* object : order) {
 		const auto& e = object->state;
 		const glm::vec2 offset = parent_position(*object);
@@ -731,4 +750,6 @@ void SceneRenderer::clear() {
 	_stage = Object{};
 	_stage_mbs.clear();
 	_stage_ftx.clear();
+	_stage_mpd.reset();
+	_stage_mpd_path.clear();
 }
