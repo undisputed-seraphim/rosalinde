@@ -282,8 +282,8 @@ d BattleBG/BGBtPort_D.mbs --track 0 --seq 2
 
 ```text
 sequence[2] sa=2 s8[4..10) total_frames=211 once=0 commit=-1 track=7 loop=0
-  frame[0] s8=4 duration=42 flags=0x21 [FLIPX|ACTIVE] s6=37 s7=1 s8_loop_offset=0 ...
-  frame[1] s8=5 duration=42 flags=0x21 [FLIPX|ACTIVE] s6=38 s7=1 s8_loop_offset=0 ...
+  frame[0] s8=4 duration=42 flags=0x21 [FLIPX|ACTIVE] s6=37 s7=1 s8_loop_target=0 ...
+  frame[1] s8=5 duration=42 flags=0x21 [FLIPX|ACTIVE] s6=38 s7=1 s8_loop_target=0 ...
 ```
 
 - `frame[N]` is relative to the sequence
@@ -356,7 +356,7 @@ It contains header metadata and all 12 raw sections:
   "section_counts": { "s4": 239, "s9": 38 },
   "sections": {
     "s4": {
-      "columns": ["_unk0", "color_id", "flags"],
+      "columns": ["s4_source_tile_id", "color_id", "flags"],
       "rows": [[0, 0, 1]]
     }
   }

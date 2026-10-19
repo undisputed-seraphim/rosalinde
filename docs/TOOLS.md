@@ -19,7 +19,7 @@ For MBS the view is track → sequence → frame:
 - `d X.mbs` — compact track list (sequence count, index range, `main`, `disabled`)
 - `d X.mbs --track N` — sequences, with `total_frames`, `once`, `commit`, `track`, `loop`
 - `d X.mbs --track N --seq M` — frames, with `duration`, flags, `s6`/`s7`,
-  `s8_loop_offset` and the interpolation tiers (`s5s3`, `rate`, `s7i`, `s6i`, `s0s1s2`)
+  `s8_loop_target` and the interpolation tiers (`s5s3`, `rate`, `s7i`, `s6i`, `s8_render_value`)
 - `--json` — machine-readable, filtered by `--track`/`--seq`
 - `--section sN` — one raw section (`s0`…`s9`, `sa`, `sb`); `--full` for all
 

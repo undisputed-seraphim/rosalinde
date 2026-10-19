@@ -373,7 +373,7 @@ section_a  (sequence) stride 0x18
   commit_ticks i32@0xc  sb_id u16@0x10  sb_no u8@0x12  s8_start_offset u8@0x13
   sa_track_slot u16@0x14
 section_8  (frame)    stride 0x20
-  s6_keyframe_id u16@0x0  s7_transform_id u16@0x4  s8_duration_ticks u16@0x6  flags u32@0x8  s8_loop_offset u16@0xc
+  s6_keyframe_id u16@0x0  s7_transform_id u16@0x4  s8_duration_ticks u16@0x6  flags u32@0x8  s8_loop_target u16@0xc
 ```
 
 ### The `0xf0` element — `anim_init_element` `0x58bf58(elem, seq_idx, inst)`
@@ -520,7 +520,7 @@ by `FUN_0058ed4c`, so this fallback is a transform/constant block, not a
 `section_4` material selector. The global `+0x280` path still needs tracing, but
 the earlier "embedded material" reading of `TrackInstance + 0x20` was wrong.
 
-**`section_4._unk0` is not an index into the `0x50` table.** The earlier
+**`section_4.s4_source_tile_id` is not an index into the `0x50` table.** The earlier
 material-table reading was wrong: the `0x50` rows are `section_3` hitboxes, and
 `s4` is a separate 0x14-byte layer row.
 
@@ -543,7 +543,7 @@ The old "Mone update/render" names cover the **text** path:
 
 `UcSpriteMone_base_ctor` zeroes `this + 0x154`; `UcSpriteMone_render` writes
 `element + 0x154 = this + 0xb0` for each 0x340-byte element. That is the
-render-queue priority source used by `sprite_build_matrix`, not `s4._unk0`.
+render-queue priority source used by `sprite_build_matrix`, not `s4.s4_source_tile_id`.
 
 `UcSpriteMone` embeds a renderer subobject at `+0x40` (destroyed by
 `FUN_0004ef00`). `UcSpriteMone_render` iterates that renderer's **layer array at
@@ -632,8 +632,8 @@ Ghidra names applied during this pass:
 0x581cf4 matrix4_identity
 0x5b1e78 render_object_base_ctor
 ``` For the opening title, colored layers
-carry `_unk0` 114–128 and white-mask layers 103–109, but nothing in the
-`sprite_build_matrix` path reads `atlas+0xd0` or `s4._unk0`. Its actual role, and
+carry `s4_source_tile_id` 114–128 and white-mask layers 103–109, but nothing in the
+`sprite_build_matrix` path reads `atlas+0xd0` or `s4.s4_source_tile_id`. Its actual role, and
 the engine path that selects the title's lower-atlas colored art, remain open.
 
 The opening title is a useful discriminator:
@@ -649,12 +649,12 @@ The opening title is a useful discriminator:
 
 Viewer diagnostics for this work:
 
-- `s4_unk0`, `s4_flags`, `color_id`, `alt_color` in `draw-<frame>.ndjson`
+- `s4_source_tile_id`, `s4_flags`, `color_id`, `alt_color` in `draw-<frame>.ndjson`
 - `FTX_GPU_DUMP_DIR` / `FTX_GPU_DUMP_MATCH` for atlas inspection
 - `VIEWER_RUN_ORDER` and `VIEWER_FLIP_V` for ordering/orientation experiments
 
-Rejected experiments: mapping `_unk0` directly to raw `section_4`; a raw
-`s6`/`s0s1s2` layer crossfade; a global/per-object V flip; and a constant V
+Rejected experiments: mapping `s4_source_tile_id` directly to raw `section_4`; a raw
+`s6`/`s8_render_value` layer crossfade; a global/per-object V flip; and a constant V
 offset. None produced a correctly aligned colored title, and the raw crossfade
 introduced black interpolation polygons.
 
@@ -701,7 +701,7 @@ into the node matrix `+0x170`) is still not located.
 
 The UI element (ctor `FUN_000f26ec`) **embeds a `TrackInstance` at `+0xa0`** — e.g.
 its `flags` land at element `+0x394` (`+0xa0 + 0x2f4`), which is where the UI
-update writes `*(DAT_028c30d0+0x14)` masks. So the element *is* an anim node.
+update writes `*(g_render_flag_mask_table+0x14)` masks. So the element *is* an anim node.
 
 Per-frame update — `FUN_00179a44(elem)`:
 
@@ -813,7 +813,7 @@ The chara object shares the big `+0x2390` region with the UI object (common base
    stores, so an instruction scan for a literal `str [x,#0x320]` will miss it).
 2. **`0x28c30d0`** — *not* an unknown runtime table: it is a **pointer to the
    static `1<<i` mask table `0x28a28d0`** (`[0x28c30d0] == 0x28a28d0`;
-   `anim_eval_track` does `puVar7 = DAT_028c30d0` then uses `puVar7[i]`). So every
+   `anim_eval_track` does `puVar7 = g_render_flag_mask_table` then uses `puVar7[i]`). So every
    `TrackInstance.flags` bit is just `1<<i`; naming them needs reading the code the
    bits gate (`sprite_build_matrix` / `anim_init_element`), not a data table.
 3. **Render-pass bits** `flags & mask(18)/mask(22)/mask(25)/mask(26)` and bit 23 —
