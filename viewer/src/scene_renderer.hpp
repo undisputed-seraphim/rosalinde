@@ -32,6 +32,7 @@ public:
 	void clear();
 	std::string state_json(const asb::SceneState& scene) const;
 	std::string timeline_json(const asb::SceneState& scene) const;
+	bool stage_replaced() const;
 	std::string summary(const asb::SceneState& scene) const;
 
 	size_t object_count() const { return _objects.size(); }

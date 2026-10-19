@@ -106,6 +106,14 @@ asb::RuntimeEntity faded(const asb::RuntimeEntity& e, uint32_t frame) {
 
 } // namespace
 
+bool SceneRenderer::stage_replaced() const {
+	for (const auto& [_, object] : _objects) {
+		if (object.background && object.state.started && object.state.visible && object.state.prerender_force)
+			return true;
+	}
+	return false;
+}
+
 int SceneRenderer::choose_track(const SpriteAsset& asset, const asb::RuntimeEntity& e) {
 	if (track_usable(asset.data, e.track_index))
 		return e.track_index;
@@ -499,7 +507,7 @@ std::string SceneRenderer::timeline_json(const asb::SceneState& scene) const {
 	objects.reserve(_objects.size() + 1);
 	for (const auto& [_, object] : _objects)
 		objects.push_back(&object);
-	if (_stage.asset)
+	if (_stage.asset && !stage_replaced())
 		objects.push_back(&_stage);
 	std::sort(objects.begin(), objects.end(), [](const Object* a, const Object* b) {
 		if (a->state.order != b->state.order)
@@ -582,7 +590,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 	for (auto& [_, object] : _objects)
 		if (object.asset && !object.instances.empty() && object.state.visible)
 			order.push_back(&object);
-	if (_stage.asset && !_stage.instances.empty() && _stage.state.visible)
+	if (_stage.asset && !_stage.instances.empty() && _stage.state.visible && !stage_replaced())
 		order.push_back(&_stage);
 
 	std::stable_sort(order.begin(), order.end(), [](const Object* a, const Object* b) {
@@ -701,6 +709,9 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				probe_layers(*object, i, object == &_stage, tints);
 			}
 			const Camera& object_camera = e.space == asb::RuntimeEntity::Space::Ui ? ui_camera : camera;
+			const float camera_scale =
+				object->background && e.prerender_force && camera.zoom() > 0.0f ? camera.zoom() : 1.0f;
+			const float object_scale = (e.scale > 0.0f ? e.scale : 1.0f) * camera_scale;
 			object->asset->renderer.draw(
 				instance,
 				projection,
@@ -708,7 +719,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				pos,
 				tints.empty() ? nullptr : &tints,
 				true,
-				e.scale > 0.0f ? e.scale : 1.0f,
+				object_scale,
 				alpha,
 				flip,
 				0.0f,

@@ -161,6 +161,9 @@ python3 visiontest/opening_diff.py \
 - **Space**: stage/field content uses the drama field camera. `CreateSpriteMone` overlays live
   in design space (1920×1080, fixed camera); `CreateSpriteMoneWorld` and
   `CreateSpriteMoneStageStart` stay in field space. `DrUiCreateChara` is UI space.
+  A started background object with `prerender_force` (set by
+  `SetSpriteMonePreRenderAll`) replaces `__stage__` and is scaled by the field
+  camera zoom.
 - **Viewer host**: the viewer supplies all runtime providers: chara tables, track
   name/length callbacks, facility names, stage tables, drop tables, and ACB sound
   lengths. `asbrun` remains a script-only inspector and does not model animation waits.

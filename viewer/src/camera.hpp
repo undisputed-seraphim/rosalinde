@@ -25,6 +25,7 @@ public:
 
 	void set_target(const glm::vec2& target);
 	void set_zoom(float zoom) { _zoom = zoom; }
+	float zoom() const { return _zoom; }
 	void recenter(const glm::vec2& pos);
 	void update_follow(float dt);
 

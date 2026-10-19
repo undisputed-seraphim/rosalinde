@@ -67,7 +67,6 @@
     {
       "frame": 1500,
       "name": "sanctum",
-      "known_open": true,
       "checks": [
         { "metric": "pair.full.ssim", "op": ">=", "value": 0.2 },
         { "metric": "pair.full.hist_intersection", "op": ">=", "value": 0.35 }
