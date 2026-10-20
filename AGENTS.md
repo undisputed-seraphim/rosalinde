@@ -189,7 +189,6 @@ python3 visiontest/opening_diff.py \
 | `VIEWER_HIDE` | hide objects whose name contains the value |
 | `VIEWER_DATA` | runtime data directory (same as `--data-dir`) |
 | `VIEWER_CAM_Y`, `VIEWER_ORTHO` | camera/design-space overrides |
-| `BG_DUMP`, `BG_LAYERS`, `FTX_GPU_DUMP` | MBS/FTX asset diagnostics |
 | `FTX_GPU_DUMP_DIR`, `FTX_GPU_DUMP_MATCH` | dump uploaded texture arrays to PNGs, optionally filtered by asset label |
 | `VIEWER_FLIP_V` | experimental UV V-flip by MBS/FTX substring for orientation diagnosis |
 | `VIEWER_RUN_ORDER` | experimental run draw order: `reverse` or `track` |

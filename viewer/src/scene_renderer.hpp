@@ -4,6 +4,7 @@
 #include "camera.hpp"
 #include "mpd_asset.hpp"
 #include "sprite_asset.hpp"
+#include "sprite_playback.hpp"
 #include "stage_asset.hpp"
 
 #include <scarlett/scene.hpp>
@@ -22,15 +23,15 @@ class ProbeWriter;
 // It owns no script state: sync() only mirrors what the runtime currently has.
 class SceneRenderer {
 public:
-	explicit SceneRenderer(const AssetLoader& loader)
-		: _library(loader) {}
+	explicit SceneRenderer(AssetLibrary& library)
+		: _library(library) {}
 
 	void sync(const asb::SceneState& scene);
 	void set_stage(const std::string& mbs, const std::string& ftx, std::vector<StageLayer> layers = {});
 	void set_trace(asb::TraceCallback fn);
 	void set_filters(std::vector<std::string> only, std::vector<std::string> hide, bool keep_stage);
 	void set_probe(ProbeWriter* probe) { _probe = probe; }
-	void advance(uint32_t frames);
+	void advance(float dt);
 	void render(const glm::mat4& projection, const Camera& camera);
 	void clear();
 	std::string state_json(const asb::SceneState& scene) const;
@@ -39,18 +40,14 @@ public:
 	std::string summary(const asb::SceneState& scene) const;
 
 	size_t object_count() const { return _objects.size(); }
-	AssetLibrary& assets() { return _library; }
 
 private:
 	struct Object {
 		asb::RuntimeEntity state;
-		SpriteAssetPtr asset;
-		std::vector<SpriteInstance> instances;
-		int track_index = -1;
+		SpritePlayback playback;
 		bool background = false;
 	};
 
-	static int choose_track(const SpriteAsset& asset, const asb::RuntimeEntity& e);
 	void rebuild(Object& object, const asb::RuntimeEntity& e, SpriteAssetPtr asset);
 	void apply(Object& object, const asb::RuntimeEntity& e);
 	glm::vec2 parent_position(const Object& object) const;
@@ -60,7 +57,7 @@ private:
 	void probe_instance(const Object& object, bool stage, size_t index);
 	void probe_layers(const Object& object, size_t index, bool stage, const std::map<uint32_t, glm::vec4>& tints);
 
-	AssetLibrary _library;
+	AssetLibrary& _library;
 	asb::TraceCallback _trace;
 	long _frame = 0;
 	std::unordered_map<std::string, Object> _objects;

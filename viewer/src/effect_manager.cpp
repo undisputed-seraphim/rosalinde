@@ -16,32 +16,11 @@ float ease(float t) {
 
 void EffectManager::reset() {
 	_effects.clear();
-	_assets.clear();
 	_next = 0;
 }
 
-std::shared_ptr<EffectManager::Asset> EffectManager::asset_for(const std::string& mbs, const std::string& ftx) {
-	const std::string key = mbs + "|" + ftx;
-	if (auto it = _assets.find(key); it != _assets.end())
-		return it->second;
-
-	auto mbs_path = _loader.resolve(mbs);
-	if (!mbs_path)
-		return {};
-	Job job;
-	job.mbs = *mbs_path;
-	auto ftx_path = ftx.empty() ? _loader.resolve_ftx(mbs, mbs) : _loader.resolve_ftx(ftx, mbs);
-	if (ftx_path)
-		job.ftx = *ftx_path;
-
-	auto layer = _loader.load_layer(job, 0, mbs, {});
-	if (!layer)
-		return {};
-	auto asset = std::make_shared<Asset>();
-	asset->data = std::move(layer->data);
-	asset->renderer = std::move(layer->renderer);
-	_assets[key] = asset;
-	return asset;
+SpriteAssetPtr EffectManager::asset_for(const std::string& mbs, const std::string& ftx) {
+	return _library.get(mbs, ftx);
 }
 
 long EffectManager::track_frames(const SpriteData& data, int track) {
@@ -166,10 +145,10 @@ void EffectManager::update(long frame, const std::vector<asb::RuntimeEffect>& ev
 	}
 }
 
-void EffectManager::tick(float dt) {
+void EffectManager::advance(float dt) {
 	for (auto& [name, ef] : _effects) {
 		if (ef.alpha > 0.0f)
-			ef.instance.update(dt);
+			ef.instance.advance(dt);
 	}
 }
 

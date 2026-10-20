@@ -149,7 +149,7 @@ struct SpriteInstance {
 	void play(uint32_t track_id);
 	void play(const std::string& name);
 	void update(float dt_seconds);
-	void advance_frames(uint32_t frames);
+	void advance(float dt_seconds);
 	void next_track();
 	void prev_track();
 

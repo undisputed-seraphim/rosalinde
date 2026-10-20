@@ -11,8 +11,7 @@ struct Job {
 		std::string dir;
 		std::string path;
 	};
-	dir_and_path mbs, ftx;					  // mbs and ftx filenames. Most will have just one each
-	std::map<std::string, uint32_t> variants; // Flags for each variant of the character
+	dir_and_path mbs, ftx; // mbs and ftx filenames. Most will have just one each
 };
 
 inline Job::dir_and_path split_path(std::string_view p) {
@@ -23,7 +22,6 @@ inline Job::dir_and_path split_path(std::string_view p) {
 }
 
 extern const std::map<std::string, Job, std::less<>> BattleBGs;
-extern const std::map<std::string, Job, std::less<>> Characters;
 
 // Resolve the viewer data directory (VIEWER_DATA env, else the configured dir).
 std::string viewer_data_dir();

@@ -1,9 +1,6 @@
 #pragma once
 
-#include "sprite_layer.hpp"
-
 #include <glad/glad.h>
-#include <glm/glm.hpp>
 
 inline void enable_blend(const glm::vec4 blend) {
 	glBlendColor(blend[0], blend[1], blend[2], blend[3]);
@@ -21,9 +18,4 @@ inline void enable_depth(GLenum depthFunc = 0) {
 	}
 	glDepthFunc(depthFunc);
 	glEnable(GL_DEPTH_TEST);
-}
-
-inline glm::vec4 world_bounds(const SpriteLayer& layer) {
-	const glm::vec4 b = layer.instance.track_bounds();
-	return {b.x + layer.position.x, b.y + layer.position.y, b.z + layer.position.x, b.w + layer.position.y};
 }

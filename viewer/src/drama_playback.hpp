@@ -4,6 +4,7 @@
 #include "camera.hpp"
 #include "effect_manager.hpp"
 #include "field_catalog.hpp"
+#include "playback_clock.hpp"
 #include "probe.hpp"
 #include "runtime_data.hpp"
 #include "scene_renderer.hpp"
@@ -79,6 +80,7 @@ private:
 	const AssetLoader& _loader;
 	DramaPlaybackConfig _cfg;
 	FieldCatalog _fields;
+	AssetLibrary _library;
 	ViewerRuntimeData _runtime;
 	asb::Host _host;
 	std::shared_ptr<asb::Module> _module;
@@ -88,6 +90,7 @@ private:
 	SceneRenderer _renderer;
 	EffectManager _effects;
 	Camera _camera;
+	PlaybackClock _clock;
 	glm::mat4 _projection;
 	ScreenFadeOverlay _fade;
 	TraceWriter _trace;

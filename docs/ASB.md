@@ -199,8 +199,8 @@ The viewer started as a manual MBS/FTX sprite browser with a hard-coded table of
 classes. It is becoming — deliberately — **an ASB interpreter with a renderer
 attached**. Concretely:
 
-- It already decodes `.asb` (via `scarlett/`), extracts a scene, and builds a
-  `SpriteLayer` per entity with positions/tracks/visibility.
+- It already decodes `.asb` (via `scarlett/`), extracts a scene, and builds live
+  render objects with positions/tracks/visibility from the hosted runtime.
 - The asset tables are now **generated** from the game's own data, not
   hand-written, so the viewer has no baked-in knowledge of specific assets.
 - The direction: instead of "load MBS X and place it manually", the viewer takes

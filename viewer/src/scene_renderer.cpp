@@ -1,5 +1,4 @@
 #include "scene_renderer.hpp"
-#include "background_tracks.hpp"
 #include "probe.hpp"
 #include "scene_util.hpp"
 
@@ -15,11 +14,6 @@
 #include <string_view>
 
 namespace {
-
-bool track_usable(const SpriteData& data, int index) {
-	return index >= 0 && static_cast<size_t>(index) < data.tracks.size() && !data.tracks[index].disabled &&
-		   !data.tracks[index].runs.empty();
-}
 
 bool flip_v_for(const asb::RuntimeEntity& e) {
 	const char* match = std::getenv("VIEWER_FLIP_V");
@@ -114,19 +108,6 @@ bool SceneRenderer::stage_replaced() const {
 	return false;
 }
 
-int SceneRenderer::choose_track(const SpriteAsset& asset, const asb::RuntimeEntity& e) {
-	if (track_usable(asset.data, e.track_index))
-		return e.track_index;
-	if (!e.track.empty()) {
-		if (const auto* t = asset.data.find_track(e.track))
-			return static_cast<int>(t - asset.data.tracks.data());
-	}
-	for (size_t i = 0; i < asset.data.tracks.size(); ++i)
-		if (track_usable(asset.data, static_cast<int>(i)))
-			return static_cast<int>(i);
-	return -1;
-}
-
 void SceneRenderer::set_trace(asb::TraceCallback fn) {
 	_trace = std::move(fn);
 	_library.set_trace(_trace);
@@ -174,40 +155,16 @@ void SceneRenderer::set_stage(const std::string& mbs, const std::string& ftx, st
 
 void SceneRenderer::rebuild(Object& object, const asb::RuntimeEntity& e, SpriteAssetPtr asset) {
 	object.state = e;
-	object.asset = std::move(asset);
-	object.instances.clear();
-	object.track_index = -1;
-	object.background = object.asset && object.asset->is_background;
+	object.background = asset && asset->is_background;
+	const TrackPolicy policy = object.background ? TrackPolicy::AllEnabledTracks : TrackPolicy::ScriptTrack;
+	object.playback.reset(std::move(asset), policy, e, flip_v_for(e), object.background);
 
-	if (!object.asset)
-		return;
-
-	if (object.background) {
-		const auto selected = select_background_tracks(object.asset->data.v77);
-		spdlog::debug("bg: {} tracks={} selected={}", e.mbs, object.asset->data.tracks.size(), selected.size());
-		for (uint32_t i : selected) {
-			if (!track_usable(object.asset->data, static_cast<int>(i)))
-				continue;
-			object.instances.emplace_back(&object.asset->data, i, 0xFFFFFFFFu);
-			object.instances.back().hold_finished = true;
-			object.instances.back().flip_v = flip_v_for(e);
-			object.instances.back().play(i);
-			spdlog::debug(
-				"bg:   track={} name={} runs={}",
-				i,
-				object.asset->data.tracks[i].name,
-				object.asset->data.tracks[i].runs.size());
-		}
-	} else {
-		const int track = choose_track(*object.asset, e);
-		if (track < 0)
-			return;
-		object.track_index = track;
-		object.instances.emplace_back(&object.asset->data, static_cast<uint32_t>(track), 0xFFFFFFFFu);
-		object.instances.back().flip_v = flip_v_for(e);
-		object.instances.back().play(static_cast<uint32_t>(track));
-	}
-	apply(object, e);
+	if (object.background && object.playback.asset)
+		spdlog::debug(
+			"bg: {} tracks={} selected={}",
+			e.mbs,
+			object.playback.asset->data.tracks.size(),
+			object.playback.instances.size());
 	if (_trace)
 		_trace(
 			{_frame,
@@ -215,28 +172,20 @@ void SceneRenderer::rebuild(Object& object, const asb::RuntimeEntity& e, SpriteA
 			 "rebuild",
 			 "\"name\":\"" + asb::trace::quote(e.name) + "\",\"mbs\":\"" + asb::trace::quote(e.mbs) + "\",\"ftx\":\"" +
 				 asb::trace::quote(e.ftx) + "\",\"background\":" + asb::trace::boolean(object.background) +
-				 ",\"instances\":" + asb::trace::integer(static_cast<long>(object.instances.size()))});
+				 ",\"instances\":" + asb::trace::integer(static_cast<long>(object.playback.instances.size()))});
 }
 
 void SceneRenderer::apply(Object& object, const asb::RuntimeEntity& e) {
 	object.state = e;
-	if (object.instances.empty())
-		return;
-	if (!object.background) {
-		const int track = choose_track(*object.asset, e);
-		if (track >= 0 && track != object.track_index) {
-			object.track_index = track;
-			object.instances[0].play(static_cast<uint32_t>(track));
-			if (_trace)
-				_trace(
-					{_frame,
-					 "sprite",
-					 "track",
-					 "\"name\":\"" + asb::trace::quote(e.name) + "\",\"track\":" + asb::trace::integer(track)});
-		}
-	}
-	for (auto& instance : object.instances)
-		instance.paused = e.paused || e.anim_paused;
+	const int previous_track = object.playback.track_index;
+	object.playback.apply(e);
+	if (_trace && previous_track != object.playback.track_index && object.playback.track_index >= 0)
+		_trace(
+			{_frame,
+			 "sprite",
+			 "track",
+			 "\"name\":\"" + asb::trace::quote(e.name) + "\",\"track\":" +
+				 asb::trace::integer(object.playback.track_index)});
 }
 
 void SceneRenderer::sync(const asb::SceneState& scene) {
@@ -276,7 +225,7 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			++it;
 	}
 
-	if (!_stage_mbs.empty() && !_stage_ftx.empty() && (!_stage.asset || _stage.state.mbs != _stage_mbs)) {
+	if (!_stage_mbs.empty() && !_stage_ftx.empty() && (!_stage.playback.asset || _stage.state.mbs != _stage_mbs)) {
 		auto asset = _library.get(_stage_mbs, _stage_ftx);
 		if (asset) {
 			asb::RuntimeEntity e;
@@ -302,14 +251,12 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 	}
 }
 
-void SceneRenderer::advance(uint32_t frames) {
-	if (frames == 0)
+void SceneRenderer::advance(float dt) {
+	if (dt <= 0.0f)
 		return;
 	for (auto& [_, object] : _objects)
-		for (auto& instance : object.instances)
-			instance.advance_frames(frames);
-	for (auto& instance : _stage.instances)
-		instance.advance_frames(frames);
+		object.playback.advance(dt);
+	_stage.playback.advance(dt);
 }
 
 glm::vec2 SceneRenderer::parent_position(const Object& object) const {
@@ -337,17 +284,17 @@ std::string SceneRenderer::object_json(const Object& object, bool stage, std::st
 		std::to_string(e.color[1]) + "," + std::to_string(e.color[2]) + "," + std::to_string(e.color[3]) + "]" +
 		",\"paused\":" + asb::trace::boolean(e.paused) + ",\"anim_paused\":" + asb::trace::boolean(e.anim_paused) +
 		",\"background\":" + asb::trace::boolean(object.background) +
-		",\"asset_loaded\":" + asb::trace::boolean(object.asset != nullptr);
+		",\"asset_loaded\":" + asb::trace::boolean(object.playback.asset != nullptr);
 
 	std::string track_name;
-	if (object.asset && object.track_index >= 0 &&
-		static_cast<size_t>(object.track_index) < object.asset->data.tracks.size())
-		track_name = object.asset->data.tracks[object.track_index].name;
-	out += ",\"track_index\":" + std::to_string(object.track_index) + ",\"track_name\":" + quote(track_name);
+	if (object.playback.asset && object.playback.track_index >= 0 &&
+		static_cast<size_t>(object.playback.track_index) < object.playback.asset->data.tracks.size())
+		track_name = object.playback.asset->data.tracks[object.playback.track_index].name;
+	out += ",\"track_index\":" + std::to_string(object.playback.track_index) + ",\"track_name\":" + quote(track_name);
 
 	out += ",\"instances\":[";
-	for (size_t i = 0; i < object.instances.size(); ++i) {
-		const auto& instance = object.instances[i];
+	for (size_t i = 0; i < object.playback.instances.size(); ++i) {
+		const auto& instance = object.playback.instances[i];
 		if (i)
 			out += ',';
 		std::string instance_track;
@@ -367,7 +314,7 @@ std::string SceneRenderer::object_json(const Object& object, bool stage, std::st
 		std::numeric_limits<float>::infinity(),
 		-std::numeric_limits<float>::infinity(),
 		-std::numeric_limits<float>::infinity()};
-	for (const auto& instance : object.instances) {
+	for (const auto& instance : object.playback.instances) {
 		const auto b = instance.render_bounds();
 		bounds.x = std::min(bounds.x, b.x);
 		bounds.y = std::min(bounds.y, b.y);
@@ -387,9 +334,9 @@ void SceneRenderer::probe_object(const Object& object, bool stage, std::string_v
 }
 
 void SceneRenderer::probe_instance(const Object& object, bool stage, size_t index) {
-	if (!_probe || index >= object.instances.size())
+	if (!_probe || index >= object.playback.instances.size())
 		return;
-	const auto& instance = object.instances[index];
+	const auto& instance = object.playback.instances[index];
 	std::string track_name;
 	if (instance.data && instance.track_idx < instance.data->tracks.size())
 		track_name = instance.data->tracks[instance.track_idx].name;
@@ -408,9 +355,9 @@ void SceneRenderer::probe_layers(
 	size_t index,
 	bool stage,
 	const std::map<uint32_t, glm::vec4>& tints) {
-	if (!_probe || index >= object.instances.size())
+	if (!_probe || index >= object.playback.instances.size())
 		return;
-	const auto& instance = object.instances[index];
+	const auto& instance = object.playback.instances[index];
 	if (!instance.data || instance.track_idx >= instance.data->tracks.size())
 		return;
 	for (uint32_t run = 0; run < instance.sa_count(); ++run) {
@@ -484,7 +431,7 @@ std::string SceneRenderer::state_json(const asb::SceneState& scene) const {
 	objects.reserve(_objects.size() + 1);
 	for (const auto& [_, object] : _objects)
 		objects.push_back(&object);
-	if (_stage.asset)
+	if (_stage.playback.asset)
 		objects.push_back(&_stage);
 	std::sort(objects.begin(), objects.end(), [](const Object* a, const Object* b) {
 		if (a->state.order != b->state.order)
@@ -525,7 +472,7 @@ std::string SceneRenderer::timeline_json(const asb::SceneState& scene) const {
 	objects.reserve(_objects.size() + 1);
 	for (const auto& [_, object] : _objects)
 		objects.push_back(&object);
-	if (_stage.asset && !stage_replaced())
+	if (_stage.playback.asset && !stage_replaced())
 		objects.push_back(&_stage);
 	std::sort(objects.begin(), objects.end(), [](const Object* a, const Object* b) {
 		if (a->state.order != b->state.order)
@@ -545,11 +492,11 @@ std::string SceneRenderer::timeline_json(const asb::SceneState& scene) const {
 			   ",\"visible\":" + asb::trace::boolean(e.visible) +
 			   ",\"started\":" + asb::trace::boolean(e.started) +
 			   ",\"background\":" + asb::trace::boolean(object->background) + ",\"track\":" +
-			   std::to_string(object->track_index) + ",\"instances\":[";
-		for (size_t i = 0; i < object->instances.size(); ++i) {
+			   std::to_string(object->playback.track_index) + ",\"instances\":[";
+		for (size_t i = 0; i < object->playback.instances.size(); ++i) {
 			if (i)
 				out += ',';
-			const auto& instance = object->instances[i];
+			const auto& instance = object->playback.instances[i];
 			std::string track_name;
 			if (instance.data && instance.track_idx < instance.data->tracks.size())
 				track_name = instance.data->tracks[instance.track_idx].name;
@@ -579,7 +526,7 @@ std::string SceneRenderer::summary(const asb::SceneState& scene) const {
 	objects.reserve(_objects.size() + 1);
 	for (const auto& [_, object] : _objects)
 		objects.push_back(&object);
-	if (_stage.asset)
+	if (_stage.playback.asset)
 		objects.push_back(&_stage);
 	std::sort(objects.begin(), objects.end(), [](const Object* a, const Object* b) {
 		if (a->state.order != b->state.order)
@@ -589,11 +536,11 @@ std::string SceneRenderer::summary(const asb::SceneState& scene) const {
 	for (const Object* object : objects) {
 		const bool stage = object == &_stage;
 		std::string track_name;
-		if (object->asset && object->track_index >= 0 &&
-			static_cast<size_t>(object->track_index) < object->asset->data.tracks.size())
-			track_name = object->asset->data.tracks[object->track_index].name;
-		out << object->state.name << " track=" << object->track_index << " name=" << track_name
-			<< " instances=" << object->instances.size() << " reason=" << filter_reason(object->state, stage) << '\n';
+		if (object->playback.asset && object->playback.track_index >= 0 &&
+			static_cast<size_t>(object->playback.track_index) < object->playback.asset->data.tracks.size())
+			track_name = object->playback.asset->data.tracks[object->playback.track_index].name;
+		out << object->state.name << " track=" << object->playback.track_index << " name=" << track_name
+			<< " instances=" << object->playback.instances.size() << " reason=" << filter_reason(object->state, stage) << '\n';
 	}
 	return out.str();
 }
@@ -614,9 +561,9 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 	std::vector<Object*> order;
 	order.reserve(_objects.size());
 	for (auto& [_, object] : _objects)
-		if (object.asset && !object.instances.empty() && object.state.visible)
+		if (object.playback.asset && !object.playback.instances.empty() && object.state.visible)
 			order.push_back(&object);
-	if (_stage.asset && !_stage.instances.empty() && _stage.state.visible && !stage_replaced())
+	if (_stage.playback.asset && !_stage.playback.instances.empty() && _stage.state.visible && !stage_replaced())
 		order.push_back(&_stage);
 
 	std::stable_sort(order.begin(), order.end(), [](const Object* a, const Object* b) {
@@ -642,7 +589,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				std::numeric_limits<float>::infinity(),
 				-std::numeric_limits<float>::infinity(),
 				-std::numeric_limits<float>::infinity()};
-			for (const auto& instance : object->instances) {
+			for (const auto& instance : object->playback.instances) {
 				const auto b = instance.render_bounds();
 				bounds.x = std::min(bounds.x, b.x);
 				bounds.y = std::min(bounds.y, b.y);
@@ -650,13 +597,13 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				bounds.w = std::max(bounds.w, b.w);
 			}
 			std::string track_name;
-			if (object->asset && object->track_index >= 0 &&
-				static_cast<size_t>(object->track_index) < object->asset->data.tracks.size())
-				track_name = object->asset->data.tracks[object->track_index].name;
+			if (object->playback.asset && object->playback.track_index >= 0 &&
+				static_cast<size_t>(object->playback.track_index) < object->playback.asset->data.tracks.size())
+				track_name = object->playback.asset->data.tracks[object->playback.track_index].name;
 			objects += (objects.empty() ? "" : ",");
 			objects += "{\"name\":\"" + asb::trace::quote(e.name) + "\",\"order\":" + asb::trace::integer(e.order) +
-					   ",\"instances\":" + asb::trace::integer(static_cast<long>(object->instances.size())) +
-					   ",\"track\":" + asb::trace::integer(object->track_index) + ",\"track_name\":\"" +
+					   ",\"instances\":" + asb::trace::integer(static_cast<long>(object->playback.instances.size())) +
+					   ",\"track\":" + asb::trace::integer(object->playback.track_index) + ",\"track_name\":\"" +
 					   asb::trace::quote(track_name) + "\"" +
 					   ",\"prerender_force\":" + asb::trace::boolean(e.prerender_force) +
 					   ",\"window_id_offset\":" + asb::trace::integer(e.window_id_offset) +
@@ -690,13 +637,13 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 			const glm::vec4 tint{
 				((packed >> 16) & 0xFF) / 255.0f, ((packed >> 8) & 0xFF) / 255.0f, (packed & 0xFF) / 255.0f, 1.0f};
 			tints[0] = tint;
-			for (const auto& s4 : object->asset->data.v77.s4)
+			for (const auto& s4 : object->playback.asset->data.v77.s4)
 				tints[s4.attributes] = tint;
 		}
 
-		spdlog::debug("draw: {} pos=({:.1f},{:.1f}) instances={}", e.name, pos.x, pos.y, object->instances.size());
-		for (size_t i = 0; i < object->instances.size(); ++i) {
-			const auto& in = object->instances[i];
+		spdlog::debug("draw: {} pos=({:.1f},{:.1f}) instances={}", e.name, pos.x, pos.y, object->playback.instances.size());
+		for (size_t i = 0; i < object->playback.instances.size(); ++i) {
+			const auto& in = object->playback.instances[i];
 			const auto b = in.render_bounds();
 			spdlog::debug(
 				"draw:   {} track={} sa={} bounds=({:.1f},{:.1f},{:.1f},{:.1f})",
@@ -718,8 +665,8 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 					states[k].done,
 					states[k].hidden);
 		}
-		for (size_t i = 0; i < object->instances.size(); ++i) {
-			auto& instance = object->instances[i];
+		for (size_t i = 0; i < object->playback.instances.size(); ++i) {
+			auto& instance = object->playback.instances[i];
 			if (_trace)
 				_trace({_frame,
 						"draw",
@@ -735,7 +682,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 			const float camera_scale =
 				object->background && e.prerender_force && camera.zoom() > 0.0f ? camera.zoom() : 1.0f;
 			const float object_scale = (e.scale > 0.0f ? e.scale : 1.0f) * camera_scale;
-			object->asset->renderer.draw(
+			object->playback.asset->renderer.draw(
 				instance,
 				projection,
 				object_camera,

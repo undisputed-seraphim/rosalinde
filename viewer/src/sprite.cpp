@@ -221,8 +221,11 @@ void SpriteInstance::play(uint32_t track_id) {
 		}
 	}
 	_frame_counter++;
-	if (const char* adv = std::getenv("VIEWER_ADVANCE"))
-		advance_frames(static_cast<uint32_t>(std::max(0, std::atoi(adv))));
+	if (const char* adv = std::getenv("VIEWER_ADVANCE")) {
+		const int frames = std::max(0, std::atoi(adv));
+		for (int i = 0; i < frames; ++i)
+			advance(1.0f / 60.0f);
+	}
 	spdlog::debug("anim: play track {} \"{}\"", track_id, track.name);
 }
 
@@ -351,13 +354,10 @@ void SpriteInstance::update(float dt_seconds) {
 		_frame_counter++;
 }
 
-void SpriteInstance::advance_frames(uint32_t frames) {
-	if (paused || !data || frames == 0)
+void SpriteInstance::advance(float dt_seconds) {
+	if (paused)
 		return;
-	// `frames` are 60 Hz display frames; update() converts to 120 Hz MBS ticks.
-	constexpr float kFrameSeconds = 1.0f / 60.0f;
-	for (uint32_t i = 0; i < frames; ++i)
-		update(kFrameSeconds);
+	update(dt_seconds);
 }
 
 void SpriteInstance::next_track() {

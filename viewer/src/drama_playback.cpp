@@ -94,8 +94,9 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg)
 	: _loader(loader)
 	, _cfg(std::move(cfg))
 	, _fields(loader, _cfg.data_dir)
-	, _renderer(loader)
-	, _effects(loader)
+	, _library(loader)
+	, _renderer(_library)
+	, _effects(_library)
 	, _camera(1.0f)
 	, _projection(glm::ortho(-960.0f, 960.0f, 540.0f, -540.0f)) {
 	if (!_cfg.capture_frames.empty()) {
@@ -271,8 +272,9 @@ void DramaPlayback::step() {
 		return {0.0f, 0.0f};
 	});
 	if (result != asb::RuntimeSession::StepResult::Limit) {
-		_renderer.advance(1);
-		_effects.tick(1.0f / 60.0f);
+		_clock.advance(PlaybackClock::frame_seconds);
+		_renderer.advance(PlaybackClock::frame_seconds);
+		_effects.advance(PlaybackClock::frame_seconds);
 	}
 	const auto& scene = _session->scene();
 	_trace.write({_frame,

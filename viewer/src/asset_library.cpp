@@ -3,7 +3,6 @@
 #include <spdlog/spdlog.h>
 
 #include <chrono>
-#include <cstdlib>
 #include <utility>
 
 std::optional<Job> AssetLibrary::job_for(const std::string& mbs, const std::string& ftx) const {
@@ -39,37 +38,13 @@ SpriteAssetPtr AssetLibrary::get(const std::string& mbs, const std::string& ftx)
 					 asb::trace::quote(ftx) + "\""});
 		return it->second;
 	}
+	if (_failed.contains(key))
+		return {};
+
 	const auto t0 = std::chrono::steady_clock::now();
 	auto elapsed_ms = [&] {
 		return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 	};
-	auto log_load = [&](const char* what) {
-		spdlog::debug("asset: {} {} ftx={} {:.1f}ms", what, key, ftx, elapsed_ms());
-	};
-	if (auto it = _pending.find(key); it != _pending.end()) {
-		try {
-			auto prepared = it->second.future.get();
-			Pending pending = std::move(it->second);
-			_pending.erase(it);
-			auto asset = upload(std::move(prepared), pending.mbs, pending.ftx);
-			log_load("async");
-			if (_trace && asset)
-				_trace(
-					{_frame,
-					 "asset",
-					 "load",
-					 "\"key\":\"" + asb::trace::quote(key) + "\",\"mode\":\"async\",\"mbs\":\"" +
-						 asb::trace::quote(mbs) + "\",\"ftx\":\"" + asb::trace::quote(ftx) + "\""});
-			return asset;
-		} catch (const std::exception& e) {
-			spdlog::error("asset: {}: {}", key, e.what());
-			_pending.erase(it);
-			_failed[key] = true;
-			return {};
-		}
-	}
-	if (_failed.contains(key))
-		return {};
 	auto job = job_for(mbs, ftx);
 	if (!job) {
 		_failed[key] = true;
@@ -77,7 +52,7 @@ SpriteAssetPtr AssetLibrary::get(const std::string& mbs, const std::string& ftx)
 	}
 	try {
 		auto asset = upload(_loader.prepare(*job), mbs, ftx);
-		log_load("sync");
+		spdlog::debug("asset: load {} ftx={} {:.1f}ms", key, ftx, elapsed_ms());
 		if (_trace && asset)
 			_trace(
 				{_frame,
@@ -90,48 +65,5 @@ SpriteAssetPtr AssetLibrary::get(const std::string& mbs, const std::string& ftx)
 		spdlog::error("asset: {}: {}", key, e.what());
 		_failed[key] = true;
 		return {};
-	}
-}
-
-SpriteAssetPtr AssetLibrary::try_get(const std::string& mbs, const std::string& ftx) {
-	const std::string key = key_for(mbs, ftx);
-	if (auto it = _assets.find(key); it != _assets.end())
-		return it->second;
-	auto it = _pending.find(key);
-	if (it == _pending.end())
-		return {};
-	if (it->second.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
-		return {};
-	try {
-		auto prepared = it->second.future.get();
-		Pending pending = std::move(it->second);
-		_pending.erase(it);
-		return upload(std::move(prepared), pending.mbs, pending.ftx);
-	} catch (const std::exception& e) {
-		spdlog::error("asset: {}: {}", key, e.what());
-		_pending.erase(it);
-		_failed[key] = true;
-		return {};
-	}
-}
-
-bool AssetLibrary::request(const std::string& mbs, const std::string& ftx) {
-	const std::string key = key_for(mbs, ftx);
-	if (_assets.contains(key) || _pending.contains(key) || _failed.contains(key))
-		return _assets.contains(key);
-	auto job = job_for(mbs, ftx);
-	if (!job) {
-		_failed[key] = true;
-		return false;
-	}
-	_pending.emplace(
-		key, Pending{std::async(std::launch::async, [this, job = *job] { return _loader.prepare(job); }), mbs, ftx});
-	return true;
-}
-
-void AssetLibrary::request_paths(std::span<const std::string> paths) {
-	for (const auto& path : paths) {
-		if (path.size() >= 4 && path.compare(path.size() - 4, 4, ".mbs") == 0)
-			request(path, {});
 	}
 }
