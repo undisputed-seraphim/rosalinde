@@ -10,8 +10,9 @@ namespace dump {
 namespace {
 
 bool is_supported(std::string_view extension) {
-	return extension == "acb" || extension == "acf" || extension == "nnd" || extension == "ftx" || extension == "mbs" ||
-		   extension == "mpd" || extension == "otm" || extension == "fms" || extension == "ufb" || extension == "ucb";
+	return extension == "acb" || extension == "acf" || extension == "bbs" || extension == "nnd" || extension == "ftx" ||
+		   extension == "mbs" || extension == "mpd" || extension == "otm" || extension == "fms" ||
+		   extension == "ufb" || extension == "ucb";
 }
 
 void report_unknown(const context& ctx, std::string_view extension) {
@@ -146,6 +147,8 @@ int dispatch(const cpk::archive& archive, const cpk::entry& item, std::string_vi
 
 	if (extension == "acb" || extension == "acf")
 		return dump_acb(ctx, data);
+	if (extension == "bbs")
+		return dump_bbs(ctx, data);
 	if (extension == "nnd")
 		return dump_nnd(ctx, data);
 	if (extension == "ftx")

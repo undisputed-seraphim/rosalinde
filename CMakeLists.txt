@@ -75,6 +75,7 @@ add_subdirectory(scarlett)
 add_executable(rosalinde
 	"tools/extractor.cpp"
 	"tools/line_editor.cpp"
+	"tools/dump/bbs.cpp"
 	"tools/dump/dump.cpp"
 	"tools/dump/fms.cpp"
 	"tools/dump/ftx.cpp"
