@@ -2,6 +2,7 @@
 
 #include "background_tracks.hpp"
 
+#include <algorithm>
 #include <utility>
 
 bool SpritePlayback::track_usable(const SpriteData& data, int index) {
@@ -71,6 +72,18 @@ void SpritePlayback::apply(const asb::RuntimeEntity& state) {
 	}
 	for (auto& instance : instances)
 		instance.paused = state.paused || state.anim_paused;
+}
+
+void SpritePlayback::apply_track_order(const std::vector<uint32_t>& order) {
+	if (order.empty())
+		return;
+	auto rank = [&](uint32_t track) {
+		const auto it = std::find(order.begin(), order.end(), track);
+		return it == order.end() ? order.size() : static_cast<size_t>(it - order.begin());
+	};
+	std::stable_sort(instances.begin(), instances.end(), [&](const SpriteInstance& a, const SpriteInstance& b) {
+		return rank(a.track_idx) < rank(b.track_idx);
+	});
 }
 
 void SpritePlayback::advance(float dt) {

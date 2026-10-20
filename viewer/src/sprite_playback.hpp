@@ -28,6 +28,7 @@ public:
 		bool hold_finished,
 		bool character = false);
 	void apply(const asb::RuntimeEntity& state);
+	void apply_track_order(const std::vector<uint32_t>& order);
 	void advance(float dt);
 
 	bool empty() const { return instances.empty(); }

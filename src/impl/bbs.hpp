@@ -11,11 +11,18 @@
 // BBS battle-background scene setup (BattleBG/*.bbs). All multi-byte fields are
 // little endian.
 //
-// BBS is a battle/event background scene descriptor: it lists the MBS/FTX
-// layers used by the scene and carries several fixed-size scene-record tables.
-// The referenced MBS/FTX names are relative to the game asset search path, not
-// always to BattleBG (for example FieldEffect.mbs resolves under Effect/ and
-// Class_Change_BG under GUI/).
+// BBS is the engine's battle/event background scene descriptor. It lists the
+// MBS/FTX assets used by the scene and carries fixed-record object, camera,
+// light, atmosphere and material tables. Asset names are relative to the game
+// asset search path, not always to BattleBG (for example FieldEffect.mbs
+// resolves under Effect/ and Class_Change_BG under GUI/).
+//
+// The engine also carries a capital-stage table (g_stage_capital_*_bbs) that
+// selects these files by country: A=Albion, B=Bastorias, C=Cornia,
+// D=Drakenhold, E=Elheim. Opening_010/Opening_090 are the equivalent opening
+// scene descriptors. The viewer currently uses BBS object order for
+// Opening_090's primary MBS tracks; it does not yet instantiate every BBS
+// object/layer.
 //
 //   0x00  char[4] "UBBS"
 //   0x04  u32     reserved        0
@@ -45,20 +52,28 @@
 // 0x380 begins the asset-name table: mbs_count then ftx_count NUL-padded
 // 32-byte names. Immediately after the names come seven fixed-record sections:
 //
-//   records             record size    inferred contents
-//   color_keys          0x10           RGB colour keys + flags
+//   records             record size    current interpretation
+//   color_keys          0x10           RGB colour keys + flags (likely lighting)
 //   objects             0x48           placed MBS objects: MBS/track ids,
 //                                      position, rotation, scale, colour
-//   cameras             0x6c           camera key records (layout open)
-//   lights              0x44           light records (layout open)
+//   cameras             0x6c           camera key records (inner layout open)
+//   lights              0x44           light records (inner layout open)
 //   fog                 0x18           optional fog/atmosphere records
-//   environment         0x80           environment/weather records
+//   environment         0x80           environment/weather/gradient records
 //   materials           0x10           material binding records
 //
-// Names are structural: all 152 BattleBG BBS files parse with the same header
-// and exact section sizes. objects/cameras/lights/environment/materials are
-// inferred from their record shapes and per-scene counts; only `objects` has
-// field offsets decoded enough to expose typed members.
+// The section names are structural inferences, not recovered engine type names.
+// All 152 BattleBG BBS files parse with the same header and exact section sizes;
+// their record shapes and per-scene counts support the names above. Only
+// `objects` has its leading fields decoded enough to expose typed members.
+// Camera/light/fog/environment/material payloads remain raw until the engine
+// consumer is identified.
+//
+// The object list is the important scene-composition input: its order groups
+// tracks and assets, and its position/scale/color fields place them. The viewer
+// currently uses only the primary-MBS track order from this list (Opening_090);
+// it still needs full object instantiation to reproduce capital roads, night
+// sky, effects and per-object transforms.
 //
 // Verified against all 152 BattleBG BBS files: the header counts and section
 // sizes consume every byte exactly. The 1,554 asset references contain 330
@@ -97,7 +112,10 @@ struct color_key {
 
 // One placed MBS object in the scene. The first word packs the MBS asset index
 // and its variant; the second packs the track/layer ids. Position, rotation,
-// scale and colour follow. The fields after `color` are not yet named.
+// scale and colour follow. These id interpretations are inferred from
+// Opening_010/Opening_090 and the capital BBS files. The fields after `color`
+// are not yet named; the viewer currently reads only mbs_index and track_index
+// (for draw order), not the placement fields.
 struct object {
 	uint16_t mbs_index;
 	uint16_t mbs_variant;

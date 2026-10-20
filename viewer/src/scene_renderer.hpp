@@ -27,7 +27,7 @@ public:
 		: _library(library) {}
 
 	void sync(const asb::SceneState& scene);
-	void set_stage(const std::string& mbs, const std::string& ftx, std::vector<StageLayer> layers = {});
+	void set_stage(const StageBackground& background);
 	void set_trace(asb::TraceCallback fn);
 	void set_filters(std::vector<std::string> only, std::vector<std::string> hide, bool keep_stage);
 	void set_probe(ProbeWriter* probe) { _probe = probe; }
@@ -56,7 +56,9 @@ private:
 		int tint_key = -2;
 		bool background = false;
 		bool stage = false;
+		bool stage_object = false;
 		bool replaces_stage = false;
+		std::vector<uint32_t> track_order;
 
 		bool has_renderable() const { return playback.asset != nullptr || !meshes.empty(); }
 	};
@@ -78,9 +80,12 @@ private:
 	long _frame = 0;
 	std::unordered_map<std::string, RenderItem> _objects;
 	RenderItem _stage;
+	std::vector<StageObject> _stage_specs;
+	std::vector<RenderItem> _stage_objects;
 
 	std::string _stage_mbs;
 	std::string _stage_ftx;
+	std::vector<uint32_t> _stage_track_order;
 	std::vector<std::string> _only;
 	std::vector<std::string> _hide;
 	bool _keep_stage = false;

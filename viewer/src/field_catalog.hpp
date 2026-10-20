@@ -2,9 +2,13 @@
 
 #include "stage_asset.hpp"
 
+#include <impl/bbs.hpp>
+
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 class AssetLoader;
@@ -28,9 +32,18 @@ private:
 		int country = -1;
 	};
 
+	struct BbsEntry {
+		std::string path;
+		std::string label;
+	};
+
 	bool load();
 	bool load_assets();
 	bool load_stages();
+	bool load_bbs_catalog();
+	std::optional<bbs::file> load_bbs(std::string_view path) const;
+	std::optional<StageBackground> bbs_background(int stage_type);
+	std::optional<std::string> resolve_bbs_asset(std::string_view name) const;
 	const Asset* find_layer(int area, int variant, char kind, std::string_view extension) const;
 	std::optional<StageLayer> far_layer(int area, int variant) const;
 	int area_for_country(int country) const;
@@ -43,6 +56,8 @@ private:
 	std::string _data_dir;
 	std::vector<Asset> _assets;
 	std::vector<StageRow> _stages;
+	std::unordered_map<int, BbsEntry> _bbs_catalog;
+	bool _bbs_catalog_loaded = false;
 	bool _attempted = false;
 	bool _ready = false;
 };

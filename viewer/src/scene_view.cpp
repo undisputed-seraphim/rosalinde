@@ -59,16 +59,17 @@ void SceneView::sync_stage(const asb::SceneState& scene) {
 	auto background = _fields.background(type, coa, _entry);
 	if (!background) {
 		spdlog::debug("stage: frame={} type={} -> none", scene.frame, type);
-		_renderer.set_stage({}, {});
+		_renderer.set_stage(StageBackground{});
 		return;
 	}
 	spdlog::debug(
-		"stage: frame={} type={} -> mbs={} layers={}",
+		"stage: frame={} type={} -> mbs={} objects={} layers={}",
 		scene.frame,
 		type,
 		background->mbs.empty() ? "<none>" : background->mbs,
+		background->objects.size(),
 		background->layers.size());
-	_renderer.set_stage(background->mbs, background->ftx, background->layers);
+	_renderer.set_stage(*background);
 	if (_trace)
 		_trace(
 			{scene.frame,

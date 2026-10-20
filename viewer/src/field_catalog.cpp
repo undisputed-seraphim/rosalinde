@@ -7,7 +7,9 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <exception>
 #include <fstream>
@@ -69,6 +71,119 @@ std::string join(const Job::dir_and_path& path) {
 FieldCatalog::FieldCatalog(const AssetLoader& loader, std::string data_dir)
 	: _loader(loader)
 	, _data_dir(std::move(data_dir)) {}
+
+std::optional<bbs::file> FieldCatalog::load_bbs(std::string_view path) const {
+	auto resolved = _loader.resolve(path);
+	if (!resolved)
+		return std::nullopt;
+	auto entry = _loader.cpk().find(resolved->dir, resolved->path);
+	if (entry == _loader.cpk().end())
+		return std::nullopt;
+	std::vector<char> bytes;
+	_loader.cpk().extract(*entry, bytes);
+	try {
+		return bbs::parse(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size()));
+	} catch (...) {
+		return std::nullopt;
+	}
+}
+
+bool FieldCatalog::load_bbs_catalog() {
+	if (_bbs_catalog_loaded)
+		return !_bbs_catalog.empty();
+	_bbs_catalog_loaded = true;
+	const std::string dir = _data_dir.empty() ? viewer_data_dir() : _data_dir;
+	std::ifstream file(dir + "/bbs.tsv");
+	if (!file)
+		return false;
+	std::string line;
+	while (std::getline(file, line)) {
+		if (line.empty() || line.front() == '#')
+			continue;
+		std::istringstream row(line);
+		std::string index;
+		BbsEntry entry;
+		if (!std::getline(row, index, '\t') || !std::getline(row, entry.path, '\t'))
+			continue;
+		std::getline(row, entry.label);
+		try {
+			_bbs_catalog.emplace(std::stoi(index), std::move(entry));
+		} catch (...) {
+		}
+	}
+	return !_bbs_catalog.empty();
+}
+
+std::optional<std::string> FieldCatalog::resolve_bbs_asset(std::string_view name) const {
+	if (name.empty())
+		return std::nullopt;
+	if (auto direct = _loader.resolve(name))
+		return join(*direct);
+	for (const char* prefix : {"BattleBG/", "Effect/", "GUI/", "FieldBG/", "Chara/"}) {
+		const std::string path = std::string(prefix) + std::string(name);
+		if (auto found = _loader.resolve(path))
+			return join(*found);
+	}
+	const std::string wanted = lower(std::string(name));
+	for (const auto& entry : _loader.cpk()) {
+		if (lower(std::string(entry.name)) != wanted)
+			continue;
+		return std::string(entry.dir) + "/" + std::string(entry.name);
+	}
+	return std::nullopt;
+}
+
+std::optional<StageBackground> FieldCatalog::bbs_background(int stage_type) {
+	if (!load_bbs_catalog())
+		return std::nullopt;
+	const auto entry = _bbs_catalog.find(stage_type);
+	if (entry == _bbs_catalog.end())
+		return std::nullopt;
+	auto file = load_bbs(entry->second.path);
+	if (!file)
+		return std::nullopt;
+
+	StageBackground result;
+	result.objects.reserve(file->objects.size());
+	for (size_t i = 0; i < file->objects.size(); ++i) {
+		const auto& object = file->objects[i];
+		if (object.mbs_index >= file->mbs_names.size())
+			continue;
+		auto mbs = resolve_bbs_asset(file->mbs_names[object.mbs_index]);
+		if (!mbs)
+			continue;
+
+		std::optional<std::string> ftx;
+		if (object.mbs_index < file->ftx_names.size())
+			ftx = resolve_bbs_asset(file->ftx_names[object.mbs_index]);
+		if (!ftx) {
+			std::string stem = file->mbs_names[object.mbs_index];
+			const size_t dot = stem.find_last_of('.');
+			if (dot != std::string::npos)
+				stem.resize(dot);
+			ftx = resolve_bbs_asset(stem + ".ftx");
+		}
+		if (!ftx)
+			continue;
+
+		StageObject placed;
+		placed.mbs = std::move(*mbs);
+		placed.ftx = std::move(*ftx);
+		placed.track_index = object.track_index;
+		placed.x = object.x;
+		placed.y = object.y;
+		placed.z = object.z;
+		placed.scale = object.scale_x > 0.0f ? object.scale_x : 1.0f;
+		placed.alpha = std::clamp(static_cast<int>(std::lround(object.alpha * 255.0f)), 0, 255);
+		placed.order = static_cast<int>(i);
+		result.objects.push_back(std::move(placed));
+	}
+	if (result.objects.empty())
+		return std::nullopt;
+	spdlog::debug(
+		"bbs: stage={} path={} label={} objects={}", stage_type, entry->second.path, entry->second.label, result.objects.size());
+	return result;
+}
 
 int FieldCatalog::area_for_country(int country) const {
 	switch (country) {
@@ -241,47 +356,9 @@ std::string FieldCatalog::texture_of(const Asset& asset) const {
 }
 
 std::optional<StageBackground> FieldCatalog::background(int stage_type, int coa_preset, std::string_view entry) {
-	switch (stage_type) {
-	case 179:
-	case 180:
-		if (auto it = BattleBGs.find("BGOpening010"); it != BattleBGs.end())
-			return StageBackground{join(it->second.mbs), join(it->second.ftx), {}};
-		return std::nullopt;
-	case 78:
-	case 79:
-	case 80:
-	case 82:
-	case 83: {
-		// TODO(stage): replace this with the engine capital-stage table.
-		// The engine maps the five COA countries to BattleBG/StBtCapital_*.bbs:
-		// COA_1 Cornia -> StBtCapital_C, COA_2 Drakenhold -> StBtCapital_D,
-		// COA_3 Elheim -> StBtCapital_E, COA_4 Bastorias -> StBtCapital_B,
-		// COA_5 Albion -> StBtCapital_A. Each .bbs lists the primary capital
-		// MBS/FTX plus roads, night sky and BGEffect layers. Parse UBBS or
-		// generate a table from the engine data instead of naming only the
-		// primary BGBtCapital asset here. Stage 81/182 are the later war/
-		// montage profile; their BGOpening090 track selection is still open.
-		static constexpr const char* capital_by_coa[] = {
-			nullptr,
-			"BGBtCapital_C_a",
-			"BGBtCapital_D_a",
-			"BGBtCapital_E_a",
-			"BGBtCapital_B_01",
-			"BGBtCapital_A_a",
-		};
-		const char* key = coa_preset >= 1 && coa_preset <= 5 ? capital_by_coa[coa_preset] : "BGOpening090";
-		if (auto it = BattleBGs.find(key); it != BattleBGs.end())
-			return StageBackground{join(it->second.mbs), join(it->second.ftx), {}};
-		return std::nullopt;
-	}
-	case 81:
-	case 182:
-		if (auto it = BattleBGs.find("BGOpening090"); it != BattleBGs.end())
-			return StageBackground{join(it->second.mbs), join(it->second.ftx), {}};
-		return std::nullopt;
-	default:
-		break;
-	}
+	(void)coa_preset;
+	if (auto bbs = bbs_background(stage_type))
+		return bbs;
 
 	if (!load())
 		return std::nullopt;
