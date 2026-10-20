@@ -250,7 +250,6 @@ std::optional<StageBackground> FieldCatalog::background(int stage_type, int coa_
 	case 78:
 	case 79:
 	case 80:
-	case 81:
 	case 82:
 	case 83: {
 		// TODO(stage): replace this with the engine capital-stage table.
@@ -260,7 +259,8 @@ std::optional<StageBackground> FieldCatalog::background(int stage_type, int coa_
 		// COA_5 Albion -> StBtCapital_A. Each .bbs lists the primary capital
 		// MBS/FTX plus roads, night sky and BGEffect layers. Parse UBBS or
 		// generate a table from the engine data instead of naming only the
-		// primary BGBtCapital asset here.
+		// primary BGBtCapital asset here. Stage 81/182 are the later war/
+		// montage profile; their BGOpening090 track selection is still open.
 		static constexpr const char* capital_by_coa[] = {
 			nullptr,
 			"BGBtCapital_C_a",
@@ -274,6 +274,7 @@ std::optional<StageBackground> FieldCatalog::background(int stage_type, int coa_
 			return StageBackground{join(it->second.mbs), join(it->second.ftx), {}};
 		return std::nullopt;
 	}
+	case 81:
 	case 182:
 		if (auto it = BattleBGs.find("BGOpening090"); it != BattleBGs.end())
 			return StageBackground{join(it->second.mbs), join(it->second.ftx), {}};

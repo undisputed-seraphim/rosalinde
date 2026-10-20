@@ -25,7 +25,8 @@ public:
 		TrackPolicy policy,
 		const asb::RuntimeEntity& state,
 		bool flip_v,
-		bool hold_finished);
+		bool hold_finished,
+		bool character = false);
 	void apply(const asb::RuntimeEntity& state);
 	void advance(float dt);
 

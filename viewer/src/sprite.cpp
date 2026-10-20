@@ -412,7 +412,8 @@ void SpriteInstance::for_each_layer(
 	LayerVisit base;
 	base.run = sa_idx;
 	base.transition_t = _transition_t;
-	if (track.runs.size() > 1 && track.sa_main_sequence < done.size() && done[track.sa_main_sequence]) {
+	if (!character && track.runs.size() > 1 && track.sa_main_sequence < done.size() &&
+		done[track.sa_main_sequence]) {
 		base.skip = "main_done";
 		visit(base);
 		return;

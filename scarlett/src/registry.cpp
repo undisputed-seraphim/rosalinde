@@ -1567,10 +1567,6 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		if (RuntimeEntity* e = ent(0)) {
 			float p[3] = {0.0f, 0.0f, 0.0f};
 			V(1, p, 3);
-			if (e->kind == "DrUiCreateChara") {
-				p[0] -= 960.0f;
-				p[1] = 540.0f - p[1];
-			}
 			const int time = name == "DrUiSetPosV" ? std::max(0, I(2)) : 0;
 			if (time > 0) {
 				Move m{};

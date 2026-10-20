@@ -27,7 +27,8 @@ void SpritePlayback::reset(
 	TrackPolicy policy,
 	const asb::RuntimeEntity& state,
 	bool flip_v,
-	bool hold_finished) {
+	bool hold_finished,
+	bool character) {
 	asset = std::move(next_asset);
 	instances.clear();
 	track_index = -1;
@@ -42,6 +43,7 @@ void SpritePlayback::reset(
 			instances.emplace_back(&asset->data, i, 0xFFFFFFFFu);
 			instances.back().hold_finished = hold_finished;
 			instances.back().background = true;
+			instances.back().character = character;
 			instances.back().flip_v = flip_v;
 			instances.back().play(i);
 		}
@@ -51,6 +53,8 @@ void SpritePlayback::reset(
 			return;
 		track_index = track;
 		instances.emplace_back(&asset->data, static_cast<uint32_t>(track), 0xFFFFFFFFu);
+		instances.back().hold_finished = hold_finished;
+		instances.back().character = character;
 		instances.back().flip_v = flip_v;
 		instances.back().play(static_cast<uint32_t>(track));
 	}

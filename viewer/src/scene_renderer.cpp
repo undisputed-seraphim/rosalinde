@@ -2,6 +2,7 @@
 #include "probe.hpp"
 #include "scene_util.hpp"
 
+#include <glm/ext.hpp>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -160,7 +161,9 @@ void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, Spr
 	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0 && e.prerender_force;
 	object.tint_key = -2;
 	const TrackPolicy policy = object.background ? TrackPolicy::AllEnabledTracks : TrackPolicy::ScriptTrack;
-	object.playback.reset(std::move(asset), policy, e, flip_v_for(e), object.background);
+	const bool character = e.kind == "DrUiCreateChara" || e.kind == "DrCreateChara" || e.kind == "DrCreateNpc";
+	const bool hold_finished = object.background || character;
+	object.playback.reset(std::move(asset), policy, e, flip_v_for(e), hold_finished, character);
 	object.replaces_stage =
 		object.replaces_stage && object.playback.asset && !object.playback.instances.empty();
 	update_tints(object);
@@ -665,12 +668,21 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				probe_layers(*object, i, object == &_stage, object->tints);
 			}
 			const Camera& object_camera = e.space == asb::RuntimeEntity::Space::Ui ? ui_camera : camera;
+			static const glm::mat4 screen_projection = glm::ortho(0.0f, 1920.0f, 1080.0f, 0.0f);
+			const bool screen_chara = e.kind == "DrUiCreateChara";
+			const glm::mat4& object_projection = screen_chara ? screen_projection : projection;
 			const float camera_scale =
 				object->background && e.prerender_force && camera.zoom() > 0.0f ? camera.zoom() : 1.0f;
-			const float object_scale = (e.scale > 0.0f ? e.scale : 1.0f) * camera_scale;
+			float object_scale = (e.scale > 0.0f ? e.scale : 1.0f) * camera_scale;
+			// TODO(ui): DrUiCreateChara positions and MBS bounds are in 1920x1080
+			// screen space, but the engine's authored scale is larger than the
+			// screen projection. 0.6 is calibrated against the opening montage;
+			// recover the engine UI scale factor instead of keeping this constant.
+			if (screen_chara)
+				object_scale *= 0.6f;
 			object->playback.asset->renderer.draw(
 				instance,
-				projection,
+				object_projection,
 				object_camera,
 				pos,
 				object->tints.empty() ? nullptr : &object->tints,

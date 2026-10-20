@@ -145,6 +145,7 @@ struct SpriteInstance {
 	bool paused = false;
 	bool hold_finished = false;
 	bool background = false;
+	bool character = false;
 	bool flip_v = false;
 
 	std::vector<mbs::section_7> _transition_src_s7;
