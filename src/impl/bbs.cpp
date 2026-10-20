@@ -28,6 +28,8 @@ std::optional<file> parse(std::span<const uint8_t> data) {
 		return std::nullopt;
 
 	std::memcpy(f.prefix.data(), data.data() + prefix_offset, f.prefix.size());
+	const auto* offset_table = f.prefix.data() + (0x338 - prefix_offset);
+	std::memcpy(&f.offsets, offset_table, sizeof(section_offsets));
 
 	const size_t name_count = size_t{f.hdr.mbs_count} + f.hdr.ftx_count;
 	const size_t body_start = names_offset + name_count * 32;
@@ -36,12 +38,12 @@ std::optional<file> parse(std::span<const uint8_t> data) {
 
 	const uint64_t body_size =
 		uint64_t{f.hdr.color_key_count} * sizeof(color_key) +
-		uint64_t{f.hdr.section_72_count} * sizeof(record72) +
-		uint64_t{f.hdr.section_108_count} * sizeof(record108) +
-		uint64_t{f.hdr.section_68_count} * sizeof(record68) +
-		uint64_t{f.hdr.section_24_count} * sizeof(record24) +
-		uint64_t{f.hdr.section_128_count} * sizeof(record128) +
-		uint64_t{f.hdr.section_16_count} * sizeof(record16);
+		uint64_t{f.hdr.object_count} * sizeof(object) +
+		uint64_t{f.hdr.camera_count} * sizeof(camera_record) +
+		uint64_t{f.hdr.light_count} * sizeof(light_record) +
+		uint64_t{f.hdr.fog_count} * sizeof(fog_record) +
+		uint64_t{f.hdr.environment_count} * sizeof(environment_record) +
+		uint64_t{f.hdr.material_count} * sizeof(material_record);
 	if (body_size != data.size() - body_start)
 		return std::nullopt;
 
@@ -65,12 +67,12 @@ std::optional<file> parse(std::span<const uint8_t> data) {
 
 	size_t offset = body_start;
 	read_records(data, offset, f.hdr.color_key_count, f.color_keys);
-	read_records(data, offset, f.hdr.section_72_count, f.section_72);
-	read_records(data, offset, f.hdr.section_108_count, f.section_108);
-	read_records(data, offset, f.hdr.section_68_count, f.section_68);
-	read_records(data, offset, f.hdr.section_24_count, f.section_24);
-	read_records(data, offset, f.hdr.section_128_count, f.section_128);
-	read_records(data, offset, f.hdr.section_16_count, f.section_16);
+	read_records(data, offset, f.hdr.object_count, f.objects);
+	read_records(data, offset, f.hdr.camera_count, f.cameras);
+	read_records(data, offset, f.hdr.light_count, f.lights);
+	read_records(data, offset, f.hdr.fog_count, f.fog);
+	read_records(data, offset, f.hdr.environment_count, f.environment);
+	read_records(data, offset, f.hdr.material_count, f.materials);
 
 	if (offset != data.size())
 		return std::nullopt;

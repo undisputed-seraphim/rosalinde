@@ -204,7 +204,7 @@ files.
 |---|---|
 | `.acb` | recursive UTF tables |
 | `.acf` | recursive UTF tables |
-| `.bbs` | battle background layer names + scene sections |
+| `.bbs` | battle background assets + objects/cameras/lights/fog/environment/materials |
 | `.nnd` | node/edge/name/link graph |
 | `.ftx` | texture dimensions, format, and sizes |
 | `.mbs` | tracks, sequences, frames, raw sections |
