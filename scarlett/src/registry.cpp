@@ -388,10 +388,15 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 	if (e.space == RuntimeEntity::Space::Ui)
 		e.alpha = 0;
 	e.aliases = names;
-	// World characters carry no asset in the call: the engine resolves the chara
-	// def name through its CharaSet appearance table (the Japanese label). Try
-	// that before the hand-maintained display-name table.
-	if (_chara_sets && kind != "DrUiCreateChara") {
+	// DrUiCreateChara carries the asset pair explicitly (ftx, mbs, label,
+	// chara-set name). World characters instead resolve through the CharaSet
+	// appearance table; keep that path separate.
+	if (kind == "DrUiCreateChara") {
+		if (names.size() > 3) {
+			e.mbs = names[2];
+			e.ftx = names[3];
+		}
+	} else if (_chara_sets) {
 		for (const auto& n : names) {
 			if (n.empty())
 				continue;
@@ -1479,17 +1484,24 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true; // UI tip hint: no runtime model
 
 	// Wait until a sprite's animation finishes. Only modelled when a length
-	// provider knows the track; otherwise it stays immediate.
+	// provider knows the track; otherwise it stays immediate. The provider
+	// reports a full track duration in 60 Hz scene frames, so subtract the
+	// frames already played since the track was selected.
 	if (name == "WaitSpriteMoneAnimationEnd" || name == "DrAnimationWait") {
+		long total = 0;
 		long n = 0;
 		RuntimeEntity* e = ent(0);
 		if (e && _track_frames)
-			n = _track_frames(e->mbs, e->track_index);
+			total = _track_frames(e->mbs, e->track_index);
+		if (e && total > 0)
+			n = std::max(0L, total - std::max(0L, frame - e->animation_start_frame));
 		spdlog::debug(
-			"wait: animation end name={} track={} mbs={} frames={} end={}",
+			"wait: animation end name={} track={} mbs={} start={} total={} remaining={} end={}",
 			e ? e->name : "?",
 			e ? e->track_index : -1,
 			e ? e->mbs : "",
+			e ? e->animation_start_frame : -1,
+			total,
 			n,
 			frame + n);
 		if (n > 0) {
@@ -1555,9 +1567,26 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		if (RuntimeEntity* e = ent(0)) {
 			float p[3] = {0.0f, 0.0f, 0.0f};
 			V(1, p, 3);
-			e->pos[0] = p[0];
-			e->pos[1] = p[1];
-			e->pos[2] = p[2];
+			if (e->kind == "DrUiCreateChara") {
+				p[0] -= 960.0f;
+				p[1] = 540.0f - p[1];
+			}
+			const int time = name == "DrUiSetPosV" ? std::max(0, I(2)) : 0;
+			if (time > 0) {
+				Move m{};
+				for (int k = 0; k < 3; ++k) {
+					m.from[k] = e->pos[k];
+					m.to[k] = p[k];
+				}
+				m.f0 = frame;
+				m.f1 = frame + time;
+				_moves[e->name] = m;
+			} else {
+				_moves.erase(e->name);
+				e->pos[0] = p[0];
+				e->pos[1] = p[1];
+				e->pos[2] = p[2];
+			}
 			mark_dirty();
 		}
 		return true;
@@ -1612,6 +1641,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "SetSpriteMoneAnimation" || name == "SetSpriteMoneAnimationPaused") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track_index = I(1);
+			e->animation_start_frame = frame;
 			e->started = true;
 			e->anim_paused = name == "SetSpriteMoneAnimationPaused" ? I(2) != 0 : false;
 			trace_event(
@@ -1626,6 +1656,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrUiSetAnimation") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->track_index = I(1);
+			e->animation_start_frame = frame;
 			e->started = true;
 			spdlog::debug("anim: {} track={}", e->name, e->track_index);
 			mark_dirty();
@@ -1637,6 +1668,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		if (RuntimeEntity* e = ent(0)) {
 			e->started = true;
 			e->track = S(1);
+			e->animation_start_frame = frame;
 			if (!e->track.empty() && _resolve_track) {
 				int ti = _resolve_track(e->mbs, e->track);
 				if (ti >= 0)
@@ -1656,12 +1688,23 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
-	// DrUiSetColorA(name, value, time): the value is the target grey/alpha (0 at
-	// creation, 255 when fully faded in); fade time is ignored. Track the low
-	// byte so a not-yet-faded-in sprite stays hidden.
+	// DrUiSetColorA(name, value, time): fade the alpha channel to `value` over
+	// `time` scene frames.
 	if (name == "DrUiSetColorA" || name == "SetSpriteColorA" || name == "DrSetColorA" || name == "SetColorA") {
 		if (RuntimeEntity* e = ent(0)) {
-			e->alpha = I(1) & 0xff;
+			const int target = I(1) & 0xff;
+			const int time = std::max(0, I(2));
+			if (time > 0) {
+				e->fade_start = frame;
+				e->fade_duration = time;
+				e->fade_from = e->alpha;
+				e->fade_to = target;
+				e->alpha = target;
+			} else {
+				e->alpha = target;
+				e->fade_duration = 0;
+				e->fade_to = target;
+			}
 			mark_dirty();
 		}
 		return true;
@@ -1679,14 +1722,21 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			_timeline.effects.push_back(ev);
 		}
 		if (RuntimeEntity* e = ent(0)) {
-			const int fade = std::max({0, I(1), I(2)});
-			spdlog::debug("delete: {} target={} fade={}", name, e->name, fade);
+			const int fade = std::max(0, I(1));
+			const int delay = std::max(0, I(2));
+			spdlog::debug("delete: {} target={} delay={} fade={}", name, e->name, delay, fade);
 			if (fade > 0) {
-				e->fade_start = frame;
+				e->fade_start = frame + delay;
 				e->fade_duration = fade;
 				e->fade_from = e->alpha;
-			} else {
+				e->fade_to = 0;
+			} else if (delay == 0) {
 				e->visible = false;
+			} else {
+				e->fade_start = frame + delay;
+				e->fade_duration = 1;
+				e->fade_from = e->alpha;
+				e->fade_to = 0;
 			}
 			mark_dirty();
 		}
@@ -1870,6 +1920,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		if (RuntimeEntity* e = ent(0)) {
 			const std::string anim = S(1);
 			e->track = anim;
+			e->animation_start_frame = frame;
 			if (_resolve_track) {
 				const int ti = _resolve_track(e->mbs, anim);
 				if (ti >= 0)
@@ -2967,6 +3018,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "FlSetAnimation") {
 		if (auto* e = ent(0)) {
 			e->track_index = I(1);
+			e->animation_start_frame = frame;
 			e->started = true;
 			e->reverse = I(2) != 0;
 			mark_dirty();

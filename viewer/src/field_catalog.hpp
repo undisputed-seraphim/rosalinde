@@ -13,7 +13,7 @@ class FieldCatalog {
 public:
 	explicit FieldCatalog(const AssetLoader& loader, std::string data_dir = {});
 
-	std::optional<StageBackground> background(int stage_type, std::string_view entry);
+	std::optional<StageBackground> background(int stage_type, int coa_preset, std::string_view entry);
 
 private:
 	struct Asset {

@@ -23,14 +23,16 @@ struct RuntimeEntity {
 	std::string ftx;
 	std::string track;
 	int track_index = -1;
+	long animation_start_frame = 0; // scene frame when track_index was selected
 	bool started = false;
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	float scale = 1.0f;
 	float dir_x = 1.0f;	 // facing: -1 mirrored, +1 default
 	int alpha = 255;	 // 0-255, from DrUiSetColorA (0 = not yet faded in)
-	long fade_start = 0; // DeleteSprite fade window (scene frame)
+	long fade_start = 0; // alpha tween start (scene frame)
 	int fade_duration = 0;
 	int fade_from = 255;
+	int fade_to = 0;
 	int layer = -1;
 	bool visible = true;
 	bool reverse = false;			   // SetSpriteMoneReverse: play the selected track backward

@@ -46,4 +46,5 @@ private:
 	ScreenFadeOverlay _fade;
 	asb::TraceCallback _trace;
 	int _stage_type = -1;
+	int _stage_coa = -1;
 };

@@ -51,10 +51,12 @@ void SceneView::advance(float dt) {
 
 void SceneView::sync_stage(const asb::SceneState& scene) {
 	const int type = scene.stage.stage_type;
-	if (type == _stage_type)
+	const int coa = scene.stage.coa_preset;
+	if (type == _stage_type && coa == _stage_coa)
 		return;
 	_stage_type = type;
-	auto background = _fields.background(type, _entry);
+	_stage_coa = coa;
+	auto background = _fields.background(type, coa, _entry);
 	if (!background) {
 		spdlog::debug("stage: frame={} type={} -> none", scene.frame, type);
 		_renderer.set_stage({}, {});

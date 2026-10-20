@@ -164,6 +164,19 @@ void SpriteData::preprocess() {
 	}
 }
 
+long track_duration_frames(const SpriteData& data, int track) {
+	if (track < 0 || static_cast<size_t>(track) >= data.tracks.size())
+		return 0;
+	long ticks = 0;
+	for (const auto& run : data.tracks[static_cast<size_t>(track)].runs) {
+		long run_ticks = 0;
+		for (uint32_t i = 0; i < run.s8_count && run.s8_start + i < data.v77.s8.size(); ++i)
+			run_ticks += data.v77.s8[run.s8_start + i].s8_duration_ticks;
+		ticks = std::max(ticks, run_ticks);
+	}
+	return ticks <= 0 ? 0 : (ticks + 1) / 2;
+}
+
 const SpriteData::Track* SpriteData::find_track(const std::string& name) const {
 	for (const auto& t : tracks) {
 		if (t.name == name)
@@ -512,13 +525,25 @@ void SpriteInstance::for_each_layer(
 		v.attributes = layer.attributes;
 		v.blend = layer.blend;
 		v.notex = layer.notex;
-		// Opening010 pairs the colored title (flags=1, blend=0) with a white
-		// silhouette of the same logo (flags=1, blend=1). The white layer is a
-		// mask companion; compositing it additively erases the colored title.
+		// A flags=1/blend=1 layer is a mask companion only when the same
+		// keyframe carries its flags=1/blend=0 source. Standalone blend=1
+		// layers (opening fire, glow, and effect passes) are real draws.
 		if (layer.blend == 1 && layer.s4_flags == 1) {
-			v.skip = "unflagged_mask";
-			visit(v);
-			continue;
+			bool paired = false;
+			for (const auto& other : ck.layers) {
+				if (&other == &layer || other.blend != 0 || other.s4_flags != 1)
+					continue;
+				if (other.s4_source_tile_id == layer.s4_source_tile_id && other.s1_uv_id == layer.s1_uv_id &&
+					other.s2_vertex_id == layer.s2_vertex_id) {
+					paired = true;
+					break;
+				}
+			}
+			if (!background || paired) {
+				v.skip = "unflagged_mask";
+				visit(v);
+				continue;
+			}
 		}
 		v.flip_v = flip_v;
 		if (!layer.notex && layer.tex_id < data->textures.size()) {

@@ -32,14 +32,7 @@ long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int tra
 				cpk.extract(*e, buf);
 				SpriteData data = SpriteData::load(
 					std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()), {});
-				if (track_index < static_cast<int>(data.tracks.size())) {
-					for (const auto& run : data.tracks[track_index].runs) {
-						long len = 0;
-						for (uint32_t i = 0; i < run.s8_count && run.s8_start + i < data.v77.s8.size(); ++i)
-							len += data.v77.s8[run.s8_start + i].s8_duration_ticks;
-						n = std::max(n, len);
-					}
-				}
+				n = track_duration_frames(data, track_index);
 			}
 		}
 	} catch (...) {

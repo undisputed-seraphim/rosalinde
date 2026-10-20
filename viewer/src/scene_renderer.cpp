@@ -94,7 +94,7 @@ asb::RuntimeEntity faded(const asb::RuntimeEntity& e, uint32_t frame) {
 		return view;
 	const float t =
 		std::clamp(static_cast<float>(frame - view.fade_start) / static_cast<float>(view.fade_duration), 0.0f, 1.0f);
-	view.alpha = static_cast<int>(std::lround(view.fade_from * (1.0f - t)));
+	view.alpha = static_cast<int>(std::lround(view.fade_from + (view.fade_to - view.fade_from) * t));
 	return view;
 }
 
@@ -157,10 +157,12 @@ void SceneRenderer::set_stage(const std::string& mbs, const std::string& ftx, st
 void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, SpriteAssetPtr asset) {
 	object.state = e;
 	object.background = asset && asset->is_background;
-	object.replaces_stage = object.background && e.started && e.visible && e.prerender_force;
+	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0 && e.prerender_force;
 	object.tint_key = -2;
 	const TrackPolicy policy = object.background ? TrackPolicy::AllEnabledTracks : TrackPolicy::ScriptTrack;
 	object.playback.reset(std::move(asset), policy, e, flip_v_for(e), object.background);
+	object.replaces_stage =
+		object.replaces_stage && object.playback.asset && !object.playback.instances.empty();
 	update_tints(object);
 
 	if (object.background && object.playback.asset)
@@ -181,7 +183,8 @@ void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, Spr
 
 void SceneRenderer::apply(RenderItem& object, const asb::RuntimeEntity& e) {
 	object.state = e;
-	object.replaces_stage = object.background && e.started && e.visible && e.prerender_force;
+	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0 && e.prerender_force &&
+						  object.playback.asset && !object.playback.instances.empty();
 	const int previous_track = object.playback.track_index;
 	object.playback.apply(e);
 	update_tints(object);
@@ -345,7 +348,9 @@ std::string SceneRenderer::object_json(const RenderItem& object, bool stage, std
 		",\"layer_mask\":" + std::to_string(e.layer_mask) + ",\"color\":[" + std::to_string(e.color[0]) + "," +
 		std::to_string(e.color[1]) + "," + std::to_string(e.color[2]) + "," + std::to_string(e.color[3]) + "]" +
 		",\"paused\":" + asb::trace::boolean(e.paused) + ",\"anim_paused\":" + asb::trace::boolean(e.anim_paused) +
+		",\"animation_start_frame\":" + std::to_string(e.animation_start_frame) +
 		",\"background\":" + asb::trace::boolean(object.background) +
+		",\"replaces_stage\":" + asb::trace::boolean(object.replaces_stage) +
 		",\"asset_loaded\":" + asb::trace::boolean(object.playback.asset != nullptr);
 
 	std::string track_name;

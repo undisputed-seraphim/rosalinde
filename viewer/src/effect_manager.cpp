@@ -24,17 +24,7 @@ SpriteAssetPtr EffectManager::asset_for(const std::string& mbs, const std::strin
 }
 
 long EffectManager::track_frames(const SpriteData& data, int track) {
-	if (track < 0 || static_cast<size_t>(track) >= data.tracks.size())
-		return 0;
-	long n = 0;
-	for (const auto& run : data.tracks[static_cast<size_t>(track)].runs) {
-		for (uint32_t i = 0; i < run.s8_count; ++i) {
-			const size_t idx = static_cast<size_t>(run.s8_start) + i;
-			if (idx < data.v77.s8.size())
-				n += data.v77.s8[idx].s8_duration_ticks;
-		}
-	}
-	return n;
+	return track_duration_frames(data, track);
 }
 
 void EffectManager::apply(const asb::RuntimeEffect& e, long frame, const EntityPos& entity_pos) {

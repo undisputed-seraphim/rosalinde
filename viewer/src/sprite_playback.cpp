@@ -41,6 +41,7 @@ void SpritePlayback::reset(
 				continue;
 			instances.emplace_back(&asset->data, i, 0xFFFFFFFFu);
 			instances.back().hold_finished = hold_finished;
+			instances.back().background = true;
 			instances.back().flip_v = flip_v;
 			instances.back().play(i);
 		}

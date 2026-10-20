@@ -77,6 +77,9 @@ private:
 	void preprocess();
 };
 
+// Longest sequence in a track, converted from MBS 120 Hz ticks to scene frames.
+long track_duration_frames(const SpriteData& data, int track);
+
 struct LayerVisit {
 	uint32_t run = 0;
 	int32_t layer = -1;
@@ -141,6 +144,7 @@ struct SpriteInstance {
 	uint32_t _frame_counter = 0;
 	bool paused = false;
 	bool hold_finished = false;
+	bool background = false;
 	bool flip_v = false;
 
 	std::vector<mbs::section_7> _transition_src_s7;
