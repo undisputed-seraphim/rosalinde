@@ -8,6 +8,7 @@
 #include "playback_clock.hpp"
 #include "scene_renderer.hpp"
 #include "screen_fade.hpp"
+#include "stage_composer.hpp"
 #include "viewer_config.hpp"
 
 #include <glm/glm.hpp>
@@ -38,6 +39,7 @@ private:
 	const AssetLoader& _loader;
 	std::string _entry;
 	FieldCatalog _fields;
+	StageComposer _stages;
 	SceneRenderer _renderer;
 	EffectManager _effects;
 	Camera _camera;

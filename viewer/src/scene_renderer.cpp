@@ -138,26 +138,22 @@ std::string SceneRenderer::filter_reason(const asb::RuntimeEntity& e, bool stage
 	return {};
 }
 
-void SceneRenderer::set_stage(const StageBackground& background) {
-	_stage_specs = background.objects;
-	_stage_objects.clear();
+void SceneRenderer::set_stage(const StageComposition& composition) {
+	_stage_layer_specs = composition.layers;
+	_stage_layer_items.clear();
 	_stage = RenderItem{};
-	_stage_mbs = background.objects.empty() ? background.mbs : std::string();
-	_stage_ftx = background.objects.empty() ? background.ftx : std::string();
-	_stage_track_order.clear();
-
-	if (!_stage_specs.empty())
-		return;
+	_stage_mbs = composition.mbs;
+	_stage_ftx = composition.ftx;
 
 	_stage.stage = true;
 	_stage.state.visible = true;
 	_stage.state.order = -100000;
 	_stage.state.alpha = 255;
-	_stage.state.space = _stage_mbs.rfind("FieldBG/", 0) == 0 || !background.layers.empty()
+	_stage.state.space = _stage_mbs.rfind("FieldBG/", 0) == 0 || !composition.mpd_layers.empty()
 							 ? asb::RuntimeEntity::Space::Ui
 							 : asb::RuntimeEntity::Space::World;
-	_stage.meshes.reserve(background.layers.size());
-	for (const auto& layer : background.layers)
+	_stage.meshes.reserve(composition.mpd_layers.size());
+	for (const auto& layer : composition.mpd_layers)
 		_stage.meshes.push_back({layer, nullptr, false});
 }
 
@@ -167,9 +163,9 @@ void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, Spr
 	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0 && e.prerender_force;
 	object.tint_key = -2;
 	const TrackPolicy policy =
-		object.background && !object.stage_object ? TrackPolicy::AllEnabledTracks : TrackPolicy::ScriptTrack;
+		object.background && !object.stage_layer ? TrackPolicy::AllEnabledTracks : TrackPolicy::ScriptTrack;
 	const bool character = e.kind == "DrUiCreateChara" || e.kind == "DrCreateChara" || e.kind == "DrCreateNpc";
-	const bool hold_finished = object.background || character || object.stage_object;
+	const bool hold_finished = object.background || character || object.stage_layer;
 	object.playback.reset(std::move(asset), policy, e, flip_v_for(e), hold_finished, character);
 	object.playback.apply_track_order(object.track_order);
 	object.replaces_stage =
@@ -276,16 +272,16 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 		}
 	}
 
-	if (!_stage_specs.empty() && _stage_objects.empty()) {
-		_stage_objects.reserve(_stage_specs.size());
-		for (size_t i = 0; i < _stage_specs.size(); ++i) {
-			const auto& spec = _stage_specs[i];
+	if (!_stage_layer_specs.empty() && _stage_layer_items.empty()) {
+		_stage_layer_items.reserve(_stage_layer_specs.size());
+		for (size_t i = 0; i < _stage_layer_specs.size(); ++i) {
+			const auto& spec = _stage_layer_specs[i];
 			auto asset = _library.get(spec.mbs, spec.ftx);
 			if (!asset)
 				continue;
 			asb::RuntimeEntity e;
 			e.name = "__stage__:" + std::to_string(i);
-			e.kind = "StageBBS";
+			e.kind = "StageLayer";
 			e.mbs = spec.mbs;
 			e.ftx = spec.ftx;
 			e.track_index = spec.track_index;
@@ -301,9 +297,9 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			e.alpha = spec.alpha;
 			RenderItem object;
 			object.stage = true;
-			object.stage_object = true;
+			object.stage_layer = true;
 			rebuild(object, e, std::move(asset));
-			_stage_objects.push_back(std::move(object));
+			_stage_layer_items.push_back(std::move(object));
 		}
 	}
 
@@ -322,7 +318,7 @@ void SceneRenderer::advance(float dt) {
 		return;
 	for (auto& [_, object] : _objects)
 		object.playback.advance(dt);
-	for (auto& object : _stage_objects)
+	for (auto& object : _stage_layer_items)
 		object.playback.advance(dt);
 	_stage.playback.advance(dt);
 }
@@ -338,10 +334,10 @@ glm::vec2 SceneRenderer::parent_position(const RenderItem& object) const {
 
 std::vector<const SceneRenderer::RenderItem*> SceneRenderer::ordered_items() const {
 	std::vector<const RenderItem*> items;
-	items.reserve(_objects.size() + _stage_objects.size() + 1);
+	items.reserve(_objects.size() + _stage_layer_items.size() + 1);
 	for (const auto& [_, object] : _objects)
 		items.push_back(&object);
-	for (const auto& object : _stage_objects)
+	for (const auto& object : _stage_layer_items)
 		if (object.has_renderable())
 			items.push_back(&object);
 	if (_stage.has_renderable())
@@ -549,7 +545,7 @@ std::string SceneRenderer::state_json(const asb::SceneState& scene) const {
 		if (!first)
 			out += ',';
 		first = false;
-		const bool stage = object == &_stage;
+		const bool stage = object->stage;
 		out += object_json(*object, stage, filter_reason(object->state, stage));
 	}
 	out += "],\"missing\":[";
@@ -574,7 +570,9 @@ std::string SceneRenderer::state_json(const asb::SceneState& scene) const {
 std::string SceneRenderer::timeline_json(const asb::SceneState& scene) const {
 	auto objects = ordered_items();
 	if (stage_replaced())
-		objects.erase(std::remove(objects.begin(), objects.end(), &_stage), objects.end());
+		objects.erase(
+			std::remove_if(objects.begin(), objects.end(), [](const RenderItem* object) { return object->stage; }),
+			objects.end());
 
 	std::string out = "{\"scene_frame\":" + std::to_string(scene.frame) + ",\"objects\":[";
 	bool first = true;
@@ -620,7 +618,7 @@ std::string SceneRenderer::summary(const asb::SceneState& scene) const {
 	out << "renderer:\n";
 	const auto objects = ordered_items();
 	for (const RenderItem* object : objects) {
-		const bool stage = object == &_stage;
+		const bool stage = object->stage;
 		std::string track_name;
 		if (object->playback.asset && object->playback.track_index >= 0 &&
 			static_cast<size_t>(object->playback.track_index) < object->playback.asset->data.tracks.size())
@@ -680,7 +678,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 					   ",\"pos\":" + asb::trace::vec2(e.pos) + ",\"scale\":" + asb::trace::number(e.scale) +
 					   ",\"alpha\":" + asb::trace::integer(e.alpha) +
 					   ",\"background\":" + asb::trace::boolean(object->background) + ",\"reason\":\"" +
-					   filter_reason(e, object == &_stage) + "\"" + ",\"bounds\":" + asb::trace::vec4(&bounds.x) + "}";
+					   filter_reason(e, object->stage) + "\"" + ",\"bounds\":" + asb::trace::vec4(&bounds.x) + "}";
 		}
 		_trace({_frame, "draw", "list", "\"objects\":[" + objects + "]"});
 	}
@@ -689,11 +687,11 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 		const glm::vec2 offset = parent_position(*object);
 		const glm::vec2 pos{e.pos[0] + offset.x, e.pos[1] + offset.y};
 		const float alpha = std::clamp(e.alpha / 255.0f, 0.0f, 1.0f);
-		std::string reason = filter_reason(e, object == &_stage);
+		std::string reason = filter_reason(e, object->stage);
 		if (reason.empty() && alpha <= 0.0f)
 			reason = "alpha";
 		if (_probe)
-			probe_object(*object, object == &_stage, reason);
+			probe_object(*object, object->stage, reason);
 		if (!reason.empty())
 			continue;
 		const bool flip = (e.dir_x < 0.0f) != e.reverse_x;
@@ -708,8 +706,8 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 							",\"track\":" + std::to_string(instance.track_idx) + ",\"runs\":" +
 							runs_json(instance)});
 			if (_probe) {
-				probe_instance(*object, object == &_stage, i);
-				probe_layers(*object, i, object == &_stage, object->tints);
+				probe_instance(*object, object->stage, i);
+				probe_layers(*object, i, object->stage, object->tints);
 			}
 			const Camera& object_camera = e.space == asb::RuntimeEntity::Space::Ui ? ui_camera : camera;
 			static const glm::mat4 screen_projection = glm::ortho(0.0f, 1920.0f, 1080.0f, 0.0f);
@@ -742,8 +740,8 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 
 void SceneRenderer::clear() {
 	_objects.clear();
-	_stage_objects.clear();
-	_stage_specs.clear();
+	_stage_layer_items.clear();
+	_stage_layer_specs.clear();
 	_stage = RenderItem{};
 	_stage_mbs.clear();
 	_stage_ftx.clear();

@@ -4,13 +4,13 @@
 #include <string>
 #include <vector>
 
-struct StageLayer {
+struct StageMpdLayer {
 	std::string mpd;
 	std::string ftx;
 	bool far = false;
 };
 
-struct StageObject {
+struct StageLayer {
 	std::string mbs;
 	std::string ftx;
 	int track_index = -1;
@@ -22,9 +22,11 @@ struct StageObject {
 	int order = 0;
 };
 
-struct StageBackground {
+struct StageComposition {
 	std::string mbs;
 	std::string ftx;
+	std::vector<StageMpdLayer> mpd_layers;
 	std::vector<StageLayer> layers;
-	std::vector<StageObject> objects;
+
+	bool has_base() const { return !mbs.empty() || !mpd_layers.empty(); }
 };

@@ -56,28 +56,33 @@ void SceneView::sync_stage(const asb::SceneState& scene) {
 		return;
 	_stage_type = type;
 	_stage_coa = coa;
-	auto background = _fields.background(type, coa, _entry);
-	if (!background) {
+	auto composition = _fields.background(type, coa, _entry);
+	if (!composition) {
 		spdlog::debug("stage: frame={} type={} -> none", scene.frame, type);
-		_renderer.set_stage(StageBackground{});
+		_stages.clear();
+		_renderer.set_stage(StageComposition{});
 		return;
 	}
+	_stages.apply(std::move(*composition));
+	const auto& stage = _stages.current();
+	// TODO(stage): UcStStage +0xab0 (stage_data) should provide the initial
+	// base composition and the replace/overlay decision for this stage.
 	spdlog::debug(
-		"stage: frame={} type={} -> mbs={} objects={} layers={}",
+		"stage: frame={} type={} -> mbs={} layers={} mpd={}",
 		scene.frame,
 		type,
-		background->mbs.empty() ? "<none>" : background->mbs,
-		background->objects.size(),
-		background->layers.size());
-	_renderer.set_stage(*background);
+		stage.mbs.empty() ? "<none>" : stage.mbs,
+		stage.layers.size(),
+		stage.mpd_layers.size());
+	_renderer.set_stage(stage);
 	if (_trace)
 		_trace(
 			{scene.frame,
 			 "stage",
 			 "asset",
-			 "\"type\":" + asb::trace::integer(type) + ",\"mbs\":\"" + asb::trace::quote(background->mbs) +
-				 "\",\"ftx\":\"" + asb::trace::quote(background->ftx) + "\",\"layers\":" +
-				 std::to_string(background->layers.size())});
+			 "\"type\":" + asb::trace::integer(type) + ",\"mbs\":\"" + asb::trace::quote(stage.mbs) +
+				 "\",\"ftx\":\"" + asb::trace::quote(stage.ftx) + "\",\"layers\":" +
+				 std::to_string(stage.layers.size()) + ",\"mpd\":" + std::to_string(stage.mpd_layers.size())});
 }
 
 void SceneView::apply_camera(const asb::SceneState& scene) {

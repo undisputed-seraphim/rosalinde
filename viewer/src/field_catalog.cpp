@@ -133,7 +133,7 @@ std::optional<std::string> FieldCatalog::resolve_bbs_asset(std::string_view name
 	return std::nullopt;
 }
 
-std::optional<StageBackground> FieldCatalog::bbs_background(int stage_type) {
+std::optional<StageComposition> FieldCatalog::bbs_background(int stage_type) {
 	if (!load_bbs_catalog())
 		return std::nullopt;
 	const auto entry = _bbs_catalog.find(stage_type);
@@ -143,8 +143,10 @@ std::optional<StageBackground> FieldCatalog::bbs_background(int stage_type) {
 	if (!file)
 		return std::nullopt;
 
-	StageBackground result;
-	result.objects.reserve(file->objects.size());
+	// TODO(stage): UcStStage +0xab0 (stage_data) is the likely source of the
+	// base layer and whether these BBS objects replace or overlay it.
+	StageComposition result;
+	result.layers.reserve(file->objects.size());
 	for (size_t i = 0; i < file->objects.size(); ++i) {
 		const auto& object = file->objects[i];
 		if (object.mbs_index >= file->mbs_names.size())
@@ -166,7 +168,7 @@ std::optional<StageBackground> FieldCatalog::bbs_background(int stage_type) {
 		if (!ftx)
 			continue;
 
-		StageObject placed;
+		StageLayer placed;
 		placed.mbs = std::move(*mbs);
 		placed.ftx = std::move(*ftx);
 		placed.track_index = object.track_index;
@@ -176,12 +178,12 @@ std::optional<StageBackground> FieldCatalog::bbs_background(int stage_type) {
 		placed.scale = object.scale_x > 0.0f ? object.scale_x : 1.0f;
 		placed.alpha = std::clamp(static_cast<int>(std::lround(object.alpha * 255.0f)), 0, 255);
 		placed.order = static_cast<int>(i);
-		result.objects.push_back(std::move(placed));
+		result.layers.push_back(std::move(placed));
 	}
-	if (result.objects.empty())
+	if (result.layers.empty())
 		return std::nullopt;
 	spdlog::debug(
-		"bbs: stage={} path={} label={} objects={}", stage_type, entry->second.path, entry->second.label, result.objects.size());
+		"bbs: stage={} path={} label={} layers={}", stage_type, entry->second.path, entry->second.label, result.layers.size());
 	return result;
 }
 
@@ -330,9 +332,9 @@ const FieldCatalog::Asset* FieldCatalog::find_layer(int area, int variant, char 
 	return nullptr;
 }
 
-std::optional<StageLayer> FieldCatalog::far_layer(int area, int variant) const {
+std::optional<StageMpdLayer> FieldCatalog::far_layer(int area, int variant) const {
 	if (const auto* exact = find_layer(area, variant, 'f', ".mpd"))
-		return StageLayer{path_of(*exact), texture_of(*exact), true};
+		return StageMpdLayer{path_of(*exact), texture_of(*exact), true};
 	for (const auto& asset : _assets) {
 		if (extension(asset.main) != ".mpd")
 			continue;
@@ -342,7 +344,7 @@ std::optional<StageLayer> FieldCatalog::far_layer(int area, int variant) const {
 		const std::string token = key.substr(("ac" + two(area) + "_").size());
 		if (token.find('f') == std::string::npos || token.find('p') != std::string::npos)
 			continue;
-		return StageLayer{path_of(asset), texture_of(asset), true};
+		return StageMpdLayer{path_of(asset), texture_of(asset), true};
 	}
 	return std::nullopt;
 }
@@ -355,7 +357,7 @@ std::string FieldCatalog::texture_of(const Asset& asset) const {
 	return normalize(asset.texture);
 }
 
-std::optional<StageBackground> FieldCatalog::background(int stage_type, int coa_preset, std::string_view entry) {
+std::optional<StageComposition> FieldCatalog::background(int stage_type, int coa_preset, std::string_view entry) {
 	(void)coa_preset;
 	if (auto bbs = bbs_background(stage_type))
 		return bbs;
@@ -385,16 +387,16 @@ std::optional<StageBackground> FieldCatalog::background(int stage_type, int coa_
 	if (!mbs && !mpd)
 		return std::nullopt;
 
-	StageBackground result;
+	StageComposition result;
 	if (mbs)
 		result.mbs = path_of(*mbs);
 	const Asset& texture_asset = mbs ? *mbs : *mpd;
 	result.ftx = texture_of(texture_asset);
 
 	if (const auto far = far_layer(area, variant))
-		result.layers.push_back(*far);
+		result.mpd_layers.push_back(*far);
 	if (mpd && (!mbs || path_of(*mpd) != result.mbs))
-		result.layers.push_back(StageLayer{path_of(*mpd), texture_of(*mpd), false});
+		result.mpd_layers.push_back(StageMpdLayer{path_of(*mpd), texture_of(*mpd), false});
 
 	const std::string row_name = row ? row->name : std::string("<none>");
 	spdlog::debug(
@@ -405,8 +407,8 @@ std::optional<StageBackground> FieldCatalog::background(int stage_type, int coa_
 		two(area),
 		variant,
 		result.mbs.empty() ? "<none>" : result.mbs,
-		result.layers.size());
-	for (const auto& layer : result.layers)
+		result.mpd_layers.size());
+	for (const auto& layer : result.mpd_layers)
 		spdlog::debug("field: layer{} {}", layer.far ? " far" : "", layer.mpd);
 	return result;
 }
