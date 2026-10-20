@@ -143,8 +143,8 @@ std::optional<StageComposition> FieldCatalog::bbs_background(int stage_type) {
 	if (!file)
 		return std::nullopt;
 
-	// TODO(stage): UcStStage +0xab0 (stage_data) is the likely source of the
-	// base layer and whether these BBS objects replace or overlay it.
+	// UcStStage +0xab0 is the stage object/scene database, not a BBS
+	// base/overlay flag. The BBS object list is the composition source here.
 	StageComposition result;
 	result.layers.reserve(file->objects.size());
 	for (size_t i = 0; i < file->objects.size(); ++i) {

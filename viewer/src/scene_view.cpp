@@ -79,8 +79,8 @@ void SceneView::sync_stage(const asb::SceneState& scene) {
 	}
 	_stages.apply(std::move(*composition));
 	const auto& stage = _stages.current();
-	// TODO(stage): UcStStage +0xab0 (stage_data) should provide the initial
-	// base composition and the replace/overlay decision for this stage.
+	// UcStStage +0xab0 is stage object/scene data, not the BBS base/overlay
+	// selector. A cold scene still needs an explicit prior-stage seed.
 	spdlog::debug(
 		"stage: frame={} type={} -> mbs={} layers={} mpd={}",
 		scene.frame,
