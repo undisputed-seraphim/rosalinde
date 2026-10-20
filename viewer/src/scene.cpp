@@ -27,33 +27,7 @@ Scene::Scene(ViewerConfig config)
 		throw std::runtime_error("--script is required");
 
 	ImGui::GetIO().IniFilename = nullptr;
-	DramaPlaybackConfig dc;
-	dc.entry = _config.script;
-	dc.func = _config.scene_func;
-	dc.chara_table = _config.chara_table;
-	dc.data_dir = _config.data_dir;
-	dc.screenshot = _config.screenshot;
-	dc.frames = _config.frames;
-	dc.scene_frame = _config.scene_frame;
-	dc.fps = _config.scene_fps;
-	dc.trace = _config.trace;
-	dc.trace_categories = _config.trace_categories;
-	dc.trace_frames = _config.trace_frames;
-	dc.trace_objects = _config.trace_objects;
-	dc.trace_limit = _config.trace_limit;
-	dc.calls = _config.calls;
-	dc.calls_json = _config.calls_json;
-	dc.record = _config.record;
-	dc.record_every = _config.record_every;
-	dc.capture_frames = _config.capture_frames;
-	dc.capture_dir = _config.capture_dir;
-	dc.capture_prefix = _config.capture_prefix;
-	dc.only = _config.only;
-	dc.hide = _config.hide;
-	dc.keep_stage = _config.keep_stage;
-	dc.probe_dir = _config.probe_dir;
-	dc.probe_frames = _config.probe_frames;
-	_drama = std::make_unique<DramaPlayback>(_loader, std::move(dc));
+	_drama = std::make_unique<DramaPlayback>(_loader, _config);
 	viewer::trace::stamp("Scene ctor: DramaPlayback ready");
 }
 

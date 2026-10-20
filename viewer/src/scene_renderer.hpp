@@ -42,35 +42,42 @@ public:
 	size_t object_count() const { return _objects.size(); }
 
 private:
-	struct Object {
-		asb::RuntimeEntity state;
-		SpritePlayback playback;
-		bool background = false;
-	};
-
-	void rebuild(Object& object, const asb::RuntimeEntity& e, SpriteAssetPtr asset);
-	void apply(Object& object, const asb::RuntimeEntity& e);
-	glm::vec2 parent_position(const Object& object) const;
-	std::string filter_reason(const asb::RuntimeEntity& e, bool stage) const;
-	std::string object_json(const Object& object, bool stage, std::string_view reason) const;
-	void probe_object(const Object& object, bool stage, std::string_view reason);
-	void probe_instance(const Object& object, bool stage, size_t index);
-	void probe_layers(const Object& object, size_t index, bool stage, const std::map<uint32_t, glm::vec4>& tints);
-
-	AssetLibrary& _library;
-	asb::TraceCallback _trace;
-	long _frame = 0;
-	std::unordered_map<std::string, Object> _objects;
-	Object _stage;
-	struct LoadedStageLayer {
+	struct StageMesh {
 		StageLayer spec;
 		std::unique_ptr<MpdAsset> asset;
 		bool attempted = false;
 	};
 
+	struct RenderItem {
+		asb::RuntimeEntity state;
+		SpritePlayback playback;
+		std::vector<StageMesh> meshes;
+		bool background = false;
+		bool stage = false;
+		bool replaces_stage = false;
+
+		bool has_renderable() const { return playback.asset != nullptr || !meshes.empty(); }
+	};
+
+	void rebuild(RenderItem& item, const asb::RuntimeEntity& e, SpriteAssetPtr asset);
+	void apply(RenderItem& item, const asb::RuntimeEntity& e);
+	glm::vec2 parent_position(const RenderItem& item) const;
+	std::string filter_reason(const asb::RuntimeEntity& e, bool stage) const;
+	std::string object_json(const RenderItem& item, bool stage, std::string_view reason) const;
+	void probe_object(const RenderItem& item, bool stage, std::string_view reason);
+	void probe_instance(const RenderItem& item, bool stage, size_t index);
+	void probe_layers(const RenderItem& item, size_t index, bool stage, const std::map<uint32_t, glm::vec4>& tints);
+	std::vector<const RenderItem*> ordered_items() const;
+	std::vector<const RenderItem*> draw_items() const;
+
+	AssetLibrary& _library;
+	asb::TraceCallback _trace;
+	long _frame = 0;
+	std::unordered_map<std::string, RenderItem> _objects;
+	RenderItem _stage;
+
 	std::string _stage_mbs;
 	std::string _stage_ftx;
-	std::vector<LoadedStageLayer> _stage_layers;
 	std::vector<std::string> _only;
 	std::vector<std::string> _hide;
 	bool _keep_stage = false;

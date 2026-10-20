@@ -1,58 +1,18 @@
 #pragma once
 
 #include "asset_loader.hpp"
-#include "camera.hpp"
-#include "effect_manager.hpp"
-#include "field_catalog.hpp"
-#include "playback_clock.hpp"
-#include "probe.hpp"
-#include "runtime_data.hpp"
-#include "scene_renderer.hpp"
-#include "screen_fade.hpp"
-#include "trace_writer.hpp"
-
-#include <scarlett/call_census.hpp>
-#include <scarlett/host.hpp>
-#include <scarlett/runtime.hpp>
+#include "asset_library.hpp"
+#include "playback_diagnostics.hpp"
+#include "playback_runtime.hpp"
+#include "scene_view.hpp"
+#include "viewer_config.hpp"
 
 #include <cstdint>
-#include <fstream>
 #include <memory>
-#include <string>
-#include <unordered_set>
-#include <vector>
-
-struct DramaPlaybackConfig {
-	std::string entry;
-	std::string func;
-	std::string chara_table;
-	std::string data_dir;
-	std::string screenshot;
-	uint32_t frames = 1;
-	long scene_frame = -1;
-	float fps = 60.0f;
-	std::string trace;
-	std::string trace_categories;
-	std::vector<long> trace_frames;
-	std::vector<std::string> trace_objects;
-	int trace_limit = 0;
-	std::string calls;
-	std::string calls_json;
-	std::string record;
-	long record_every = 1;
-	std::vector<long> capture_frames;
-	std::string capture_dir;
-	std::string capture_prefix = "frame";
-	std::vector<std::string> only;
-	std::vector<std::string> hide;
-	bool keep_stage = false;
-	std::string probe_dir;
-	std::vector<long> probe_frames;
-};
 
 class DramaPlayback {
 public:
-	DramaPlayback(const AssetLoader& loader, DramaPlaybackConfig cfg);
+	DramaPlayback(const AssetLoader& loader, ViewerConfig config);
 	~DramaPlayback();
 
 	bool handle_inputs();
@@ -62,54 +22,26 @@ public:
 
 	void request_quit() { _quit = true; }
 
-	bool is_done() const { return _session && _session->finished(); }
-	bool probes_done() const { return _probe.done(); }
+	bool is_done() const;
+	bool probes_done() const;
 	bool should_quit() const { return _quit; }
-	bool captured() const { return _captured; }
-	bool captures_done() const { return _captures_done; }
+	bool captured() const;
+	bool captures_done() const;
 
 private:
 	void step();
-	void apply_camera();
-	void sync_stage();
-	void draw_text();
-	void write_calls();
-	void write_record(long frame);
-	bool write_screenshot(const std::string& path);
 
 	const AssetLoader& _loader;
-	DramaPlaybackConfig _cfg;
-	FieldCatalog _fields;
+	ViewerConfig _cfg;
 	AssetLibrary _library;
-	ViewerRuntimeData _runtime;
-	asb::Host _host;
-	std::shared_ptr<asb::Module> _module;
-	std::string _entry_name;
-	asb::diag::CallCensus _census;
-	std::unique_ptr<asb::RuntimeSession> _session;
-	SceneRenderer _renderer;
-	EffectManager _effects;
-	Camera _camera;
-	PlaybackClock _clock;
-	glm::mat4 _projection;
-	ScreenFadeOverlay _fade;
-	TraceWriter _trace;
-	ProbeWriter _probe;
-	std::ofstream _record_file;
-	std::ostream* _record_out = nullptr;
+	std::unique_ptr<PlaybackDiagnostics> _diagnostics;
+	std::unique_ptr<PlaybackRuntime> _runtime;
+	std::unique_ptr<SceneView> _view;
 
 	long _frame = 0;
 	double _accum = 0.0;
 	uint32_t _render_count = 0;
 	bool _stepped = false;
-	bool _captured = false;
-	bool _captures_done = false;
-	bool _capture_mode = false;
-	size_t _capture_index = 0;
-	std::unordered_set<long> _captured_frames;
-	bool _probe_mode = false;
-	size_t _probe_index = 0;
 	bool _quit = false;
-	int _stage_type = -1;
 	bool _started = false;
 };
