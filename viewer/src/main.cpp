@@ -143,6 +143,9 @@ int main(int argc, char* argv[]) try {
 		"data-dir",
 		::boost::program_options::value<std::string>(&config.data_dir),
 		"Runtime data directory (default: viewer/data or $VIEWER_DATA)")(
+		"initial-stage",
+		::boost::program_options::value<int>(&config.initial_stage)->default_value(config.initial_stage),
+		"Seed the initial stage composition from this DrCreateStage type")(
 		"only",
 		::boost::program_options::value<std::vector<std::string>>(&config.only)->composing(),
 		"Render only objects with this exact name or alias (repeatable)")(

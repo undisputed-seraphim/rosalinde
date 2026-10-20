@@ -16,6 +16,7 @@ SceneView::SceneView(const AssetLoader& loader, AssetLibrary& library, const Vie
 	, _effects(library)
 	, _camera(1.0f)
 	, _projection(glm::ortho(-960.0f, 960.0f, 540.0f, -540.0f)) {
+	_initial_stage = config.initial_stage;
 	if (const char* ortho = std::getenv("VIEWER_ORTHO")) {
 		float a = 0, b = 0, c = 0, d = 0;
 		if (std::sscanf(ortho, "%f,%f,%f,%f", &a, &b, &c, &d) == 4)
@@ -24,6 +25,19 @@ SceneView::SceneView(const AssetLoader& loader, AssetLibrary& library, const Vie
 }
 
 void SceneView::initialize(const asb::SceneState& scene) {
+	if (_initial_stage >= 0) {
+		auto seed = _fields.background(_initial_stage, 0, _entry);
+		if (seed) {
+			_stages.seed(std::move(*seed));
+			_renderer.set_stage(_stages.current());
+			spdlog::debug(
+				"stage: seeded initial type={} mbs={} layers={} mpd={}",
+				_initial_stage,
+				_stages.current().mbs.empty() ? "<none>" : _stages.current().mbs,
+				_stages.current().layers.size(),
+				_stages.current().mpd_layers.size());
+		}
+	}
 	sync_stage(scene);
 	_renderer.sync(scene);
 	_effects.update(scene.frame, scene.effects, [&scene](const std::string& name) -> glm::vec2 {

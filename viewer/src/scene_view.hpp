@@ -47,6 +47,7 @@ private:
 	glm::mat4 _projection;
 	ScreenFadeOverlay _fade;
 	asb::TraceCallback _trace;
+	int _initial_stage = -1;
 	int _stage_type = -1;
 	int _stage_coa = -1;
 };
