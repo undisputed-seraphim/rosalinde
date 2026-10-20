@@ -182,7 +182,7 @@ python3 visiontest/opening_diff.py \
 
 | Var | Effect |
 |-----|--------|
-| `VIEWER_LOG_LEVEL` | spdlog level: `trace`, `debug`, `info`, `warn`, `error`, `off`; `debug` enables startup timing, per-draw/run, and native-scene detail |
+| `VIEWER_LOG_LEVEL` | spdlog level: `trace`, `debug`, `info`, `warn`, `error`, `off`; `debug` enables startup timing, asset loads, and native-scene detail |
 | `ASB_TEXT`, `ASB_CENSUS`, `ASB_CALLBACKS` | dialogue, native-call, callback diagnostics |
 | `VIEWER_RUN_ONLY`, `VIEWER_RUN_FROM`, `VIEWER_MAIN_ONLY` | restrict MBS runs for debugging |
 | `VIEWER_RUNS=seq`, `VIEWER_SEQ_MAIN`, `VIEWER_ADVANCE`, `VIEWER_ONCE` | sequential-phase / start-offset / end-mode experiments |

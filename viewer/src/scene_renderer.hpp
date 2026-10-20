@@ -52,6 +52,8 @@ private:
 		asb::RuntimeEntity state;
 		SpritePlayback playback;
 		std::vector<StageMesh> meshes;
+		std::map<uint32_t, glm::vec4> tints;
+		int tint_key = -2;
 		bool background = false;
 		bool stage = false;
 		bool replaces_stage = false;
@@ -61,6 +63,7 @@ private:
 
 	void rebuild(RenderItem& item, const asb::RuntimeEntity& e, SpriteAssetPtr asset);
 	void apply(RenderItem& item, const asb::RuntimeEntity& e);
+	void update_tints(RenderItem& item);
 	glm::vec2 parent_position(const RenderItem& item) const;
 	std::string filter_reason(const asb::RuntimeEntity& e, bool stage) const;
 	std::string object_json(const RenderItem& item, bool stage, std::string_view reason) const;

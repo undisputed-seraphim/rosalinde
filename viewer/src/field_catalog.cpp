@@ -178,6 +178,11 @@ bool FieldCatalog::load_assets() {
 	}
 	const std::span<const uint8_t> data(
 		reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size());
+	// TODO: use an asset-only UFB parser here. ufb::parse copies the full
+	// 6,134,722-record terrain/object stream (~147 MB) even though the field
+	// catalog only needs the 39 asset pairs. Add ufb::parse_assets() that
+	// validates the header/string pool and reads only asset_count * 2 strings;
+	// keep the full parser for tools that need records.
 	const auto parsed = ufb::parse(data);
 	if (!parsed)
 		return false;

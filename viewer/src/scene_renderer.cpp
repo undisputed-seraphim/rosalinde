@@ -158,8 +158,10 @@ void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, Spr
 	object.state = e;
 	object.background = asset && asset->is_background;
 	object.replaces_stage = object.background && e.started && e.visible && e.prerender_force;
+	object.tint_key = -2;
 	const TrackPolicy policy = object.background ? TrackPolicy::AllEnabledTracks : TrackPolicy::ScriptTrack;
 	object.playback.reset(std::move(asset), policy, e, flip_v_for(e), object.background);
+	update_tints(object);
 
 	if (object.background && object.playback.asset)
 		spdlog::debug(
@@ -182,6 +184,7 @@ void SceneRenderer::apply(RenderItem& object, const asb::RuntimeEntity& e) {
 	object.replaces_stage = object.background && e.started && e.visible && e.prerender_force;
 	const int previous_track = object.playback.track_index;
 	object.playback.apply(e);
+	update_tints(object);
 	if (_trace && previous_track != object.playback.track_index && object.playback.track_index >= 0)
 		_trace(
 			{_frame,
@@ -189,6 +192,21 @@ void SceneRenderer::apply(RenderItem& object, const asb::RuntimeEntity& e) {
 			 "track",
 			 "\"name\":\"" + asb::trace::quote(e.name) + "\",\"track\":" +
 				 asb::trace::integer(object.playback.track_index)});
+}
+
+void SceneRenderer::update_tints(RenderItem& object) {
+	const int packed = object.state.color[0] >= 0 ? object.state.color[0] : object.state.color[2];
+	if (packed == object.tint_key)
+		return;
+	object.tint_key = packed;
+	object.tints.clear();
+	if (packed < 0 || !object.playback.asset)
+		return;
+	const glm::vec4 tint{
+		((packed >> 16) & 0xFF) / 255.0f, ((packed >> 8) & 0xFF) / 255.0f, (packed & 0xFF) / 255.0f, 1.0f};
+	object.tints[0] = tint;
+	for (const auto& s4 : object.playback.asset->data.v77.s4)
+		object.tints[s4.attributes] = tint;
 }
 
 void SceneRenderer::sync(const asb::SceneState& scene) {
@@ -628,40 +646,6 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 			continue;
 		const bool flip = (e.dir_x < 0.0f) != e.reverse_x;
 
-		std::map<uint32_t, glm::vec4> tints;
-		const int packed = e.color[0] >= 0 ? e.color[0] : e.color[2];
-		if (packed >= 0) {
-			const glm::vec4 tint{
-				((packed >> 16) & 0xFF) / 255.0f, ((packed >> 8) & 0xFF) / 255.0f, (packed & 0xFF) / 255.0f, 1.0f};
-			tints[0] = tint;
-			for (const auto& s4 : object->playback.asset->data.v77.s4)
-				tints[s4.attributes] = tint;
-		}
-
-		spdlog::debug("draw: {} pos=({:.1f},{:.1f}) instances={}", e.name, pos.x, pos.y, object->playback.instances.size());
-		for (size_t i = 0; i < object->playback.instances.size(); ++i) {
-			const auto& in = object->playback.instances[i];
-			const auto b = in.render_bounds();
-			spdlog::debug(
-				"draw:   {} track={} sa={} bounds=({:.1f},{:.1f},{:.1f},{:.1f})",
-				i,
-				in.track_idx,
-				in.sa_count(),
-				b.x,
-				b.y,
-				b.z,
-				b.w);
-			const auto states = in.run_states();
-			for (size_t k = 0; k < states.size(); ++k)
-				spdlog::debug(
-					"draw:     run={} offset={} flags=0x{:X} frames={} done={} hidden={}",
-					k,
-					states[k].offset,
-					states[k].flags,
-					states[k].frames,
-					states[k].done,
-					states[k].hidden);
-		}
 		for (size_t i = 0; i < object->playback.instances.size(); ++i) {
 			auto& instance = object->playback.instances[i];
 			if (_trace)
@@ -673,7 +657,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 							runs_json(instance)});
 			if (_probe) {
 				probe_instance(*object, object == &_stage, i);
-				probe_layers(*object, i, object == &_stage, tints);
+				probe_layers(*object, i, object == &_stage, object->tints);
 			}
 			const Camera& object_camera = e.space == asb::RuntimeEntity::Space::Ui ? ui_camera : camera;
 			const float camera_scale =
@@ -684,7 +668,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				projection,
 				object_camera,
 				pos,
-				tints.empty() ? nullptr : &tints,
+				object->tints.empty() ? nullptr : &object->tints,
 				true,
 				object_scale,
 				alpha,
