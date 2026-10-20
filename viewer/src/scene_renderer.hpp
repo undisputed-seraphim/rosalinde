@@ -49,6 +49,12 @@ private:
 	};
 
 	struct RenderItem {
+		RenderItem() = default;
+		RenderItem(const RenderItem&) = delete;
+		RenderItem& operator=(const RenderItem&) = delete;
+		RenderItem(RenderItem&&) = default;
+		RenderItem& operator=(RenderItem&&) = default;
+
 		asb::RuntimeEntity state;
 		SpritePlayback playback;
 		std::vector<StageMesh> meshes;

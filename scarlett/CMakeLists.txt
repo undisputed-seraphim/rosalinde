@@ -11,12 +11,12 @@ target_include_directories(scarlett PUBLIC
 target_link_libraries(scarlett PUBLIC angelscript_addon spdlog::spdlog)
 
 include(CTest)
-list(APPEND CMAKE_MODULE_PATH "${Catch2_DIR}")
-include(Catch)
 
 file(GLOB_RECURSE scarlett_test_src "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp")
 if(scarlett_test_src)
 	add_executable(scarlett_test ${scarlett_test_src})
 	target_link_libraries(scarlett_test PRIVATE scarlett criware Catch2::Catch2WithMain)
-	catch_discover_tests(scarlett_test)
+	if(BUILD_TESTING)
+		add_test(NAME scarlett_test COMMAND scarlett_test)
+	endif()
 endif()
