@@ -246,6 +246,7 @@ int dump_nnd(const context& ctx, std::span<char> data);
 int dump_ftx(const context& ctx, std::span<char> data);
 int dump_mbs(const context& ctx, std::span<char> data);
 int dump_bbs(const context& ctx, std::span<char> data);
+int dump_dbreg(const context& ctx, std::span<char> data);
 int dump_mpd(const context& ctx, std::span<char> data);
 int dump_otm(const context& ctx, std::span<char> data);
 int dump_ufb(const context& ctx, std::span<char> data);
