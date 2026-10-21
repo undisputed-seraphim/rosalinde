@@ -197,6 +197,38 @@ TEST_CASE("native callback registrations are retained") {
 	CHECK(has("gate_break_after", "StGataBreakeAfter"));
 }
 
+TEST_CASE("opening prelude registers opening resources") {
+	const std::filesystem::path cpk = find_cpk();
+	if (cpk.empty()) {
+		WARN("no Unicorn.CPK found (set UNICORN_CPK); skipping opening prelude test");
+		return;
+	}
+
+	const std::string entry = "Script/Dr_OW_0_Opening.asb";
+	std::vector<uint8_t> bytes = extract_entry(cpk, entry);
+	REQUIRE_FALSE(bytes.empty());
+
+	asb::Module mod = asb::parse(bytes);
+	REQUIRE(mod.error.empty());
+	asb::Host host;
+	host.register_module(mod);
+	host.set_call_log([](const std::string&) {});
+	REQUIRE(host.load(bytes));
+
+	asb::Scene scene = asb::extract_scene(mod);
+	const asb::SceneFunction* picked = asb::pick_scene_function(scene);
+	REQUIRE(picked);
+	asIScriptFunction* fn = host.find_function({picked->name});
+	asIScriptFunction* prelude = host.find_function({"ON_TITLE_UI_START"});
+	REQUIRE(fn);
+	REQUIRE(prelude);
+
+	asb::RuntimeSession session(host, entry);
+	REQUIRE(session.start(fn, prelude));
+	CHECK(session.scene().opening_resources.size() >= 40);
+	CHECK(session.scene().opening_resources.front() == "GUI/Opening010.mbs");
+}
+
 TEST_CASE("decode, load and run a real script") {
 	const std::filesystem::path cpk = find_cpk();
 	if (cpk.empty()) {
