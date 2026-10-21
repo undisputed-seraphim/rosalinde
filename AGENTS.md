@@ -303,3 +303,15 @@ python3 visiontest/opening_diff.py --reference opening_cinematic.mp4
 The following are untracked by the user: `docs/API_AUDIT.md`, `docs/API_NATIVES.tsv`,
 `docs/API_SCRIPTS.tsv`, `docs/ASB.md`, `docs/COMBAT.md`, `docs/DEFERRED_APIS.md`,
 and `docs/EXE.md`.
+
+---
+
+## Rules
+
+- Actively use `reagent` mcp to perform reverse engineering; it is a Ghidra MCP.
+- If during disassembly you realize the meaning or purpose of a function, rename it.
+- Save every now and then.
+- Do not commit hacks that hardcode files or names. All solutions must be sufficiently generic and data-driven.
+- Heuristic solutions or other hardcoded branches must be backed up evidence from the executable.
+- Commit messages should include a short explanation of why a change was made, in prose.
+
