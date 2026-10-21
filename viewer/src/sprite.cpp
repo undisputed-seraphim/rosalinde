@@ -142,6 +142,11 @@ void SpriteData::preprocess() {
 		track.bounds = {s9.left, s9.top, s9.right, s9.bottom};
 		track.sa_main_sequence = s9.sa_main_sequence;
 		track.disabled = s9.disabled;
+		if (s9.sa_sb_count > 0 && s9.sa_sb_start + s9.sa_sb_count <= v77.sb.size()) {
+			track.one_shot = v77.sb[s9.sa_sb_start].oneshot != 0;
+			if (track.one_shot && s9_id + 1 < tracks.size() && !v77.s9[s9_id + 1].disabled)
+				track.next_track = static_cast<int>(s9_id + 1);
+		}
 		track.runs.reserve(s9.sa_sequence_count);
 		for (uint32_t i = 0; i < s9.sa_sequence_count; ++i) {
 			const auto& sa = v77.sa[s9.sa_sequence_start + i];
@@ -303,7 +308,10 @@ void SpriteInstance::update(float dt_seconds) {
 				advanced = true;
 				const auto& prev_s8 = current_s8;
 				prev_offsets[i] = offsets[i];
-				if (prev_s8.flags & mbs::v77::s8flag::JUMP) {
+				if (track.one_shot && offsets[i] + 1 >= run.s8_count) {
+					done[i] = 1;
+					offsets[i] = run.s8_count - 1;
+				} else if (prev_s8.flags & mbs::v77::s8flag::JUMP) {
 					const int32_t target =
 						static_cast<int32_t>(run.s8_start_offset) + static_cast<int16_t>(prev_s8.s8_loop_target);
 					if (target >= 0 && static_cast<uint32_t>(target) < run.s8_count) {
@@ -360,6 +368,12 @@ void SpriteInstance::update(float dt_seconds) {
 				ticks[_phase] = data->v77.s8[r.s8_start + offsets[_phase]].s8_duration_ticks;
 			hide[_phase] = 0;
 			advanced = true;
+		}
+		if (track.one_shot && track.next_track >= 0 && track.sa_main_sequence < done.size() &&
+			done[track.sa_main_sequence]) {
+			play(static_cast<uint32_t>(track.next_track));
+			advanced = true;
+			break;
 		}
 	}
 

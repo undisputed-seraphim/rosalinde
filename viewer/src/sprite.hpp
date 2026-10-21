@@ -65,6 +65,8 @@ struct SpriteData {
 		glm::vec4 bounds;
 		uint8_t sa_main_sequence = 0;
 		uint8_t disabled = 0;
+		bool one_shot = false;
+		int next_track = -1;
 	};
 	std::vector<Track> tracks;
 	std::vector<CachedKeyframe> keyframes;
