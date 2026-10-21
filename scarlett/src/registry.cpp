@@ -82,6 +82,12 @@ unsigned parse_hex(const std::string& s) {
 	return v;
 }
 
+int motion_duration_frames(float distance, float speed) {
+	if (distance <= 1e-3f || speed <= 1e-3f)
+		return 0;
+	return std::max(1, static_cast<int>(std::ceil(distance / speed / 2.0f)));
+}
+
 float camera_tween_progress(long elapsed, long duration, float ease_in, float ease_out) {
 	if (duration <= 0 || elapsed >= duration)
 		return 1.0f;
@@ -120,6 +126,7 @@ void Registry::reset(std::string source, std::string function) {
 	_unit_dir.clear();
 	_units.clear();
 	_moves.clear();
+	_animations.reset();
 	_db_params.clear();
 	_help.clear();
 	_balloons.clear();
@@ -192,6 +199,17 @@ void Registry::reset(std::string source, std::string function) {
 	_talk_move_back = false;
 	frame = 0;
 	pending_wait = -1;
+}
+
+void Registry::set_animation(RuntimeEntity& entity, const std::string& track) {
+	int track_index = -1;
+	if (!track.empty() && _resolve_track)
+		track_index = _resolve_track(entity.mbs, track);
+	_animations.play(entity, track, track_index, frame);
+}
+
+void Registry::set_animation_index(RuntimeEntity& entity, int track_index) {
+	_animations.play_index(entity, track_index, frame);
 }
 
 const char* Registry::callback_event_name(ScriptEvent event) {
@@ -1404,10 +1422,30 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 				m.to[k] = to[k];
 			}
 			int dur = I(4);
+			const float speed = F(3);
+			const float dx = m.to[0] - m.from[0];
+			const float dy = m.to[1] - m.from[1];
+			const float dz = m.to[2] - m.from[2];
+			if (const int speed_duration =
+					motion_duration_frames(std::sqrt(dx * dx + dy * dy + dz * dz), speed);
+				speed_duration > 0)
+				dur = speed_duration;
 			if (dur <= 0)
 				dur = 30;
 			m.f0 = frame;
 			m.f1 = frame + dur;
+			const std::string animation = S(2);
+			if (!animation.empty()) {
+				int animation_index = -1;
+				if (_resolve_track)
+					animation_index = _resolve_track(e->mbs, animation);
+				m.animation_token = _animations.begin_motion(*e, animation, animation_index, frame);
+				if (name != "DrShortMoveAsync") {
+					m.followup_track = S(6);
+					if (!m.followup_track.empty() && _resolve_track)
+						m.followup_track_index = _resolve_track(e->mbs, m.followup_track);
+				}
+			}
 			_moves[e->name] = m;
 			mark_dirty();
 			if (name == "DrMove") {
@@ -1641,9 +1679,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 
 	if (name == "SetSpriteMoneAnimation" || name == "SetSpriteMoneAnimationPaused") {
 		if (RuntimeEntity* e = ent(0)) {
-			e->track_index = I(1);
-			e->animation_start_frame = frame;
-			e->started = true;
+			set_animation_index(*e, I(1));
 			e->anim_paused = name == "SetSpriteMoneAnimationPaused" ? I(2) != 0 : false;
 			trace_event(
 				"sprite",
@@ -1656,9 +1692,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	}
 	if (name == "DrUiSetAnimation") {
 		if (RuntimeEntity* e = ent(0)) {
-			e->track_index = I(1);
-			e->animation_start_frame = frame;
-			e->started = true;
+			set_animation_index(*e, I(1));
 			spdlog::debug("anim: {} track={}", e->name, e->track_index);
 			mark_dirty();
 		}
@@ -1667,14 +1701,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrSetIdleAnimation" || name == "DrAnimation" || name == "DrAnimationAsync" ||
 		name == "DrChangeAnimation") {
 		if (RuntimeEntity* e = ent(0)) {
-			e->started = true;
-			e->track = S(1);
-			e->animation_start_frame = frame;
-			if (!e->track.empty() && _resolve_track) {
-				int ti = _resolve_track(e->mbs, e->track);
-				if (ti >= 0)
-					e->track_index = ti;
-			}
+			set_animation(*e, S(1));
 			spdlog::debug("anim: {} track={} index={}", e->name, e->track, e->track_index);
 			mark_dirty();
 		}
@@ -1919,14 +1946,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	}
 	if (name == "DrTurn") {
 		if (RuntimeEntity* e = ent(0)) {
-			const std::string anim = S(1);
-			e->track = anim;
-			e->animation_start_frame = frame;
-			if (_resolve_track) {
-				const int ti = _resolve_track(e->mbs, anim);
-				if (ti >= 0)
-					e->track_index = ti;
-			}
+			set_animation(*e, S(1));
 			mark_dirty();
 			const long dur = _track_frames ? _track_frames(e->mbs, e->track_index) : 0;
 			if (dur > 0) {
@@ -1948,6 +1968,16 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			}
 			m.f0 = frame;
 			m.f1 = frame + std::max(1, I(3));
+			const std::string animation = S(2);
+			if (!animation.empty()) {
+				int animation_index = -1;
+				if (_resolve_track)
+					animation_index = _resolve_track(e->mbs, animation);
+				m.animation_token = _animations.begin_motion(*e, animation, animation_index, frame);
+				m.followup_track = S(4);
+				if (!m.followup_track.empty() && _resolve_track)
+					m.followup_track_index = _resolve_track(e->mbs, m.followup_track);
+			}
 			_moves[e->name] = m;
 			mark_dirty();
 		}
@@ -1966,9 +1996,17 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 				dist2 += d * d;
 			}
 			const float speed = F(3);
-			const int dur = speed > 1e-3f ? static_cast<int>(std::ceil(std::sqrt(dist2) / speed)) : 30;
+			const int speed_duration = motion_duration_frames(std::sqrt(dist2), speed);
+			const int dur = speed_duration > 0 ? speed_duration : 30;
 			m.f0 = frame;
 			m.f1 = frame + std::max(1, dur);
+			const std::string animation = S(2);
+			if (!animation.empty()) {
+				int animation_index = -1;
+				if (_resolve_track)
+					animation_index = _resolve_track(e->mbs, animation);
+				m.animation_token = _animations.begin_motion(*e, animation, animation_index, frame);
+			}
 			_moves[e->name] = m;
 			mark_dirty();
 			if (name == "DrShortMove") {
@@ -3027,9 +3065,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "FlSetAutoDirOff") { if (auto* e = ent(0)) { e->auto_dir_off = I(1) != 0; mark_dirty(); } return true; }
 	if (name == "FlSetAnimation") {
 		if (auto* e = ent(0)) {
-			e->track_index = I(1);
-			e->animation_start_frame = frame;
-			e->started = true;
+			set_animation_index(*e, I(1));
 			e->reverse = I(2) != 0;
 			mark_dirty();
 		}
@@ -3458,9 +3494,16 @@ void Registry::advance() {
 		if (m.arc != 0.0f)
 			p[2] += m.arc * 4.0f * t * (1.0f - t);
 		mark_dirty();
-		if (frame >= m.f1)
+		if (frame >= m.f1) {
+			auto& entity = _timeline.entities[bi->second];
+			_animations.finish_motion(
+				entity,
+				m.animation_token,
+				m.followup_track,
+				m.followup_track_index,
+				frame);
 			it = _moves.erase(it);
-		else
+		} else
 			++it;
 	}
 	advance_camera();

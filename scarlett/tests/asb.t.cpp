@@ -1,3 +1,4 @@
+#include <scarlett/animation.hpp>
 #include <scarlett/asb.hpp>
 #include <scarlett/host.hpp>
 #include <scarlett/runtime.hpp>
@@ -63,6 +64,33 @@ std::vector<uint8_t> extract_entry(const std::filesystem::path& cpk, const std::
 }
 
 } // namespace
+
+TEST_CASE("animation controller tracks motion ownership") {
+	asb::RuntimeEntity entity;
+	entity.name = "actor";
+	asb::AnimationController animations;
+
+	animations.play(entity, "D_IDLE_A", 12, 10);
+	CHECK(entity.track == "D_IDLE_A");
+	CHECK(entity.track_index == 12);
+	CHECK(entity.animation_start_frame == 10);
+
+	const uint64_t token = animations.begin_motion(entity, "D_WALK_A1", 40, 20);
+	REQUIRE(token != 0);
+	CHECK(entity.track == "D_WALK_A1");
+	CHECK(entity.track_index == 40);
+
+	animations.play(entity, "D_LOOK_OVER_A", 50, 25);
+	CHECK(entity.track == "D_LOOK_OVER_A");
+	animations.finish_motion(entity, token, "D_IDLE_A", 12, 30);
+	CHECK(entity.track == "D_LOOK_OVER_A");
+
+	const uint64_t next = animations.begin_motion(entity, "D_WALK_A2", 41, 40);
+	animations.finish_motion(entity, next, "D_IDLE_A", 12, 50);
+	CHECK(entity.track == "D_IDLE_A");
+	CHECK(entity.track_index == 12);
+	CHECK(entity.animation_start_frame == 50);
+}
 
 TEST_CASE("call classification") {
 	CHECK(asb::is_sprite_create_call("CreateSpriteMone"));

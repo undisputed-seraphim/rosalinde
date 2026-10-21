@@ -1,9 +1,12 @@
 #pragma once
 
+#include <scarlett/animation.hpp>
+
 #include <scarlett/asb.hpp>
 #include <scarlett/scene.hpp>
 #include <scarlett/trace.hpp>
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -128,6 +131,8 @@ private:
 	void create_chara(const std::string& kind, const std::vector<std::string>& names);
 	void advance_camera();
 	void set_camera_ease(CameraTween& tween, long duration) const;
+	void set_animation(RuntimeEntity& entity, const std::string& track);
+	void set_animation_index(RuntimeEntity& entity, int track_index);
 	void trace_event(std::string_view kind, std::string_view event, std::string_view fields = {});
 
 	// Screen-fade overlay colour (linear RGBA) at `frame`, and start a fade
@@ -155,7 +160,11 @@ private:
 		float to[3];
 		long f0 = 0, f1 = 0;
 		float arc = 0.0f; // DrJumpAsync: height added as a parabola over the tween
+		uint64_t animation_token = 0;
+		std::string followup_track;
+		int followup_track_index = -1;
 	};
+	AnimationController _animations;
 	std::unordered_map<std::string, Move> _moves;
 	std::unordered_map<std::string, int> _db_params; // DbSet/GetDebugParam + LocalParam
 	std::unordered_set<std::string> _help;			 // AddToHelpList
