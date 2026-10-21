@@ -165,7 +165,12 @@ void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, Spr
 	const TrackPolicy policy =
 		object.background && !object.stage_layer ? TrackPolicy::AllEnabledTracks : TrackPolicy::ScriptTrack;
 	const bool character = e.kind == "DrUiCreateChara" || e.kind == "DrCreateChara" || e.kind == "DrCreateNpc";
-	const bool hold_finished = object.background || character || object.stage_layer;
+	const bool stateful_mone =
+		asset && e.kind.rfind("CreateSpriteMone", 0) == 0 && !asset->data.tracks.empty() &&
+		(e.track_index >= 0 && static_cast<size_t>(e.track_index) < asset->data.tracks.size()
+			 ? asset->data.tracks[e.track_index].sa_main_sequence > 0
+			 : asset->data.tracks.front().sa_main_sequence > 0);
+	const bool hold_finished = object.background || character || object.stage_layer || stateful_mone;
 	object.playback.reset(std::move(asset), policy, e, flip_v_for(e), hold_finished, character);
 	object.playback.apply_track_order(object.track_order);
 	object.replaces_stage =

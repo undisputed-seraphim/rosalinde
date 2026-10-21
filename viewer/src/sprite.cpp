@@ -412,7 +412,7 @@ void SpriteInstance::for_each_layer(
 	LayerVisit base;
 	base.run = sa_idx;
 	base.transition_t = _transition_t;
-	if (!character && track.runs.size() > 1 && track.sa_main_sequence < done.size() &&
+	if (!mone && !character && track.runs.size() > 1 && track.sa_main_sequence < done.size() &&
 		done[track.sa_main_sequence]) {
 		base.skip = "main_done";
 		visit(base);
@@ -460,7 +460,8 @@ void SpriteInstance::for_each_layer(
 	base.s7_transform_id = s8.s7_transform_id;
 	base.s6_keyframe_interpolation = s8.s6_keyframe_interpolation;
 	base.s7_transform_interpolation = s8.s7_transform_interpolation;
-	if (!(s8.flags & mbs::v77::s8flag::ACTIVE)) {
+	const bool current = mone && sa_idx == current_sequence;
+	if (!current && !(s8.flags & mbs::v77::s8flag::ACTIVE)) {
 		base.skip = "inactive";
 		visit(base);
 		return;

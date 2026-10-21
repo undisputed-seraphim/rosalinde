@@ -141,11 +141,13 @@ struct SpriteInstance {
 	std::vector<uint8_t> done; // per-run: a single-pass (once) run has finished
 	std::vector<uint8_t> hide; // per-run: a finished run that should stop drawing
 	uint32_t _phase = 0;	   // run index currently playing (sequential-runs mode)
+	uint32_t current_sequence = 0; // Mone: current sequence drawn even when inactive
 	uint32_t _frame_counter = 0;
 	bool paused = false;
 	bool hold_finished = false;
 	bool background = false;
 	bool character = false;
+	bool mone = false;
 	bool flip_v = false;
 
 	std::vector<mbs::section_7> _transition_src_s7;

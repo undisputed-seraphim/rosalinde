@@ -37,6 +37,11 @@ void SpritePlayback::reset(
 	if (!asset)
 		return;
 
+	const bool mone_kind = state.kind.rfind("CreateSpriteMone", 0) == 0;
+	auto stateful_mone = [&](int track) {
+		return mone_kind && track >= 0 && static_cast<size_t>(track) < asset->data.tracks.size() &&
+			   asset->data.tracks[track].sa_main_sequence > 0;
+	};
 	if (policy == TrackPolicy::AllEnabledTracks) {
 		for (uint32_t i : select_background_tracks(asset->data.v77)) {
 			if (!track_usable(asset->data, static_cast<int>(i)))
@@ -45,6 +50,8 @@ void SpritePlayback::reset(
 			instances.back().hold_finished = hold_finished;
 			instances.back().background = true;
 			instances.back().character = character;
+			instances.back().mone = stateful_mone(static_cast<int>(i));
+			instances.back().current_sequence = state.sequence_index;
 			instances.back().flip_v = flip_v;
 			instances.back().play(i);
 		}
@@ -56,6 +63,8 @@ void SpritePlayback::reset(
 		instances.emplace_back(&asset->data, static_cast<uint32_t>(track), 0xFFFFFFFFu);
 		instances.back().hold_finished = hold_finished;
 		instances.back().character = character;
+		instances.back().mone = stateful_mone(track);
+		instances.back().current_sequence = state.sequence_index;
 		instances.back().flip_v = flip_v;
 		instances.back().play(static_cast<uint32_t>(track));
 	}
@@ -70,8 +79,14 @@ void SpritePlayback::apply(const asb::RuntimeEntity& state) {
 			instances[0].play(static_cast<uint32_t>(track));
 		}
 	}
-	for (auto& instance : instances)
+	for (auto& instance : instances) {
 		instance.paused = state.paused || state.anim_paused;
+		if (instance.current_sequence != state.sequence_index) {
+			instance.current_sequence = state.sequence_index;
+			if (_policy == TrackPolicy::ScriptTrack)
+				instance.play(instance.track_idx);
+		}
+	}
 }
 
 void SpritePlayback::apply_track_order(const std::vector<uint32_t>& order) {
