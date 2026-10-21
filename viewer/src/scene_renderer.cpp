@@ -160,7 +160,7 @@ void SceneRenderer::set_stage(const StageComposition& composition) {
 void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, SpriteAssetPtr asset) {
 	object.state = e;
 	object.background = asset && asset->is_background;
-	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0 && e.prerender_force;
+	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0;
 	object.tint_key = -2;
 	const TrackPolicy policy =
 		object.background && !object.stage_layer ? TrackPolicy::AllEnabledTracks : TrackPolicy::ScriptTrack;
@@ -190,7 +190,7 @@ void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, Spr
 
 void SceneRenderer::apply(RenderItem& object, const asb::RuntimeEntity& e) {
 	object.state = e;
-	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0 && e.prerender_force &&
+	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0 &&
 						  object.playback.asset && !object.playback.instances.empty();
 	const int previous_track = object.playback.track_index;
 	object.playback.apply(e);
@@ -714,7 +714,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 			const bool screen_chara = e.kind == "DrUiCreateChara";
 			const glm::mat4& object_projection = screen_chara ? screen_projection : projection;
 			const float camera_scale =
-				object->background && e.prerender_force && camera.zoom() > 0.0f ? camera.zoom() : 1.0f;
+				object->replaces_stage && camera.zoom() > 0.0f ? camera.zoom() : 1.0f;
 			float object_scale = (e.scale > 0.0f ? e.scale : 1.0f) * camera_scale;
 			// TODO(ui): DrUiCreateChara positions and MBS bounds are in 1920x1080
 			// screen space, but the engine's authored scale is larger than the

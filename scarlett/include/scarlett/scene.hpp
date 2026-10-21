@@ -44,6 +44,7 @@ struct RuntimeEntity {
 	int dlprio = 0;					   // DrSetDLPrio
 	int window_id_offset = 0;		   // DrSetWindowIDOffset
 	bool prerender_force = false;	   // DrSetPrerenderOnForce
+	bool pre_render_all = false;	   // SetSpriteMonePreRenderAll(_bPreRender)
 	int color[4] = {-1, -1, -1, -1};   // DrSetCharaColor (common/hair/main/sub)
 	int state = 0;					   // FlSetState / FlAddState
 	int state_icon = 0;				   // FlSetStateIcon / FlClearStateIcon

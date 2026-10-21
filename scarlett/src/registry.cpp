@@ -1620,7 +1620,12 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	}
 	if (name == "SetSpriteMonePreRenderAll") {
 		if (RuntimeEntity* e = ent(0)) {
-			e->prerender_force = true;
+			e->pre_render_all = I(1) != 0;
+			e->prerender_force = e->pre_render_all;
+			trace_event(
+				"sprite",
+				"prerender",
+				"\"name\":\"" + trace::quote(e->name) + "\",\"all\":" + trace::boolean(e->pre_render_all));
 			mark_dirty();
 		}
 		return true;
