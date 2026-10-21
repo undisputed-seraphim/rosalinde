@@ -2856,12 +2856,21 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		}
 		return true;
 	}
+	if (name == "AddOpeningResource") {
+		const std::string path = S(0);
+		auto& resources = _timeline.opening_resources;
+		if (!path.empty() && std::find(resources.begin(), resources.end(), path) == resources.end()) {
+			resources.push_back(path);
+			trace_event("state", "opening_resource", "\"path\":\"" + trace::quote(path) + "\"");
+		}
+		return true;
+	}
 	if (name == "DbPrint") {
 		gen->SetReturnDWord(0);
 		return true;
 	}
 	if (name == "DbInt" || name == "DbAddFriendshipAllChara" || name == "DbClearNotify" ||
-		name == "AddOpeningResource" || name == "HideResource" || name == "ShowResource" || name == "AutoSave" ||
+		name == "HideResource" || name == "ShowResource" || name == "AutoSave" ||
 		name == "SetTimerColorTableIndex" || name == "SetCharaGradientMapCommon")
 		return true;
 	if (name == "DbIsDebugStage" || name == "DbIsKeyTrigger" || name == "IsFriendshipTalkReplay" ||

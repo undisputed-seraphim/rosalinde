@@ -297,6 +297,7 @@ struct SceneState {
 	std::vector<RuntimeGradient> gradients;
 	std::vector<RuntimeUi> ui;
 	std::vector<RuntimeField> field;
+	std::vector<std::string> opening_resources;
 
 	const RuntimeEntity* find_entity(std::string_view name) const {
 		for (const auto& e : entities) {

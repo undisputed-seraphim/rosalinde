@@ -118,9 +118,10 @@ PlaybackRuntime::PlaybackRuntime(
 	asIScriptFunction* fn = _host.find_function({picked->name});
 	if (!fn)
 		throw std::runtime_error("scene function not found: " + picked->name);
+	asIScriptFunction* prelude = _host.find_function({"ON_TITLE_UI_START"});
 
 	_session = std::make_unique<asb::RuntimeSession>(_host, config.script);
-	if (!_session->start(fn))
+	if (!_session->start(fn, prelude))
 		throw std::runtime_error("could not start " + config.script + ": " + _session->error());
 }
 

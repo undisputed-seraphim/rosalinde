@@ -30,7 +30,7 @@ public:
 	RuntimeSession(const RuntimeSession&) = delete;
 	RuntimeSession& operator=(const RuntimeSession&) = delete;
 
-	bool start(asIScriptFunction* fn);
+	bool start(asIScriptFunction* fn, asIScriptFunction* prelude = nullptr);
 
 	StepResult advance();
 
@@ -50,6 +50,7 @@ private:
 	struct Impl;
 
 	void burst();
+	bool run_prelude(asIScriptFunction* fn);
 
 	Host& _host;
 	std::string _source;

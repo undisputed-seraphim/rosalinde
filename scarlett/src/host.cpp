@@ -810,7 +810,7 @@ RuntimeSession::~RuntimeSession() {
 		_impl->ctx->Release();
 }
 
-bool RuntimeSession::start(asIScriptFunction* fn) {
+bool RuntimeSession::start(asIScriptFunction* fn, asIScriptFunction* prelude) {
 	if (!fn) {
 		_error = "null entry function";
 		return false;
@@ -831,6 +831,9 @@ bool RuntimeSession::start(asIScriptFunction* fn) {
 	_impl->reg.set_frame(0);
 	_impl->wake = 0;
 	_impl->steps = 0;
+	_error.clear();
+	if (prelude && !run_prelude(prelude))
+		return false;
 	_impl->ctx->Prepare(fn);
 	_impl->ctx->SetLineCallback(asFUNCTION(AbortCallback), &_impl->steps, asCALL_CDECL);
 	_frame = 0;
@@ -839,6 +842,44 @@ bool RuntimeSession::start(asIScriptFunction* fn) {
 	_limit = false;
 	_error.clear();
 	burst();
+	return _error.empty();
+}
+
+bool RuntimeSession::run_prelude(asIScriptFunction* fn) {
+	if (!fn)
+		return true;
+	asIScriptContext* ctx = _impl->engine->CreateContext();
+	if (!ctx) {
+		_error = "could not create prelude context";
+		return false;
+	}
+	_impl->steps = 0;
+	ctx->Prepare(fn);
+	ctx->SetLineCallback(asFUNCTION(AbortCallback), &_impl->steps, asCALL_CDECL);
+	g_scene_registry = &_impl->reg;
+	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
+	g_native_call = _impl->native_call ? &_impl->native_call : nullptr;
+	const int er = ctx->Execute();
+	g_scene_registry = nullptr;
+	g_call_log = nullptr;
+	g_native_call = nullptr;
+	if (er != asEXECUTION_FINISHED) {
+		char buf[128];
+		std::snprintf(buf, sizeof(buf), "prelude %s failed (%d)", fn->GetName(), er);
+		_error = buf;
+		if (er == asEXECUTION_EXCEPTION) {
+			std::fprintf(stderr, "[as] prelude exception: %s\n", ctx->GetExceptionString());
+			if (asIScriptFunction* ef = ctx->GetExceptionFunction())
+				std::fprintf(
+					stderr,
+					"[as]   in %s line %d\n",
+					ef->GetDeclaration(),
+					ctx->GetExceptionLineNumber());
+		}
+	}
+	ctx->Release();
+	_impl->steps = 0;
+	_impl->reg.pending_wait = -1;
 	return _error.empty();
 }
 
