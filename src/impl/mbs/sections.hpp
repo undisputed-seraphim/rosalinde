@@ -142,13 +142,13 @@ struct section_a {
 };
 
 struct section_b {
-	uint32_t speed_num; // per-frame speed numerator
-	uint16_t speed_den; // per-frame speed denominator
-	uint16_t _pad0;		// always 0
-	uint32_t timing_a;	// 0 on characters; 40-140 on BGBtRoad_h
-	uint16_t oneshot;	// 0-3 on characters; 10 on BGBtRoad_h
-	uint16_t timing_b;	// 0 on characters; 10-100 on BGBtRoad_h
-	uint32_t _pad1;		// always 0
+	uint32_t rate_num; // per-frame rate numerator
+	uint16_t rate_den; // per-frame rate denominator
+	uint16_t _pad0;	   // always 0
+	uint32_t background_timing_a; // 0 on characters; 40-140 on BGBtRoad_h
+	uint16_t transition_mode;	  // 1-3 = character continuation; 10 = background timing
+	uint16_t background_timing_b; // 0 on characters; 10-100 on BGBtRoad_h
+	uint32_t _pad1;				  // always 0
 };
 static_assert(sizeof(section_b) == 0x14);
 #pragma pack(pop)

@@ -389,16 +389,18 @@ std::vector<table> build_tables(const mbs::v77& value) {
 
 	{
 		table out{
-			"sb", section_labels[11], {"speed_num", "speed_den", "_pad0", "timing_a", "oneshot", "timing_b", "_pad1"}, {}};
+			"sb", section_labels[11],
+			{"rate_num", "rate_den", "_pad0", "background_timing_a", "transition_mode", "background_timing_b", "_pad1"},
+			{}};
 		out.rows.reserve(value.sb.size());
 		for (const auto& item : value.sb) {
 			out.rows.push_back(
-				{cell::unum(item.speed_num),
-				 cell::unum(item.speed_den),
+				{cell::unum(item.rate_num),
+				 cell::unum(item.rate_den),
 				 cell::unum(item._pad0),
-				 cell::unum(item.timing_a),
-				 cell::unum(item.oneshot),
-				 cell::unum(item.timing_b),
+				 cell::unum(item.background_timing_a),
+				 cell::unum(item.transition_mode),
+				 cell::unum(item.background_timing_b),
 				 cell::unum(item._pad1)});
 		}
 		tables.push_back(std::move(out));

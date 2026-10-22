@@ -243,10 +243,12 @@ inline void dump_csv(const v77& v, const std::filesystem::path& outdir) {
 
 	{
 		auto ofs = open("section_b.csv");
-		ofs << "speed_num,speed_den,_pad0,timing_a,oneshot,timing_b,_pad1\n";
+		ofs << "rate_num,rate_den,_pad0,background_timing_a,transition_mode,background_timing_b,_pad1\n";
 		constexpr auto fmt = "{},{},{},{},{},{},{}\n"sv;
 		for (const auto& s : v.sb) {
-			ofs << std::format(fmt, s.speed_num, s.speed_den, s._pad0, s.timing_a, s.oneshot, s.timing_b, s._pad1);
+			ofs << std::format(
+				fmt, s.rate_num, s.rate_den, s._pad0, s.background_timing_a, s.transition_mode, s.background_timing_b,
+				s._pad1);
 		}
 	}
 }

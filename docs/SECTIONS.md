@@ -93,7 +93,7 @@ absent.
 | 8 | `s8` | `section_8` | 0x20 | Animation frames |
 | 9 | `s9` | `section_9` | 0x30 | Tracks |
 | a | `sa` | `section_a` | 0x18 | Sequences |
-| b | `sb` | `section_b` | 0x14 | Timing modifiers (mostly characters; also some BG/GUI/effect assets) |
+| b | `sb` | `section_b` | 0x14 | Character transition and background timing rows |
 
 `version = 0x76` files are parsed into the same v77 in-memory model.
 
@@ -110,7 +110,7 @@ sa_main_sequence(u8), sa_sb_start(u16), sa_sb_count(u8), disabled(u8)`
 | `name` | Track identifier |
 | `sa_sequence_start` / `sa_sequence_count` | Starting index / count of `section_a` sequences |
 | `sa_main_sequence` | **0-based index of the track's main/default sequence**, not a boolean flag. Usually 0, but `GUI/Opening010.mbs` uses 6, 14, and 86 on its effect tracks. |
-| `sa_sb_start` / `sa_sb_count` | Track-level timing-modifier range into `section_b`. Most links are on characters, but section B also occurs in `CharaOp`, `CharaNpc`, `BattleBG`, `GUI`, and `Effect` files. |
+| `sa_sb_start` / `sa_sb_count` | Track-level range into `section_b`. Character rows carry one-shot continuation modes; background rows carry timing data. Section B also occurs in `CharaOp`, `CharaNpc`, `BattleBG`, `GUI`, and `Effect` files. |
 | `disabled` | 1 = reserved/padding slot; skip |
 
 ### Track naming — character sprites
@@ -192,10 +192,11 @@ Set to 1 on "middle" phase tracks: `KNOCKBACK`, `MAGIC_B_1/2`, `S05/S06 MAGIC_B`
 
 ### `sa_sb_start` linkage to section B (characters)
 
-Non-zero only on tracks needing timing modifiers (hitstop/speed curves): `DASH_1`,
+Non-zero on tracks needing timing or continuation data: `DASH_1`,
 `MAGIC_A_3`, `MAGIC_B_END`, `LISTED`/`ORDER_1`/`STANCE_1`, `S01–S03 MAGIC_A_3`,
 `S05–S06 MAGIC_B_END`, `S18_QUICK_HEAL_1`/`S19_LISTED`, and the `D_WALK`/`D_DASH`
-directionals. `sa_sb_count = 1` means one `section_b` entry is used.
+directionals. For `transition_mode` 1–3, the continuation is the next enabled
+`section_9` track. `sa_sb_count = 1` means one `section_b` entry is used.
 
 ---
 
@@ -532,43 +533,69 @@ one (e.g. 262 entries) providing full-scene atmospheric perspective gradients.
 
 ---
 
-## Section B (sb) — Timing Modifiers
+## Section B (sb) — Animation Transitions and Background Timing
 
-**Struct:** `speed_num(u32), speed_den(u16), _pad0(u16), timing_a(u32),
-oneshot(u16), timing_b(u16), _pad1(u32)` — row length `0x14`.
+**Struct:** `rate_num(u32), rate_den(u16), _pad0(u16), background_timing_a(u32),
+transition_mode(u16), background_timing_b(u16), _pad1(u32)` — row length `0x14`.
 
 The earlier 0x16-byte layout was wrong: it placed `_pad0` over the two zero bytes at
-`+0x06`, read `timing_a` as `_pad0`, and read `oneshot` two bytes too far. The
-correct row starts:
+`+0x06`, read `background_timing_a` as `_pad0`, and read `transition_mode` two bytes too
+far. The correct row starts:
 
 ```
-+0x00 speed_num  u32
-+0x04 speed_den  u16
-+0x06 _pad0      u16   (always 0)
-+0x08 timing_a   u32
-+0x0c oneshot    u16
-+0x0e timing_b   u16
-+0x10 _pad1      u32   (always 0)
++0x00 rate_num             u32
++0x04 rate_den             u16
++0x06 _pad0                u16   (always 0)
++0x08 background_timing_a  u32
++0x0c transition_mode      u16
++0x0e background_timing_b  u16
++0x10 _pad1                u32   (always 0)
 ```
 
 Referenced from `section_9` (`sa_sb_start`) and `section_a` (`sb_id`). Example
 values:
 
 ```
-sb[0]: 7/2   oneshot=2   (DASH_1)
-sb[2]: 47/17 oneshot=0   (MAGIC_A_3 / S01–S03)
-sb[4]: 43/7              (LISTED / ORDER / STANCE)
-sb[14]: 43/7             (D_WALK_A1)
-sb[16]: 4/1  oneshot=1   (D_DASH_A1)
+sb[0]: 7/2   transition=2   (DASH_1)
+sb[2]: 47/17 transition=0   (MAGIC_A_3 / S01–S03)
+sb[4]: 43/7                (LISTED / ORDER / STANCE)
+sb[14]: 4/1  transition=1   (D_WALK_A1)
+sb[16]: 4/1  transition=1   (D_DASH_A1)
 ```
 
-`speed_num`/`speed_den` are consistent with a per-frame tick-rate ratio.
-`oneshot` is 0–3 on character rows. Section B is **not character-only**: the
-corpus has rows in `CharaOp`, `CharaNpc`, `BattleBG`, `GUI`, and `Effect` files.
-`BGBtRoad_h` is the clearest file that exercises `timing_a` / `timing_b`
-strongly (`timing_a` 40–140, `timing_b` 10–100, `oneshot` 10); those fields may
-be a background loop/interval pair, but their exact semantics remain open.
-`timing_a`/`timing_b` are zero on all character rows examined.
+`rate_num`/`rate_den` are consistent with a per-frame tick-rate ratio; the viewer
+currently does not consume them.
+
+`transition_mode` is the character one-shot/continuation selector:
+
+- `0`: no automatic continuation
+- `1–3`: character transition tracks; the continuation is the **next enabled
+  track in `section_9`**
+- `10`: background timing mode; not an animation transition
+
+The continuation rule is present in the data and is not script-driven. For
+example, `Chara/Scarlet_F.mbs` contains:
+
+```
+D_WALK_A1       transition=1  → D_WALK_A2
+D_WALK_B1       transition=1  → D_WALK_B2
+D_WALK_D1       transition=1  → D_WALK_D2
+D_DASH_A1       transition=1  → D_DASH_A2
+DASH_1          transition=1  → DASH_2
+KNOCKBACK       transition=2  → DASH_1
+```
+
+Drama scripts only request the first track; they do not issue a follow-up
+animation call. The adjacent track in `section_9` is the continuation. This is
+also how battle startup tracks can reach their looping counterparts without a
+table of names.
+
+`background_timing_a` / `background_timing_b` are zero on character rows.
+`BGBtRoad_h` is the main file that exercises them (`background_timing_a` 40–140,
+`background_timing_b` 10–100, `transition_mode` 10). Its values are background
+loop/interval timing, **not** a one-shot transition, and a background track with
+`transition_mode == 10` must continue looping. The exact semantics of the two
+background timing fields remain open.
 
 ---
 
@@ -610,7 +637,7 @@ Section 9 (Track) — element or state "kumo_01", "CLS_CHNG_BFR_ENKE_IDLE"
 | Track count | ~300+ (all actions) | ~15–110 (elements or states) |
 | Track semantics | One animation active; named actions | Many simultaneous elements, **or** mutually-exclusive states |
 | Section 3 / 5 (hitboxes) | Present | Absent |
-| Section B (timing) | Present (hitstop, speed, one-shots) | Absent |
+| Section B | Character transitions and timing | Mostly absent; `BGBtRoad_h` has background timing rows |
 | Section 7 `fog` | Per-frame limb/effect tint | Per-frame atmospheric/effect tint |
 | Section A `s8_start_offset` | 0/1 (skip first frame) | 0–9 (sub-sprite index) |
 | Section 8 loops | Fast 6–72 frame cycles with JUMP | Long 50–300 frame atmospheric loops |
@@ -668,8 +695,9 @@ scene, for example, is a single texture-array-backed card.
 | s8 | `0x2000` | **Partially answered:** sets global/track renderer flags; likely effect/GUI overlay. Exact pass open. |
 | s8 | `s8_draw_offset` | **Partially answered:** signed draw/sort offset, not a turn count; target depends on renderer flags. |
 | s8 | `s8_event_arg`/`s8_event_flag`/`s8_event_value`/`s8_reserved` | **Partially answered:** `0x80` payload; `s8_event_flag` is a renderer flag index, `s8_reserved` is always 0. |
-| sb | `speed_num`/`speed_den` | **Likely** tick-rate ratio; no direct consumer mapped. |
-| sb | `timing_a`/`timing_b`/`oneshot` | **Open:** character timing vs background interval pair; section B is not character-only. |
+| sb | `rate_num`/`rate_den` | **Likely** tick-rate ratio; no direct consumer mapped. |
+| sb | `background_timing_a`/`background_timing_b` | **Open:** background loop/interval timing; main evidence is `BGBtRoad_h`. |
+| sb | `transition_mode` | **Resolved for characters:** 1–3 selects the next enabled `section_9` track; 10 is background timing, not an animation transition. |
 | — | Background layer depth order | **Open:** not reliably encoded in `fog`; possible track order or another key. |
 
 ---
@@ -720,10 +748,16 @@ Dumped with `rosalinde --mbs-dump` (6 GUI, 14 BattleBG, 25 character, 1 FieldBG,
 
 - 3,128 rows across the corpus, including `Chara`, `CharaOp`, `CharaNpc`,
   `BattleBG`, `GUI`, and `Effect` — **not character-only**.
-- Corrected row layout is 0x14 bytes; `oneshot` is u16 at `+0x0c`, not `+0x0e`.
-- Character rows use `speed_num`/`speed_den` and `oneshot` 0–3. `BGBtRoad_h`
-  uses `timing_a` 40–140 and `timing_b` 10–100 with `oneshot=10`; that file is
-  the main evidence that the two u32/u16 fields are real, not padding.
+- Corrected row layout is 0x14 bytes; `transition_mode` is u16 at `+0x0c`, not `+0x0e`.
+- Character rows use `rate_num`/`rate_den` and `transition_mode` 0–3.
+  `BGBtRoad_h` uses `background_timing_a` 40–140 and `background_timing_b`
+  10–100 with `transition_mode=10`; that file is the main evidence that the
+  two u32/u16 fields are real, not padding, and that mode 10 must not be treated
+  as a character transition.
+- A scan of all 166 `BattleBG/*.mbs` files found section-B rows in only seven.
+  `BGBtRoad_h` has eight rows, all mode 10. The other six have mode 0 only.
+  No background file contains a character transition mode 1–3, so MBS
+  `transition_mode` is not a general background state-transition mechanism.
 - `sa.sb_id != 0` is only 197 rows, so most section-B rows are not linked from
   a sequence; the link is sparse.
 
