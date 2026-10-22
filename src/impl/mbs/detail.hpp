@@ -70,10 +70,3 @@ inline void populate_sections(byte_reader& r, v77& v, std::span<const lookup_ent
 }
 
 } // namespace mbs::detail
-
-namespace mbs {
-
-void parse_v76(std::span<const uint8_t>, v77&);
-void parse_v77(std::span<const uint8_t>, v77&);
-
-} // namespace mbs
