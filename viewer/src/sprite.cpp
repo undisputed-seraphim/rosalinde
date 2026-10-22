@@ -143,9 +143,12 @@ void SpriteData::preprocess() {
 		track.sa_main_sequence = s9.sa_main_sequence;
 		track.disabled = s9.disabled;
 		if (s9.sa_sb_count > 0 && s9.sa_sb_start + s9.sa_sb_count <= v77.sb.size()) {
-			track.one_shot = v77.sb[s9.sa_sb_start].oneshot != 0;
+			const uint16_t transition = v77.sb[s9.sa_sb_start].transition_mode;
+			track.one_shot = transition >= 1 && transition <= 3;
 			if (track.one_shot && s9_id + 1 < tracks.size() && !v77.s9[s9_id + 1].disabled)
 				track.next_track = static_cast<int>(s9_id + 1);
+			else
+				track.one_shot = false;
 		}
 		track.runs.reserve(s9.sa_sequence_count);
 		for (uint32_t i = 0; i < s9.sa_sequence_count; ++i) {
