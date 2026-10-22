@@ -1,4 +1,4 @@
-# kind	name	comment (generated from Debug/_UcEnum_*.inc by asb_harvest --uc-enums)
+# kind	name	comment (generated from Debug/_UcEnum_*.inc by asbrun export enums)
 CLASSTYPE	UNKNOWN	なし
 CLASSTYPE	LORD	ロード
 CLASSTYPE	LORD_HG	上級ロード

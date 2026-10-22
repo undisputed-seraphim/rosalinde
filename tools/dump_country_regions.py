@@ -37,6 +37,8 @@ try:
 except ImportError:
     raise SystemExit("missing dependency: pip install unicorn")
 
+from engine_data import EngineImage
+
 CTOR = 0x202D00
 SINGLETON = 0x28D5310
 REC_STRIDE = 0x64
@@ -47,34 +49,20 @@ STACK = 0x30000000
 THIS = 0x20000000
 
 
-def load_segments(buf):
-    e_phoff, = struct.unpack_from("<Q", buf, 0x20)
-    e_phentsize, e_phnum = struct.unpack_from("<HH", buf, 0x36)
-    out = []
-    for i in range(e_phnum):
-        off = e_phoff + i * e_phentsize
-        p_type, _fl, p_off, p_va, _pa, p_fsz, p_msz, _al = struct.unpack_from(
-            "<IIQQQQQQ", buf, off
-        )
-        if p_type == 1:
-            out.append((p_va, p_off, p_fsz, p_msz))
-    return out
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("elf", help="loadable ELF (from nso2elf.py)")
     ap.add_argument("-o", "--output", default="viewer/data/country_regions.tsv")
     args = ap.parse_args()
 
-    buf = open(args.elf, "rb").read()
+    image = EngineImage(args.elf)
     uc = Uc(UC_ARCH_ARM64, UC_MODE_ARM)
 
-    for va, off, fsz, msz in load_segments(buf):
-        start = va & ~0xFFF
-        total = ((va + msz + 0xFFF) & ~0xFFF) - start
+    for segment in image.segments:
+        start = segment.vaddr & ~0xFFF
+        total = ((segment.vaddr + segment.memsz + 0xFFF) & ~0xFFF) - start
         uc.mem_map(start, total, 7)
-        uc.mem_write(va, buf[off:off + fsz])
+        uc.mem_write(segment.vaddr, image.buf[segment.offset : segment.offset + segment.filesz])
 
     # .bss (the singleton), heap, stack and the `this` object.
     uc.mem_map(0x28CF000, 0x2000000, 7)

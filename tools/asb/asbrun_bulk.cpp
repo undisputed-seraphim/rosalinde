@@ -1,6 +1,8 @@
 #include "asbrun_bulk.hpp"
 
 #include "asbrun_common.hpp"
+
+#include <data_path.hpp>
 #include "asbrun_inspect.hpp"
 
 #include <scarlett/asb.hpp>
@@ -164,8 +166,11 @@ int scan(const cpk::archive& archive, const ScanOptions& options) {
 	asb::CharTable chars;
 	if (!options.chara_file.empty())
 		chars = asb::load_char_table(options.chara_file);
-	else if (options.scene_ir && std::filesystem::exists("viewer/data/chara_table.tsv"))
-		chars = asb::load_char_table("viewer/data/chara_table.tsv");
+	else if (options.scene_ir) {
+		const auto chara_path = std::filesystem::path(rosalinde_data_dir()) / "chara_table.tsv";
+		if (std::filesystem::exists(chara_path))
+			chars = asb::load_char_table(chara_path.string());
+	}
 
 	std::ofstream json_file;
 	std::ostream* json_out = nullptr;

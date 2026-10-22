@@ -95,7 +95,7 @@ scene --ir --json /tmp/ir.json
 - `scene --filter TEXT` keeps calls whose name, declaration, or string arguments
   contain `TEXT`.
 - `scene --ir` lists folded entities; `--chara-file FILE` overrides the default
-  `viewer/data/chara_table.tsv` resolver.
+  `viewer/data/generated/chara_table.tsv` resolver.
 - `scene --index` prints **static event counts**, not runtime entities created by
   a given frame:
   - `sprite calls`: `CreateSprite*` calls
@@ -112,7 +112,7 @@ scene --ir --json /tmp/ir.json
 scan --limit 5
 scan --summary --json /tmp/all-summary.json
 scan --scene-index --json -
-scan --scene-ir --json /tmp/all-ir.json --chara-file viewer/data/chara_table.tsv
+scan --scene-ir --json /tmp/all-ir.json --chara-file viewer/data/generated/chara_table.tsv
 scan --disasm-dir /tmp/disasm-all
 ```
 
@@ -128,9 +128,9 @@ scan --disasm-dir /tmp/disasm-all
 Table generation:
 
 ```text
-export chara --out viewer/data/chara_table.tsv
-export enums --out viewer/data/uc_enums.tsv
-export bgs   --out viewer/data/battlebgs.tsv
+export chara --out viewer/data/generated/chara_table.tsv
+export enums --out viewer/data/generated/uc_enums.tsv
+export bgs   --out viewer/data/generated/battlebgs.tsv
 ```
 
 `export chara` scans all modules; `export enums` reads `Debug/_UcEnum_*.inc`;
@@ -176,7 +176,7 @@ Options:
 --record FILE|-         write recorded timeline JSON
 --categories LIST       trace categories, e.g. vm,stage,camera,sprite
 --chara-table FILE      override the character display-name table
---data-dir DIR          runtime data directory (default: viewer/data)
+--data-dir DIR          runtime data directory (default: viewer/data/generated or installed share/rosalinde)
 ```
 
 `play` can write trace and record output from the same run:

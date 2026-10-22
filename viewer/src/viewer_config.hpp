@@ -13,7 +13,7 @@ struct ViewerConfig {
 	std::string script;		 // Script/X.asb — required drama module
 	std::string scene_func;	 // scene function name (default: auto)
 	std::string chara_table; // generated character name -> asset table
-	std::string data_dir;	 // runtime data directory (default: viewer/data)
+	std::string data_dir;	 // runtime data directory (default: viewer/data/generated or installed share/rosalinde)
 	int initial_stage = -1;	 // stage type whose composition seeds the session
 	long scene_frame = -1;	 // scene frame to advance to (-1 = real time)
 	float scene_fps = 60.0f; // playback frame step rate

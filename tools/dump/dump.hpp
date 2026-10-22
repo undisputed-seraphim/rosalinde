@@ -26,6 +26,7 @@ struct options {
 	size_t limit = 10;
 	bool timeline = false;
 	bool colors = false;
+	bool attributes = false;
 	std::string_view section;
 	std::optional<size_t> track;
 	std::optional<size_t> sequence;

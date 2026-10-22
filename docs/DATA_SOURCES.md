@@ -12,7 +12,7 @@ characters/scenes. All paths are CPK-relative.
   - plus Buff/Item/Skill/Facility/EquipAi/DropTable/QuestList/etc.
   - Format: `TABLE:count`, then `NAME , // localized label`, terminated by
     `TABLE_END`. Dump with `asbrun export enums`
-    (writes `viewer/data/uc_enums.tsv`).
+    (writes `viewer/data/generated/uc_enums.tsv`).
 - `MsgSheet/*.fms` — FMSB string tables (localized text, 3 columns per row):
   - `UcCharaList.fms` (1388 rows) / `UcClassList.fms` (313) / `UcCharaNpcList.fms`
     → localized names only (no asset references).
@@ -55,7 +55,7 @@ engine resolves to class + appearance + colour.
 
 - **Drama**: `dispName`/`charName` → `CharaOp` asset, via the `DrUiCreateChara`
   calls found across the archive (`asbrun export chara` →
-  `viewer/data/chara_table.tsv`).
+  `viewer/data/generated/chara_table.tsv`).
 - **Battle**: `class` → `Chara/<Class>_<M|F>` by naming convention; a character
   **def** → class by the class token inside the def name
   (`PL_FIGHTER_C0 → FIGHTER`).
@@ -76,7 +76,7 @@ applied:
 - **Stage table** `0x28920d0`, stride `0x50`, 103 entries: name `+0`, base level
   `+0xc`, country `+0x10`; **stage cue table** `0x285d9f8`, stride `0x10`, 103
   entries: name `+0`, cue `+8`. Names are `ST_OW_*` and match the 103
-  `St_OW_*.asb` scripts. → `viewer/data/stages.tsv`
+  `St_OW_*.asb` scripts. → `viewer/data/generated/stages.tsv`
 - **Field background catalog**: `FieldBG/Field.ufb` header `+0x60` is the asset
   count (39), followed by `main/texture` path pairs in the trailing string
   pool. The engine indexes the same pairs through `field_get_asset_record`
@@ -87,12 +87,12 @@ applied:
   table.
 - **Facility table** `0x27b31b0`, stride `0x90`, 485 entries: Japanese label `+8`,
   position `+0x1c/+0x20`; index-aligned with `ST_FACILITYID` (485 entries).
-  → `viewer/data/facility_pos.tsv`
+  → `viewer/data/generated/facility_pos.tsv`
 - **Drop tables** `0x26e5d30`, stride `0x18`, 733 entries: `start/count` at
   `+0x10/+0x14`; entries at `0xaee6d0`, stride `0x10`: item id `+0`, weight `+4`,
   count `+8`, add index `+0xc`. Joined with `_UcEnum_DropTable.inc` (733) and
   `_UcEnum_Item.inc` (983).
-  → `viewer/data/drop_tables.tsv`
+  → `viewer/data/generated/drop_tables.tsv`
 
 The field-BG window id is not a table (hardcoded lanes 0..3 → `0x116`, `0x117`,
 `0x118`, `0x11a`).

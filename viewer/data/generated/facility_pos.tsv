@@ -1,4 +1,4 @@
-# key	label	x	y (generated from the engine facility table by tools/dump_stage_tables.py)
+# key	label	x	y (generated from raw facility table)
 START	－	0.0	0.0
 C_1	C1東の砦	-6655.0	5321.0
 C_2	C1砦	-8583.2001953125	6409.7001953125

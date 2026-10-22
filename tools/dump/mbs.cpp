@@ -10,6 +10,7 @@
 #include <format>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -864,6 +865,31 @@ int dump_mbs(const context& ctx, std::span<char> data) {
 		value.s9.size(),
 		value.sa.size(),
 		value.sb.size()};
+
+	if (ctx.opt.attributes) {
+		std::map<uint32_t, size_t> histogram;
+		for (const auto& item : value.s4)
+			histogram[item.attributes]++;
+		if (ctx.opt.json) {
+			json_writer json(std::cout);
+			json.begin_object();
+			json.field("path", ctx.path);
+			json.begin_array("s4_attributes");
+			for (const auto& [attribute, count] : histogram) {
+				json.begin_object();
+				json.field("value", attribute);
+				json.field("count", count);
+				json.end_object();
+			}
+			json.end_array();
+			json.end_object();
+			std::cout << '\n';
+		} else {
+			for (const auto& [attribute, count] : histogram)
+				std::cout << std::format("{:#x}\t{}\n", attribute, count);
+		}
+		return 0;
+	}
 
 	if (!ctx.opt.section.empty() && !valid_section(ctx.opt.section)) {
 		std::cerr << "d: " << ctx.path << ": unknown MBS section " << ctx.opt.section << '\n';

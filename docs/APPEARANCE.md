@@ -1,6 +1,6 @@
 # Character appearance (CharaSet → class/gender/variant)
 
-How `viewer/data/variants.tsv` is produced, and why it no longer needs to be
+How `viewer/data/generated/variants.tsv` is produced, and why it no longer needs to be
 hand-written. See `docs/ASB.md` for the wider drama/script picture.
 
 ## The problem
@@ -80,11 +80,18 @@ the old handwritten table.
 5. Dump each class MBS `s4` with the extractor shell
    (`printf 'd Chara/<Class>.mbs --section s4\nq\n' | ./build/rosalinde --cpk ~/Unicorn.CPK`) and
    compute `group(class)` as above.
-6. Emit `viewer/data/variants.tsv`:
+6. Emit `viewer/data/generated/variants.tsv`:
    `class_key <TAB> CharaSetName <TAB> 0x<group|1<<variant> <TAB> jp_label`.
+7. Apply `variants_seed.tsv` and `variants_overrides.tsv` before the generated
+   fallback. The overrides cover characters whose texture requires more than one
+   attribute group.
 
 The raw exe table (all 1388 CharaSets with class/gender/variant) is checked in
-as `viewer/data/charaset.tsv` for reference.
+as `viewer/data/charaset_table.tsv`. The generated runtime table is written to
+`viewer/data/generated/variants.tsv`; `viewer/data/variants_seed.tsv` preserves the
+reviewed masks and `viewer/data/variants_overrides.tsv` stores masks that need
+multiple attribute groups. The current seed has 1346 rows; applying the class
+table added after the last regeneration yields 1384 rows.
 
 ## Caveats
 

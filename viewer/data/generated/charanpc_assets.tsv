@@ -1,4 +1,4 @@
-# idx	name	jp	mbs	ftx (generated from the engine NPCTYPE table by tools/dump_charanpc_table.py)
+# idx	name	jp	mbs	ftx (generated from raw NPCTYPE table)
 1	C_CHICKEN_00	茶ニワトリ	CharaNpc/C_Chicken00.mbs	CharaNpc/C_Chicken00.ftx
 2	C_WAGON_00	荷馬車	CharaNpc/C_Wagon00.mbs	CharaNpc/C_Wagon00.ftx
 3	C_MAN_00	コルニア男性	CharaNpc/C_Man00.mbs	CharaNpc/C_Man00.ftx

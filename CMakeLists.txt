@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
 project(rosalinde VERSION 0.1.0)
 
+include(GNUInstallDirs)
+
+set(ROSALINDE_DATA_BUILD_DIR "${CMAKE_SOURCE_DIR}/viewer/data/generated")
+set(ROSALINDE_DATA_INSTALL_DIR "${CMAKE_INSTALL_FULL_DATADIR}/rosalinde")
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -69,6 +74,10 @@ target_include_directories(eltolinde PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 	$<INSTALL_INTERFACE:/src>
 )
+target_compile_definitions(eltolinde PRIVATE
+	ROSALINDE_BUILD_DATA_DIR="${ROSALINDE_DATA_BUILD_DIR}"
+	ROSALINDE_INSTALL_DATA_DIR="${ROSALINDE_DATA_INSTALL_DIR}"
+)
 
 add_subdirectory(scarlett)
 
@@ -96,4 +105,12 @@ if(BUILD_VIEWER)
 	add_subdirectory(viewer)
 	add_executable(acbplay "tools/acbplay.cpp")
 	target_link_libraries(acbplay PRIVATE criware Boost::program_options SDL3::SDL3)
+endif()
+
+install(DIRECTORY "${ROSALINDE_DATA_BUILD_DIR}/" DESTINATION "${CMAKE_INSTALL_DATADIR}/rosalinde" FILES_MATCHING PATTERN "*.tsv" PATTERN "country_regions.tsv" EXCLUDE)
+install(FILES "${CMAKE_SOURCE_DIR}/viewer/data/country_regions.tsv" DESTINATION "${CMAKE_INSTALL_DATADIR}/rosalinde")
+
+install(TARGETS asbrun RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+if(BUILD_VIEWER)
+	install(TARGETS viewer RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 endif()

@@ -1,11 +1,14 @@
 #include "runtime_data.hpp"
 
+#include <data_path.hpp>
+
 #include <scarlett/host.hpp>
 
 #include <criware/acb.hpp>
 #include <criware/cpk.hpp>
 
 #include <filesystem>
+#include <stdexcept>
 #include <span>
 #include <unordered_map>
 #include <utility>
@@ -50,7 +53,13 @@ load_viewer_runtime_data(const cpk::archive& archive, const std::string& chara_t
 	if (!chara_table.empty())
 		data.chars = asb::load_char_table(chara_table);
 
-	const std::filesystem::path base = data_dir;
+	const std::filesystem::path base = data_dir.empty() ? rosalinde_data_dir() : data_dir;
+	if (!std::filesystem::exists(base))
+		throw std::runtime_error("runtime data directory not found: " + base.string());
+	for (const char* name : {"charaset.tsv", "classes.tsv", "stages.tsv", "facility_pos.tsv", "drop_tables.tsv", "uc_enums.tsv", "battlebgs.tsv"}) {
+		if (!std::filesystem::exists(base / name))
+			throw std::runtime_error("runtime data is incomplete: " + (base / name).string());
+	}
 	const std::filesystem::path charaset = base / "charaset.tsv";
 	const std::filesystem::path classes = base / "classes.tsv";
 	const std::filesystem::path charanpc = base / "charanpc_assets.tsv";

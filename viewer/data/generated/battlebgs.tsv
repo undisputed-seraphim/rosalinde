@@ -1,4 +1,4 @@
-# key	mbs	ftx (generated from BattleBG/* by asb_harvest --bgs)
+# key	mbs	ftx (generated from BattleBG/* by asbrun export bgs)
 BGBtAbandonedPort_B	BGBtAbandonedPort_B.mbs	BGBtAbandonedPort_B.ftx
 BGBtAirRock_01	BGBtAirRock_01.mbs	BGBtAirRock_01.ftx
 BGBtAirRock_B_01	BGBtAirRock_B_01.mbs	BGBtAirRock_B_01.ftx

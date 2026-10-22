@@ -1,4 +1,4 @@
-# drop_table	item	weight	count	add_index (generated from the engine drop tables by tools/dump_stage_tables.py)
+# drop_table	item	weight	count	add_index (generated from raw drop tables)
 UNKNOWN	UNKNOWN	100	1	0
 ENEMY_DROP_START	UNKNOWN	100	1	0
 DROPITEM_HIDDEN_ENEMY	LEVEL_UP	100	1	0

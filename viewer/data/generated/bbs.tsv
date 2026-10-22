@@ -1,4 +1,4 @@
-# stage_type	path	label (generated from the engine BBS catalog by tools/dump_bbs_table.py)
+# stage_type	path	label (generated from raw BBS table)
 0	BattleBG/StBtRoad.bbs	道
 1	BattleBG/StBtRoad_1.bbs	橋
 2	BattleBG/StBtPlain.bbs	平原

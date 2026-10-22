@@ -14,6 +14,8 @@
 #include <angelscript.h>
 #include <criware/cpk.hpp>
 
+#include <data_path.hpp>
+
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
@@ -644,7 +646,7 @@ private:
 			if (!chara_file.empty()) {
 				chars = asb::load_char_table(chara_file);
 			} else {
-				const fs::path chars_path = fs::path(_data_dir) / "chara_table.tsv";
+				const fs::path chars_path = fs::path(_data_dir.empty() ? rosalinde_data_dir() : _data_dir) / "chara_table.tsv";
 				if (fs::exists(chars_path))
 					chars = asb::load_char_table(chars_path.string());
 			}
@@ -1458,7 +1460,7 @@ private:
 	bool _loaded = false;
 	bool _runtime_loaded = false;
 	std::string _path;
-	std::string _data_dir = "viewer/data";
+	std::string _data_dir;
 	std::string _chara_table;
 	std::vector<uint8_t> _bytes;
 	asb::Module _module;

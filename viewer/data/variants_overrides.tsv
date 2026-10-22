@@ -1,0 +1,11 @@
+# key	character	flags	source
+ALBION_PRINCESS_F	PL_PRIESTES_C0	0x54012800	hand-authored multi-group mask
+ALBION_PRINCESS_F	TEST_E64	0x54012800	hand-authored multi-group mask
+ALBION_PRINCESS_F	TEST_P62	0x54012800	hand-authored multi-group mask
+ALBION_PRINCESS_F	Z2_PRIESTES_C0	0x54012800	hand-authored multi-group mask
+CORNIA_PRINCESS_F	PL_CORNIA_PRINCESS_D1	0x00013001	hand-authored multi-group mask
+CORNIA_PRINCESS_F	TEST_E56	0x00013001	hand-authored multi-group mask
+CORNIA_PRINCESS_F	TEST_P64	0x00013001	hand-authored multi-group mask
+CORNIA_PRINCESS_F	Z2_CORNIA_PRINCESS_D1	0x00013001	hand-authored multi-group mask
+DARK_MARQUESS_L_M	DARK_MARQUESS_L_MID_BOSS	0x00000001	hand-authored multi-group mask
+DARK_MARQUESS_L_M	Z2_DARK_MARQUESS_L_MID_BOSS	0x00000001	hand-authored multi-group mask

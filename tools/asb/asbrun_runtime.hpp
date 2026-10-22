@@ -31,7 +31,7 @@ void load_runtime_data(
 	RuntimeData& data,
 	const cpk::archive& archive,
 	const std::string& chara_table = {},
-	const std::string& data_dir = "viewer/data");
+	const std::string& data_dir = {});
 
 void configure_host(asb::Host& host, const RuntimeData& data);
 

@@ -1,4 +1,4 @@
-# key	jp_name	mbs	ftx (generated from the engine CLASSTYPE table by tools/dump_chara_table.py)
+# key	jp_name	mbs	ftx (generated from raw class table)
 LORD_M	ロード	Lord_M.mbs	Lord_M0.ftx
 LORD_HG_M	上級ロード	Lord_HG_M.mbs	Lord_HG_M0.ftx
 FIGHTER_M	ファイター	Fighter_M.mbs	Fighter_M0.ftx

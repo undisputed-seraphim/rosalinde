@@ -769,7 +769,7 @@ base 0x2741bb8 (.data)   stride 0x48 (9 × u64, 1388 entries)
 | `FUN_002bf900(engine, charaSet)` | ~`0x1d0`-byte expanded per-chara def struct |
 
 `class_id` is a `CLASSTYPE` index (`Debug/_UcEnum_Class.inc`, 74 entries).
-Used to generate `viewer/data/charaset.tsv` and `viewer/data/variants.tsv`.
+Used to generate `viewer/data/charaset_table.tsv` and the build-time `viewer/data/generated/variants.tsv`.
 
 ---
 

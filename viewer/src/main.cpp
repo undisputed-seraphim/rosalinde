@@ -142,7 +142,7 @@ int main(int argc, char* argv[]) try {
 		"Generated character name -> asset table (see: asbrun export chara)")(
 		"data-dir",
 		::boost::program_options::value<std::string>(&config.data_dir),
-		"Runtime data directory (default: viewer/data or $VIEWER_DATA)")(
+		"Runtime data directory (default: viewer/data/generated, installed share/rosalinde, or $ROSALINDE_DATA_DIR)")(
 		"initial-stage",
 		::boost::program_options::value<int>(&config.initial_stage)->default_value(config.initial_stage),
 		"Seed the initial stage composition from this DrCreateStage type")(

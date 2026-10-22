@@ -1,13 +1,10 @@
 #include "tables.hpp"
 
-#include <cstdlib>
+#include <data_path.hpp>
+
 #include <fstream>
 
-std::string viewer_data_dir() {
-	if (const char* e = std::getenv("VIEWER_DATA"))
-		return e;
-	return VIEWER_DATA_DIR;
-}
+std::string viewer_data_dir() { return rosalinde_data_dir(); }
 
 namespace {
 

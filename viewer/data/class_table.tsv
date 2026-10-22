@@ -1,0 +1,75 @@
+idx	class_id	mbs_m	ftx_m	mbs_f	ftx_f
+0	0
+1	0	Chara/Lord_M.mbs	Chara/Lord_M0.ftx
+2	1	Chara/Lord_HG_M.mbs	Chara/Lord_HG_M0.ftx
+3	0	Chara/Fighter_M.mbs	Chara/Fighter_M0.ftx
+4	3	Chara/Fighter_HG_M.mbs	Chara/Fighter_HG_M0.ftx
+5	0	Chara/Soldier_M.mbs	Chara/Soldier_M0.ftx	Chara/Soldier_F.mbs	Chara/Soldier_F0.ftx
+6	5	Chara/Soldier_HG_M.mbs	Chara/Soldier_HG_M0.ftx	Chara/Soldier_HG_F.mbs	Chara/Soldier_HG_F0.ftx
+7	0	Chara/Huscarl_M.mbs	Chara/Huscarl_M0.ftx
+8	7	Chara/Huscarl_HG_M.mbs	Chara/Huscarl_HG_M0.ftx
+9	0	Chara/Swordsman_M.mbs	Chara/Swordsman_M0.ftx	Chara/Swordsman_F.mbs	Chara/Swordsman_F0.ftx
+10	9	Chara/Swordsman_HG_M.mbs	Chara/Swordsman_HG_M0.ftx	Chara/Swordsman_HG_F.mbs	Chara/Swordsman_HG_F0.ftx
+11	0	Chara/Mercenary_M.mbs	Chara/Mercenary_M0.ftx	Chara/Mercenary_F.mbs	Chara/Mercenary_F0.ftx
+12	11	Chara/Mercenary_HG_M.mbs	Chara/Mercenary_HG_M0.ftx	Chara/Mercenary_HG_F.mbs	Chara/Mercenary_HG_F0.ftx
+13	0	Chara/Hoplite_M.mbs	Chara/Hoplite_M0.ftx
+14	13	Chara/Hoplite_HG_M.mbs	Chara/Hoplite_HG_M0.ftx
+15	0	Chara/Gladiator_M.mbs	Chara/Gladiator_M0.ftx
+16	15	Chara/Gladiator_HG_M.mbs	Chara/Gladiator_HG_M0.ftx
+17	0	Chara/Warrior_M.mbs	Chara/Warrior_M0.ftx	Chara/Warrior_F.mbs	Chara/Warrior_F0.ftx
+18	17	Chara/Warrior_HG_M.mbs	Chara/Warrior_HG_M0.ftx	Chara/Warrior_HG_F.mbs	Chara/Warrior_HG_F0.ftx
+19	0	Chara/Hunter_M.mbs	Chara/Hunter_M0.ftx
+20	19	Chara/Hunter_HG_M.mbs	Chara/Hunter_HG_M0.ftx
+21	0			Chara/Ranger_F.mbs	Chara/Ranger_F0.ftx
+22	21			Chara/Ranger_HG_F.mbs	Chara/Ranger_HG_F0.ftx
+23	0	Chara/Thief_M.mbs	Chara/Thief_M0.ftx
+24	23	Chara/Thief_HG_M.mbs	Chara/Thief_HG_M0.ftx
+25	0	Chara/Knight_M.mbs	Chara/Knight_M0.ftx
+26	25	Chara/Knight_HG_M.mbs	Chara/Knight_HG_M0.ftx
+27	0			Chara/WhiteKnight_F.mbs	Chara/WhiteKnight_F0.ftx
+28	27			Chara/WhiteKnight_HG_F.mbs	Chara/WhiteKnight_HG_F0.ftx
+29	0	Chara/BlackKnight_M.mbs	Chara/BlackKnight_M0.ftx
+30	29	Chara/BlackKnight_HG_M.mbs	Chara/BlackKnight_HG_M0.ftx
+31	0			Chara/Cleric_F.mbs	Chara/Cleric_F0.ftx
+32	31			Chara/Cleric_HG_F.mbs	Chara/Cleric_HG_F0.ftx
+33	0	Chara/Wizard_M.mbs	Chara/Wizard_M0.ftx
+34	33	Chara/Wizard_HG_M.mbs	Chara/Wizard_HG_M0.ftx
+35	0			Chara/Witch_F.mbs	Chara/Witch_F0.ftx
+36	35			Chara/Witch_HG_F.mbs	Chara/Witch_HG_F0.ftx
+37	0			Chara/Shaman_F.mbs	Chara/Shaman_F0.ftx
+38	37			Chara/Shaman_HG_F.mbs	Chara/Shaman_HG_F0.ftx
+39	0			Chara/WyvernKnight_F.mbs	Chara/WyvernKnight_F0.ftx
+40	39			Chara/WyvernKnight_HG_F.mbs	Chara/WyvernKnight_HG_F0.ftx
+41	0			Chara/GriffonKnight_F.mbs	Chara/GriffonKnight_F0.ftx
+42	41			Chara/GriffonKnight_HG_F.mbs	Chara/GriffonKnight_HG_F0.ftx
+43	0	Chara/ElfFencer_M.mbs	Chara/ElfFencer_M0.ftx	Chara/ElfFencer_F.mbs	Chara/ElfFencer_F0.ftx
+44	0	Chara/ElfArcher_M.mbs	Chara/ElfArcher_M0.ftx	Chara/ElfArcher_F.mbs	Chara/ElfArcher_F0.ftx
+45	0	Chara/WereWolf_M.mbs	Chara/WereWolf_M0.ftx
+46	0			Chara/WereFox_F.mbs	Chara/WereFox_F0.ftx
+47	0	Chara/WereBear_M.mbs	Chara/WereBear_M0.ftx
+48	0			Chara/WereOwl_F.mbs	Chara/WereOwl_F0.ftx
+49	0			Chara/FeatherSword_F.mbs	Chara/FeatherSword_F0.ftx
+50	0			Chara/FeatherBow_F.mbs	Chara/FeatherBow_F0.ftx
+51	0	Chara/FeatherRod_M.mbs	Chara/FeatherRod_M0.ftx
+52	0	Chara/FeatherShield_M.mbs	Chara/FeatherShield_M0.ftx
+53	0			Chara/Scarlet_F.mbs	Chara/Scarlet_F0.ftx
+54	53			Chara/Scarlet_F.mbs	Chara/Scarlet_F0.ftx
+55	0			Chara/Virginia_F.mbs	Chara/Virginia_F0.ftx
+56	55			Chara/Virginia_F.mbs	Chara/Virginia_F0.ftx
+57	0			Chara/Eltlinde_F00.mbs	Chara/Eltlinde_F0.ftx
+58	0			Chara/Eltlinde_F10.mbs	Chara/Eltlinde_F1.ftx
+59	0			Chara/Unify_F.mbs	Chara/Unify_F0.ftx
+60	0	Chara/Gladiator_HG_M.mbs	Chara/Gladiator_HG_M0.ftx
+61	0	Chara/WhiteKnight_HG_M.mbs	Chara/WhiteKnight_HG_M0.ftx
+62	0	Chara/Prince_M.mbs	Chara/Prince_M0.ftx
+63	0			Chara/Armoria_HG_F.mbs	Chara/Armoria_HG_F0.ftx
+64	0			Chara/Armoria_HG_F.mbs	Chara/Armoria_HG_F0.ftx
+65	0	Chara/Necromancer_M.mbs	Chara/Necromancer_M0.ftx
+66	0	Chara/Necromancer_M.mbs	Chara/Necromancer_M0.ftx
+67	0	Chara/Blackprince_M.mbs	Chara/Blackprince_M0.ftx
+68	67	Chara/Blackprince_HG_M.mbs	Chara/Blackprince_HG_M0.ftx
+69	0	Chara/DarkMarquess_S_M.mbs	Chara/DarkMarquess_S_M0.ftx
+70	0			Chara/DarkMarquess_A_F.mbs	Chara/DarkMarquess_A_F0.ftx
+71	0	Chara/DarkMarquess_L_M.mbs	Chara/DarkMarquess_L_M0.ftx
+72	0	Chara/DarkMarquess_L_M.mbs	Chara/DarkMarquess_L_M0.ftx
+73	0			Chara/DarkMarquess_R_F.mbs	Chara/DarkMarquess_R_F0.ftx

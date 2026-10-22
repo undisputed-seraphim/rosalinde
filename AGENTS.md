@@ -109,7 +109,7 @@ SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
 - `--only NAME` isolates an object (exact name or alias); `--hide TEXT` removes matches;
   `--keep-stage` retains the stage with `--only`. `--clear-color #RRGGBB[AA]` overrides
   the background (default is the blue-gray editor clear).
-- `--data-dir DIR` selects the runtime tables (default: `viewer/data` or `$VIEWER_DATA`).
+- `--data-dir DIR` selects the runtime tables (default: `viewer/data/generated`, installed `share/rosalinde`, or `$ROSALINDE_DATA_DIR`; `$VIEWER_DATA` remains an alias).
 - `--scene-fps` controls playback stepping; `--chara-table` overrides the viewer data table.
 
 ### Perceptual opening regression (`visiontest/`)
@@ -187,7 +187,7 @@ python3 visiontest/opening_diff.py \
 | `VIEWER_RUN_ONLY`, `VIEWER_RUN_FROM`, `VIEWER_MAIN_ONLY` | restrict MBS runs for debugging |
 | `VIEWER_RUNS=seq`, `VIEWER_SEQ_MAIN`, `VIEWER_ADVANCE`, `VIEWER_ONCE` | sequential-phase / start-offset / end-mode experiments |
 | `VIEWER_HIDE` | hide objects whose name contains the value |
-| `VIEWER_DATA` | runtime data directory (same as `--data-dir`) |
+| `ROSALINDE_DATA_DIR` / `VIEWER_DATA` | runtime data directory (same as `--data-dir`) |
 | `VIEWER_CAM_Y`, `VIEWER_ORTHO` | camera/design-space overrides |
 | `FTX_GPU_DUMP_DIR`, `FTX_GPU_DUMP_MATCH` | dump uploaded texture arrays to PNGs, optionally filtered by asset label |
 | `VIEWER_FLIP_V` | experimental UV V-flip by MBS/FTX substring for orientation diagnosis |
