@@ -8,7 +8,7 @@ Layers:
 1. **criware** — CPK container + UTF table parser
 2. **eltolinde** — Game-specific formats: MBS (animation), FTX (textures), FMS (string tables), NND, OTBM
 3. **scarlett** — AngelScript (`.asb`) decoder + runtime (hosts modules in a stock AngelScript engine)
-4. **viewer** + **extractor** + **ASB CLI** — Executables (OpenGL viewer, CPK extractor, and `asbrun` script shell) sitting on top
+4. **viewer** + **extractor** + **ASB inspector** — Executables (OpenGL viewer, CPK extractor, and `asbrun` static ASB inspector) sitting on top
 
 ---
 
@@ -25,7 +25,7 @@ Layers:
         └── scarlett.lib  ←── angelscript.lib (vendored 2.34.0)
 
    rosalinde.exe (extractor) ←── eltolinde.lib
-   asbrun.exe (ASB CLI) ←── scarlett.lib, criware.lib, eltolinde.lib
+   asbrun.exe (ASB inspector) ←── scarlett.lib, criware.lib, eltolinde.lib
 ```
 
 - **criware**: No dependencies except STL. Self-contained CPK/UTF/CRILAYLA.
@@ -33,14 +33,13 @@ Layers:
 - **scarlett**: Depends on the vendored AngelScript (angelscript + add-ons). Decodes `.asb` and hosts modules in a stock AngelScript 2.34 engine.
 - **viewer**: Depends on eltolinde, scarlett, imgui, glad, glm, Boost::program_options, SDL3, ZLIB (screenshot).
 - **rosalinde** (extractor): Depends on eltolinde. Interactive CPK shell with in-memory format inspection.
-- **asbrun** (ASB CLI): Depends on scarlett, criware, eltolinde. Interactive shell for ASB inspection and live playback.
+- **asbrun** (ASB inspector): Depends on scarlett, criware, eltolinde. Interactive shell for static ASB inspection, bulk scan/export, and VM-only `exec`/`eval`. Scene execution is the viewer's `--headless` mode.
 
 ---
 
 ## Environment
 
 - Game archive: `~/Unicorn.CPK`
-- Unpacked archive: `~/zwei/unicorn_overlord/CPK_unpacked`
 - Game engine ELF (RE): `~/zwei/unicorn_overlord/main2.elf`
 - No save file is required.
 
@@ -57,12 +56,6 @@ cmake --build build -j 8
 > removing a source file, re-run `cmake -B build -S .` or the new file will not be compiled.
 > (Windows/MSVC also works: `-G "Visual Studio 17 2022"` with `--config Debug`.)
 
-**Requirements** (all fetched via FetchContent if not installed):
-- CMake 3.28+
-- A C++23 compiler (MSVC 2022 `/std:c++latest`, or GCC 14 / Clang 19)
-- Boost 1.88 (system, iostreams, program_options)
-- SDL3 3.4, ZLIB 1.3.1, glm 1.0, EnTT 3.14+, spdlog 1.17, OpenGL, Catch2 3.12+
-
 The build produces:
 
 | Target | Type | Purpose |
@@ -73,7 +66,7 @@ The build produces:
 | `scarlett` | static lib | ASB decoder + AngelScript host |
 | `scarlett_test` | executable | scarlett tests |
 | `rosalinde` | executable | interactive CPK shell + format dumps |
-| `asbrun` | executable | interactive ASB shell (master ASB tool) |
+| `asbrun` | executable | interactive static ASB inspector |
 | `imgui` | static lib | vendored UI |
 | `viewer` | executable | OpenGL drama viewer |
 
@@ -101,11 +94,18 @@ SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
   mention the object; structural stage/camera events remain unless they mention it.
 - `--calls FILE` / `--calls-json FILE` write a native-call census with call counts,
   stubs, first/last frame, and imported-but-uncalled natives.
-- `--record FILE --record-every N` writes a compact runtime timeline (camera, stage,
-  objects, tracks, runs) instead of the full probe state. `-` writes to stdout.
+- `--headless` runs the same `PlaybackRuntime` without a window or GL context;
+  `--run-to N` stops and exits at a scene frame, and `--max-frames N` caps the run.
+- `--state FILE|-` / `--state-json FILE|-` snapshot the scene at the stop frame,
+  including selected/resolved MBS tracks, run counts, drawability, and missing-asset reasons.
+- `--record FILE --record-every N` writes a runtime timeline. Normal playback records
+  renderer objects; `--headless` records full scene state. A `.gz` suffix compresses
+  the NDJSON. `-` writes to stdout.
 - `--probe DIR` writes `state-<frame>.json`, `draw-<frame>.ndjson`, and
   `summary-<frame>.txt` at `--probe-frames` (default: capture frames or `--scene-frame`).
-  The draw dump is layer-level: run/`s8`/`s6`/`s7`, UVs, blend, fog, sort keys, and skip reasons.
+  `--headless` writes state/summary only. The draw dump is layer-level: run/`s8`/`s6`/`s7`,
+  UVs, blend, fog, sort keys, and skip reasons.
+- `--trace -` writes the NDJSON trace to stdout.
 - `--only NAME` isolates an object (exact name or alias); `--hide TEXT` removes matches;
   `--keep-stage` retains the stage with `--only`. `--clear-color #RRGGBB[AA]` overrides
   the background (default is the blue-gray editor clear).
@@ -166,8 +166,8 @@ python3 visiontest/opening_diff.py \
   camera zoom.
 - **Viewer host**: the viewer supplies all runtime providers: chara tables, track
   name/length callbacks, facility names, stage tables, drop tables, and ACB sound
-  lengths. `asbrun` remains a script-only inspector and does not model animation waits.
-- **Formats**: `.asb` → `docs/ASB.md`; MBS/FTX → `docs/SECTIONS.md`; engine tables and native
+  lengths. `asbrun` is a static inspector; scene execution with real waits is the viewer's `--headless` mode.
+- **Formats**: `.asb` → `scarlett/README.md`; MBS/FTX → `docs/SECTIONS.md`; engine tables and native
   registration → `docs/EXE.md`; combat/stage surface → `docs/COMBAT.md`.
 - **Field stages**: `DrCreateStage(type)` selects a stage-table row; the row's
   country and variant select exact `FieldBG/ACxx_YYP`/`_F` asset pairs from the
@@ -251,7 +251,7 @@ python3 visiontest/opening_diff.py \
 - **eltolinde library**: Medium-risk. The MBS/FTX parsers are reverse-engineered. Verify against the CPK test archive.
 - **viewer**: Higher-risk. GL state, shaders, and animation playback are fragile. Verify visually with a GPU offscreen capture. `--script` is the only playback path; use `--scene-frame`, `--scene-fps`, `--capture-frames`, and `--trace`.
 - **rosalinde**: interactive CPK shell (`ls`, `find`, `stat`, `e`, `d`, `source`). Script mode on stdin is the stable interface; see `tools/README.md`.
-- **asbrun**: master ASB shell (`open`, `summary`, `scene`, `timeline`, `play`, `trace`, `record`, `calls`, `state`, `scan`, `export`). The old `asb_harvest`/`asb_run`/`asb_record`/`asb_trace` binaries are legacy; see `tools/ASBRUN_README.md`.
+- **asbrun**: static ASB shell (`open`, `summary`, `scene`, `timeline`, `scan`, `export`, `exec`, `eval`, `source`). The `play`/`trace`/`record`/`calls`/`state` commands were retired; use `viewer --headless` for scene execution. See `tools/ASBRUN_README.md`.
 
 ### Common pitfalls
 - **Double +8 on string offsets**: `chunk_header` offsets need +8 adjustment (relative → absolute). `read_column_defs` already receives adjusted values. Do NOT add +8 again.
@@ -294,15 +294,14 @@ python3 visiontest/opening_diff.py --reference opening_cinematic.mp4
 
 ## Docs
 
-`docs/` holds the format and RE references. Start with `docs/ASB.md`, `docs/SECTIONS.md`
-(MBS/FTX), and `docs/EXE.md` (engine tables/registration). API audits are
+`docs/` holds the format and RE references. Start with `scarlett/README.md` for
+`.asb`, `docs/SECTIONS.md` (MBS/FTX), and `docs/EXE.md` (engine tables/registration). API audits are
 `docs/API_AUDIT.md`, `docs/DEFERRED_APIS.md`, `docs/API_NATIVES.tsv`, and
 `docs/API_SCRIPTS.tsv`. Combat/stage planning is `docs/COMBAT.md`. CLI references are
 `tools/README.md` and `tools/ASBRUN_README.md`.
 
 The following are untracked by the user: `docs/API_AUDIT.md`, `docs/API_NATIVES.tsv`,
-`docs/API_SCRIPTS.tsv`, `docs/ASB.md`, `docs/COMBAT.md`, `docs/DEFERRED_APIS.md`,
-and `docs/EXE.md`.
+`docs/API_SCRIPTS.tsv`, `docs/COMBAT.md`, `docs/DEFERRED_APIS.md`, and `docs/EXE.md`.
 
 ---
 

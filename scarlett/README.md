@@ -6,7 +6,8 @@ reconstructs the engine native API the module imports, and exposes the scene
 the script builds as `asb::SceneState`.
 
 It is a library, not a renderer. The viewer consumes `SceneState`; `asbrun`
-inspects it. Nothing here touches OpenGL, audio, or the game executable.
+inspects decoded modules and static scenes. Nothing here touches OpenGL,
+audio, or the game executable.
 
 ## What it is made of
 
@@ -41,7 +42,7 @@ CPK entry (.asb bytes)
                              each CALLSYS index to the registered symbol
   → RuntimeSession           execute the entry function under a Wait scheduler
         CALLSYS → GenericStub → Registry::dispatch() → SceneState
-  → consumer                 viewer renders SceneState; asbrun inspects it
+  → consumer                 viewer renders SceneState; asbrun inspects modules
 ```
 
 The critical part is the load/link step. `LoadByteCode` reads each
@@ -66,14 +67,14 @@ Consequences:
 - **Only `kind a` is registered by us.** `kind m` functions are part of the
   module and execute normally. `kind n` is a null link.
 - **The VM has no direct renderer access.** It mutates `SceneState`; the host
-  application reads that state. This is the seam that lets the viewer and
-  `asbrun` share the same runtime.
+  application reads that state. This is the seam that lets the viewer render a
+  script without the VM knowing about GL.
 - **`RuntimeSession` is the scheduler.** `Wait(n)` calls `Suspend()`; the
   session resumes the context at `frame + max(1, n)`. `advance()` moves the
   scene clock by one 60 Hz frame, updates movement/camera tweens, then re-enters
   the VM when the wait expires. Optional providers (track lengths and track
-  names) make animation waits carry real time; the viewer installs them,
-  `asbrun` does not.
+  names) make animation waits carry real time; the viewer installs them, while
+  a raw `Host` without providers leaves such waits immediate.
 - **`Host::execute` bypasses the scene.** It runs a context with no `Registry`
   attached, so all natives are default stubs and `Wait` does not park. This is
   only useful for smoke tests (`asbrun exec`).
@@ -115,7 +116,7 @@ them twice.
   effects, lights, audio, items, callbacks, UI, field records, plus a revision
   counter.
 - Provides trace events, complete `NativeCall` records, and a call/stub census
-  used by the viewer's `--trace`/`--calls` and `asbrun trace`/`calls`.
+  used by the viewer's `--trace`/`--calls`.
 - Loads the engine-derived runtime tables supplied by its host: CharaSet/class
   assets, stage and facility data, drop tables, enum names, battle backgrounds,
   and ACB sound lengths.
@@ -195,7 +196,7 @@ Adding a native means:
 3. write the state the host consumer needs, set return values on `gen`, and
    call `mark_dirty()` when entities/camera change;
 4. return `true` so the generic stub does not overwrite the return slot;
-5. use `asbrun calls` to confirm the native is no longer a stub.
+5. use `viewer --headless --calls` to confirm the native is no longer a stub.
 
 Dispatch matches the bare function name, ignoring namespaces; check the object
 type (`fn->GetObjectType()`) when a method name is shared.

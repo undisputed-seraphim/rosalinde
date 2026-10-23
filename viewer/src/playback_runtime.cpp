@@ -53,12 +53,18 @@ PlaybackRuntime::PlaybackRuntime(
 
 	asb::Scene scene = asb::extract_scene(*_module);
 	const asb::SceneFunction* picked = asb::pick_scene_function(scene, config.scene_func);
-	if (!picked)
-		throw std::runtime_error("no scene function in " + config.script);
-	_entry_name = picked->name;
-	asIScriptFunction* fn = _host.find_function({picked->name});
+	if (picked) {
+		_entry_name = picked->name;
+	}
+	asIScriptFunction* fn = picked ? _host.find_function({picked->name}) : nullptr;
+	if (!fn && !config.scene_func.empty()) {
+		fn = _host.find_function({config.scene_func});
+		if (fn)
+			_entry_name = config.scene_func;
+	}
 	if (!fn)
-		throw std::runtime_error("scene function not found: " + picked->name);
+		throw std::runtime_error(
+			picked ? "scene function not found: " + picked->name : "no scene function in " + config.script);
 	asIScriptFunction* prelude = _host.find_function({"ON_TITLE_UI_START"});
 
 	_session = std::make_unique<asb::RuntimeSession>(_host, config.script);

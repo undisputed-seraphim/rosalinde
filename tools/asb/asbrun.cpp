@@ -1,14 +1,10 @@
 #include "asbrun_bulk.hpp"
 #include "asbrun_common.hpp"
 #include "asbrun_inspect.hpp"
-#include "asbrun_record.hpp"
-#include "asbrun_runtime.hpp"
-#include "asbrun_trace.hpp"
 #include "line_editor.hpp"
 
 #include <scarlett/asb.hpp>
 #include <scarlett/host.hpp>
-#include <scarlett/runtime.hpp>
 #include <scarlett/scene.hpp>
 
 #include <angelscript.h>
@@ -29,16 +25,12 @@
 #include <iostream>
 #include <optional>
 #include <span>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include <impl/mbs/sections.hpp>
 
 #if defined(__EMSCRIPTEN__) || defined(__wasm__)
 #elif defined(_WIN32)
@@ -193,6 +185,20 @@ bool stdin_is_tty() {
 
 void print_usage(std::ostream& out) { out << "usage: asbrun --cpk PATH\n"; }
 
+std::string_view retired_hint(std::string_view name) {
+	if (name == "play")
+		return "--run-to N [--trace FILE] [--record FILE] [--calls FILE] [--state FILE]";
+	if (name == "trace")
+		return "--trace FILE --trace-categories vm,stage,camera,sprite";
+	if (name == "record")
+		return "--record FILE [--record-every N]";
+	if (name == "calls")
+		return "--calls FILE --calls-json FILE";
+	if (name == "state")
+		return "--run-to N --state FILE --state-json FILE";
+	return {};
+}
+
 class Shell {
 public:
 	Shell(cpk::archive& archive, bool interactive)
@@ -228,8 +234,6 @@ private:
 		std::string_view summary;
 		int (Shell::*handler)(arg_list, int);
 	};
-
-	enum class PlayMode { Play, Trace, Record, Calls };
 
 	static std::span<const command_spec> command_list();
 
@@ -267,6 +271,11 @@ private:
 		for (const auto& command : command_list()) {
 			if (command.name == args[0])
 				return (this->*(command.handler))(args, depth);
+		}
+		if (const std::string_view hint = retired_hint(args[0]); !hint.empty()) {
+			std::cerr << "asbrun: '" << args[0] << "' moved to the viewer:\n"
+					  << "  viewer --cpk <CPK> --script <SCRIPT> --headless " << hint << "\n";
+			return 2;
 		}
 		std::cerr << "asbrun: unknown command '" << args[0] << "' (type 'help')\n";
 		return 1;
@@ -327,39 +336,6 @@ private:
 			throw std::runtime_error("no module loaded (use 'open PATH')");
 	}
 
-	struct MbsMeta {
-		std::vector<std::string> track_names;
-		std::vector<int> track_runs;
-	};
-
-	const MbsMeta& mbs_meta(const std::string& path) {
-		auto found = _mbs_meta.find(path);
-		if (found != _mbs_meta.end())
-			return found->second;
-
-		MbsMeta meta;
-		try {
-			auto entry = _archive.find(path);
-			if (entry != _archive.end()) {
-				std::vector<char> buffer;
-				_archive.extract(*entry, buffer);
-				std::istringstream input(std::string(buffer.begin(), buffer.end()));
-				mbs::v77 data;
-				input >> data;
-				for (const auto& track : data.s9) {
-					size_t length = 0;
-					while (length < sizeof(track.name) && track.name[length] != '\0')
-						++length;
-					meta.track_names.emplace_back(track.name, length);
-					meta.track_runs.push_back(track.sa_sequence_count);
-				}
-			}
-		} catch (...) {
-			meta = MbsMeta{};
-		}
-		return _mbs_meta.emplace(path, std::move(meta)).first->second;
-	}
-
 	void remember(std::string_view line) {
 		const std::string_view trimmed = asbrun::trim(line);
 		if (trimmed.empty() || trimmed.front() == '#')
@@ -406,7 +382,6 @@ private:
 		_module = std::move(module);
 		_scene.reset();
 		_loaded = true;
-		_runtime_loaded = false;
 
 		if (_module.consumed != _module.total)
 			std::cerr << "open: warning: consumed " << _module.consumed << "/" << _module.total << " bytes\n";
@@ -646,7 +621,7 @@ private:
 			if (!chara_file.empty()) {
 				chars = asb::load_char_table(chara_file);
 			} else {
-				const fs::path chars_path = fs::path(_data_dir.empty() ? rosalinde_data_dir() : _data_dir) / "chara_table.tsv";
+				const fs::path chars_path = fs::path(rosalinde_data_dir()) / "chara_table.tsv";
 				if (fs::exists(chars_path))
 					chars = asb::load_char_table(chars_path.string());
 			}
@@ -863,162 +838,6 @@ private:
 		return 2;
 	}
 
-	int cmd_state(arg_list args, int) {
-		long target = 0;
-		std::string function_name;
-		std::string json_path;
-		std::string chara_table;
-		std::string data_dir;
-
-		for (size_t i = 1; i < args.size(); ++i) {
-			if (args[i] == "--frame") {
-				if (i + 1 >= args.size()) {
-					std::cerr << "state: --frame requires a value\n";
-					return 2;
-				}
-				try {
-					target = std::stol(args[++i]);
-				} catch (...) {
-					std::cerr << "state: invalid --frame value\n";
-					return 2;
-				}
-			} else if (args[i] == "--json") {
-				if (i + 1 >= args.size()) {
-					std::cerr << "state: --json requires a path\n";
-					return 2;
-				}
-				json_path = args[++i];
-			} else if (args[i] == "--chara-table") {
-				if (i + 1 >= args.size()) {
-					std::cerr << "state: --chara-table requires a value\n";
-					return 2;
-				}
-				chara_table = args[++i];
-			} else if (args[i] == "--data-dir") {
-				if (i + 1 >= args.size()) {
-					std::cerr << "state: --data-dir requires a value\n";
-					return 2;
-				}
-				data_dir = args[++i];
-			} else if (function_name.empty()) {
-				function_name = args[i];
-			} else {
-				std::cerr << "state: too many arguments\n";
-				return 2;
-			}
-		}
-		if (target < 0) {
-			std::cerr << "state: --frame must be non-negative\n";
-			return 2;
-		}
-		require_module();
-
-		if (!chara_table.empty())
-			_chara_table = chara_table;
-		if (!data_dir.empty())
-			_data_dir = data_dir;
-		if (!_runtime_loaded || !chara_table.empty() || !data_dir.empty()) {
-			asbrun::load_runtime_data(_runtime, _archive, _chara_table, _data_dir);
-			_runtime_loaded = true;
-		}
-
-		asb::Host host;
-		host.set_call_log({});
-		host.register_module(_module);
-		asbrun::configure_host(host, _runtime);
-		if (!host.load(std::span<const uint8_t>(_bytes.data(), _bytes.size())))
-			return 3;
-		asIScriptFunction* entry = find_entry_function(host, function_name);
-		if (!entry) {
-			std::cerr << "state: no entry function found\n";
-			return 4;
-		}
-
-		asb::RuntimeSession session(host, _path);
-		session.set_max_frames(std::max(target + 1, 1L));
-		session.set_record_keyframes(false);
-		if (!session.start(entry)) {
-			std::cerr << "state: " << session.error() << '\n';
-			return 5;
-		}
-		while (session.frame() < target && !session.finished()) {
-			if (session.advance() == asb::RuntimeSession::StepResult::Error) {
-				std::cerr << "state: " << session.error() << '\n';
-				return 5;
-			}
-		}
-		if (session.frame() < target)
-			std::cerr << "state: scene ended at frame " << session.frame() << " before " << target << '\n';
-
-		const auto& scene_state = session.scene();
-		if (json_path.empty())
-			std::cout << "frame: " << scene_state.frame << " entities: " << scene_state.entities.size() << '\n';
-		std::string entities_json;
-		bool first_entity = true;
-		for (const auto& entity : scene_state.entities) {
-			const MbsMeta* meta = entity.mbs.empty() ? nullptr : &mbs_meta(entity.mbs);
-			int resolved_track = entity.track_index;
-			if (meta && resolved_track < 0 && !entity.track.empty()) {
-				for (size_t i = 0; i < meta->track_names.size(); ++i) {
-					if (meta->track_names[i] == entity.track) {
-						resolved_track = static_cast<int>(i);
-						break;
-					}
-				}
-			}
-			std::string track_name;
-			int track_runs = 0;
-			if (meta && resolved_track >= 0 && static_cast<size_t>(resolved_track) < meta->track_names.size()) {
-				track_name = meta->track_names[static_cast<size_t>(resolved_track)];
-				track_runs = meta->track_runs[static_cast<size_t>(resolved_track)];
-			}
-			const bool drawn = entity.started && entity.visible && entity.alpha > 0 && resolved_track >= 0 &&
-							   !entity.mbs.empty() && !entity.ftx.empty();
-
-			if (json_path.empty()) {
-				std::cout << entity.name << " kind=" << entity.kind << " mbs=" << entity.mbs << " ftx=" << entity.ftx
-						  << " track=" << entity.track << " track_index=" << resolved_track
-						  << " track_name=" << track_name << " track_runs=" << track_runs
-						  << " started=" << (entity.started ? "true" : "false")
-						  << " visible=" << (entity.visible ? "true" : "false")
-						  << " drawn=" << (drawn ? "true" : "false") << " alpha=" << entity.alpha
-						  << " order=" << entity.order << " layer=" << entity.layer
-						  << " layer_mask=" << entity.layer_mask << " scale=" << entity.scale << " pos=("
-						  << entity.pos[0] << ',' << entity.pos[1] << ',' << entity.pos[2]
-						  << ") paused=" << (entity.paused ? "true" : "false")
-						  << " anim_paused=" << (entity.anim_paused ? "true" : "false") << '\n';
-				continue;
-			}
-
-			entities_json += first_entity ? "" : ",";
-			first_entity = false;
-			entities_json +=
-				"{\"name\":\"" + asbrun::json_escape(entity.name) + "\",\"kind\":\"" +
-				asbrun::json_escape(entity.kind) + "\",\"mbs\":\"" + asbrun::json_escape(entity.mbs) + "\",\"ftx\":\"" +
-				asbrun::json_escape(entity.ftx) + "\",\"track\":\"" + asbrun::json_escape(entity.track) +
-				"\",\"track_index\":" + std::to_string(resolved_track) + ",\"track_name\":\"" +
-				asbrun::json_escape(track_name) + "\",\"track_runs\":" + std::to_string(track_runs) +
-				",\"started\":" + (entity.started ? "true" : "false") +
-				",\"visible\":" + (entity.visible ? "true" : "false") + ",\"drawn\":" + (drawn ? "true" : "false") +
-				",\"alpha\":" + std::to_string(entity.alpha) + ",\"color\":[" + std::to_string(entity.color[0]) + "," +
-				std::to_string(entity.color[1]) + "," + std::to_string(entity.color[2]) + "," +
-				std::to_string(entity.color[3]) + "],\"layer\":" + std::to_string(entity.layer) +
-				",\"layer_mask\":" + std::to_string(entity.layer_mask) + ",\"order\":" + std::to_string(entity.order) +
-				",\"scale\":" + asb::trace::number(entity.scale) + ",\"pos\":[" + asb::trace::number(entity.pos[0]) +
-				"," + asb::trace::number(entity.pos[1]) + "," + asb::trace::number(entity.pos[2]) +
-				"],\"paused\":" + (entity.paused ? "true" : "false") +
-				",\"anim_paused\":" + (entity.anim_paused ? "true" : "false") + "}";
-		}
-
-		if (json_path.empty())
-			return 0;
-		const std::string object = "  {\"frame\":" + std::to_string(scene_state.frame) +
-								   ",\"entity_count\":" + std::to_string(scene_state.entities.size()) +
-								   ",\"entities\":[" + entities_json + "]}";
-		write_json_object(object, json_path);
-		return 0;
-	}
-
 	int cmd_timeline(arg_list args, int) {
 		bool expand = false;
 		bool limit_set = false;
@@ -1150,190 +969,6 @@ private:
 		return 0;
 	}
 
-	int cmd_play_entry(arg_list args, int) { return cmd_play(args, PlayMode::Play); }
-	int cmd_trace(arg_list args, int) { return cmd_play(args, PlayMode::Trace); }
-	int cmd_record(arg_list args, int) { return cmd_play(args, PlayMode::Record); }
-	int cmd_calls(arg_list args, int) { return cmd_play(args, PlayMode::Calls); }
-
-	int cmd_play(arg_list args, PlayMode mode) {
-		long frames = 200000;
-		std::string function_name;
-		std::string trace_path;
-		std::string record_path;
-		std::string calls_json;
-		std::string categories = "all";
-		std::string chara_table;
-		std::string data_dir;
-
-		for (size_t i = 1; i < args.size(); ++i) {
-			const std::string& option = args[i];
-			auto value = [&](std::string_view name) -> std::optional<std::string> {
-				if (i + 1 >= args.size()) {
-					std::cerr << "play: " << name << " requires a value\n";
-					return std::nullopt;
-				}
-				return args[++i];
-			};
-
-			if (option == "--frames") {
-				auto text = value("--frames");
-				if (!text)
-					return 2;
-				try {
-					frames = std::stol(*text);
-				} catch (...) {
-					std::cerr << "play: invalid --frames value '" << *text << "'\n";
-					return 2;
-				}
-			} else if (option == "--func") {
-				auto text = value("--func");
-				if (!text)
-					return 2;
-				function_name = *text;
-			} else if (option == "--trace" || (option == "--out" && mode == PlayMode::Trace)) {
-				auto text = value(option);
-				if (!text)
-					return 2;
-				trace_path = *text;
-			} else if (option == "--record" || (option == "--json" && mode == PlayMode::Record)) {
-				auto text = value(option);
-				if (!text)
-					return 2;
-				record_path = *text;
-			} else if (option == "--json" && mode == PlayMode::Calls) {
-				auto text = value("--json");
-				if (!text)
-					return 2;
-				calls_json = *text;
-			} else if (option == "--categories") {
-				auto text = value("--categories");
-				if (!text)
-					return 2;
-				categories = *text;
-			} else if (option == "--chara-table") {
-				auto text = value("--chara-table");
-				if (!text)
-					return 2;
-				chara_table = *text;
-			} else if (option == "--data-dir") {
-				auto text = value("--data-dir");
-				if (!text)
-					return 2;
-				data_dir = *text;
-			} else if (function_name.empty()) {
-				function_name = option;
-			} else {
-				std::cerr << "play: unknown option '" << option << "'\n";
-				return 2;
-			}
-		}
-
-		require_module();
-
-		if (mode == PlayMode::Trace && trace_path.empty())
-			trace_path = "-";
-		if (mode == PlayMode::Record && record_path.empty())
-			record_path = "-";
-		if (mode == PlayMode::Calls && (!trace_path.empty() || !record_path.empty())) {
-			std::cerr << "calls: --trace/--record are not supported\n";
-			return 2;
-		}
-		if (trace_path == "-" && record_path == "-") {
-			std::cerr << "play: --trace and --record cannot both write to stdout\n";
-			return 2;
-		}
-
-		if (!chara_table.empty())
-			_chara_table = chara_table;
-		if (!data_dir.empty())
-			_data_dir = data_dir;
-		if (!_runtime_loaded || !chara_table.empty() || !data_dir.empty()) {
-			asbrun::load_runtime_data(_runtime, _archive, _chara_table, _data_dir);
-			_runtime_loaded = true;
-		}
-
-		asb::Host host;
-		host.set_call_log({});
-		host.register_module(_module);
-		asbrun::configure_host(host, _runtime);
-		if (!host.load(std::span<const uint8_t>(_bytes.data(), _bytes.size())))
-			return 3;
-
-		asIScriptFunction* target = find_entry_function(host, function_name);
-		if (!target) {
-			std::cerr << "play: no entry function found\n";
-			return 4;
-		}
-
-		std::ofstream trace_file;
-		std::ostream* trace_out = &std::cout;
-		if (!trace_path.empty() && trace_path != "-") {
-			create_parent_directories(trace_path);
-			trace_file.open(trace_path, std::ios::binary | std::ios::trunc);
-			if (!trace_file)
-				throw std::runtime_error("cannot write " + trace_path);
-			trace_out = &trace_file;
-		}
-		asbrun::TraceFilter filter(categories);
-		asbrun::CallCensus census;
-		if (!trace_path.empty()) {
-			host.set_trace([&](const asb::TraceEvent& event) {
-				if (event.kind == "vm" && event.event == "call")
-					return;
-				if (filter.contains(event.kind))
-					asbrun::write_trace_event(*trace_out, event);
-			});
-		}
-		if (!trace_path.empty() || mode == PlayMode::Calls) {
-			host.set_native_call([&](const asb::NativeCall& call) {
-				if (!trace_path.empty() && filter.contains("vm"))
-					asbrun::write_native_call(*trace_out, call);
-				if (mode == PlayMode::Calls)
-					census.observe(call);
-			});
-		}
-
-		asb::RuntimeSession session(host, _path);
-		session.set_max_frames(frames);
-		session.set_record_keyframes(!record_path.empty());
-		if (!session.start(target)) {
-			std::cerr << "play: " << session.error() << '\n';
-			return 5;
-		}
-		while (!session.finished() && !session.limit_reached()) {
-			if (session.advance() == asb::RuntimeSession::StepResult::Error) {
-				std::cerr << "play: " << session.error() << '\n';
-				return 5;
-			}
-		}
-
-		if (mode == PlayMode::Calls) {
-			if (calls_json.empty())
-				std::cout << asbrun::call_census_text(_module, census, _path, target->GetName());
-			else
-				write_json_object(asbrun::call_census_json(_module, census, _path, target->GetName()), calls_json);
-		}
-
-		if (!record_path.empty()) {
-			asb::Timeline timeline = session.take_timeline();
-			FILE* out = stdout;
-			if (record_path != "-") {
-				create_parent_directories(record_path);
-				out = std::fopen(record_path.c_str(), "wb");
-				if (!out)
-					throw std::runtime_error("cannot write " + record_path);
-			}
-			asbrun::write_timeline_json(out, timeline);
-			if (out != stdout)
-				std::fclose(out);
-		}
-		if (!trace_path.empty() && trace_path != "-")
-			trace_file.close();
-		std::cerr << "asbrun: " << target->GetName() << ": frame " << session.frame()
-				  << (session.finished() ? " (finished)" : " (limit)") << '\n';
-		return 0;
-	}
-
 	int cmd_exec(arg_list args, int) {
 		std::string function_name;
 		for (size_t i = 1; i < args.size(); ++i) {
@@ -1430,11 +1065,17 @@ private:
 					return 0;
 				}
 			}
+			if (const std::string_view hint = retired_hint(args[1]); !hint.empty()) {
+				std::cout << args[1] << " moved to: viewer --cpk <CPK> --script <SCRIPT> --headless " << hint
+						  << '\n';
+				return 0;
+			}
 			std::cerr << "help: unknown command '" << args[1] << "'\n";
 			return 1;
 		}
 		for (const auto& command : command_list())
 			std::cout << command.usage << " - " << command.summary << '\n';
+		std::cout << "\nScene execution moved to: viewer --cpk <CPK> --script <SCRIPT> --headless ...\n";
 		return 0;
 	}
 
@@ -1458,15 +1099,10 @@ private:
 	bool _running = true;
 	bool _had_error = false;
 	bool _loaded = false;
-	bool _runtime_loaded = false;
 	std::string _path;
-	std::string _data_dir;
-	std::string _chara_table;
 	std::vector<uint8_t> _bytes;
 	asb::Module _module;
 	std::optional<asb::Scene> _scene;
-	asbrun::RuntimeData _runtime;
-	std::unordered_map<std::string, MbsMeta> _mbs_meta;
 	std::deque<std::string> _history;
 };
 
@@ -1495,28 +1131,7 @@ std::span<const Shell::command_spec> Shell::command_list() {
 		 "timeline FUNC [--expand-calls] [--json FILE|-] [--limit N]",
 		 "build a static frame-annotated call timeline",
 		 &Shell::cmd_timeline},
-		{"state",
-		 "state [FUNC] [--frame N] [--json FILE|-] [--chara-table FILE] [--data-dir DIR]",
-		 "snapshot runtime entities and resolved MBS tracks",
-		 &Shell::cmd_state},
-		{"play",
-		 "play [FUNC] [--frames N] [--trace FILE|-] [--record FILE|-] [--categories LIST] "
-		 "[--chara-table FILE] [--data-dir DIR]",
-		 "run a module and optionally trace/record it",
-		 &Shell::cmd_play_entry},
-		{"trace",
-		 "trace [FUNC] [--out FILE|-] [--frames N] [--categories LIST] [--chara-table FILE]",
-		 "alias for play with an NDJSON trace",
-		 &Shell::cmd_trace},
-		{"record",
-		 "record [FUNC] [--json FILE|-] [--frames N] [--chara-table FILE]",
-		 "alias for play with a timeline JSON",
-		 &Shell::cmd_record},
-		{"calls",
-		 "calls [FUNC] [--frames N] [--json FILE|-] [--chara-table FILE] [--data-dir DIR]",
-		 "run and report native-call counts",
-		 &Shell::cmd_calls},
-		{"exec", "exec [FUNC]", "execute a function without the scene scheduler", &Shell::cmd_exec},
+		{"exec", "exec [FUNC]", "run a VM function without scene modeling", &Shell::cmd_exec},
 		{"eval", "eval SOURCE", "compile and execute AngelScript source", &Shell::cmd_eval},
 		{"source", "source FILE", "run commands from a file", &Shell::cmd_source},
 		{"help", "help [COMMAND]", "show command help", &Shell::cmd_help},
