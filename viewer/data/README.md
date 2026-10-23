@@ -34,10 +34,16 @@ the ground truth for the joins below and are not rewritten by the join step.
 - `chara_part_table.tsv` — 2168 part rows: `idx id0 scale0 ... id9 scale9`.
   Each pair is `{i16 part_id, i16 scale_percent}`; `-1` means absent.
 - `field_terrain_table.tsv` — 269 terrain rows: `idx key label
-  terrain_type tint w18 terrain_class w20 passable_mask modifier_a modifier_b
-  w24 w28 w2c..w4c`. `passable_mask` is the bitfield at `+0x21`; the two
-  modifiers are the signed bytes at `+0x22`/`+0x23` used by
-  `FUN_0021c7f8`/`0x0021c878`.
+  terrain_type tint w18 terrain_class snow passable_mask w22 w23 w24 w28
+  w2c..w3c w40_lo attack_modifier_0 move_modifier_0 .. attack_modifier_4
+  move_modifier_4 w4c`. `passable_mask` is the bitfield at `+0x21`; `snow` is
+  the byte at `+0x20` and is 1 for every snow and Bastorias terrain row. The
+  five signed modifier pairs at `+0x42..+0x4b` are the fields actually read by
+  `FUN_0021c7f8` (attack multiplier) and `FUN_0021c878` (movement multiplier);
+  each returns `(100 - byte) / 100`. Pair 0 is the default movement class,
+  pair 1 is class 3, and pair 2 is class 5 in those accessors. The old
+  `modifier_a`/`modifier_b` labels at `+0x22`/`+0x23` were incorrect; those
+  bytes are now retained as `w22`/`w23` (zero in all rows).
 - `quest_table.tsv` — 183 quest rows:
   `idx key quest_type quest_id w10 w14 req0_a req0_b req1_a req1_b req2_a
   req2_b stage flag reserved`. `quest_type` is the switch value 0..4 used by the
@@ -63,11 +69,29 @@ the ground truth for the joins below and are not rewritten by the join step.
   is the Japanese name (`バリスタ`, `ブレイブオーダー`, `アシスト射撃`, …).
   The table mixes facilities, traps, orders and assist skills.
 - `class_relation_table.tsv` — 74 per-class ability sets:
-  `idx class_id assist_id type order_id order_id_2 w14 w18 class_stats_id
-  w20..w7c class_stats_id_2 w84 w88`. `assist_id`, `order_id` and
-  `order_id_2` index `class_sub_table.tsv`; `class_stats_id` and
-  `class_stats_id_2` index `class_stats_table.tsv`; `type` is 0/23/24/25 and
-  is checked by `FUN_0011d710`/`FUN_0011d820`.
+  `idx class_id assist_id type order_id order_id_2 order_id_3 order_id_4
+  class_stats_id attack_list_count attack_stats_id_0 attack_type_0 ...
+  attack_stats_id_3 support_list_count w44 w48 w4c w50 support_stats_id_0
+  support_type_0 ... support_stats_id_3 extra_list_count w74 w78 w7c
+  class_stats_id_2 w84 w88`. `assist_id` and the four `order_id*` fields index
+  `class_sub_table.tsv`; `class_stats_id` and `class_stats_id_2` index
+  `class_stats_table.tsv`; `type` is 0/23/24/25 and is checked by
+  `FUN_0011d710`/`FUN_0011d820`. The two action blocks are class_stats ids:
+  `attack_stats_id_0..3` are attack/guard motion rows, and
+  `support_stats_id_0..3` are support/reaction/skill motion rows. The
+  `attack_type_*`/`support_type_*` words are small unresolved action-kind
+  selectors.
+- `item_table.tsv` — 983 item rows, row base `0x26ea1e8`:
+  `idx name category w0c w14 stat_a stat_b max_stack w1e price weight
+  unit_param_id w2a w2c w30 w34 effect0_id effect0_value w40 w44 w48 w4c
+  w50 w54 effect1_id effect1_value w60 w64 w68 w6c w70 w74 effect2_id
+  effect2_value w80..wb4`.
+  `idx` is the item id. `stat_a`/`stat_b` are the two signed equipment stats
+  at `+0x18`/`+0x1a`; `max_stack` is the u16 at `+0x1c` (0 = unstackable);
+  `price` is the u32 at `+0x20`, and `weight` is the capacity cost at `+0x24`
+  (default 100 when zero). The three 0x20-byte effect blocks start at `+0x2c`,
+  `+0x4c`, and `+0x6c`; each stores its effect id at block `+0xc` and its
+  float value at block `+0x10`.
 - `bbs_table.tsv` — `idx path ptr_a flags_a label ptr_b flags_b`
 - `drop_table.tsv` — `idx key label start count`; `drop_entry_table.tsv` —
   drop entries

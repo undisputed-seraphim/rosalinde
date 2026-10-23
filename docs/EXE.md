@@ -831,7 +831,8 @@ These sit immediately before/after `g_class_table`, `g_npctype_table`, and
 | `chara_part` | `0xceb6a8` | `0x28` | 2168 | ten `{i16 part_id, i16 scale_percent}` pairs; `FUN_001197bc` applies them (scale = value / 100) |
 | `class_stats` | `0x275bd78` | `0x130` | 471 | unit/class parameter rows; `id` at `+0`, `class_id` at `+4`, `flags` at `+8`, ASCII `motion` at `+0xc0`, ASCII `behavior` at `+0xc8`; accessors `FUN_0011d148`, `0x0011c55c`, `0x0011d68c`; record 0 is a sentinel, valid ids 1..470 |
 | `class_sub` | `0x277ecec` | `0x100` | 172 | ability/order/effect rows; Japanese `label` at `+0xe4`; `FUN_0011d900`/`0x0011d860`/`0x0011d894`; record 0 sentinel, valid ids 1..171 |
-| `class_relation` | `0xd0d15c` | `0x8c` | 74 | per-class ability set; `class_id` at `+0`, `assist_id`/`order_id`/`order_id_2` index `class_sub`, `class_stats_id` at `+0x1c` and `class_stats_id_2` at `+0x80` index `class_stats`, `type` at `+8` is 0/23/24/25; `FUN_0011c140`/`0x0011c260`/`0x0011c4c0` scan the rows |
+| `class_relation` | `0xd0d15c` | `0x8c` | 74 | per-class ability set; `class_id` at `+0`, `assist_id` and `order_id`..`order_id_4` index `class_sub`, `class_stats_id` at `+0x1c` and `class_stats_id_2` at `+0x80` index `class_stats`, `type` at `+8` is 0/23/24/25; `FUN_0011c140`/`0x0011c260`/`0x0011c4c0` scan the rows |
+| `item` | `0x26ea1e8` | `0xb8` | 983 | item rows: `{u32 id, char* name, i32 category, ...}` at `+0/+8/+0x10`; `stat_a`/`stat_b` are i16 at `+0x18`/`+0x1a`; `max_stack` is u16 at `+0x1c`; `price` at `+0x20`; `weight` at `+0x24`; `unit_param_id` at `+0x28`; three 0x20-byte effect records at `+0x2c`/`+0x4c`/`+0x6c`, each with id at `+0xc` and f32 value at `+0x10`; accessors `item_get_record`, `item_get_price`, `item_get_weight`, `item_get_unit_param_id`, `item_get_effect0..2` |
 
 `chara_model` is the model/appearance record selected by the class model
 arrays: `FUN_0011b998` returns a class record, `FUN_0011ba28` indexes its
@@ -843,9 +844,13 @@ The model ids are in `0..228`; `chara_model[0]` is the `なし` sentinel.
 facility effects (`施設：…`), traps, orders (`ブレイブオーダー`, `ロイヤルオーダー`),
 and assist skills (`アシスト射撃`, `アシスト魔法`, `飛行`). `class_relation`
 stores class_sub indices for `assist_id` (148..171) and
-`order_id`/`order_id_2` (74..147), plus two class_stats indices
-(`class_stats_id` at `+0x1c`, `class_stats_id_2` at `+0x80`). This is the join
-used to resolve those raw words to names.
+`order_id`..`order_id_4` (74..147), plus two class_stats indices
+(`class_stats_id` at `+0x1c`, `class_stats_id_2` at `+0x80`). The two
+16-byte-ish action blocks at `+0x20` and `+0x40` are also class_stats indices:
+`attack_stats_id_0..3` and `support_stats_id_0..3` resolve to
+`S01_ATTACK_*`, `S02_GUARD_*`, `COVER`, `COUNTER`, `FIRST_AID_*`, `SKILL_*`
+and similar motion/behaviour rows. The adjacent small words
+(`attack_type_*`, `support_type_*`) are unresolved action-kind selectors.
 
 `class_part` has five part slots (two arrays per slot, M/F) and 729 pointers in
 total. The arrays are laid out contiguously from `0x275a218` to `0x275b8e0`:
@@ -854,11 +859,22 @@ total. The arrays are laid out contiguously from `0x275a218` to `0x275b8e0`:
 id; the remaining 17 u32 are `chara_part` indices. `chara_part` rows are
 applied as 10 optional `{model_id, scale_percent}` attachments.
 
+`item` rows start at `0x26ea1e8` (the row id is at `+0`, the name pointer at
+`+8`, and the `ITEMCATEGORY` value at `+0x10`). The two signed equipment stats
+at `+0x18`/`+0x1a` are category-dependent: weapons use attack/magic values,
+shields use defence/evasion-like values, and the item comparison/UI code
+(`item_get_sort_stats`) consumes them as two independent stats. `+0x1c` is
+the maximum stack (`0` means unstackable), `+0x20` is the price, `+0x24` is
+the capacity weight (`0` means the default 100), and `+0x28` is a signed
+`class_stats`/unit-param id (`item_get_unit_param_id`). Three 0x20-byte effect
+records at `+0x2c`, `+0x4c`, and `+0x6c` store effect id/value pairs at
+`+0xc`/`+0x10`; their display path is `item_get_effect0..2`.
+
 ### 8a.1 World/UI tables found while scanning the same regions
 
 | Table | Base | Stride | Count | Layout / accessor |
 |---|---|---|---|---|
-| `field_terrain` | `0x27cf660` | `0x50` | 269 | `key`, `label`, `terrain_type` at `+0x10`, `tint` at `+0x14`, `passable_mask` at `+0x21`, `modifier_a`/`b` at `+0x22`/`+0x23`; accessors `FUN_0021c794`/`0x0021c7d8`/`0x0021c7f8`/`0x0021c860`/`0x0021c878`/`0x0021c8e0` |
+| `field_terrain` | `0x27cf660` | `0x50` | 269 | `key`, `label`, `terrain_type` at `+0x10`, `tint` at `+0x14`, `snow` at `+0x20`, `passable_mask` at `+0x21`, five signed `{attack_modifier, move_modifier}` byte pairs at `+0x42..+0x4b`; accessors `field_terrain_get_record`/`0x0021c794`/`0x0021c7d8`/`0x0021c7f8`/`0x0021c860`/`0x0021c878`/`0x0021c8e0` |
 | `quest` | `0x27d4aa8` | `0x40` | 183 | `{char* key, u32 quest_type, u32 quest_id, u32 w10, u32 w14, req0_a, req0_b, req1_a, req1_b, req2_a, req2_b, char* stage_id, u32 flag, u32 w3c}`; `FUN_0021ca88`/`0x0021cab0`/`0x0021cb08`/`0x0021ce10`/`0x0021ce74`/`0x0021cf0c`; `quest_type` is the 0..4 switch value |
 | `camera_view` | `0x279f5c0` | `0x38` | 179 | `CV_*` keys plus `flags`, `fov`, `x/y/z`, `yaw`, `asset`, `distance`, `pitch`, `id`, `reserved`; no direct accessor recovered (`FUN_00181070` is a thunk), so the float names are inferred |
 | `stage_effect` | `0x285e640` | `0x20` | 185 | `{u32 id, ... , char* name}` with `dsp_out_*` names; `FUN_00327e30` returns the name, `FUN_00327d10` searches by id |
@@ -868,7 +884,11 @@ applied as 10 optional `{model_id, scale_percent}` attachments.
 `quest` rows use a stage-id string at `+0x30` (e.g. `UC_QUESTID_OW_C0` ->
 `ST_OW_C_0`), so they join directly to `stage_table`/`stage_cue_table` names.
 `field_terrain` keys (`NONE`, `SEA`, `WAR_PLAIN`, `ELF_PLAIN`, ...) are
-terrain/battlefield selectors, not stage ids.
+terrain/battlefield selectors, not stage ids. The `+0x42..+0x4b` modifier
+bytes are read as attack and movement multipliers: `FUN_0021c7f8` is used by
+damage code, `FUN_0021c878` by movement/pathfinding code, and both return
+`(100 - signed_byte) / 100`. `snow` is set on all `SNOW_*` and `*_B`
+(Bastorias) rows.
 
 All of the above are dumped raw into `viewer/data`; the exact TSV headers are
 listed in `viewer/data/README.md`. Unknown words are intentionally retained as
