@@ -7,6 +7,8 @@
 #include <criware/cpk.hpp>
 #include <scarlett/asb.hpp>
 
+#include <spdlog/spdlog.h>
+
 #include <span>
 #include <stdexcept>
 
@@ -70,6 +72,7 @@ PlaybackRuntime::PlaybackRuntime(
 	_session = std::make_unique<asb::RuntimeSession>(_host, config.script);
 	if (!_session->start(fn, prelude))
 		throw std::runtime_error("could not start " + config.script + ": " + _session->error());
+	log_archive_events();
 }
 
 PlaybackRuntime::~PlaybackRuntime() = default;
@@ -80,7 +83,29 @@ void PlaybackRuntime::set_max_frames(long frames) {
 }
 
 asb::RuntimeSession::StepResult PlaybackRuntime::advance() {
-	return _session->advance();
+	const auto result = _session->advance();
+	log_archive_events();
+	return result;
+}
+
+void PlaybackRuntime::log_archive_events() {
+	const auto& ui = _session->scene().ui;
+	for (; _seen_ui < ui.size(); ++_seen_ui) {
+		const auto& event = ui[_seen_ui];
+		if (event.kind != "archive_open" && event.kind != "archive_close")
+			continue;
+		std::string pages;
+		for (size_t i = 0; i < event.ints.size(); ++i) {
+			if (i)
+				pages += ',';
+			pages += std::to_string(event.ints[i]);
+		}
+		spdlog::info(
+			"fevrith archive: {}(\"{}\") pages=[{}]",
+			event.kind == "archive_open" ? "OpenArchive" : "CloseArchive",
+			event.text,
+			pages);
+	}
 }
 
 const asb::SceneState& PlaybackRuntime::scene() const {

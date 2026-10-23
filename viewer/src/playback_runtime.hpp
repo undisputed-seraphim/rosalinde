@@ -37,6 +37,8 @@ public:
 	const MbsInfoCache& mbs_info() const { return _mbs; }
 
 private:
+	void log_archive_events();
+
 	const AssetLoader& _loader;
 	MbsInfoCache _mbs;
 	ViewerRuntimeData _runtime;
@@ -44,4 +46,5 @@ private:
 	std::shared_ptr<asb::Module> _module;
 	std::string _entry_name;
 	std::unique_ptr<asb::RuntimeSession> _session;
+	size_t _seen_ui = 0;
 };
