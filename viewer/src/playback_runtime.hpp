@@ -25,6 +25,7 @@ public:
 		NativeCallback native_call);
 	~PlaybackRuntime();
 
+	void set_max_frames(long frames);
 	asb::RuntimeSession::StepResult advance();
 	const asb::SceneState& scene() const;
 	long frame() const;

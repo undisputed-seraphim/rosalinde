@@ -16,6 +16,11 @@ struct ViewerConfig {
 	std::string data_dir;	 // runtime data directory (default: viewer/data/generated or installed share/rosalinde)
 	int initial_stage = -1;	 // stage type whose composition seeds the session
 	long scene_frame = -1;	 // scene frame to advance to (-1 = real time)
+	bool headless = false;	 // run without a window/GL context
+	long run_to = -1;		 // headless: stop after this scene frame (-1 = script end)
+	long max_frames = 200000; // headless: safety cap on scene frames
+	std::string state;		 // headless: write a scene state snapshot (text)
+	std::string state_json;	 // headless: write the full scene state JSON
 	float scene_fps = 60.0f; // playback frame step rate
 	std::string trace;		 // optional NDJSON event trace
 	std::string trace_categories;

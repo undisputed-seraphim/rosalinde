@@ -1,4 +1,5 @@
 #include "engine/Engine.hpp"
+#include "headless.hpp"
 #include "log.hpp"
 #include "scene.hpp"
 #include "trace.hpp"
@@ -101,6 +102,21 @@ int main(int argc, char* argv[]) try {
 		"scene-fps",
 		::boost::program_options::value<float>(&config.scene_fps)->default_value(config.scene_fps),
 		"Playback frame step rate (60 matches the script clock)")(
+		"headless",
+		::boost::program_options::bool_switch(&config.headless),
+		"Run the scene without a window or GL context")(
+		"run-to",
+		::boost::program_options::value<long>(&config.run_to),
+		"Headless: stop and exit after this scene frame")(
+		"max-frames",
+		::boost::program_options::value<long>(&config.max_frames),
+		"Headless: safety cap on scene frames (default: 200000)")(
+		"state",
+		::boost::program_options::value<std::string>(&config.state),
+		"Headless: write a scene state snapshot (text) at the stop frame")(
+		"state-json",
+		::boost::program_options::value<std::string>(&config.state_json),
+		"Headless: write the full scene state JSON at the stop frame")(
 		"trace",
 		::boost::program_options::value<std::string>(&config.trace),
 		"Write structured NDJSON events to this file")(
@@ -124,7 +140,7 @@ int main(int argc, char* argv[]) try {
 		"Write native-call census JSON to this file")(
 		"record",
 		::boost::program_options::value<std::string>(&config.record),
-		"Write compact runtime timeline NDJSON to this file")(
+		"Write runtime timeline NDJSON (full scene state in --headless)")(
 		"record-every",
 		::boost::program_options::value<long>(&config.record_every)->default_value(1),
 		"Record one timeline row every N scene frames")(
@@ -160,7 +176,7 @@ int main(int argc, char* argv[]) try {
 		"Background clear color: #RRGGBB[AA] or R,G,B[,A]")(
 		"probe",
 		::boost::program_options::value<std::string>(&config.probe_dir),
-		"Write state/draw/summary probe files to this directory")(
+		"Write state/summary probe files (draw requires rendering)")(
 		"probe-frames",
 		::boost::program_options::value<std::string>(&probe_frames_text),
 		"Comma-separated frames for --probe (default: --capture-frames or --scene-frame)");
@@ -232,6 +248,58 @@ int main(int argc, char* argv[]) try {
 			config.probe_frames = {config.scene_frame};
 		else
 			config.probe_frames = {0};
+	}
+	if (config.run_to < -1) {
+		spdlog::error("--run-to must be non-negative");
+		return 1;
+	}
+	if (config.max_frames <= 0) {
+		spdlog::error("--max-frames must be positive");
+		return 1;
+	}
+	if (config.trace == "-") {
+		spdlog::error("--trace to stdout is not supported; use a file");
+		return 1;
+	}
+	if (!config.headless) {
+		for (const char* option : {"run-to", "max-frames", "state", "state-json"}) {
+			if (vm.count(option)) {
+				spdlog::error("--{} requires --headless", option);
+				return 1;
+			}
+		}
+	} else {
+		if (!config.screenshot.empty()) {
+			spdlog::error("--screenshot requires rendering; drop --headless");
+			return 1;
+		}
+		if (!config.capture_frames.empty()) {
+			spdlog::error("--capture-frames requires rendering; drop --headless");
+			return 1;
+		}
+		if (config.state == "-" && config.state_json == "-") {
+			spdlog::error("--state and --state-json cannot both write to stdout");
+			return 1;
+		}
+		int stdout_sinks = 0;
+		for (const auto& path : {config.record, config.state, config.state_json, config.calls, config.calls_json})
+			if (path == "-")
+				++stdout_sinks;
+		if (stdout_sinks > 1) {
+			spdlog::error("only one of --record/--state/--state-json/--calls/--calls-json may write to stdout");
+			return 1;
+		}
+		if (!config.only.empty() || !config.hide.empty() || config.keep_stage || config.initial_stage >= 0 ||
+			!clear_color_text.empty())
+			spdlog::warn("headless: renderer filters and stage options are ignored");
+	}
+
+	if (config.headless) {
+		viewer::trace::stamp("headless start");
+		const int status = run_headless(config);
+		viewer::trace::stamp("headless done");
+		viewer::log::shutdown();
+		return status;
 	}
 
 	unsigned view_w = 1920, view_h = 1080;

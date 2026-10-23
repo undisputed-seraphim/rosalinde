@@ -27,6 +27,9 @@ public:
 	void observe_native(const asb::NativeCall& call);
 	void write_calls(const asb::Module& module, std::string_view entry, std::string_view function);
 	void write_record(const asb::SceneState& scene, const SceneRenderer& renderer, long frame);
+	void write_scene_record(const asb::SceneState& scene, long frame);
+	void write_scene_probe(const asb::SceneState& scene);
+	bool probe_wanted(long frame) const { return _probe.wants(frame); }
 
 	bool capture_mode() const { return _capture_mode; }
 	long capture_target() const;

@@ -18,6 +18,7 @@ public:
 	bool begin(long frame);
 	void end();
 	std::ostream& draw() { return _draw; }
+	bool write_scene(long frame, std::string_view json, std::string_view summary);
 	void write_state(long frame, std::string_view json);
 	void write_summary(long frame, std::string_view text);
 
@@ -33,3 +34,4 @@ private:
 };
 
 std::string scene_state_json(const asb::SceneState& scene);
+std::string scene_state_text(const asb::SceneState& scene);

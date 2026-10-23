@@ -99,6 +99,18 @@ void PlaybackDiagnostics::write_record(const asb::SceneState& scene, const Scene
 				<< "}\n";
 }
 
+void PlaybackDiagnostics::write_scene_record(const asb::SceneState& scene, long frame) {
+	if (!_record_out)
+		return;
+	*_record_out << "{\"frame\":" << frame << ",\"scene\":" << scene_state_json(scene) << "}\n";
+}
+
+void PlaybackDiagnostics::write_scene_probe(const asb::SceneState& scene) {
+	const std::string json = "{\"frame\":" + std::to_string(scene.frame) + ",\"scene\":" +
+							 scene_state_json(scene) + ",\"renderer\":null}";
+	_probe.write_scene(scene.frame, json, scene_state_text(scene));
+}
+
 long PlaybackDiagnostics::capture_target() const {
 	if (!_capture_mode || _capture_index >= _cfg.capture_frames.size())
 		return -1;

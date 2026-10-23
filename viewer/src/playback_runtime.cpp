@@ -127,6 +127,11 @@ PlaybackRuntime::PlaybackRuntime(
 
 PlaybackRuntime::~PlaybackRuntime() = default;
 
+void PlaybackRuntime::set_max_frames(long frames) {
+	if (_session)
+		_session->set_max_frames(frames);
+}
+
 asb::RuntimeSession::StepResult PlaybackRuntime::advance() {
 	return _session->advance();
 }

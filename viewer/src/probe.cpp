@@ -243,7 +243,52 @@ std::string scene_state_json(const asb::SceneState& scene) {
 						  number(f.pos[0]) + "," + number(f.pos[1]) + "]" + ",\"flag\":" + asb::trace::boolean(f.flag) +
 						  ",\"ints\":" + array_json(f.ints, [](int value) { return std::to_string(value); }) + "}";
 			   }) +
-		   "}";
+		   ",\"opening_resources\":" +
+		   array_json(scene.opening_resources, [](const std::string& s) { return quote(s); }) + "}";
+}
+
+std::string scene_state_text(const asb::SceneState& scene) {
+	std::ostringstream out;
+	out << "source: " << scene.source << '\n';
+	out << "function: " << scene.function << '\n';
+	out << "frame: " << scene.frame << " revision: " << scene.revision << " entities: " << scene.entities.size()
+		<< '\n';
+	for (const auto& e : scene.entities) {
+		out << e.name << " kind=" << e.kind << " mbs=" << e.mbs << " ftx=" << e.ftx << " track=" << e.track
+			<< " track_index=" << e.track_index << " started=" << (e.started ? "true" : "false")
+			<< " visible=" << (e.visible ? "true" : "false") << " alpha=" << e.alpha << " order=" << e.order
+			<< " layer=" << e.layer << " layer_mask=" << e.layer_mask << " scale=" << number(e.scale) << " pos=("
+			<< number(e.pos[0]) << ',' << number(e.pos[1]) << ',' << number(e.pos[2]) << ')'
+			<< " paused=" << (e.paused ? "true" : "false")
+			<< " anim_paused=" << (e.anim_paused ? "true" : "false")
+			<< " space=" << (e.space == asb::RuntimeEntity::Space::Ui ? "ui" : "world");
+		if (!e.parent.empty())
+			out << " parent=" << e.parent;
+		if (!e.aliases.empty()) {
+			out << " aliases=[";
+			for (size_t i = 0; i < e.aliases.size(); ++i) {
+				if (i)
+					out << ',';
+				out << e.aliases[i];
+			}
+			out << ']';
+		}
+		out << '\n';
+	}
+	out << "camera: pos=(" << number(scene.camera.pos[0]) << ',' << number(scene.camera.pos[1]) << ','
+		<< number(scene.camera.pos[2]) << ") zoom=" << number(scene.camera.zoom)
+		<< " has_pos=" << asb::trace::boolean(scene.camera.has_pos)
+		<< " has_zoom=" << asb::trace::boolean(scene.camera.has_zoom) << '\n';
+	out << "stage: type=" << scene.stage.stage_type << " weather=" << scene.stage.weather_type
+		<< " coa=" << scene.stage.coa_preset << " flag=" << scene.stage.flag_color << '\n';
+	out << "channels: fades=" << scene.fades.size() << " texts=" << scene.texts.size()
+		<< " shakes=" << scene.shakes.size() << " bokashi=" << scene.bokashi.size()
+		<< " variations=" << scene.variations.size() << " effects=" << scene.effects.size()
+		<< " point_lights=" << scene.point_lights.size() << " audio=" << scene.audio.size()
+		<< " items=" << scene.items.size() << " callbacks=" << scene.callbacks.size() << " fog=" << scene.fog.size()
+		<< " gradients=" << scene.gradients.size() << " ui=" << scene.ui.size() << " field=" << scene.field.size()
+		<< " opening_resources=" << scene.opening_resources.size() << '\n';
+	return out.str();
 }
 
 bool ProbeWriter::open(const std::string& dir, const std::vector<long>& frames) {
@@ -270,6 +315,15 @@ std::string ProbeWriter::path(std::string_view prefix, long frame, std::string_v
 }
 
 bool ProbeWriter::wants(long frame) const { return _enabled && _frames.contains(frame) && !_written.contains(frame); }
+
+bool ProbeWriter::write_scene(long frame, std::string_view json, std::string_view summary) {
+	if (!wants(frame))
+		return false;
+	write_state(frame, json);
+	write_summary(frame, summary);
+	_written.insert(frame);
+	return true;
+}
 
 bool ProbeWriter::begin(long frame) {
 	if (!wants(frame))
