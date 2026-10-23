@@ -381,14 +381,14 @@ TABLES = (
         (
             Field("key", 0, "strptr"),
             Field("label", 8, "strptr"),
-            Field("w10", 0x10, "hex32"),
+            Field("voice_group", 0x10, "u32"),
             Field("w18", 0x18, "hex32"),
         ),
         kind="unit_name",
         file="unit_name_table.tsv",
         confidence="confirmed",
         source="FUN_0032edd8 / FUN_0032f268 / FUN_0032e90c ...; rows 0..148",
-        notes="Short unit key at +0, JP name at +8; w10 used as a voice/sound index. The last row's +0x18 overlaps name_pool and is blanked.",
+        notes="Short unit key at +0, JP name at +8. `voice_group` at +0x10 is multiplied by 100 and added to 0x124f81 to form a voice cue id in the FUN_0032e90c/FUN_0032f268/FUN_0032e760 family (voice_group 0 is the no-voice sentinel). The last row's +0x18 overlaps name_pool and is blanked.",
     ),
     TableSpec(
         "name_pool",
@@ -1148,7 +1148,7 @@ def dump_raw(image, spec):
             rows.append((array, -1, f"0x{record:x}", *values))
         return header, rows
     if spec.kind == "unit_name":
-        header = "idx\tkey\tlabel\tw10\tw18"
+        header = "idx\tkey\tlabel\tvoice_group\tw18"
         rows = []
         for i in range(spec.count):
             record = spec.base + i * spec.stride
@@ -1158,7 +1158,7 @@ def dump_raw(image, spec):
                     i,
                     image.read_cstr(image.read_ptr(record)),
                     image.read_cstr(image.read_ptr(record + 8)),
-                    f"0x{image.read_u32(record + 0x10):x}",
+                    image.read_u32(record + 0x10),
                     w18,
                 )
             )

@@ -55,7 +55,9 @@ the ground truth for the joins below and are not rewritten by the join step.
   fields are `Sound/se.acb` cue ids; every nonzero value resolves in the SE cue
   table, and `0xffffffff` means absent. `reserved` is zero in all rows.
 - `unit_name_table.tsv` — 149 unit/character rows:
-  `idx key label w10 w18`; the last row's `w18` is blank because the following
+  `idx key label voice_group w18`; `voice_group` at `+0x10` is multiplied by
+  100 and added to `0x124f81` to form a voice cue id (`0` is the no-voice
+  sentinel). The last row's `w18` is blank because the following
   `name_pool_table.tsv` starts at `unit_name` row 148 `+0x18`.
 - `name_pool_table.tsv` — 104 character/class name pointers:
   `idx label`.
