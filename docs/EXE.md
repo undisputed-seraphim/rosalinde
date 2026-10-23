@@ -829,7 +829,7 @@ These sit immediately before/after `g_class_table`, `g_npctype_table`, and
 | `class_model_m` | `0x275bb30` | `0x08` | 73 | pointer array -> `0x30` records `{u32 class_id, u32 model_id[10], u32 variant_count}`; `FUN_0011b998(param,1)` |
 | `class_model_f` | `0x275b8e0` | `0x08` | 74 | same record layout; `FUN_0011b998(param,2)`; many entries are null |
 | `chara_part` | `0xceb6a8` | `0x28` | 2168 | ten `{i16 part_id, i16 scale_percent}` pairs; `FUN_001197bc` applies them (scale = value / 100) |
-| `class_stats` | `0x275bd78` | `0x130` | 471 | unit/class parameter rows; `id` at `+0`, `class_id` at `+4`, `flags` at `+8`, ASCII `motion` at `+0xc0`, ASCII `behavior` at `+0xc8`; accessors `FUN_0011d148`, `0x0011c55c`, `0x0011d68c`; record 0 is a sentinel, valid ids 1..470 |
+| `class_stats` | `0x275bd78` | `0x130` | 471 | unit/class parameter rows; `id` at `+0`, `class_id` at `+4`, `flags` at `+8`, ASCII `track_name` at `+0xc0`, ASCII `behavior` at `+0xc8`; accessors `FUN_0011d148`, `0x0011c55c`, `0x0011d68c`; record 0 is a sentinel, valid ids 1..470 |
 | `class_sub` | `0x277ecec` | `0x100` | 172 | ability/order/effect rows; Japanese `label` at `+0xe4`; `FUN_0011d900`/`0x0011d860`/`0x0011d894`; record 0 sentinel, valid ids 1..171 |
 | `class_relation` | `0xd0d15c` | `0x8c` | 74 | per-class ability set; `class_id` at `+0`, `assist_id` and `order_id`..`order_id_4` index `class_sub`, `class_stats_id` at `+0x1c` and `class_stats_id_2` at `+0x80` index `class_stats`, `type` at `+8` is 0/23/24/25; `FUN_0011c140`/`0x0011c260`/`0x0011c4c0` scan the rows |
 | `item` | `0x26ea1e8` | `0xb8` | 983 | item rows: `{u32 id, char* name, i32 category, ...}` at `+0/+8/+0x10`; `stat_a`/`stat_b` are i16 at `+0x18`/`+0x1a`; `max_stack` is u16 at `+0x1c`; `price` at `+0x20`; `weight` at `+0x24`; `unit_param_id` at `+0x28`; three 0x20-byte effect records at `+0x2c`/`+0x4c`/`+0x6c`, each with id at `+0xc` and f32 value at `+0x10`; accessors `item_get_record`, `item_get_price`, `item_get_weight`, `item_get_unit_param_id`, `item_get_effect0..2` |
@@ -847,10 +847,12 @@ stores class_sub indices for `assist_id` (148..171) and
 `order_id`..`order_id_4` (74..147), plus two class_stats indices
 (`class_stats_id` at `+0x1c`, `class_stats_id_2` at `+0x80`). The two
 16-byte-ish action blocks at `+0x20` and `+0x40` are also class_stats indices:
-`attack_stats_id_0..3` and `support_stats_id_0..3` resolve to
-`S01_ATTACK_*`, `S02_GUARD_*`, `COVER`, `COUNTER`, `FIRST_AID_*`, `SKILL_*`
-and similar motion/behaviour rows. The adjacent small words
-(`attack_type_*`, `support_type_*`) are unresolved action-kind selectors.
+`attack_motion_id_0..3` and `support_motion_id_0..3` resolve through
+`class_stats.track_name` to character MBS section-9 track names such as
+`S01_ATTACK_*`, `S02_GUARD_*`, `COVER`, `COUNTER`, `FIRST_AID_*`, and
+`SKILL_*`. The action ids are class_stats row ids, not direct MBS track
+indices. The adjacent small words (`attack_type_*`, `support_type_*`) are
+unresolved action-kind selectors.
 
 `class_part` has five part slots (two arrays per slot, M/F) and 729 pointers in
 total. The arrays are laid out contiguously from `0x275a218` to `0x275b8e0`:

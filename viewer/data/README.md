@@ -61,24 +61,28 @@ the ground truth for the joins below and are not rewritten by the join step.
   `CV_*` keys and float columns are consistent with camera presets, but there
   is no direct accessor yet.
 - `class_stats_table.tsv` — 471 unit/class parameter rows. `id` at `+0`,
-  `class_id` at `+4`, `flags` at `+8`, `motion` at `+0xc0`, `behavior` at
-  `+0xc8`; remaining words retained as `w*`. `motion` values are action names
-  such as `S01_ATTACK_A1`; `behavior` values are `COUNTER`, `COVER`, `CHASE`,
-  `ACCUMULATE`, `PROVOCATION`, …
+  `class_id` at `+4`, `flags` at `+8`, `track_name` at `+0xc0`, `behavior` at
+  `+0xc8`; remaining words retained as `w*`. `track_name` values match the
+  corresponding character MBS section-9 track names, often with the `S##_`
+  prefix omitted (`S01_ATTACK_A1`, `COVER`, `COUNTER`, `FIRST_AID_1`, …).
+  `behavior` values are separate AI/action keys (`COUNTER`, `COVER`, `CHASE`,
+  `ACCUMULATE`, `PROVOCATION`, …).
 - `class_sub_table.tsv` — 172 ability/order/effect rows. `label` at `+0xe4`
   is the Japanese name (`バリスタ`, `ブレイブオーダー`, `アシスト射撃`, …).
   The table mixes facilities, traps, orders and assist skills.
 - `class_relation_table.tsv` — 74 per-class ability sets:
   `idx class_id assist_id type order_id order_id_2 order_id_3 order_id_4
-  class_stats_id attack_list_count attack_stats_id_0 attack_type_0 ...
-  attack_stats_id_3 support_list_count w44 w48 w4c w50 support_stats_id_0
-  support_type_0 ... support_stats_id_3 extra_list_count w74 w78 w7c
+  class_stats_id attack_list_kind attack_motion_id_0 attack_type_0 ...
+  attack_motion_id_3 support_list_kind w44 w48 w4c w50 support_motion_id_0
+  support_type_0 ... support_motion_id_3 extra_list_kind w74 w78 w7c
   class_stats_id_2 w84 w88`. `assist_id` and the four `order_id*` fields index
-  `class_sub_table.tsv`; `class_stats_id` and `class_stats_id_2` index
-  `class_stats_table.tsv`; `type` is 0/23/24/25 and is checked by
-  `FUN_0011d710`/`FUN_0011d820`. The two action blocks are class_stats ids:
-  `attack_stats_id_0..3` are attack/guard motion rows, and
-  `support_stats_id_0..3` are support/reaction/skill motion rows. The
+  `class_sub_table.tsv`; `class_stats_id`/`class_stats_id_2` and the two
+  action blocks index `class_stats_table.tsv`; `type` is 0/23/24/25 and is
+  checked by `FUN_0011d710`/`FUN_0011d820`. `attack_motion_id_0..3` and
+  `support_motion_id_0..3` resolve through `class_stats.track_name` to the
+  character MBS section-9 track name (212 exact matches plus 44 `S##_`-prefix
+  matches across the 378 action slots). `attack_list_kind`/`support_list_kind`/
+  `extra_list_kind` are 1 in valid rows and are not entry counts. The
   `attack_type_*`/`support_type_*` words are small unresolved action-kind
   selectors.
 - `item_table.tsv` — 983 item rows, row base `0x26ea1e8`:
