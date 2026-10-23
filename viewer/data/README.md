@@ -9,6 +9,7 @@ the ground truth for the joins below and are not rewritten by the join step.
 - `stage_table.tsv` — stage name, base level, country
 - `stage_cue_table.tsv` — stage name and `bgm_cue_id`; all 103 ids resolve in `Sound/bgm.acb`
 - `facility_table.tsv` — `idx label town x y`; `town` is the string at `+0x80`
+  and is a UFB object prefix (`Town_Cxx`), matching `Town_Cxx_1/_2` object names
 - `class_table.tsv` — `idx base_class_id w04 mbs_m ftx_m mbs_f ftx_f
   icon_mbs_m icon_ftx_m icon_mbs_f icon_ftx_f w48 w4c w50 w54`.
   `base_class_id` is the promotion/base class (0 = none); M/F model and icon
@@ -87,6 +88,12 @@ the ground truth for the joins below and are not rewritten by the join step.
   `extra_list_kind` are 1 in valid rows and are not entry counts. The
   `attack_type_*`/`support_type_*` words are small unresolved action-kind
   selectors.
+- `story_name_table.tsv` — 436 story/character/location labels. `facility_id`
+  at `+0xc` is `-1` or a `facility_table` index; `map_id` at `+0x10` is the
+  field-map index (`OW_C0=0`, `OW_C1=1`, …; TK/special maps use higher ids).
+- `friendship_talk_table.tsv` — 376 `Script/FT_*.asb` conversation rows.
+  `talk_part` is 1/2/3 within an FT script, `facility_id` indexes
+  `facility_table`, and `x`/`y` are the trigger position near that facility.
 - `item_table.tsv` — 983 item rows, row base `0x26ea1e8`:
   `idx name category w0c w14 stat_a stat_b max_stack w1e price weight
   unit_param_id w2a w2c w30 w34 effect0_id effect0_value w40 w44 w48 w4c

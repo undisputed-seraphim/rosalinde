@@ -1,4 +1,4 @@
-idx	w00	w04	w08	w0c	w10	w14	name
+idx	w00	w04	w08	facility_id	map_id	reserved	name
 0	0	4	1	-1	-1	0	序章
 1	4	4	3	-1	-1	0	イレニア
 2	8	1	3	-1	-1	0	ヴァルモア
