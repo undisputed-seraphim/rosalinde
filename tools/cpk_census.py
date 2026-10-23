@@ -20,6 +20,7 @@ DEFAULT_OUT = Path("viewer/data/generated")
 OTM_CHUNK = 200
 
 ASSET_RE = re.compile(r"^AC(?P<area>\d+)_(?P<variant>\d+)(?P<layer>[pPfF])(?P<sub>\d*)$")
+AREA_LABELS = {0: "C", 1: "A", 2: "B", 3: "D", 4: "E", 10: "Z"}
 
 
 class CensusError(RuntimeError):
@@ -89,9 +90,10 @@ def build_assets(ufb, out_dir: Path) -> int:
             area = match.group("area")
             variant = match.group("variant")
             layer = match.group("layer").lower()
-            sub = match.group("sub")
+            sub = match.group("sub") or "0"
         else:
             area = variant = layer = sub = ""
+        area_id = int(area) if area else -1
         rows.append(
             (
                 index,
@@ -100,6 +102,7 @@ def build_assets(ufb, out_dir: Path) -> int:
                 stem,
                 Path(main).suffix.lower().lstrip("."),
                 area,
+                AREA_LABELS.get(area_id, ""),
                 variant,
                 layer,
                 sub,
@@ -107,7 +110,7 @@ def build_assets(ufb, out_dir: Path) -> int:
         )
     write_tsv(
         out_dir / "field_assets.tsv",
-        "# idx\tmain\ttexture\tstem\ttype\tarea\tvariant\tlayer\tsub",
+        "# idx\tmain\ttexture\tstem\ttype\tarea\tarea_label\tvariant\tlayer\tsub",
         rows,
     )
     return len(rows)

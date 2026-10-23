@@ -85,7 +85,8 @@ applied:
   the stage row's country and the stage-row variant, not by a script-name
   prefix. `FieldBG/Field.ufb` also supplies the `_00P`, `_00F`, and numbered
   field variants; the viewer catalog loads the exact pair names from this
-  table.
+  table. `AC` area ids map as `00=C`, `01=A`, `02=B`, `03=D`, `04=E`, and
+  `10=Z`; `AC10` is the final-stage area.
 - **Facility table** `0x27b31b0`, stride `0x90`, 485 entries: Japanese label `+8`,
   position `+0x1c/+0x20`; index-aligned with `ST_FACILITYID` (485 entries).
   → `viewer/data/generated/facility_pos.tsv`
