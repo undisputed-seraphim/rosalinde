@@ -100,7 +100,7 @@ private:
 };
 
 // One-shot: parse `bytecode`, register + load it into `host`, pick the scene
-// entry function (`func`, else scene00/MAIN/…) and run it to a Timeline.
+// entry function (`func`, else void MAIN(), else scene00/…) and run it to a Timeline.
 // Returns an empty timeline if the module fails to load or has no scene
 // function. `host` should be freshly constructed.
 Timeline run_module(

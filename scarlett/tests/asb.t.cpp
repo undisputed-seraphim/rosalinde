@@ -102,21 +102,53 @@ TEST_CASE("call classification") {
 }
 
 TEST_CASE("pick_scene_function follows the heuristic") {
-	// scene00 with no creates is skipped in favour of MAIN.
+	// void MAIN() is the engine entry for drama modules.
 	auto s = make_scene({{"init", 0}, {"scene00", 0}, {"MAIN", 1}, {"scene02", 3}});
+	s.functions[2].decl = "void MAIN()";
 	REQUIRE(asb::pick_scene_function(s));
 	CHECK(asb::pick_scene_function(s)->name == "MAIN");
 
-	// scene00 wins whenever it creates entities.
+	// MAIN wins over an entity-creating scene00.
 	auto s2 = make_scene({{"scene00", 2}, {"MAIN", 5}});
-	CHECK(asb::pick_scene_function(s2)->name == "scene00");
+	s2.functions[1].decl = "void MAIN()";
+	CHECK(asb::pick_scene_function(s2)->name == "MAIN");
+
+	// MAIN is the module entry even when it only delegates to a helper.
+	auto s4 = make_scene({{"helper", 3}, {"MAIN", 0}});
+	s4.functions[1].decl = "void MAIN()";
+	CHECK(asb::pick_scene_function(s4)->name == "MAIN");
+
+	// A stage-style int MAIN(int) is not the drama entry.
+	auto s5 = make_scene({{"scene00", 2}, {"MAIN", 5}});
+	s5.functions[1].decl = "int MAIN(int)";
+	CHECK(asb::pick_scene_function(s5)->name == "scene00");
 
 	// An explicit name is honoured verbatim.
-	CHECK(asb::pick_scene_function(s2, "MAIN")->name == "MAIN");
+	CHECK(asb::pick_scene_function(s5, "MAIN")->name == "MAIN");
 
 	// Falls back to the busiest function then the first non-empty one.
 	auto s3 = make_scene({{"a", 1}, {"b", 4}});
 	CHECK(asb::pick_scene_function(s3)->name == "b");
+}
+
+TEST_CASE("drama scripts pick their void MAIN entry") {
+	const std::filesystem::path cpk = find_cpk();
+	if (cpk.empty()) {
+		WARN("no Unicorn.CPK found (set UNICORN_CPK); skipping drama entry test");
+		return;
+	}
+
+	for (const std::string entry : {"Script/Dr_OW_Z_1_St_Before_1_SCR.asb",
+			 "Script/Dr_OW_0_Opening.asb"}) {
+		const std::vector<uint8_t> bytes = extract_entry(cpk, entry);
+		REQUIRE_FALSE(bytes.empty());
+		const asb::Module mod = asb::parse(bytes);
+		REQUIRE(mod.error.empty());
+		const asb::Scene scene = asb::extract_scene(mod);
+		const asb::SceneFunction* picked = asb::pick_scene_function(scene);
+		REQUIRE(picked);
+		CHECK(picked->name == "MAIN");
+	}
 }
 
 TEST_CASE("field chara symbols resolve their assets") {

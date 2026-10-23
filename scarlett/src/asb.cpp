@@ -1996,11 +1996,10 @@ const SceneFunction* pick_scene_function(const Scene& scene, const std::string& 
 				return &f;
 		return nullptr;
 	};
-	for (const char* nm : {"scene00", "MAIN"}) {
-		const SceneFunction* c = named(nm);
-		if (c && count_creates(*c) > 0)
-			return c;
-	}
+	if (const SceneFunction* c = named("MAIN"); c && c->decl == "void MAIN()")
+		return c;
+	if (const SceneFunction* c = named("scene00"); c && count_creates(*c) > 0)
+		return c;
 	for (const auto& f : scene.functions)
 		if (f.name.rfind("scene", 0) == 0 && count_creates(f) > 0)
 			return &f;
