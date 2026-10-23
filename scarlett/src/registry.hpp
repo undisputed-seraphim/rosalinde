@@ -130,6 +130,8 @@ private:
 		float scale);
 	void create_chara(const std::string& kind, const std::vector<std::string>& names);
 	void advance_camera();
+	void advance_animation_actions();
+	long animation_duration(const RuntimeEntity& entity) const;
 	void set_camera_ease(CameraTween& tween, long duration) const;
 	void set_animation(RuntimeEntity& entity, const std::string& track);
 	void set_animation_index(RuntimeEntity& entity, int track_index);
@@ -166,6 +168,11 @@ private:
 	};
 	AnimationController _animations;
 	std::unordered_map<std::string, Move> _moves;
+	struct AnimationAction {
+		long end_frame = 0;
+		std::string idle_track;
+	};
+	std::unordered_map<std::string, AnimationAction> _animation_actions;
 	std::unordered_map<std::string, int> _db_params; // DbSet/GetDebugParam + LocalParam
 	std::unordered_set<std::string> _help;			 // AddToHelpList
 

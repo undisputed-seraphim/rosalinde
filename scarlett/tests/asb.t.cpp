@@ -162,6 +162,55 @@ TEST_CASE("vector call arguments survive scene extraction") {
 	CHECK(move->floats.back() == 3.0);
 }
 
+TEST_CASE("async animation actions defer their idle track") {
+	const std::filesystem::path cpk = find_cpk();
+	if (cpk.empty()) {
+		WARN("no Unicorn.CPK found (set UNICORN_CPK); skipping animation action test");
+		return;
+	}
+
+	const std::string entry = "Script/Dr_OW_C_0_Fl_Main_0.asb";
+	const std::vector<uint8_t> bytes = extract_entry(cpk, entry);
+	REQUIRE_FALSE(bytes.empty());
+	const asb::Module mod = asb::parse(bytes);
+	REQUIRE(mod.error.empty());
+
+	asb::Host host;
+	host.register_module(mod);
+	host.set_call_log([](const std::string&) {});
+	host.set_resolve_track([](const std::string&, const std::string& name) {
+		if (name == "D_SIT_A2") return 166;
+		if (name == "D_SIT_A3") return 167;
+		if (name == "D_IDLE_A") return 85;
+		if (name == "D_THINK_A1") return 144;
+		if (name == "D_THINK_A2") return 145;
+		if (name == "D_THINK_A3") return 146;
+		return -1;
+	});
+	host.set_track_frames([](const std::string&, int) { return 10L; });
+	REQUIRE(host.load(bytes));
+
+	asIScriptFunction* fn = host.find_function({"scene00"});
+	REQUIRE(fn);
+	asb::RuntimeSession session(host, entry);
+	REQUIRE(session.start(fn));
+
+	auto advance_to = [&](long target) {
+		while (session.frame() < target && !session.finished())
+			if (session.advance() == asb::RuntimeSession::StepResult::Error)
+				break;
+	};
+	advance_to(170);
+	const asb::RuntimeEntity* entity = session.scene().find_entity("高貴プリーステス");
+	REQUIRE(entity);
+	CHECK(entity->track == "D_SIT_A3");
+
+	advance_to(180);
+	entity = session.scene().find_entity("高貴プリーステス");
+	REQUIRE(entity);
+	CHECK(entity->track == "D_IDLE_A");
+}
+
 TEST_CASE("drama scripts pick their void MAIN entry") {
 	const std::filesystem::path cpk = find_cpk();
 	if (cpk.empty()) {
