@@ -140,7 +140,7 @@ int main(int argc, char* argv[]) try {
 		"Write native-call census JSON to this file")(
 		"record",
 		::boost::program_options::value<std::string>(&config.record),
-		"Write runtime timeline NDJSON (full scene state in --headless)")(
+		"Write runtime timeline NDJSON (full scene state in --headless; .gz compresses)")(
 		"record-every",
 		::boost::program_options::value<long>(&config.record_every)->default_value(1),
 		"Record one timeline row every N scene frames")(

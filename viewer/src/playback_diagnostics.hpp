@@ -7,6 +7,8 @@
 #include <scarlett/call_census.hpp>
 #include <scarlett/scene.hpp>
 
+#include <zlib.h>
+
 #include <cstdint>
 #include <fstream>
 #include <ostream>
@@ -50,6 +52,7 @@ public:
 
 private:
 	bool write_screenshot(const std::string& path);
+	void write_record_line(const std::string& line);
 
 	ViewerConfig _cfg;
 	TraceWriter _trace;
@@ -57,6 +60,7 @@ private:
 	asb::diag::CallCensus _census;
 	std::ofstream _record_file;
 	std::ostream* _record_out = nullptr;
+	gzFile _record_gz = nullptr;
 
 	bool _capture_mode = false;
 	size_t _capture_index = 0;

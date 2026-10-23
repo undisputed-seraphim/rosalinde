@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <vector>
 
@@ -30,15 +31,35 @@ PlaybackDiagnostics::PlaybackDiagnostics(const ViewerConfig& config)
 			const auto parent = std::filesystem::path(_cfg.record).parent_path();
 			if (!parent.empty())
 				std::filesystem::create_directories(parent);
-			_record_file.open(_cfg.record, std::ios::binary | std::ios::trunc);
-			if (!_record_file)
-				throw std::runtime_error("cannot write record: " + _cfg.record);
-			_record_out = &_record_file;
+			if (_cfg.record.ends_with(".gz")) {
+				_record_gz = gzopen(_cfg.record.c_str(), "wb");
+				if (!_record_gz)
+					throw std::runtime_error("cannot write record: " + _cfg.record);
+			} else {
+				_record_file.open(_cfg.record, std::ios::binary | std::ios::trunc);
+				if (!_record_file)
+					throw std::runtime_error("cannot write record: " + _cfg.record);
+				_record_out = &_record_file;
+			}
 		}
 	}
 }
 
-PlaybackDiagnostics::~PlaybackDiagnostics() = default;
+PlaybackDiagnostics::~PlaybackDiagnostics() {
+	if (_record_gz) {
+		gzclose(_record_gz);
+		_record_gz = nullptr;
+	}
+}
+
+void PlaybackDiagnostics::write_record_line(const std::string& line) {
+	if (_record_gz) {
+		gzwrite(_record_gz, line.data(), static_cast<unsigned>(line.size()));
+		return;
+	}
+	if (_record_out)
+		*_record_out << line;
+}
 
 asb::TraceCallback PlaybackDiagnostics::trace_callback() {
 	return [this](const asb::TraceEvent& event) {
@@ -86,26 +107,28 @@ void PlaybackDiagnostics::write_calls(
 }
 
 void PlaybackDiagnostics::write_record(const asb::SceneState& scene, const SceneRenderer& renderer, long frame) {
-	if (!_record_out)
+	if (!_record_out && !_record_gz)
 		return;
 	float fade[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 	asb::fade_at(scene.fades, scene.frame, fade);
-	*_record_out << "{\"frame\":" << frame << ",\"camera\":{\"pos\":" << asb::trace::vec3(scene.camera.pos)
-				<< ",\"zoom\":" << asb::trace::number(scene.camera.zoom) << "},\"fade\":[" << asb::trace::number(fade[0])
-				<< "," << asb::trace::number(fade[1]) << "," << asb::trace::number(fade[2]) << ","
-				<< asb::trace::number(fade[3]) << "],\"stage\":{\"type\":" << scene.stage.stage_type
-				<< ",\"weather\":" << scene.stage.weather_type << ",\"coa\":" << scene.stage.coa_preset
-				<< ",\"flag\":" << scene.stage.flag_color << "},\"renderer\":" << renderer.timeline_json(scene)
-				<< "}\n";
+	std::ostringstream out;
+	out << "{\"frame\":" << frame << ",\"camera\":{\"pos\":" << asb::trace::vec3(scene.camera.pos)
+		<< ",\"zoom\":" << asb::trace::number(scene.camera.zoom) << "},\"fade\":[" << asb::trace::number(fade[0])
+		<< "," << asb::trace::number(fade[1]) << "," << asb::trace::number(fade[2]) << ","
+		<< asb::trace::number(fade[3]) << "],\"stage\":{\"type\":" << scene.stage.stage_type
+		<< ",\"weather\":" << scene.stage.weather_type << ",\"coa\":" << scene.stage.coa_preset
+		<< ",\"flag\":" << scene.stage.flag_color << "},\"renderer\":" << renderer.timeline_json(scene) << "}\n";
+	write_record_line(out.str());
 }
 
 void PlaybackDiagnostics::write_scene_record(
 	const asb::SceneState& scene,
 	long frame,
 	const SceneReportContext& context) {
-	if (!_record_out)
+	if (!_record_out && !_record_gz)
 		return;
-	*_record_out << "{\"frame\":" << frame << ",\"scene\":" << scene_state_json(scene, context) << "}\n";
+	write_record_line(
+		"{\"frame\":" + std::to_string(frame) + ",\"scene\":" + scene_state_json(scene, context) + "}\n");
 }
 
 void PlaybackDiagnostics::write_scene_probe(const asb::SceneState& scene, const SceneReportContext& context) {
