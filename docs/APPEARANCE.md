@@ -1,7 +1,7 @@
 # Character appearance (CharaSet → class/gender/variant)
 
 How `viewer/data/generated/variants.tsv` is produced, and why it no longer needs to be
-hand-written. See `docs/ASB.md` for the wider drama/script picture.
+hand-written. See `scarlett/README.md` for the wider drama/script picture.
 
 ## The problem
 
@@ -39,7 +39,9 @@ Record fields (u64 word indices):
 | 7,8 | flags |
 
 So the engine's appearance key is exactly **`(class_id, gender, variant)`**,
-where `class_id` is the `CLASSTYPE` index (`Debug/_UcEnum_Class.inc`).
+where `class_id` is the `CLASSTYPE` index (`Debug/_UcEnum_Class.inc`). The upper
+32 bits of word 1 (`w0c`) are a separate recovered value whose meaning is not yet
+known.
 
 The scripts reach it by name: `DrCreateChara(objectName, CharaDefName, CoAPreset)`
 (the string overload, `FUN_0031b0dc`) resolves `CharaDefName` → CharaSet via
@@ -68,6 +70,11 @@ Verified against the previously hand-written rows, which it reproduces exactly:
 
 Rendering `--class CLERIC_F` with the generated table is **byte-identical** to
 the old handwritten table.
+
+The executable's class table is keyed by `CLASSTYPE` index. Its `+0` field is
+the promotion/base class (`base_class_id`, 0 when none), not the row's own
+class id; `class_table_relation_matches` uses it to match class families. The
+raw `class_table.tsv` also stores the recovered icon assets and opaque fields.
 
 ## Regenerating
 

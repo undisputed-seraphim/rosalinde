@@ -1,4 +1,4 @@
-# key	character	flags (generated from raw CharaSet and class MBS attributes)
+# key	character	flags	label (generated from raw CharaSet and class MBS attributes)
 LORD_M	PL_LORD_C0	0x00000001	主人公
 LORD_HG_M	DRNPC_LORD_HG_C0	0x00000002	祖父コルニア王
 ALBION_PRINCESS_F	PL_PRIESTES_C0	0x54012800	高貴プリーステス

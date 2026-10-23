@@ -9,6 +9,7 @@ explicit `--cpk`; the generated tables are committed under
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -39,7 +40,7 @@ def read_tsv(path):
     rows = []
     header = None
     with open(path, encoding="utf-8") as file:
-        for line in file:
+        for line_number, line in enumerate(file, 1):
             line = line.rstrip("\n")
             if not line or line.startswith("#"):
                 continue
@@ -47,9 +48,11 @@ def read_tsv(path):
             if header is None:
                 header = columns
                 continue
-            if len(columns) < len(header):
-                columns += [""] * (len(header) - len(columns))
-            rows.append(dict(zip(header, columns[: len(header)])))
+            if len(columns) != len(header):
+                raise BuildError(
+                    f"{path}:{line_number}: {len(columns)} columns, expected {len(header)}"
+                )
+            rows.append(dict(zip(header, columns)))
     if header is None:
         raise BuildError(f"missing header: {path}")
     return rows
@@ -344,7 +347,7 @@ def main():
     variants = build_variants(charaset, classes, class_names, chara_names, seed, overrides, groups)
     write_tsv(
         out_dir / "variants.tsv",
-        "# key\tcharacter\tflags (generated from raw CharaSet and class MBS attributes)",
+        "# key\tcharacter\tflags\tlabel (generated from raw CharaSet and class MBS attributes)",
         variants,
     )
 

@@ -107,27 +107,49 @@ TABLES = (
         0x58,
         74,
         (
-            Field("class_id", 0, "i32"),
+            Field("base_class_id", 0, "i32"),
+            Field("w04", 4, "u32"),
             Field("mbs_m", 8, "strptr"),
             Field("ftx_m", 0x10, "strptr"),
             Field("mbs_f", 0x18, "strptr"),
             Field("ftx_f", 0x20, "strptr"),
+            Field("icon_mbs_m", 0x28, "strptr"),
+            Field("icon_ftx_m", 0x30, "strptr"),
+            Field("icon_mbs_f", 0x38, "strptr"),
+            Field("icon_ftx_f", 0x40, "strptr"),
+            Field("w48", 0x48, "i32"),
+            Field("w4c", 0x4C, "i32"),
+            Field("w50", 0x50, "i32"),
+            Field("w54", 0x54, "i32"),
         ),
         kind="class",
         enum="CLASSTYPE",
         file="classes.tsv",
         source="tools/dump_chara_table.py; class_table_relation_matches",
+        notes="+0 is the base/promotion class; icon assets are at +0x28/+0x30 (M) and +0x38/+0x40 (F).",
     ),
     TableSpec(
         "npctype",
         0x273A968,
         0x50,
         320,
-        (Field("label", 0, "strptr"), Field("mbs", 8, "strptr"), Field("ftx", 0x10, "strptr")),
+        (
+            Field("label", 0, "strptr"),
+            Field("mbs", 8, "strptr"),
+            Field("ftx", 0x10, "strptr"),
+            Field("icon_mbs", 0x18, "strptr"),
+            Field("icon_ftx", 0x20, "strptr"),
+            Field("w28", 0x28, "hex64"),
+            Field("w30", 0x30, "hex64"),
+            Field("w38", 0x38, "hex64"),
+            Field("w40", 0x40, "hex64"),
+            Field("w48", 0x48, "hex64"),
+        ),
         kind="npctype",
         enum="NPCTYPE",
         file="charanpc_assets.tsv",
         source="tools/dump_charanpc_table.py; npctype_get_record",
+        notes="+0x18/+0x20 are icon assets; +0x28..+0x48 retain opaque record data.",
     ),
     TableSpec(
         "charaset",
@@ -137,15 +159,23 @@ TABLES = (
         (
             Field("label", 0, "strptr"),
             Field("class_id", 8, "u8"),
-            Field("gender", 9, "u8"),
+            Field("gender_id", 9, "u8"),
             Field("variant", 10, "u8"),
-            Field("_pad", 11, "u8"),
+            Field("pad", 11, "u8"),
+            Field("w0c", 0x0C, "u32"),
+            Field("w10", 0x10, "hex64"),
+            Field("w18", 0x18, "hex64"),
+            Field("w20", 0x20, "hex64"),
+            Field("w28", 0x28, "hex64"),
             Field("chara_img", 0x30, "strptr"),
+            Field("w38", 0x38, "hex64"),
+            Field("w40", 0x40, "hex64"),
         ),
         kind="charaset",
         enum="CHARASET",
         file="charaset.tsv",
         source="docs/EXE.md section 8; viewer/data/charaset_table.tsv; charaset_get_label",
+        notes="+0x10..+0x28 and +0x38/+0x40 retain opaque record data.",
     ),
     TableSpec(
         "bbs",
@@ -358,6 +388,10 @@ def read_field(image, address, field):
         return image.read_u32(address + field.offset)
     if field.kind == "i32":
         return image.read_i32(address + field.offset)
+    if field.kind == "u64":
+        return image.read_u64(address + field.offset)
+    if field.kind == "hex64":
+        return f"0x{image.read_u64(address + field.offset):x}"
     if field.kind == "f32":
         return format(image.read_f32(address + field.offset), ".6g")
     raise ValueError(f"unknown field kind: {field.kind}")
@@ -561,7 +595,10 @@ def dump_raw(image, spec):
             rows.append((i, image.read_cstr(image.read_ptr(record + 8)), x, y))
         return header, rows
     if spec.kind == "class":
-        header = "idx\tclass_id\tmbs_m\tftx_m\tmbs_f\tftx_f"
+        header = (
+            "idx\tbase_class_id\tw04\tmbs_m\tftx_m\tmbs_f\tftx_f\t"
+            "icon_mbs_m\ticon_ftx_m\ticon_mbs_f\ticon_ftx_f\tw48\tw4c\tw50\tw54"
+        )
         rows = []
         for i in range(spec.count):
             record = spec.base + i * spec.stride
@@ -569,27 +606,48 @@ def dump_raw(image, spec):
                 (
                     i,
                     image.read_i32(record),
+                    image.read_u32(record + 4),
                     image.read_cstr(image.read_ptr(record + 8)),
                     image.read_cstr(image.read_ptr(record + 0x10)),
                     image.read_cstr(image.read_ptr(record + 0x18)),
                     image.read_cstr(image.read_ptr(record + 0x20)),
+                    image.read_cstr(image.read_ptr(record + 0x28)),
+                    image.read_cstr(image.read_ptr(record + 0x30)),
+                    image.read_cstr(image.read_ptr(record + 0x38)),
+                    image.read_cstr(image.read_ptr(record + 0x40)),
+                    image.read_i32(record + 0x48),
+                    image.read_i32(record + 0x4C),
+                    image.read_i32(record + 0x50),
+                    image.read_i32(record + 0x54),
                 )
             )
         return header, rows
     if spec.kind == "npctype":
-        header = "idx\tlabel\tmbs\tftx"
-        rows = [
-            (
-                i,
-                image.read_cstr(image.read_ptr(spec.base + i * spec.stride)),
-                image.read_cstr(image.read_ptr(spec.base + i * spec.stride + 8)),
-                image.read_cstr(image.read_ptr(spec.base + i * spec.stride + 0x10)),
+        header = "idx\tlabel\tmbs\tftx\ticon_mbs\ticon_ftx\tw28\tw30\tw38\tw40\tw48"
+        rows = []
+        for i in range(spec.count):
+            record = spec.base + i * spec.stride
+            rows.append(
+                (
+                    i,
+                    image.read_cstr(image.read_ptr(record)),
+                    image.read_cstr(image.read_ptr(record + 8)),
+                    image.read_cstr(image.read_ptr(record + 0x10)),
+                    image.read_cstr(image.read_ptr(record + 0x18)),
+                    image.read_cstr(image.read_ptr(record + 0x20)),
+                    f"0x{image.read_u64(record + 0x28):x}",
+                    f"0x{image.read_u64(record + 0x30):x}",
+                    f"0x{image.read_u64(record + 0x38):x}",
+                    f"0x{image.read_u64(record + 0x40):x}",
+                    f"0x{image.read_u64(record + 0x48):x}",
+                )
             )
-            for i in range(spec.count)
-        ]
         return header, rows
     if spec.kind == "charaset":
-        header = "idx\tlabel\tclass_id\tgender_id\tvariant\tchara_img"
+        header = (
+            "idx\tlabel\tclass_id\tgender_id\tvariant\tpad\tw0c\t"
+            "w10\tw18\tw20\tw28\tchara_img\tw38\tw40"
+        )
         rows = []
         for i in range(spec.count):
             record = spec.base + i * spec.stride
@@ -600,7 +658,15 @@ def dump_raw(image, spec):
                     image.read_u8(record + 8),
                     image.read_u8(record + 9),
                     image.read_u8(record + 10),
+                    image.read_u8(record + 11),
+                    image.read_u32(record + 0x0C),
+                    f"0x{image.read_u64(record + 0x10):x}",
+                    f"0x{image.read_u64(record + 0x18):x}",
+                    f"0x{image.read_u64(record + 0x20):x}",
+                    f"0x{image.read_u64(record + 0x28):x}",
                     image.read_cstr(image.read_ptr(record + 0x30)),
+                    f"0x{image.read_u64(record + 0x38):x}",
+                    f"0x{image.read_u64(record + 0x40):x}",
                 )
             )
         return header, rows
@@ -678,7 +744,7 @@ def main():
             header, rows = dump_raw(image, table)
             filename = RAW_FILES.get(table.name, f"{table.name}.tsv")
             path = out_dir / filename
-            write_tsv(path, header, ([cell(value) for value in row] for row in rows), strip_trailing=True)
+            write_tsv(path, header, ([cell(value) for value in row] for row in rows))
             print(f"wrote {path} ({len(rows)} rows)", flush=True)
         return
 

@@ -756,7 +756,7 @@ base 0x2741bb8 (.data)   stride 0x48 (9 × u64, 1388 entries)
 | word | meaning |
 |---|---|
 | `[0]` | pointer → Japanese label (`主人公`, `タレ目クレリック`, …) |
-| `[1]` | packed `{u8 class_id, u8 gender(1=M,2=F), u8 variant(0..8), u8 _}` |
+| `[1]` | packed `{u8 class_id, u8 gender(1=M,2=F), u8 variant(0..8), u8 pad}` plus `w0c` at `+0x0c` |
 | `[2]`,`[3]` | CoA preset / model ids (`record+0x10` = default CoA preset) |
 | `[6]` | pointer → `CharaImg<ABBR>` name |
 | `[7]`,`[8]` | flags |
@@ -769,7 +769,52 @@ base 0x2741bb8 (.data)   stride 0x48 (9 × u64, 1388 entries)
 | `FUN_002bf900(engine, charaSet)` | ~`0x1d0`-byte expanded per-chara def struct |
 
 `class_id` is a `CLASSTYPE` index (`Debug/_UcEnum_Class.inc`, 74 entries).
+`w0c` is a recovered per-record value (0..127) whose meaning is not yet known.
 Used to generate `viewer/data/charaset_table.tsv` and the build-time `viewer/data/generated/variants.tsv`.
+
+**CLASSTYPE record table** — `g_class_table` at `0x2738ff8` (`.data`):
+
+```
+stride 0x58, 74 entries
+```
+
+| offset | meaning |
+|---|---|
+| `+0x00` | `base_class_id` (i32; 0 = none, promoted class → base class) |
+| `+0x04` | `w04` (u32; observed 0) |
+| `+0x08` | male MBS pointer (`Chara/*.mbs`) |
+| `+0x10` | male FTX pointer (`Chara/*.ftx`) |
+| `+0x18` | female MBS pointer |
+| `+0x20` | female FTX pointer |
+| `+0x28` | male icon MBS pointer (`GUI/Icon_*`) |
+| `+0x30` | male icon FTX pointer (`GUI/Icon_01/02/03.ftx`) |
+| `+0x38` | female icon MBS pointer |
+| `+0x40` | female icon FTX pointer |
+| `+0x48..+0x54` | four opaque u32 fields (retained raw) |
+
+`class_table_relation_matches(class, target)` returns true when
+`class == target` or `g_class_table[class].base_class_id == target`; the
+script-facing callers use it for class-family/promotion checks. The raw dump is
+`viewer/data/class_table.tsv`.
+
+**NPCTYPE record table** — `g_npctype_table` at `0x273a968` (`.data`):
+
+```
+stride 0x50, 320 entries
+```
+
+| offset | meaning |
+|---|---|
+| `+0x00` | pointer → Japanese label |
+| `+0x08` | model MBS pointer (`CharaNpc/*.mbs`) |
+| `+0x10` | model FTX pointer (`CharaNpc/*.ftx`) |
+| `+0x18` | icon MBS pointer (`GUI/IconNpc_*`) |
+| `+0x20` | icon FTX pointer (`GUI/IconNpc.ftx`) |
+| `+0x28..+0x48` | opaque record data (often `0xffffffff` sentinels; retained raw) |
+
+`npctype_get_record(index)` returns `&g_npctype_table + index*0x50`;
+`npctype_find_by_label` compares the Japanese label at `+0`. The raw dump is
+`viewer/data/npctype_table.tsv`.
 
 ---
 
