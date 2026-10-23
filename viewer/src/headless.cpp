@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -41,11 +42,10 @@ bool write_output(const std::string& path, const std::string& text) {
 int run_headless(const ViewerConfig& config) {
 	AssetLoader loader(config.cpk);
 	PlaybackDiagnostics diagnostics(config);
-	PlaybackRuntime runtime(
-		loader,
-		config,
-		diagnostics.trace_callback(),
-		[&diagnostics](const asb::NativeCall& call) { diagnostics.observe_native(call); });
+	PlaybackRuntime::NativeCallback native_cb;
+	if (diagnostics.wants_native_calls())
+		native_cb = [&diagnostics](const asb::NativeCall& call) { diagnostics.observe_native(call); };
+	PlaybackRuntime runtime(loader, config, diagnostics.trace_callback(), std::move(native_cb));
 	runtime.set_max_frames(config.max_frames);
 	const SceneReportContext report{&runtime.mbs_info()};
 

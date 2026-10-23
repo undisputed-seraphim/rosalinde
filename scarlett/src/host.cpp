@@ -107,6 +107,7 @@ struct NSGuard {
 std::function<void(const std::string&)>* g_call_log = nullptr;
 Registry* g_scene_registry = nullptr;
 NativeCallCallback* g_native_call = nullptr;
+bool g_call_silent = false;
 
 std::string function_name(asIScriptFunction* fn) {
 	std::string name;
@@ -329,17 +330,22 @@ bool behaviour_exists(asITypeInfo* ti, asEBehaviours beh, const std::string& dec
 void GenericStub(asIScriptGeneric* gen) {
 	asIScriptFunction* fn = gen->GetFunction();
 
-	std::string call = function_name(fn);
-	call += "(";
-	for (asUINT i = 0; i < gen->GetArgCount(); ++i) {
-		if (i)
-			call += ", ";
-		call += arg_to_string(gen, i);
+	const bool print_calls = !g_call_log && !g_call_silent;
+	const bool wants_call = g_call_log || g_native_call || print_calls;
+	std::string call;
+	if (wants_call) {
+		call = function_name(fn);
+		call += "(";
+		for (asUINT i = 0; i < gen->GetArgCount(); ++i) {
+			if (i)
+				call += ", ";
+			call += arg_to_string(gen, i);
+		}
+		call += ")";
 	}
-	call += ")";
 	if (g_call_log)
 		(*g_call_log)("call " + call);
-	else
+	else if (print_calls)
 		std::printf("call %s\n", call.c_str());
 
 	// Let the recording shim model scene-relevant calls (and the scheduler hook)
@@ -384,6 +390,7 @@ struct Host::Impl {
 	std::unordered_map<std::string, int> known_size;
 	std::unordered_map<std::string, bool> registered_types;
 	std::function<void(const std::string&)> call_log;
+	bool call_log_set = false;
 	TraceCallback trace;
 	NativeCallCallback native_call;
 	std::function<long(const std::string&, int)> track_frames;
@@ -421,7 +428,10 @@ Host::~Host() {
 	delete _impl;
 }
 
-void Host::set_call_log(std::function<void(const std::string&)> cb) { _impl->call_log = std::move(cb); }
+void Host::set_call_log(std::function<void(const std::string&)> cb) {
+	_impl->call_log = std::move(cb);
+	_impl->call_log_set = true;
+}
 
 void Host::set_trace(TraceCallback cb) { _impl->trace = std::move(cb); }
 
@@ -728,6 +738,7 @@ asIScriptFunction* Host::find_function(const std::vector<std::string>& names) co
 int Host::execute(asIScriptFunction* fn) {
 	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
 	g_native_call = _impl->native_call ? &_impl->native_call : nullptr;
+	g_call_silent = _impl->call_log_set;
 	asIScriptContext* ctx = _impl->engine->CreateContext();
 	ctx->Prepare(fn);
 	unsigned long steps = 0;
@@ -742,6 +753,7 @@ int Host::execute(asIScriptFunction* fn) {
 	ctx->Release();
 	g_call_log = nullptr;
 	g_native_call = nullptr;
+	g_call_silent = false;
 	return er;
 }
 
@@ -771,6 +783,7 @@ struct RuntimeSession::Impl {
 	asIScriptContext* ctx = nullptr;
 	Registry reg;
 	std::function<void(const std::string&)> call_log;
+	bool call_log_set = false;
 	TraceCallback trace;
 	NativeCallCallback native_call;
 	long wake = 0;
@@ -785,6 +798,7 @@ RuntimeSession::RuntimeSession(Host& host, std::string source)
 	_impl->engine = h->engine;
 	_impl->module = h->module;
 	_impl->call_log = h->call_log;
+	_impl->call_log_set = h->call_log_set;
 	_impl->trace = h->trace;
 	_impl->native_call = h->native_call;
 	if (h->chars)
@@ -859,10 +873,12 @@ bool RuntimeSession::run_prelude(asIScriptFunction* fn) {
 	g_scene_registry = &_impl->reg;
 	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
 	g_native_call = _impl->native_call ? &_impl->native_call : nullptr;
+	g_call_silent = _impl->call_log_set;
 	const int er = ctx->Execute();
 	g_scene_registry = nullptr;
 	g_call_log = nullptr;
 	g_native_call = nullptr;
+	g_call_silent = false;
 	if (er != asEXECUTION_FINISHED) {
 		char buf[128];
 		std::snprintf(buf, sizeof(buf), "prelude %s failed (%d)", fn->GetName(), er);
@@ -889,6 +905,7 @@ void RuntimeSession::burst() {
 	g_scene_registry = &_impl->reg;
 	g_call_log = _impl->call_log ? &_impl->call_log : nullptr;
 	g_native_call = _impl->native_call ? &_impl->native_call : nullptr;
+	g_call_silent = _impl->call_log_set;
 	const int er = _impl->ctx->Execute();
 	if (er == asEXECUTION_SUSPENDED) {
 		_impl->wake = _frame + std::max(1L, _impl->reg.pending_wait);
@@ -913,6 +930,7 @@ void RuntimeSession::burst() {
 	g_scene_registry = nullptr;
 	g_call_log = nullptr;
 	g_native_call = nullptr;
+	g_call_silent = false;
 }
 
 RuntimeSession::StepResult RuntimeSession::advance() {
@@ -990,6 +1008,7 @@ Timeline Host::run(asIScriptFunction* fn, std::string source, long max_frames) {
 	g_scene_registry = nullptr;
 	g_call_log = nullptr;
 	g_native_call = nullptr;
+	g_call_silent = false;
 	return tl;
 }
 

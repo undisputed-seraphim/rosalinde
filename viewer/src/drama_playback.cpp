@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <stdexcept>
+#include <utility>
 
 DramaPlayback::DramaPlayback(const AssetLoader& loader, ViewerConfig config)
 	: _loader(loader)
@@ -25,11 +26,10 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, ViewerConfig config)
 
 	_diagnostics = std::make_unique<PlaybackDiagnostics>(_cfg);
 	const auto trace_cb = _diagnostics->trace_callback();
-	_runtime = std::make_unique<PlaybackRuntime>(
-		_loader,
-		_cfg,
-		trace_cb,
-		[this](const asb::NativeCall& call) { _diagnostics->observe_native(call); });
+	PlaybackRuntime::NativeCallback native_cb;
+	if (_diagnostics->wants_native_calls())
+		native_cb = [this](const asb::NativeCall& call) { _diagnostics->observe_native(call); };
+	_runtime = std::make_unique<PlaybackRuntime>(_loader, _cfg, trace_cb, std::move(native_cb));
 	_view = std::make_unique<SceneView>(_loader, _library, _cfg);
 	_view->set_trace(trace_cb);
 	_view->set_filters(_cfg.only, _cfg.hide, _cfg.keep_stage);

@@ -23,6 +23,7 @@ public:
 	~PlaybackDiagnostics();
 
 	asb::TraceCallback trace_callback();
+	bool wants_native_calls() const { return _trace.enabled("vm") || !_cfg.calls.empty() || !_cfg.calls_json.empty(); }
 	void write_event(const asb::TraceEvent& event) { _trace.write(event); }
 	void observe_native(const asb::NativeCall& call);
 	void write_calls(const asb::Module& module, std::string_view entry, std::string_view function);

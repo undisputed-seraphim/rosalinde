@@ -36,7 +36,7 @@ PlaybackRuntime::PlaybackRuntime(
 	const std::string data_dir = config.data_dir.empty() ? viewer_data_dir() : config.data_dir;
 	_runtime = load_viewer_runtime_data(_loader.cpk(), config.chara_table, data_dir);
 	configure_host(_host, _runtime);
-	_host.set_call_log([](const std::string&) {});
+	_host.set_call_log({});
 	_host.set_track_frames([this](const std::string& mbs, int index) {
 		return _mbs.get(mbs).duration(index);
 	});

@@ -923,7 +923,7 @@ private:
 		}
 
 		asb::Host host;
-		host.set_call_log([](const std::string&) {});
+		host.set_call_log({});
 		host.register_module(_module);
 		asbrun::configure_host(host, _runtime);
 		if (!host.load(std::span<const uint8_t>(_bytes.data(), _bytes.size())))
@@ -1253,7 +1253,7 @@ private:
 		}
 
 		asb::Host host;
-		host.set_call_log([](const std::string&) {});
+		host.set_call_log({});
 		host.register_module(_module);
 		asbrun::configure_host(host, _runtime);
 		if (!host.load(std::span<const uint8_t>(_bytes.data(), _bytes.size())))
@@ -1353,7 +1353,7 @@ private:
 		require_module();
 
 		asb::Host host;
-		host.set_call_log([](const std::string&) {});
+		host.set_call_log({});
 		host.register_module(_module);
 		if (!host.load(std::span<const uint8_t>(_bytes.data(), _bytes.size())))
 			return 3;
