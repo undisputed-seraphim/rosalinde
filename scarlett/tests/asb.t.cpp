@@ -131,6 +131,37 @@ TEST_CASE("pick_scene_function follows the heuristic") {
 	CHECK(asb::pick_scene_function(s3)->name == "b");
 }
 
+TEST_CASE("vector call arguments survive scene extraction") {
+	const std::filesystem::path cpk = find_cpk();
+	if (cpk.empty()) {
+		WARN("no Unicorn.CPK found (set UNICORN_CPK); skipping vector argument test");
+		return;
+	}
+
+	const std::vector<uint8_t> bytes = extract_entry(cpk, "Script/Dr_OW_C_0_Fl_Main_0.asb");
+	REQUIRE_FALSE(bytes.empty());
+	const asb::Module mod = asb::parse(bytes);
+	REQUIRE(mod.error.empty());
+	const asb::Scene scene = asb::extract_scene(mod);
+
+	const asb::SceneEvent* move = nullptr;
+	for (const auto& function : scene.functions) {
+		if (function.name != "scene00")
+			continue;
+		for (const auto& event : function.events)
+			if (event.call == "DrMoveAsync")
+				move = &event;
+	}
+	REQUIRE(move);
+	REQUIRE(move->strings.size() >= 2);
+	CHECK(move->strings[move->strings.size() - 2] == "D_WALK_A1");
+	CHECK(move->strings.back() == "スカーレット");
+	REQUIRE(move->vec3.size() == 3);
+	CHECK(move->vec3[2] == 1000.0);
+	REQUIRE_FALSE(move->floats.empty());
+	CHECK(move->floats.back() == 3.0);
+}
+
 TEST_CASE("drama scripts pick their void MAIN entry") {
 	const std::filesystem::path cpk = find_cpk();
 	if (cpk.empty()) {

@@ -70,9 +70,16 @@ asb::TraceCallback PlaybackDiagnostics::trace_callback() {
 	};
 }
 
+bool PlaybackDiagnostics::wants_native_calls() const {
+	return _trace.enabled("vm") || !_cfg.calls.empty() || !_cfg.calls_json.empty() ||
+		   spdlog::get_level() <= spdlog::level::debug;
+}
+
 void PlaybackDiagnostics::observe_native(const asb::NativeCall& call) {
 	_census.observe(call);
 	_trace.write_native_call(call);
+	if (call.name.starts_with("Dr") && spdlog::should_log(spdlog::level::debug))
+		spdlog::debug("call: {}", call.call);
 }
 
 void PlaybackDiagnostics::write_calls(

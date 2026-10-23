@@ -92,6 +92,9 @@ timeline scene00 --expand-calls
   sprite/chara/entity/stage/camera calls.
 - `timeline` walks the extracted event stream and accumulates static `Wait(n)`
   frames. It is linear and branch-unaware.
+- Movement calls (`DrMove*`, `DrShortMove*`) print their full arguments,
+  including target position, animation, speed, acceleration/deceleration, and
+  follow-up animation. Command-line vector arguments use runtime `x,y,z` order.
 
 ### Bulk scan and table export
 

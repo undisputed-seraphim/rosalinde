@@ -1669,12 +1669,18 @@ Scene extract_scene(const Module& mod) {
 			}
 			if (is_ctor) {
 				lastvec.clear();
-				size_t n = std::min<size_t>(floats.size(), cname == "FnVector3" ? 3 : 2);
+				const size_t n = std::min<size_t>(floats.size(), cname == "FnVector3" ? 3 : 2);
 				for (size_t k = floats.size() - n; k < floats.size(); ++k)
 					lastvec.push_back(floats[k]);
 				has_vec = !lastvec.empty();
-				pending.clear();
-				pending_import.clear();
+				size_t remaining = n;
+				for (size_t i = pending.size(); i > 0 && remaining > 0;) {
+					--i;
+					if (pending[i].k == Val::N32 || pending[i].k == Val::N64) {
+						pending.erase(pending.begin() + static_cast<std::ptrdiff_t>(i));
+						--remaining;
+					}
+				}
 				return;
 			}
 			SceneEvent ev;

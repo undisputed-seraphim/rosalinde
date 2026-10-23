@@ -140,7 +140,52 @@ void write_json_object(const std::string& object, const std::string& path) {
 	*out << object << '\n';
 }
 
+std::string number_text(double value) {
+	char buffer[40];
+	std::snprintf(buffer, sizeof(buffer), "%g", value);
+	return buffer;
+}
+
+std::string vector_text(const asb::SceneEvent& event, bool reverse = false) {
+	if (event.vec3.size() >= 3) {
+		const auto& v = event.vec3;
+		return reverse ? "(" + number_text(v[2]) + "," + number_text(v[1]) + "," + number_text(v[0]) + ")"
+					   : "(" + number_text(v[0]) + "," + number_text(v[1]) + "," + number_text(v[2]) + ")";
+	}
+	if (event.vec2.size() >= 2)
+		return "(" + number_text(event.vec2[0]) + "," + number_text(event.vec2[1]) + ")";
+	return {};
+}
+
+bool is_vector_move(std::string_view call) {
+	return call == "DrMoveAsync" || call == "DrMoveAbsAsync" || call == "DrMoveAbs" || call == "DrMove" ||
+		   call == "DrShortMoveAsync" || call == "DrShortMoveAbsAsync" || call == "DrShortMove";
+}
+
+std::string movement_event_text(const asb::SceneEvent& event) {
+	const std::vector<std::string>& strings = event.strings;
+	const std::string& object = !strings.empty() ? strings.back() : std::string();
+	const std::string& animation = strings.size() >= 2 ? strings[strings.size() - 2] : std::string();
+	const std::string& follow = strings.size() >= 3 ? strings.front() : std::string();
+
+	const double speed = !event.floats.empty() ? event.floats.back() : 0.0;
+	const double acc = event.floats.size() >= 3 ? event.floats[0] : 0.0;
+	const double dec = event.floats.size() >= 3 ? event.floats[1] : 0.0;
+
+	std::string out = event.call + "(";
+	out += "obj=\"" + asbrun::json_escape(object) + "\", to=" + vector_text(event, true);
+	out += ", anim=\"" + asbrun::json_escape(animation) + "\"";
+	out += ", speed=" + number_text(speed) + ", acc=" + number_text(acc) + ", dec=" + number_text(dec);
+	if (strings.size() >= 3)
+		out += ", follow=\"" + asbrun::json_escape(follow) + "\"";
+	out += ")";
+	return out;
+}
+
 std::string scene_event_text(const asb::SceneEvent& event) {
+	if (is_vector_move(event.call))
+		return movement_event_text(event);
+
 	std::string out = event.call;
 	bool first = true;
 	auto append = [&](const std::string& value) {
@@ -152,22 +197,11 @@ std::string scene_event_text(const asb::SceneEvent& event) {
 		append("\"" + asbrun::json_escape(value) + "\"");
 	for (const auto& value : event.ints)
 		append(std::to_string(value));
-	if (first && !event.floats.empty()) {
-		char buffer[40];
-		for (double value : event.floats) {
-			std::snprintf(buffer, sizeof(buffer), "%g", value);
-			append(buffer);
-		}
-	}
-	if (first && !event.vec3.empty()) {
-		char buffer[64];
-		std::snprintf(buffer, sizeof(buffer), "(%g,%g,%g)", event.vec3[0], event.vec3[1], event.vec3[2]);
-		append(buffer);
-	} else if (first && !event.vec2.empty()) {
-		char buffer[48];
-		std::snprintf(buffer, sizeof(buffer), "(%g,%g)", event.vec2[0], event.vec2[1]);
-		append(buffer);
-	}
+	if (event.ints.empty() && !event.floats.empty())
+		for (double value : event.floats)
+			append(number_text(value));
+	if (const std::string vec = vector_text(event, !event.vec3.empty()); !vec.empty())
+		append(vec);
 	if (!first)
 		out += ")";
 	return out;
