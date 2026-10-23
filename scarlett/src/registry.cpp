@@ -28,6 +28,20 @@ void read_vec(asIScriptGeneric* gen, int i, float* out, int n) {
 		out[k] = p ? p[k] : 0.0f;
 }
 
+int vector_components(asIScriptGeneric* gen, int i) {
+	asITypeInfo* type = gen->GetEngine()->GetTypeInfoById(gen->GetArgTypeId(i));
+	const char* name = type ? type->GetName() : nullptr;
+	if (!name)
+		return 0;
+	if (std::strcmp(name, "FnVector2") == 0)
+		return 2;
+	if (std::strcmp(name, "FnVector3") == 0)
+		return 3;
+	if (std::strcmp(name, "FnVector4") == 0)
+		return 4;
+	return 0;
+}
+
 // FnColor is a packed 4-byte RGBA value type.
 void read_color(asIScriptGeneric* gen, int i, float* out) {
 	auto* p = static_cast<const unsigned char*>(gen->GetArgAddress(i));
@@ -525,7 +539,8 @@ bool Registry::construct_value(asIScriptGeneric* gen) {
 		return false;
 	float* out = static_cast<float*>(obj);
 	const int comps = is2 ? 2 : (is3 ? 3 : 4);
-	for (int i = 0; i < comps; ++i)
+	const int slots = std::max(comps, static_cast<int>(ot->GetSize() / sizeof(float)));
+	for (int i = 0; i < slots; ++i)
 		out[i] = 0.0f;
 	if (n >= 1) {
 		int tid = gen->GetArgTypeId(0);
@@ -1604,7 +1619,8 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		name == "DrSetOffsetPosV") {
 		if (RuntimeEntity* e = ent(0)) {
 			float p[3] = {0.0f, 0.0f, 0.0f};
-			V(1, p, 3);
+			const int components = vector_components(gen, 1);
+			V(1, p, components > 0 ? std::min(components, 3) : 3);
 			const int time = name == "DrUiSetPosV" ? std::max(0, I(2)) : 0;
 			if (time > 0) {
 				Move m{};

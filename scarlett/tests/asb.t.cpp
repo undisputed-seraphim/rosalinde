@@ -257,6 +257,44 @@ TEST_CASE("opening prelude registers opening resources") {
 	CHECK(session.scene().opening_resources.front() == "GUI/Opening010.mbs");
 }
 
+TEST_CASE("2D UI positions do not read past their declared components") {
+	const std::filesystem::path cpk = find_cpk();
+	if (cpk.empty()) {
+		WARN("no Unicorn.CPK found (set UNICORN_CPK); skipping 2D position test");
+		return;
+	}
+
+	const std::string entry = "Script/Dr_OW_0_Opening.asb";
+	std::vector<uint8_t> bytes = extract_entry(cpk, entry);
+	REQUIRE_FALSE(bytes.empty());
+
+	asb::Module mod = asb::parse(bytes);
+	REQUIRE(mod.error.empty());
+	asb::Host host;
+	host.register_module(mod);
+	host.set_call_log([](const std::string&) {});
+	REQUIRE(host.load(bytes));
+
+	asIScriptFunction* fn = host.find_function({"scene00"});
+	REQUIRE(fn);
+
+	asb::RuntimeSession session(host, entry);
+	session.set_max_frames(3400);
+	REQUIRE(session.start(fn));
+	while (session.frame() < 3400 && !session.finished()) {
+		if (session.advance() == asb::RuntimeSession::StepResult::Error)
+			break;
+	}
+	REQUIRE(session.error().empty());
+
+	// DrUiSetPosV takes FnVector2; the third component must stay zero.
+	const asb::RuntimeEntity* hero = session.scene().find_entity("主人公");
+	REQUIRE(hero);
+	CHECK(hero->pos[0] == 1200.0f);
+	CHECK(hero->pos[1] == 900.0f);
+	CHECK(hero->pos[2] == 0.0f);
+}
+
 TEST_CASE("decode, load and run a real script") {
 	const std::filesystem::path cpk = find_cpk();
 	if (cpk.empty()) {
