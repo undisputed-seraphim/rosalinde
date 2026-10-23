@@ -816,6 +816,70 @@ stride 0x50, 320 entries
 `npctype_find_by_label` compares the Japanese label at `+0`. The raw dump is
 `viewer/data/npctype_table.tsv`.
 
+### 8a. Appearance/model tables adjacent to the CharaSet cluster
+
+These sit immediately before/after `g_class_table`, `g_npctype_table`, and
+`g_charaset_table` and were recovered while checking the raw-table coverage.
+
+| Table | Base | Stride | Count | Layout / accessor |
+|---|---|---|---|---|
+| `battlebg_variant` | `0x27384b8` | `0x18` | 80 | `{u32 id, f32 scale, char* bbs, char* label}`; referenced by `bbs_table` `ptr_a`/`ptr_b` |
+| `chara_model` | `0x2740d68` | `0x10` | 229 | `{char* label, u16 mask, u16 w0a, u32 w0c}`; `FUN_0011ba28` reads the mask at `+8` |
+| `class_part` | `0x275a218` | `0x08` | 729 | ten contiguous pointer arrays -> `0x48` records `{u32 class_id, u32 part_id[17]}`; getters `FUN_00119d0c`, `0x00119de4`, `0x00119e34`, `0x0011ae2c`, `0x0011b3d0` |
+| `class_model_m` | `0x275bb30` | `0x08` | 73 | pointer array -> `0x30` records `{u32 class_id, u32 model_id[10], u32 variant_count}`; `FUN_0011b998(param,1)` |
+| `class_model_f` | `0x275b8e0` | `0x08` | 74 | same record layout; `FUN_0011b998(param,2)`; many entries are null |
+| `chara_part` | `0xceb6a8` | `0x28` | 2168 | ten `{i16 part_id, i16 scale_percent}` pairs; `FUN_001197bc` applies them (scale = value / 100) |
+| `class_stats` | `0x275bd78` | `0x130` | 471 | unit/class parameter rows; `id` at `+0`, `class_id` at `+4`, `flags` at `+8`, ASCII `motion` at `+0xc0`, ASCII `behavior` at `+0xc8`; accessors `FUN_0011d148`, `0x0011c55c`, `0x0011d68c`; record 0 is a sentinel, valid ids 1..470 |
+| `class_sub` | `0x277ecec` | `0x100` | 172 | ability/order/effect rows; Japanese `label` at `+0xe4`; `FUN_0011d900`/`0x0011d860`/`0x0011d894`; record 0 sentinel, valid ids 1..171 |
+| `class_relation` | `0xd0d15c` | `0x8c` | 74 | per-class ability set; `class_id` at `+0`, `assist_id`/`order_id`/`order_id_2` index `class_sub`, `class_stats_id` at `+0x1c` and `class_stats_id_2` at `+0x80` index `class_stats`, `type` at `+8` is 0/23/24/25; `FUN_0011c140`/`0x0011c260`/`0x0011c4c0` scan the rows |
+
+`chara_model` is the model/appearance record selected by the class model
+arrays: `FUN_0011b998` returns a class record, `FUN_0011ba28` indexes its
+10 model ids by variant (`+4 + variant*4`) and then ORs
+`chara_model[id].mask | 0xfe000000` into the character object at `+0x294`.
+The model ids are in `0..228`; `chara_model[0]` is the `なし` sentinel.
+
+`class_sub` is the readable ability/effect table. Its `+0xe4` names include
+facility effects (`施設：…`), traps, orders (`ブレイブオーダー`, `ロイヤルオーダー`),
+and assist skills (`アシスト射撃`, `アシスト魔法`, `飛行`). `class_relation`
+stores class_sub indices for `assist_id` (148..171) and
+`order_id`/`order_id_2` (74..147), plus two class_stats indices
+(`class_stats_id` at `+0x1c`, `class_stats_id_2` at `+0x80`). This is the join
+used to resolve those raw words to names.
+
+`class_part` has five part slots (two arrays per slot, M/F) and 729 pointers in
+total. The arrays are laid out contiguously from `0x275a218` to `0x275b8e0`:
+`{72,69,74,73,74,73,74,73,74,73}` entries. The two defaults are the records at
+`0xd00990` (M) and `0xd01680` (F). Each class record's first u32 is the class
+id; the remaining 17 u32 are `chara_part` indices. `chara_part` rows are
+applied as 10 optional `{model_id, scale_percent}` attachments.
+
+### 8a.1 World/UI tables found while scanning the same regions
+
+| Table | Base | Stride | Count | Layout / accessor |
+|---|---|---|---|---|
+| `field_terrain` | `0x27cf660` | `0x50` | 269 | `key`, `label`, `terrain_type` at `+0x10`, `tint` at `+0x14`, `passable_mask` at `+0x21`, `modifier_a`/`b` at `+0x22`/`+0x23`; accessors `FUN_0021c794`/`0x0021c7d8`/`0x0021c7f8`/`0x0021c860`/`0x0021c878`/`0x0021c8e0` |
+| `quest` | `0x27d4aa8` | `0x40` | 183 | `{char* key, u32 quest_type, u32 quest_id, u32 w10, u32 w14, req0_a, req0_b, req1_a, req1_b, req2_a, req2_b, char* stage_id, u32 flag, u32 w3c}`; `FUN_0021ca88`/`0x0021cab0`/`0x0021cb08`/`0x0021ce10`/`0x0021ce74`/`0x0021cf0c`; `quest_type` is the 0..4 switch value |
+| `camera_view` | `0x279f5c0` | `0x38` | 179 | `CV_*` keys plus `flags`, `fov`, `x/y/z`, `yaw`, `asset`, `distance`, `pitch`, `id`, `reserved`; no direct accessor recovered (`FUN_00181070` is a thunk), so the float names are inferred |
+| `stage_effect` | `0x285e640` | `0x20` | 185 | `{u32 id, ... , char* name}` with `dsp_out_*` names; `FUN_00327e30` returns the name, `FUN_00327d10` searches by id |
+| `unit_name` | `0x2860108` | `0x20` | 149 | rows `0..148`; `{char* key, char* label, u32 w10, u32 w18}`; `FUN_0032edd8`/`0x0032f268`/`0x0032e90c` etc. `w10` is used as a voice/sound index |
+| `name_pool` | `0x28613a0` | `0x08` | 104 | string-pointer array immediately after `unit_name`; starts at `unit_name[148]+0x18` |
+
+`quest` rows use a stage-id string at `+0x30` (e.g. `UC_QUESTID_OW_C0` ->
+`ST_OW_C_0`), so they join directly to `stage_table`/`stage_cue_table` names.
+`field_terrain` keys (`NONE`, `SEA`, `WAR_PLAIN`, `ELF_PLAIN`, ...) are
+terrain/battlefield selectors, not stage ids.
+
+All of the above are dumped raw into `viewer/data`; the exact TSV headers are
+listed in `viewer/data/README.md`. Unknown words are intentionally retained as
+`w*` columns and will be named one at a time.
+
+> Coverage note: the `encounter`/`stage_map` region around `0x27e2ff8` is a
+> graph of stage edges and encounter records, not a clean uniform row table.
+> The current `encounter_table.tsv`/`stage_map_table.tsv` are candidate
+> projections; re-derive them from the graph before treating their row stride
+> as authoritative.
+
 ---
 
 ## 8b. Global tables, singletons & config

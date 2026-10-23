@@ -9,6 +9,7 @@ reviewed or explicitly marked as candidates.
 from __future__ import annotations
 
 import argparse
+import struct
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -42,6 +43,26 @@ class TableSpec:
 
 def raw_fields(start, count, prefix="w"):
     return tuple(Field(f"{prefix}{start + i * 4:02x}", start + i * 4, "i32") for i in range(count))
+
+
+def raw_hex_fields(start, count, prefix="w"):
+    return tuple(Field(f"{prefix}{start + i * 4:02x}", start + i * 4, "hex32") for i in range(count))
+
+
+CLASS_PART_ARRAYS = (
+    (0, 0x275A218, 72),
+    (1, 0x275A458, 69),
+    (2, 0x275A680, 74),
+    (3, 0x275A8D0, 73),
+    (4, 0x275AB18, 74),
+    (5, 0x275AD68, 73),
+    (6, 0x275AFB0, 74),
+    (7, 0x275B200, 73),
+    (8, 0x275B448, 74),
+    (9, 0x275B698, 73),
+)
+
+CLASS_PART_DEFAULTS = ((10, 0xD00990), (11, 0xD01680))
 
 
 TABLES = (
@@ -166,7 +187,7 @@ TABLES = (
             Field("w10", 0x10, "hex64"),
             Field("w18", 0x18, "hex64"),
             Field("w20", 0x20, "hex64"),
-            Field("w28", 0x28, "hex64"),
+            Field("reserved28", 0x28, "hex64"),
             Field("chara_img", 0x30, "strptr"),
             Field("w38", 0x38, "hex64"),
             Field("w40", 0x40, "hex64"),
@@ -176,6 +197,276 @@ TABLES = (
         file="charaset.tsv",
         source="docs/EXE.md section 8; viewer/data/charaset_table.tsv; charaset_get_label",
         notes="+0x10..+0x28 and +0x38/+0x40 retain opaque record data.",
+    ),
+    TableSpec(
+        "battlebg",
+        0x27384B8,
+        0x18,
+        80,
+        (
+            Field("id", 0, "u32"),
+            Field("scale", 4, "f32"),
+            Field("bbs", 8, "strptr"),
+            Field("label", 0x10, "strptr"),
+        ),
+        kind="battlebg",
+        file="battlebg_variant_table.tsv",
+        confidence="confirmed",
+        source="bbs_table ptr_a/ptr_b references; 0x27384b8..0x2738c38",
+        notes="BattleBG variant rows referenced by the BBS catalog; 80 entries.",
+    ),
+    TableSpec(
+        "chara_model",
+        0x2740D68,
+        0x10,
+        229,
+        (
+            Field("label", 0, "strptr"),
+            Field("mask", 8, "hex16"),
+            Field("reserved0", 0xA, "hex16"),
+            Field("reserved4", 0xC, "hex32"),
+        ),
+        kind="chara_model",
+        file="chara_model_table.tsv",
+        confidence="confirmed",
+        source="FUN_0011ba28: u16 mask at +8; index bound 0xe4",
+        notes="Model/appearance rows selected by class model records; mask ORed into object+0x294.",
+    ),
+    TableSpec(
+        "class_model_m",
+        0x275BB30,
+        8,
+        73,
+        (),
+        kind="class_model",
+        file="class_model_m_table.tsv",
+        confidence="confirmed",
+        source="FUN_0011b998(param_1,1); 73 pointers",
+        notes="Class -> 10 model ids + variant count. Records are 0x30 bytes.",
+    ),
+    TableSpec(
+        "class_model_f",
+        0x275B8E0,
+        8,
+        74,
+        (),
+        kind="class_model",
+        file="class_model_f_table.tsv",
+        confidence="confirmed",
+        source="FUN_0011b998(param_1,2); 74 pointers",
+        notes="Female class -> model ids; many entries are null.",
+    ),
+    TableSpec(
+        "class_part",
+        0x275A218,
+        8,
+        729,
+        (),
+        kind="class_part",
+        file="class_part_table.tsv",
+        confidence="confirmed",
+        source="FUN_00119d0c/de4/e34/ae2/b3d; ten contiguous pointer arrays",
+        notes="Class -> 17 part-table ids. Ten arrays (five slots x M/F), 729 pointers; the TSV also carries the two default rows.",
+    ),
+    TableSpec(
+        "chara_part",
+        0xCEB6A8,
+        0x28,
+        2168,
+        tuple(
+            Field(name, pair * 4 + member * 2, "i16")
+            for pair in range(10)
+            for member, name in ((0, f"id{pair}"), (1, f"scale{pair}"))
+        ),
+        kind="chara_part",
+        file="chara_part_table.tsv",
+        confidence="confirmed",
+        source="FUN_001197bc: ten {i16 id, i16 scale} pairs; class part ids bound 0..2167",
+        notes="Scale is stored as percent (id value * 0.01 in FUN_001197bc). -1 = absent.",
+    ),
+    TableSpec(
+        "field_terrain",
+        0x27CF660,
+        0x50,
+        269,
+        (
+            Field("key", 0, "strptr"),
+            Field("label", 8, "strptr"),
+            Field("terrain_type", 0x10, "hex32"),
+            Field("tint", 0x14, "hex32"),
+            Field("w18", 0x18, "hex32"),
+            Field("terrain_class", 0x1C, "hex32"),
+            Field("w20", 0x20, "hex8"),
+            Field("passable_mask", 0x21, "hex8"),
+            Field("modifier_a", 0x22, "i8"),
+            Field("modifier_b", 0x23, "i8"),
+            Field("w24", 0x24, "hex32"),
+            Field("w28", 0x28, "hex32"),
+        )
+        + raw_hex_fields(0x2C, 9),
+        kind="field_terrain",
+        file="field_terrain_table.tsv",
+        confidence="confirmed",
+        source="FUN_0021c794/c7d8/c7f8/c860/c878/c8e0; 269 rows",
+        notes="terrain_type +0x10; tint +0x14; passable_mask +0x21 (bit per movement class); modifier_a/+0x22 and modifier_b/+0x23 are percent modifiers.",
+    ),
+    TableSpec(
+        "quest",
+        0x27D4AA8,
+        0x40,
+        183,
+        (
+            Field("key", 0, "strptr"),
+            Field("quest_type", 8, "u32"),
+            Field("quest_id", 0xC, "u32"),
+            Field("w10", 0x10, "hex32"),
+            Field("w14", 0x14, "hex32"),
+            Field("req0_a", 0x18, "hex32"),
+            Field("req0_b", 0x1C, "hex32"),
+            Field("req1_a", 0x20, "hex32"),
+            Field("req1_b", 0x24, "hex32"),
+            Field("req2_a", 0x28, "hex32"),
+            Field("req2_b", 0x2C, "hex32"),
+            Field("stage", 0x30, "strptr"),
+            Field("flag", 0x38, "hex32"),
+            Field("reserved", 0x3C, "hex32"),
+        ),
+        kind="quest",
+        file="quest_table.tsv",
+        confidence="confirmed",
+        source="FUN_0021ca88/cab0/cb08/ce10/ce74/cf0c; 183 rows",
+        notes="quest_type at +8, quest_id at +0xc; three paired requirement words (req0/1/2_a,b) at +0x18..+0x2c; stage id string at +0x30; flag byte at +0x38.",
+    ),
+    TableSpec(
+        "stage_effect",
+        0x285E640,
+        0x20,
+        185,
+        (
+            Field("id", 0, "u32"),
+            Field("w04", 4, "hex32"),
+            Field("w08", 8, "hex32"),
+            Field("w0c", 0xC, "hex32"),
+            Field("w10", 0x10, "hex32"),
+            Field("reserved", 0x14, "hex32"),
+            Field("name", 0x18, "strptr"),
+        ),
+        kind="stage_effect",
+        file="stage_effect_table.tsv",
+        confidence="confirmed",
+        source="FUN_00327e30 return +0x18 string; FUN_00327d10 id search; 185 rows",
+        notes="dsp_out_* display effect rows.",
+    ),
+    TableSpec(
+        "unit_name",
+        0x2860108,
+        0x20,
+        149,
+        (
+            Field("key", 0, "strptr"),
+            Field("label", 8, "strptr"),
+            Field("w10", 0x10, "hex32"),
+            Field("w18", 0x18, "hex32"),
+        ),
+        kind="unit_name",
+        file="unit_name_table.tsv",
+        confidence="confirmed",
+        source="FUN_0032edd8 / FUN_0032f268 / FUN_0032e90c ...; rows 0..148",
+        notes="Short unit key at +0, JP name at +8; w10 used as a voice/sound index. The last row's +0x18 overlaps name_pool and is blanked.",
+    ),
+    TableSpec(
+        "name_pool",
+        0x28613A0,
+        8,
+        104,
+        (Field("label", 0, "strptr"),),
+        kind="name_pool",
+        file="name_pool_table.tsv",
+        confidence="confirmed",
+        source="string-pointer array immediately after unit_name; 104 pointers",
+        notes="Character/class name pool. Starts at unit_name row 148 +0x18.",
+    ),
+    TableSpec(
+        "camera_view",
+        0x279F5C0,
+        0x38,
+        179,
+        (
+            Field("key", 0, "strptr"),
+            Field("flags", 8, "hex32"),
+            Field("fov", 0xC, "hex32"),
+            Field("x", 0x10, "hex32"),
+            Field("y", 0x14, "hex32"),
+            Field("z", 0x18, "hex32"),
+            Field("yaw", 0x1C, "hex32"),
+            Field("asset", 0x20, "strptr"),
+            Field("distance", 0x28, "hex32"),
+            Field("pitch", 0x2C, "hex32"),
+            Field("id", 0x30, "hex32"),
+            Field("reserved", 0x34, "hex32"),
+        ),
+        kind="camera_view",
+        file="camera_view_table.tsv",
+        confidence="candidate",
+        source="CV_* keys; float columns; no direct accessor recovered (FUN_00181070)",
+        notes="Likely camera/cutscene presets; `fov`, `x/y/z`, `yaw`, `distance`, `pitch` are inferred from the CV_* keys and float values.",
+    ),
+    TableSpec(
+        "class_stats",
+        0x275BD78,
+        0x130,
+        471,
+        (
+            Field("id", 0, "u32"),
+            Field("class_id", 4, "u32"),
+            Field("flags", 8, "hex32"),
+        )
+        + raw_hex_fields(0xC, 45)
+        + (Field("motion", 0xC0, "strptr"), Field("behavior", 0xC8, "strptr"))
+        + raw_hex_fields(0xD0, 24),
+        kind="class_stats",
+        file="class_stats_table.tsv",
+        confidence="candidate",
+        source="FUN_0011d148/c55c/d68c: base+id*0x130, valid ids 1..470",
+        notes="Unit/class parameter rows. `class_id` is 0..73; `motion` at +0xc0 and `behavior` at +0xc8 are ASCII action names (S01_ATTACK_A1, COUNTER, COVER, ...).",
+    ),
+    TableSpec(
+        "class_sub",
+        0x277ECEC,
+        0x100,
+        172,
+        raw_hex_fields(0, 0xE4 // 4)
+        + (Field("label", 0xE4, "strptr"),)
+        + raw_hex_fields(0xE8, (0x100 - 0xE8) // 4),
+        kind="class_sub",
+        file="class_sub_table.tsv",
+        confidence="candidate",
+        source="FUN_0011d900/d860/d894: base+id*0x100, valid ids 1..171",
+        notes="Ability/order/effect table. `label` at +0xe4 is the Japanese ability/effect name; the table includes facilities, traps, orders and assist skills.",
+    ),
+    TableSpec(
+        "class_relation",
+        0xD0D15C,
+        0x8C,
+        74,
+        (
+            Field("class_id", 0, "u32"),
+            Field("assist_id", 4, "u32"),
+            Field("type", 8, "u32"),
+            Field("order_id", 0xC, "u32"),
+            Field("order_id_2", 0x10, "u32"),
+            Field("w14", 0x14, "hex32"),
+            Field("w18", 0x18, "hex32"),
+            Field("class_stats_id", 0x1C, "u32"),
+        )
+        + raw_hex_fields(0x20, (0x80 - 0x20) // 4)
+        + (Field("class_stats_id_2", 0x80, "u32"),)
+        + raw_hex_fields(0x84, (0x8C - 0x84) // 4),
+        kind="class_relation",
+        file="class_relation_table.tsv",
+        confidence="candidate",
+        source="FUN_0011c140/c260/c4c0/d820: 74 rows of 0x8c",
+        notes="Per-class ability set. assist_id/order_id/order_id_2 index class_sub_table.tsv; class_stats_id/class_stats_id_2 index class_stats_table.tsv; type is 0/23/24/25.",
     ),
     TableSpec(
         "bbs",
@@ -344,6 +635,21 @@ RAW_FILES = {
     "class": "class_table.tsv",
     "npctype": "npctype_table.tsv",
     "charaset": "charaset_table.tsv",
+    "battlebg": "battlebg_variant_table.tsv",
+    "chara_model": "chara_model_table.tsv",
+    "class_model_m": "class_model_m_table.tsv",
+    "class_model_f": "class_model_f_table.tsv",
+    "class_part": "class_part_table.tsv",
+    "chara_part": "chara_part_table.tsv",
+    "field_terrain": "field_terrain_table.tsv",
+    "quest": "quest_table.tsv",
+    "stage_effect": "stage_effect_table.tsv",
+    "unit_name": "unit_name_table.tsv",
+    "name_pool": "name_pool_table.tsv",
+    "camera_view": "camera_view_table.tsv",
+    "class_stats": "class_stats_table.tsv",
+    "class_sub": "class_sub_table.tsv",
+    "class_relation": "class_relation_table.tsv",
     "bbs": "bbs_table.tsv",
     "field_cue": "field_cue_table.tsv",
     "item": "item_table.tsv",
@@ -382,14 +688,24 @@ def read_field(image, address, field):
         return f"0x{image.read_ptr(address + field.offset):x}"
     if field.kind == "u8":
         return image.read_u8(address + field.offset)
+    if field.kind == "i8":
+        return struct.unpack("<b", image.read(address + field.offset, 1))[0]
     if field.kind == "u16":
         return image.read_u16(address + field.offset)
+    if field.kind == "i16":
+        return struct.unpack("<h", image.read(address + field.offset, 2))[0]
     if field.kind == "u32":
         return image.read_u32(address + field.offset)
     if field.kind == "i32":
         return image.read_i32(address + field.offset)
     if field.kind == "u64":
         return image.read_u64(address + field.offset)
+    if field.kind == "hex8":
+        return f"0x{image.read_u8(address + field.offset):x}"
+    if field.kind == "hex16":
+        return f"0x{image.read_u16(address + field.offset):x}"
+    if field.kind == "hex32":
+        return f"0x{image.read_u32(address + field.offset):x}"
     if field.kind == "hex64":
         return f"0x{image.read_u64(address + field.offset):x}"
     if field.kind == "f32":
@@ -587,12 +903,20 @@ def dump_raw(image, spec):
         ]
         return header, rows
     if spec.kind == "facility":
-        header = "idx\tlabel\tx\ty"
+        header = "idx\tlabel\ttown\tx\ty"
         rows = []
         for i in range(spec.count):
             record = spec.base + i * spec.stride
             x, y = image.read_f32x2(record + 0x1C)
-            rows.append((i, image.read_cstr(image.read_ptr(record + 8)), x, y))
+            rows.append(
+                (
+                    i,
+                    image.read_cstr(image.read_ptr(record + 8)),
+                    image.read_cstr(image.read_ptr(record + 0x80)),
+                    x,
+                    y,
+                )
+            )
         return header, rows
     if spec.kind == "class":
         header = (
@@ -646,7 +970,7 @@ def dump_raw(image, spec):
     if spec.kind == "charaset":
         header = (
             "idx\tlabel\tclass_id\tgender_id\tvariant\tpad\tw0c\t"
-            "w10\tw18\tw20\tw28\tchara_img\tw38\tw40"
+            "w10\tw18\tw20\treserved28\tchara_img\tw38\tw40"
         )
         rows = []
         for i in range(spec.count):
@@ -671,11 +995,21 @@ def dump_raw(image, spec):
             )
         return header, rows
     if spec.kind == "bbs":
-        header = "idx\tpath\tlabel"
-        rows = [
-            (i, image.read_cstr(image.read_ptr(spec.base + i * spec.stride)), image.read_cstr(image.read_ptr(spec.base + i * spec.stride + 0x18)))
-            for i in range(spec.count)
-        ]
+        header = "idx\tpath\tptr_a\tflags_a\tlabel\tptr_b\tflags_b"
+        rows = []
+        for i in range(spec.count):
+            record = spec.base + i * spec.stride
+            rows.append(
+                (
+                    i,
+                    image.read_cstr(image.read_ptr(record)),
+                    f"0x{image.read_ptr(record + 8):x}",
+                    image.read_u32(record + 0x10),
+                    image.read_cstr(image.read_ptr(record + 0x18)),
+                    f"0x{image.read_ptr(record + 0x20):x}",
+                    image.read_u32(record + 0x28),
+                )
+            )
         return header, rows
     if spec.kind == "field_cue":
         header = "idx\tid\tday\tnight\ttime_a\ttime_b"
@@ -685,8 +1019,19 @@ def dump_raw(image, spec):
             rows.append((i, image.read_i32(record), image.read_u32(record + 4), image.read_u32(record + 8), image.read_u32(record + 0xC), image.read_u32(record + 0x10)))
         return header, rows
     if spec.kind == "drop":
-        header = "idx\tstart\tcount"
-        rows = [(i, image.read_i32(spec.base + i * spec.stride + 0x10), image.read_i32(spec.base + i * spec.stride + 0x14)) for i in range(spec.count)]
+        header = "idx\tkey\tlabel\tstart\tcount"
+        rows = []
+        for i in range(spec.count):
+            record = spec.base + i * spec.stride
+            rows.append(
+                (
+                    i,
+                    image.read_cstr(image.read_ptr(record)),
+                    image.read_cstr(image.read_ptr(record + 8)),
+                    image.read_i32(record + 0x10),
+                    image.read_i32(record + 0x14),
+                )
+            )
         return header, rows
     if spec.kind == "drop_entry":
         header = "idx\titem_id\tweight\tcount\tadd_index"
@@ -694,6 +1039,55 @@ def dump_raw(image, spec):
         for i in range(spec.count):
             record = spec.base + i * spec.stride
             rows.append((i, image.read_i32(record), image.read_i32(record + 4), image.read_i32(record + 8), image.read_i32(record + 0xC)))
+        return header, rows
+    if spec.kind == "class_model":
+        header = "\t".join(
+            ["idx", "record", "class_id"]
+            + [f"model{i}" for i in range(10)]
+            + ["variant_count"]
+        )
+        rows = []
+        for i in range(spec.count):
+            record = image.read_ptr(spec.base + i * spec.stride)
+            if not record:
+                rows.append((i, "0x0") + ("",) * 12)
+                continue
+            values = [image.read_u32(record + j * 4) for j in range(12)]
+            rows.append((i, f"0x{record:x}", *values))
+        return header, rows
+    if spec.kind == "class_part":
+        header = "\t".join(
+            ["array", "idx", "record", "class_id"]
+            + [f"part{i:02d}" for i in range(17)]
+        )
+        rows = []
+        for array, base, count in CLASS_PART_ARRAYS:
+            for i in range(count):
+                record = image.read_ptr(base + i * 8)
+                if not record:
+                    rows.append((array, i, "0x0") + ("",) * 18)
+                    continue
+                values = [image.read_u32(record + j * 4) for j in range(18)]
+                rows.append((array, i, f"0x{record:x}", *values))
+        for array, record in CLASS_PART_DEFAULTS:
+            values = [image.read_u32(record + j * 4) for j in range(18)]
+            rows.append((array, -1, f"0x{record:x}", *values))
+        return header, rows
+    if spec.kind == "unit_name":
+        header = "idx\tkey\tlabel\tw10\tw18"
+        rows = []
+        for i in range(spec.count):
+            record = spec.base + i * spec.stride
+            w18 = "" if i == spec.count - 1 else f"0x{image.read_u32(record + 0x18):x}"
+            rows.append(
+                (
+                    i,
+                    image.read_cstr(image.read_ptr(record)),
+                    image.read_cstr(image.read_ptr(record + 8)),
+                    f"0x{image.read_u32(record + 0x10):x}",
+                    w18,
+                )
+            )
         return header, rows
     header = "\t".join(["idx"] + [field.name for field in spec.fields])
     rows = []

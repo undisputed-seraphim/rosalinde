@@ -1,4 +1,4 @@
-idx	label	class_id	gender_id	variant	pad	w0c	w10	w18	w20	w28	chara_img	w38	w40
+idx	label	class_id	gender_id	variant	pad	w0c	w10	w18	w20	reserved28	chara_img	w38	w40
 0	なし	0	1	0	0	0	0xffffffff00000000	0x0	0x0	0x0		0x0	0x0
 1	プレイヤースタート	0	1	0	0	0	0xffffffff00000000	0x0	0x0	0x0		0x0	0x0
 2	主人公	1	1	0	0	4	0x100000007	0x90900000005	0x0	0x0	CharaImgALN	0x3bf	0x0
