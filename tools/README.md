@@ -220,11 +220,16 @@ files.
 Common options:
 
 ```text
-d PATH [--json] [--full] [--limit N]
+d PATH [--json] [--full] [--stats] [--limit N]
 ```
 
 - `--json` produces a machine-readable document
 - `--full` expands text output
+- `--stats` emits compact aggregate summaries instead of row streams. UCB
+  reports occupancy, object/entry ranges and per-object/per-entry cell counts;
+  UFB reports header counts plus its asset/object/tile/region string tables;
+  OTM reports per-file event-kind, event-flag, cue-type, cue-flag and cue-param
+  histograms.
 - `--limit N` caps rows/nodes/tracks/sequences/frames
 
 MBS sequence queries also accept `--timeline` and `--colors`; both require

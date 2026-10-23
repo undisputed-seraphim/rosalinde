@@ -12,11 +12,13 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 DEFAULT_ASBRUN = Path("build/tools/asb/asbrun")
 DEFAULT_ROSALINDE = Path("build/rosalinde")
 DEFAULT_OUT = Path("viewer/data/generated")
+CPK_CENSUS = Path(__file__).with_name("cpk_census.py")
 
 EXPECTED = {
     "stages.tsv": 103,
@@ -29,6 +31,13 @@ EXPECTED = {
     "uc_enums.tsv": 4099,
     "chara_table.tsv": 47,
     "battlebgs.tsv": 166,
+    "field_assets.tsv": 39,
+    "field_names.tsv": 520,
+    "field_objects.tsv": 192,
+    "field_entries.tsv": 1479,
+    "field_ucb.tsv": 1,
+    "otm_files.tsv": 1500,
+    "otm_enums.tsv": 137,
 }
 
 
@@ -99,6 +108,27 @@ def run_export(asbrun, cpk, out_dir):
     for name in ("uc_enums.tsv", "chara_table.tsv", "battlebgs.tsv"):
         if not (out_dir / name).exists():
             raise BuildError(f"CPK export did not produce {name}")
+
+
+def run_census(rosalinde, cpk, out_dir):
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(CPK_CENSUS),
+            "--cpk",
+            str(cpk),
+            "--rosalinde",
+            str(rosalinde),
+            "--out",
+            str(out_dir),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise BuildError(f"CPK census failed ({result.returncode}):\n{result.stderr}")
+    print(result.stdout, end="", flush=True)
 
 
 def enum_map(path):
@@ -210,6 +240,7 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     run_export(Path(args.asbrun), cpk, out_dir)
+    run_census(Path(args.rosalinde), cpk, out_dir)
     enums = enum_map(out_dir / "uc_enums.tsv")
     class_names = [name for name, _ in enums.get("CLASSTYPE", [])]
     chara_names = [name for name, _ in enums.get("CHARASET", [])]

@@ -88,6 +88,12 @@ applied:
 - **Facility table** `0x27b31b0`, stride `0x90`, 485 entries: Japanese label `+8`,
   position `+0x1c/+0x20`; index-aligned with `ST_FACILITYID` (485 entries).
   → `viewer/data/generated/facility_pos.tsv`
+- **Field/audio census**: `tools/cpk_census.py` asks the in-memory rosalinde
+  inspectors for compact summaries (`d ... --json --stats`) and writes
+  `field_assets.tsv`, `field_names.tsv`, `field_objects.tsv`,
+  `field_entries.tsv`, `field_ucb.tsv`, `otm_files.tsv`, and `otm_enums.tsv`.
+  It joins UCB object ids to UFB object names and aggregates OTM event/cue
+  enums across the OTM corpus; it does not parse binary layouts itself.
 - **Drop tables** `0x26e5d30`, stride `0x18`, 733 entries: `start/count` at
   `+0x10/+0x14`; entries at `0xaee6d0`, stride `0x10`: item id `+0`, weight `+4`,
   count `+8`, add index `+0xc`. Joined with `_UcEnum_DropTable.inc` (733) and

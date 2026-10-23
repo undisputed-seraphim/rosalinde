@@ -21,6 +21,77 @@ size_t row_limit(const options& opt, size_t rows) {
 	return std::min<size_t>(rows, 10);
 }
 
+
+void write_ufb_header(json_writer& json, const ufb::file& file) {
+	json.field("version", file.hdr.version);
+	json.field("header_size", file.hdr.header_size);
+	json.field("flags", file.hdr.flags);
+	json.field("cell_size", file.hdr.cell_size);
+	json.field("width", file.hdr.width);
+	json.field("height", file.hdr.height);
+	json.field("min_x", file.hdr.min_x);
+	json.field("min_y", file.hdr.min_y);
+	json.field("max_x", file.hdr.max_x);
+	json.field("max_y", file.hdr.max_y);
+	json.field("size_x", file.hdr.size_x);
+	json.field("size_y", file.hdr.size_y);
+	json.field("cell_count", file.hdr.cell_count);
+	json.field("count_44", file.hdr.count_44);
+	json.field("count_48", file.hdr.count_48);
+	json.field("count_4c", file.hdr.count_4c);
+	json.field("count_50", file.hdr.count_50);
+	json.field("count_54", file.hdr.count_54);
+	json.field("count_58", file.hdr.count_58);
+	json.field("count_5c", file.hdr.count_5c);
+	json.field("asset_count", file.hdr.asset_count);
+	json.field("object_name_count", file.hdr.object_name_count);
+	json.field("tile_name_count", file.hdr.tile_name_count);
+	json.field("region_name_count", file.hdr.region_name_count);
+	json.field("record_count", file.records.size());
+	json.field("string_count", file.strings.size());
+	json.field("strings_offset", file.strings_offset);
+}
+
+int dump_ufb_stats(const context& ctx, const ufb::file& file) {
+	if (ctx.opt.json) {
+		json_writer json(std::cout);
+		json.begin_object();
+		write_metadata_json(json, ctx, "ufb");
+		write_ufb_header(json, file);
+		json.begin_array("assets");
+		for (const auto& asset : file.assets) {
+			json.begin_object();
+			json.field("main", asset.main);
+			json.field("texture", asset.texture);
+			json.end_object();
+		}
+		json.end_array();
+		json.begin_array("object_names");
+		for (const auto& name : file.object_names)
+			json.string(name);
+		json.end_array();
+		json.begin_array("tile_names");
+		for (const auto& name : file.tile_names)
+			json.string(name);
+		json.end_array();
+		json.begin_array("region_names");
+		for (const auto& name : file.region_names)
+			json.string(name);
+		json.end_array();
+		json.end_object();
+		std::cout << '\n';
+		return 0;
+	}
+
+	write_metadata_text(ctx, "ufb");
+	std::cout << "version=" << file.hdr.version << " grid=" << file.hdr.width << "x" << file.hdr.height
+			  << " cell_size=" << file.hdr.cell_size << " cells=" << file.hdr.cell_count
+			  << " records=" << file.records.size() << " strings=" << file.strings.size() << " assets="
+			  << file.assets.size() << " objects=" << file.object_names.size() << " tiles=" << file.tile_names.size()
+			  << " regions=" << file.region_names.size() << '\n';
+	return 0;
+}
+
 } // namespace
 
 int dump_ufb(const context& ctx, std::span<char> data) {
@@ -30,6 +101,8 @@ int dump_ufb(const context& ctx, std::span<char> data) {
 		return 1;
 	}
 	const auto& file = *parsed;
+	if (ctx.opt.stats)
+		return dump_ufb_stats(ctx, file);
 	const size_t record_limit = row_limit(ctx.opt, file.records.size());
 	const size_t string_limit = row_limit(ctx.opt, file.strings.size());
 

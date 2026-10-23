@@ -22,6 +22,7 @@ namespace dump {
 struct options {
 	bool json = false;
 	bool full = false;
+	bool stats = false;
 	bool limit_set = false;
 	size_t limit = 10;
 	bool timeline = false;
