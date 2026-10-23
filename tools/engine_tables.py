@@ -81,7 +81,7 @@ TABLES = (
         0x285D9F8,
         0x10,
         103,
-        (Field("name", 0, "strptr"), Field("cue", 8, "i32")),
+        (Field("name", 0, "strptr"), Field("bgm_cue_id", 8, "i32")),
         kind="stage_cue",
         file="stage_cues.tsv",
         source="tools/dump_stage_tables.py; DATA_SOURCES.md",
@@ -360,18 +360,18 @@ TABLES = (
         185,
         (
             Field("id", 0, "u32"),
-            Field("w04", 4, "hex32"),
-            Field("w08", 8, "hex32"),
-            Field("w0c", 0xC, "hex32"),
-            Field("w10", 0x10, "hex32"),
+            Field("se_id_0", 4, "hex32"),
+            Field("se_id_1", 8, "hex32"),
+            Field("se_id_2", 0xC, "hex32"),
+            Field("se_id_3", 0x10, "hex32"),
             Field("reserved", 0x14, "hex32"),
             Field("name", 0x18, "strptr"),
         ),
         kind="stage_effect",
         file="stage_effect_table.tsv",
         confidence="confirmed",
-        source="FUN_00327e30 return +0x18 string; FUN_00327d10 id search; 185 rows",
-        notes="dsp_out_* display effect rows.",
+        source="FUN_00327e30 return +0x18 string; FUN_00327d10 id search; FUN_0032a468 playback; 185 rows",
+        notes="dsp_out_* display-effect rows. `se_id_0..3` are Sound/se.acb cue ids; every nonzero value resolves in the SE cue table. se_id_0 is always played, se_id_1/se_id_2 are optional (-1 = absent), and se_id_3 is played by the conditional FUN_00327e1c path.",
     ),
     TableSpec(
         "unit_name",
@@ -809,7 +809,7 @@ def dump_stage(image, spec, enums):
         record = spec.base + i * spec.stride
         name = image.read_cstr(image.read_ptr(record))
         rows.append((name, image.read_i32(record + 0xC), cues.get(name, -1), image.read_i32(record + 0x10)))
-    return "# stage\tbase_lv\tcue\tcountry", rows
+    return "# stage\tbase_lv\tbgm_cue_id\tcountry", rows
 
 
 def dump_class(image, spec, enums):
@@ -969,7 +969,7 @@ def dump_raw(image, spec):
         ]
         return header, rows
     if spec.kind == "stage_cue":
-        header = "idx\tname\tcue"
+        header = "idx\tname\tbgm_cue_id"
         rows = [
             (i, image.read_cstr(image.read_ptr(spec.base + i * spec.stride)), image.read_i32(spec.base + i * spec.stride + 8))
             for i in range(spec.count)

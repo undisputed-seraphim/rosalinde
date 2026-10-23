@@ -1,4 +1,4 @@
-# stage	base_lv	cue	country (generated from raw stage tables)
+# stage	base_lv	bgm_cue_id	country (generated from raw stage tables)
 ST_OW_C_0	1	700	2
 ST_OW_C_1	2	820	2
 ST_OW_C_2	4	700	2

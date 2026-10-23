@@ -265,10 +265,10 @@ def main():
         if len(row) >= 3
     ]
 
-    cue_by_name = {row["name"]: int(row["cue"]) for row in cue}
+    cue_by_name = {row["name"]: int(row["bgm_cue_id"]) for row in cue}
     write_tsv(
         out_dir / "stages.tsv",
-        "# stage\tbase_lv\tcue\tcountry (generated from raw stage tables)",
+        "# stage\tbase_lv\tbgm_cue_id\tcountry (generated from raw stage tables)",
         [
             (row["name"], int(row["base_lv"]), cue_by_name.get(row["name"], -1), int(row["country"]))
             for row in stage

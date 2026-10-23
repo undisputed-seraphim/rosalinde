@@ -7,7 +7,7 @@ the ground truth for the joins below and are not rewritten by the join step.
 ## Raw inputs
 
 - `stage_table.tsv` — stage name, base level, country
-- `stage_cue_table.tsv` — stage name and cue id
+- `stage_cue_table.tsv` — stage name and `bgm_cue_id`; all 103 ids resolve in `Sound/bgm.acb`
 - `facility_table.tsv` — `idx label town x y`; `town` is the string at `+0x80`
 - `class_table.tsv` — `idx base_class_id w04 mbs_m ftx_m mbs_f ftx_f
   icon_mbs_m icon_ftx_m icon_mbs_f icon_ftx_f w48 w4c w50 w54`.
@@ -50,7 +50,9 @@ the ground truth for the joins below and are not rewritten by the join step.
   quest setup code; the three requirement pairs are the `FUN_0021ce74` /
   `FUN_0021ce10` getter outputs.
 - `stage_effect_table.tsv` — 185 display-effect rows:
-  `idx id w04 w08 w0c w10 reserved name`; `reserved` is zero in all rows.
+  `idx id se_id_0 se_id_1 se_id_2 se_id_3 reserved name`. The four `se_id_*`
+  fields are `Sound/se.acb` cue ids; every nonzero value resolves in the SE cue
+  table, and `0xffffffff` means absent. `reserved` is zero in all rows.
 - `unit_name_table.tsv` — 149 unit/character rows:
   `idx key label w10 w18`; the last row's `w18` is blank because the following
   `name_pool_table.tsv` starts at `unit_name` row 148 `+0x18`.
@@ -125,7 +127,8 @@ treating the pointer values themselves as new data.
 
 ## Generated outputs
 
-- `stages.tsv` — `stage_table` joined with `stage_cue_table` by stage name.
+- `stages.tsv` — `stage_table` joined with `stage_cue_table` by stage name;
+  its third column is the verified `bgm_cue_id`.
 - `facility_pos.tsv` — `facility_table` with `ST_FACILITYID` keys by row index.
 - `drop_tables.tsv` — `drop_table` ranges expanded through `drop_entry_table`,
   then joined with `DROPTABLE` and `ITEMID`.

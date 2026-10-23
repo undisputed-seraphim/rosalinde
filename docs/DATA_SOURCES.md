@@ -75,8 +75,9 @@ applied:
 
 - **Stage table** `0x28920d0`, stride `0x50`, 103 entries: name `+0`, base level
   `+0xc`, country `+0x10`; **stage cue table** `0x285d9f8`, stride `0x10`, 103
-  entries: name `+0`, cue `+8`. Names are `ST_OW_*` and match the 103
-  `St_OW_*.asb` scripts. → `viewer/data/generated/stages.tsv`
+  entries: name `+0`, BGM cue id `+8`. Names are `ST_OW_*` and match the 103
+  `St_OW_*.asb` scripts; all 103 cue ids resolve in `Sound/bgm.acb`.
+  → `viewer/data/generated/stages.tsv`
 - **Field background catalog**: `FieldBG/Field.ufb` header `+0x60` is the asset
   count (39), followed by `main/texture` path pairs in the trailing string
   pool. The engine indexes the same pairs through `field_get_asset_record`
