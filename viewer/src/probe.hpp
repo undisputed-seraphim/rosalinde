@@ -33,5 +33,11 @@ private:
 	bool _enabled = false;
 };
 
-std::string scene_state_json(const asb::SceneState& scene);
-std::string scene_state_text(const asb::SceneState& scene);
+class MbsInfoCache;
+
+struct SceneReportContext {
+	const MbsInfoCache* mbs = nullptr;
+};
+
+std::string scene_state_json(const asb::SceneState& scene, const SceneReportContext& context = {});
+std::string scene_state_text(const asb::SceneState& scene, const SceneReportContext& context = {});

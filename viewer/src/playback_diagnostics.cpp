@@ -99,16 +99,19 @@ void PlaybackDiagnostics::write_record(const asb::SceneState& scene, const Scene
 				<< "}\n";
 }
 
-void PlaybackDiagnostics::write_scene_record(const asb::SceneState& scene, long frame) {
+void PlaybackDiagnostics::write_scene_record(
+	const asb::SceneState& scene,
+	long frame,
+	const SceneReportContext& context) {
 	if (!_record_out)
 		return;
-	*_record_out << "{\"frame\":" << frame << ",\"scene\":" << scene_state_json(scene) << "}\n";
+	*_record_out << "{\"frame\":" << frame << ",\"scene\":" << scene_state_json(scene, context) << "}\n";
 }
 
-void PlaybackDiagnostics::write_scene_probe(const asb::SceneState& scene) {
+void PlaybackDiagnostics::write_scene_probe(const asb::SceneState& scene, const SceneReportContext& context) {
 	const std::string json = "{\"frame\":" + std::to_string(scene.frame) + ",\"scene\":" +
-							 scene_state_json(scene) + ",\"renderer\":null}";
-	_probe.write_scene(scene.frame, json, scene_state_text(scene));
+							 scene_state_json(scene, context) + ",\"renderer\":null}";
+	_probe.write_scene(scene.frame, json, scene_state_text(scene, context));
 }
 
 long PlaybackDiagnostics::capture_target() const {

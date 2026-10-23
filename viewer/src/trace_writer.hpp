@@ -23,7 +23,8 @@ private:
 	void count_event();
 
 	bool _all = false;
-	std::ofstream _out;
+	std::ofstream _file;
+	std::ostream* _out = nullptr;
 	std::unordered_set<std::string> _categories;
 	std::vector<long> _frames;
 	std::vector<std::string> _objects;

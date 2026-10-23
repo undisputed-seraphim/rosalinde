@@ -2,82 +2,21 @@
 
 #include "asset_loader.hpp"
 #include "runtime_data.hpp"
-#include "sprite.hpp"
 #include "tables.hpp"
 
 #include <criware/cpk.hpp>
 #include <scarlett/asb.hpp>
 
-#include <algorithm>
 #include <span>
 #include <stdexcept>
-#include <unordered_map>
-
-namespace {
-
-long mbs_track_frames(const AssetLoader& loader, const std::string& mbs, int track_index) {
-	if (mbs.empty() || track_index < 0)
-		return 0;
-	static std::unordered_map<std::string, long> cache;
-	const std::string key = mbs + '\x1f' + std::to_string(track_index);
-	if (auto it = cache.find(key); it != cache.end())
-		return it->second;
-
-	long n = 0;
-	try {
-		if (auto p = loader.resolve(mbs)) {
-			const cpk::archive& cpk = loader.cpk();
-			if (auto e = cpk.find(p->dir, p->path); e != cpk.end()) {
-				std::vector<char> buf;
-				cpk.extract(*e, buf);
-				SpriteData data = SpriteData::load(
-					std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()), {});
-				n = track_duration_frames(data, track_index);
-			}
-		}
-	} catch (...) {
-		n = 0;
-	}
-	cache[key] = n;
-	return n;
-}
-
-int mbs_resolve_track(const AssetLoader& loader, const std::string& mbs, const std::string& name) {
-	if (mbs.empty() || name.empty())
-		return -1;
-	static std::unordered_map<std::string, int> cache;
-	const std::string key = mbs + '\x1f' + name;
-	if (auto it = cache.find(key); it != cache.end())
-		return it->second;
-
-	int index = -1;
-	try {
-		if (auto p = loader.resolve(mbs)) {
-			const cpk::archive& cpk = loader.cpk();
-			if (auto e = cpk.find(p->dir, p->path); e != cpk.end()) {
-				std::vector<char> buf;
-				cpk.extract(*e, buf);
-				SpriteData data = SpriteData::load(
-					std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buf.data()), buf.size()), {});
-				if (const auto* track = data.find_track(name))
-					index = static_cast<int>(track - data.tracks.data());
-			}
-		}
-	} catch (...) {
-		index = -1;
-	}
-	cache[key] = index;
-	return index;
-}
-
-} // namespace
 
 PlaybackRuntime::PlaybackRuntime(
 	const AssetLoader& loader,
 	const ViewerConfig& config,
 	TraceCallback trace,
 	NativeCallback native_call)
-	: _loader(loader) {
+	: _loader(loader)
+	, _mbs(loader) {
 	const cpk::archive& cpk = _loader.cpk();
 	const size_t slash = config.script.find_last_of('/');
 	const std::string dir = slash == std::string::npos ? "" : config.script.substr(0, slash);
@@ -99,10 +38,12 @@ PlaybackRuntime::PlaybackRuntime(
 	configure_host(_host, _runtime);
 	_host.set_call_log([](const std::string&) {});
 	_host.set_track_frames([this](const std::string& mbs, int index) {
-		return mbs_track_frames(_loader, mbs, index);
+		return _mbs.get(mbs).duration(index);
 	});
 	_host.set_resolve_track([this](const std::string& mbs, const std::string& name) {
-		return mbs_resolve_track(_loader, mbs, name);
+		if (name.empty())
+			return -1;
+		return _mbs.get(mbs).resolve(name);
 	});
 	_host.set_trace(std::move(trace));
 	_host.set_native_call(std::move(native_call));

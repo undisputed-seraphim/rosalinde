@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mbs_info.hpp"
 #include "runtime_data.hpp"
 #include "viewer_config.hpp"
 
@@ -33,9 +34,11 @@ public:
 	const std::string& error() const;
 	const asb::Module& module() const { return *_module; }
 	const std::string& entry_name() const { return _entry_name; }
+	const MbsInfoCache& mbs_info() const { return _mbs; }
 
 private:
 	const AssetLoader& _loader;
+	MbsInfoCache _mbs;
 	ViewerRuntimeData _runtime;
 	asb::Host _host;
 	std::shared_ptr<asb::Module> _module;

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <iostream>
 #include <utility>
 
 namespace {
@@ -19,13 +20,20 @@ std::string_view trim(std::string_view value) {
 } // namespace
 
 bool TraceWriter::open(const std::string& path, std::string_view categories) {
-	const auto parent = std::filesystem::path(path).parent_path();
-	if (!parent.empty())
-		std::filesystem::create_directories(parent);
-	_out.open(path, std::ios::binary | std::ios::trunc);
-	if (!_out) {
-		spdlog::error("cannot open trace file: {}", path);
-		return false;
+	_out = nullptr;
+	_file = std::ofstream{};
+	if (path == "-") {
+		_out = &std::cout;
+	} else {
+		const auto parent = std::filesystem::path(path).parent_path();
+		if (!parent.empty())
+			std::filesystem::create_directories(parent);
+		_file.open(path, std::ios::binary | std::ios::trunc);
+		if (!_file) {
+			spdlog::error("cannot open trace file: {}", path);
+			return false;
+		}
+		_out = &_file;
 	}
 	_categories.clear();
 	_all = categories.empty() || categories == "all";
@@ -53,7 +61,7 @@ void TraceWriter::set_filter(std::vector<long> frames, std::vector<std::string> 
 }
 
 bool TraceWriter::enabled(std::string_view kind) const {
-	return _out.is_open() && (_all || _categories.contains(std::string(kind)));
+	return _out != nullptr && (_all || _categories.contains(std::string(kind)));
 }
 
 bool TraceWriter::frame_allowed(long frame) const {
@@ -85,24 +93,24 @@ void TraceWriter::count_event() { ++_written; }
 void TraceWriter::write(const asb::TraceEvent& event) {
 	if (!enabled(event.kind) || !emit_allowed(event.frame, event.fields))
 		return;
-	_out << "{\"frame\":" << event.frame << ",\"kind\":\"" << asb::trace::quote(event.kind) << "\",\"event\":\""
-		 << asb::trace::quote(event.event) << '"';
+	*_out << "{\"frame\":" << event.frame << ",\"kind\":\"" << asb::trace::quote(event.kind) << "\",\"event\":\""
+		  << asb::trace::quote(event.event) << '"';
 	if (!event.fields.empty())
-		_out << ',' << event.fields;
-	_out << "}\n";
+		*_out << ',' << event.fields;
+	*_out << "}\n";
 	count_event();
 }
 
 void TraceWriter::write_native_call(const asb::NativeCall& call) {
 	if (!enabled("vm") || !emit_allowed(call.frame, call.name + " " + call.call, call.call))
 		return;
-	_out << "{\"frame\":" << call.frame << ",\"kind\":\"vm\",\"event\":\"call\",\"name\":\""
-		 << asb::trace::quote(call.name) << "\",\"call\":\"" << asb::trace::quote(call.call) << "\",\"caller\":\""
-		 << asb::trace::quote(call.caller) << "\",\"handled\":" << asb::trace::boolean(call.handled);
+	*_out << "{\"frame\":" << call.frame << ",\"kind\":\"vm\",\"event\":\"call\",\"name\":\""
+		  << asb::trace::quote(call.name) << "\",\"call\":\"" << asb::trace::quote(call.call) << "\",\"caller\":\""
+		  << asb::trace::quote(call.caller) << "\",\"handled\":" << asb::trace::boolean(call.handled);
 	if (!call.return_type.empty()) {
-		_out << ",\"return_type\":\"" << asb::trace::quote(call.return_type) << "\",\"return\":\""
-			 << asb::trace::quote(call.result) << '"';
+		*_out << ",\"return_type\":\"" << asb::trace::quote(call.return_type) << "\",\"return\":\""
+			  << asb::trace::quote(call.result) << '"';
 	}
-	_out << "}\n";
+	*_out << "}\n";
 	count_event();
 }

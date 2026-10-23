@@ -119,7 +119,7 @@ int main(int argc, char* argv[]) try {
 		"Headless: write the full scene state JSON at the stop frame")(
 		"trace",
 		::boost::program_options::value<std::string>(&config.trace),
-		"Write structured NDJSON events to this file")(
+		"Write structured NDJSON events to this file (or - for stdout)")(
 		"trace-categories",
 		::boost::program_options::value<std::string>(&config.trace_categories)->default_value("all"),
 		"Comma-separated trace categories: vm,stage,camera,asset,sprite,draw,timeline (default: all)")(
@@ -257,8 +257,13 @@ int main(int argc, char* argv[]) try {
 		spdlog::error("--max-frames must be positive");
 		return 1;
 	}
-	if (config.trace == "-") {
-		spdlog::error("--trace to stdout is not supported; use a file");
+	int stdout_sinks = 0;
+	for (const auto& path : {config.trace, config.record, config.state, config.state_json, config.calls,
+							config.calls_json})
+		if (path == "-")
+			++stdout_sinks;
+	if (stdout_sinks > 1) {
+		spdlog::error("only one of --trace/--record/--state/--state-json/--calls/--calls-json may write to stdout");
 		return 1;
 	}
 	if (!config.headless) {
@@ -275,18 +280,6 @@ int main(int argc, char* argv[]) try {
 		}
 		if (!config.capture_frames.empty()) {
 			spdlog::error("--capture-frames requires rendering; drop --headless");
-			return 1;
-		}
-		if (config.state == "-" && config.state_json == "-") {
-			spdlog::error("--state and --state-json cannot both write to stdout");
-			return 1;
-		}
-		int stdout_sinks = 0;
-		for (const auto& path : {config.record, config.state, config.state_json, config.calls, config.calls_json})
-			if (path == "-")
-				++stdout_sinks;
-		if (stdout_sinks > 1) {
-			spdlog::error("only one of --record/--state/--state-json/--calls/--calls-json may write to stdout");
 			return 1;
 		}
 		if (!config.only.empty() || !config.hide.empty() || config.keep_stage || config.initial_stage >= 0 ||

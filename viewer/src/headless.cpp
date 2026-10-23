@@ -47,6 +47,7 @@ int run_headless(const ViewerConfig& config) {
 		diagnostics.trace_callback(),
 		[&diagnostics](const asb::NativeCall& call) { diagnostics.observe_native(call); });
 	runtime.set_max_frames(config.max_frames);
+	const SceneReportContext report{&runtime.mbs_info()};
 
 	long target = -1;
 	if (config.run_to >= 0)
@@ -69,9 +70,9 @@ int run_headless(const ViewerConfig& config) {
 	}
 
 	if (diagnostics.probe_wanted(runtime.frame()))
-		diagnostics.write_scene_probe(runtime.scene());
+		diagnostics.write_scene_probe(runtime.scene(), report);
 	if (!config.record.empty() && runtime.frame() % config.record_every == 0)
-		diagnostics.write_scene_record(runtime.scene(), runtime.frame());
+		diagnostics.write_scene_record(runtime.scene(), runtime.frame(), report);
 
 	while (!runtime.finished() && runtime.frame() < target) {
 		const auto step = runtime.advance();
@@ -82,18 +83,18 @@ int run_headless(const ViewerConfig& config) {
 		}
 		const long frame = runtime.frame();
 		if (!config.record.empty() && frame % config.record_every == 0)
-			diagnostics.write_scene_record(runtime.scene(), frame);
+			diagnostics.write_scene_record(runtime.scene(), frame, report);
 		if (diagnostics.probe_wanted(frame))
-			diagnostics.write_scene_probe(runtime.scene());
+			diagnostics.write_scene_probe(runtime.scene(), report);
 		if (step == asb::RuntimeSession::StepResult::Limit)
 			break;
 	}
 
 	bool ok = true;
 	if (!config.state.empty())
-		ok &= write_output(config.state, scene_state_text(runtime.scene()));
+		ok &= write_output(config.state, scene_state_text(runtime.scene(), report));
 	if (!config.state_json.empty())
-		ok &= write_output(config.state_json, scene_state_json(runtime.scene()));
+		ok &= write_output(config.state_json, scene_state_json(runtime.scene(), report));
 	diagnostics.write_calls(runtime.module(), config.script, runtime.entry_name());
 
 	if (runtime.frame() < target)
