@@ -63,9 +63,13 @@ load_viewer_runtime_data(const cpk::archive& archive, const std::string& chara_t
 	const std::filesystem::path charaset = base / "charaset.tsv";
 	const std::filesystem::path classes = base / "classes.tsv";
 	const std::filesystem::path charanpc = base / "charanpc_assets.tsv";
+	const std::filesystem::path variants = base / "variants.tsv";
 	if (std::filesystem::exists(charaset) && std::filesystem::exists(classes)) {
 		data.chara_sets = asb::load_chara_set(
-			charaset.string(), classes.string(), std::filesystem::exists(charanpc) ? charanpc.string() : std::string());
+			charaset.string(),
+			classes.string(),
+			std::filesystem::exists(charanpc) ? charanpc.string() : std::string(),
+			std::filesystem::exists(variants) ? variants.string() : std::string());
 	}
 
 	const std::filesystem::path enums = base / "uc_enums.tsv";

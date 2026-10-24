@@ -67,6 +67,7 @@ struct RuntimeEntity {
 	bool action_active = false;
 	long action_end_frame = -1;
 	bool started = false;
+	uint32_t variant_flags = 0xFFFFFFFFu; // s4.attributes mask for layer selection
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	float scale = 1.0f;
 	float dir_x = 1.0f;	 // facing: -1 mirrored, +1 default

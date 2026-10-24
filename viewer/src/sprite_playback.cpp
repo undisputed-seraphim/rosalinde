@@ -46,7 +46,7 @@ void SpritePlayback::reset(
 		for (uint32_t i : select_background_tracks(asset->data.v77)) {
 			if (!track_usable(asset->data, static_cast<int>(i)))
 				continue;
-			instances.emplace_back(&asset->data, i, 0xFFFFFFFFu);
+			instances.emplace_back(&asset->data, i, state.variant_flags);
 			instances.back().playback.hold_finished = hold_finished;
 			instances.back().background = true;
 			instances.back().character = character;
@@ -60,7 +60,7 @@ void SpritePlayback::reset(
 		if (track < 0)
 			return;
 		track_index = track;
-		instances.emplace_back(&asset->data, static_cast<uint32_t>(track), 0xFFFFFFFFu);
+		instances.emplace_back(&asset->data, static_cast<uint32_t>(track), state.variant_flags);
 		instances.back().playback.hold_finished = hold_finished;
 		instances.back().character = character;
 		instances.back().mone = stateful_mone(track);

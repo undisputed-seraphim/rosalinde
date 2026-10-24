@@ -12,6 +12,10 @@ game's own selection could not be found in any CPK file.
 
 It *is* in the game — in the **executable**, not the CPK.
 
+The viewer loads `variants.tsv` through `load_chara_set`; the mask is stored on
+`CharaInfo`, copied to `RuntimeEntity::variant_flags`, and used by
+`SpriteInstance` for layer selection.
+
 ## Where the data lives
 
 `main` (the game NSO, ExeFS) is a **compressed** NSO: three LZ4-compressed

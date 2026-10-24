@@ -335,6 +335,7 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 	if (e.space == RuntimeEntity::Space::Ui)
 		e.alpha = 0;
 	e.aliases = names;
+	e.variant_flags = 0xFFFFFFFFu;
 	// DrUiCreateChara carries the asset pair explicitly (ftx, mbs, label,
 	// chara-set name). World characters instead resolve through the CharaSet
 	// appearance table; keep that path separate.
@@ -343,13 +344,17 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 			e.mbs = names[2];
 			e.ftx = names[3];
 		}
-	} else if (_chara_sets) {
+	}
+	if (_chara_sets) {
 		for (const auto& n : names) {
 			if (n.empty())
 				continue;
 			if (const CharaInfo* ci = _chara_sets->resolve(n)) {
-				e.mbs = ci->mbs;
-				e.ftx = ci->ftx;
+				if (e.mbs.empty()) {
+					e.mbs = ci->mbs;
+					e.ftx = ci->ftx;
+				}
+				e.variant_flags = ci->variant_flags;
 				break;
 			}
 		}
@@ -361,6 +366,7 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 		if (it != _chars->end()) {
 			e.mbs = it->second.mbs;
 			e.ftx = it->second.ftx;
+			e.variant_flags = it->second.variant_flags;
 		}
 	}
 	for (const auto& n : names)
