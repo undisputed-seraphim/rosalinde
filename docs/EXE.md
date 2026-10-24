@@ -903,8 +903,15 @@ listed in `viewer/data/README.md`. Unknown words are intentionally retained as
 
 > Coverage note: the encounter records are a real `0x88`-stride array at
 > `0x27e3100` (2859 rows, accessor `FUN_002a7358`). The adjacent stage-map data
-> at `0x27e2fa8` is a five-country symbol/name graph, not a uniform row table,
-> and is not dumped yet.
+> at `0x27e2fa8` is a five-country symbol/name graph, not a uniform row table;
+> its first field points at a per-country point list.
+
+The world-map quest markers are 30 × `0x20` records at `0x27e2660`
+(`x0/y0` at `+0`, `quest_id` at `+8`, icon at `+0xc`, `marker_id` at `+0x10`,
+`x1/y1` at `+0x14`, scale at `+0x1c`). `FUN_002a6f70` is a radius query over
+the 30 nodes and `FUN_002a6b94` maps a quest id to its node index. Encounter
+rows carry six `0xC` character slots at `+0x3c`; byte `+9` bit 0 enables a
+slot.
 
 ---
 

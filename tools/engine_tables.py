@@ -648,6 +648,51 @@ TABLES = (
         notes="`talk_part` is the 1/2/3 conversation part within an FT script; `facility_id` indexes facility_table; `x`/`y` are the conversation trigger position near that facility. `w18` is the global talk order; w1c/w20 remain unresolved.",
     ),
     TableSpec(
+        "map_node",
+        0x27E2660,
+        0x20,
+        30,
+        (
+            Field("x0", 0x00, "f32"),
+            Field("y0", 0x04, "f32"),
+            Field("quest_id", 0x08, "u32"),
+            Field("icon", 0x0C, "u32"),
+            Field("marker_id", 0x10, "u32"),
+            Field("x1", 0x14, "f32"),
+            Field("y1", 0x18, "f32"),
+            Field("scale", 0x1C, "f32"),
+        ),
+        kind="rows",
+        file="map_node_table.tsv",
+        confidence="confirmed",
+        source="FUN_002a6f70 radius query; FUN_002a6b94 quest-id lookup; 30 rows",
+        notes="World-map quest markers. +0/+4 is the map position, +0x14/+0x18 the label position, +0x1c the marker scale.",
+    ),
+    TableSpec(
+        "country_path",
+        0x27E2FA8,
+        0x18,
+        5,
+        (),
+        kind="country_path",
+        file="country_path_table.tsv",
+        confidence="confirmed",
+        source="five rows at 0x27e2fa8: pointer to an XY path, Japanese label, value",
+        notes="Each row points at a float XY polyline; the next row's pointer delimits the previous path.",
+    ),
+    TableSpec(
+        "encounter_slot",
+        0x27E3100,
+        0x88,
+        0xB2B,
+        (),
+        kind="encounter_slot",
+        file="encounter_slot_table.tsv",
+        confidence="confirmed",
+        source="FUN_002a7294: encounter+0x3c+slot*0xc, six slots per encounter",
+        notes="Six CharaSet reference slots per encounter. Byte +9 bit 0 is the enable flag; normally one slot is enabled.",
+    ),
+    TableSpec(
         "encounter",
         0x27E3100,
         0x88,
@@ -830,6 +875,9 @@ RAW_FILES = {
     "item": "item_table.tsv",
     "story_name": "story_name_table.tsv",
     "friendship_talk": "friendship_talk_table.tsv",
+    "map_node": "map_node_table.tsv",
+    "country_path": "country_path_table.tsv",
+    "encounter_slot": "encounter_slot_table.tsv",
     "encounter": "encounter_table.tsv",
     "deliver_list": "deliver_list_table.tsv",
     "shop_asset": "shop_asset_table.tsv",
@@ -1066,7 +1114,7 @@ def render_table(image, spec, enums):
         return dump_bbs(image, spec, enums)
     if spec.kind == "field_cue":
         return dump_field_cue(image, spec, enums)
-    if spec.kind in ("chara_stat_group", "coat_of_arms"):
+    if spec.kind in ("chara_stat_group", "coat_of_arms", "country_path", "encounter_slot"):
         return dump_raw(image, spec)
     return dump_rows(image, spec, enums)
 
@@ -1287,6 +1335,41 @@ def dump_raw(image, spec):
         for part, base, count in COAT_OF_ARMS:
             for i in range(count):
                 rows.append((part, i, image.read_cstr(image.read_ptr(base + i * 8))))
+        return header, rows
+    if spec.kind == "country_path":
+        header = "country\tidx\tx\ty"
+        rows = []
+        for i in range(spec.count):
+            row = spec.base + i * spec.stride
+            start = image.read_ptr(row)
+            end = image.read_ptr(row + spec.stride) if i + 1 < spec.count else spec.base
+            label = image.read_cstr(image.read_ptr(row + 8))
+            count = max(0, (end - start) // 8)
+            if i + 1 == spec.count:
+                for j in range(count):
+                    if image.read_f32(start + j * 8) == 0.0 and image.read_f32(start + j * 8 + 4) == 0.0:
+                        count = j
+                        break
+            for j in range(count):
+                rows.append((label, j, image.read_f32(start + j * 8), image.read_f32(start + j * 8 + 4)))
+        return header, rows
+    if spec.kind == "encounter_slot":
+        header = "encounter\tslot\tcharaset_id\tw4\tw8\tenabled"
+        rows = []
+        for i in range(spec.count):
+            row = spec.base + i * spec.stride
+            for slot in range(6):
+                entry = row + 0x3C + slot * 0xC
+                rows.append(
+                    (
+                        i,
+                        slot,
+                        image.read_u32(entry),
+                        image.read_u32(entry + 4),
+                        f"0x{image.read_u32(entry + 8):x}",
+                        1 if image.read_u8(entry + 9) & 1 else 0,
+                    )
+                )
         return header, rows
     header = "\t".join(["idx"] + [field.name for field in spec.fields])
     rows = []

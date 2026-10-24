@@ -115,6 +115,16 @@ the ground truth for the joins below and are not rewritten by the join step.
 - `encounter_table.tsv` — 2859 encounter/unit rows (`0x27e3100`, stride
   `0x88`): `idx id w04 name w10..w2c label w38..w84`. `name` is the
   `SAMPLE_E_*`/`OW_*` key and `label` is the Japanese unit name.
+- `encounter_slot_table.tsv` — 17,154 rows (2859 encounters × 6 slots):
+  `encounter slot charaset_id w4 w8 enabled`. Each slot is a CharaSet
+  reference; byte `+9` bit 0 is the enable flag, and normally exactly one slot
+  is enabled per encounter.
+- `map_node_table.tsv` — 30 world-map quest markers (`0x27e2660`, stride
+  `0x20`): `idx x0 y0 quest_id icon marker_id x1 y1 scale`. `x0/y0` is the
+  map position, `x1/y1` the label position, and `quest_id` is the quest row id.
+- `country_path_table.tsv` — 175 points across the five engine point lists
+  (`0x27e2a20`; labels end in `採掘場`): `country idx x y`. Each row of the
+  five-row table at `0x27e2fa8` points at the first point of its list.
 - `deliver_list_table.tsv` — 20 shop/deliver rows (`0x27c4460`, stride
   `0x28`): `idx key label w10..w24`. Row 0 is the `UNKNOWN` sentinel; the
   remaining keys are `WEAPON_START`, `C0_WEAPON_0`, ...
