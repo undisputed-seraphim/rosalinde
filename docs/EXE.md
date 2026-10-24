@@ -894,7 +894,7 @@ damage code, `FUN_0021c878` by movement/pathfinding code, and both return
 
 The character level/stat cluster at `0xce972c..0xcea8c8` is dumped as
 `chara_level_curve_table.tsv`, `chara_stat_curve_a/b_table.tsv`,
-`chara_stat_group_table.tsv`, `chara_class_values_table.tsv`,
+`chara_stat_group_table.tsv`, `chara_class_items_table.tsv`,
 `chara_level_stats_table.tsv`, and `chara_level_growth_table.tsv`.
 
 All of the above are dumped raw into `viewer/data`; the exact TSV headers are
@@ -907,11 +907,14 @@ listed in `viewer/data/README.md`. Unknown words are intentionally retained as
 > its first field points at a per-country point list.
 
 The world-map quest markers are 30 × `0x20` records at `0x27e2660`
-(`x0/y0` at `+0`, `quest_id` at `+8`, icon at `+0xc`, `marker_id` at `+0x10`,
-`x1/y1` at `+0x14`, scale at `+0x1c`). `FUN_002a6f70` is a radius query over
-the 30 nodes and `FUN_002a6b94` maps a quest id to its node index. Encounter
-rows carry six `0xC` character slots at `+0x3c`; byte `+9` bit 0 enables a
-slot.
+(`x0/y0` at `+0`, `quest_id` at `+8`, `icon_id` at `+0xc`, `marker_id` at
+`+0x10`, `x1/y1` at `+0x14`, scale at `+0x1c`). `FUN_002a6f70` is a radius
+query over the 30 nodes and `FUN_002a6b94` maps a quest id to its node index.
+Encounter rows carry six `0xC` character slots at `+0x3c`: `{charaset_id,
+w4, packed}` where the low byte of `packed` is a level offset and the high
+byte is flags (`&1` = enabled). Encounter `+0x10` is a 1..4 formation slot,
+`+0x18` a CharaSet reference, `+0x20` a `stage_table` index, and `+0x84` the
+boss/hidden-encounter index.
 
 ---
 

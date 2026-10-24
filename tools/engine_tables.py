@@ -536,12 +536,12 @@ TABLES = (
         0x2737AE8,
         0x18,
         185,
-        (Field("path", 0, "strptr"), Field("label", 8, "strptr"), Field("w10", 0x10, "u32"), Field("f14", 0x14, "f32")),
+        (Field("path", 0, "strptr"), Field("label", 8, "strptr"), Field("flags", 0x10, "u32"), Field("scale", 0x14, "f32")),
         kind="bbs",
         file="bbs.tsv",
         confidence="confirmed",
         source="relocation slots at 0x2737ae8; DrCreateStage",
-        notes="Real {path,label,w10,f14} rows. The previous 0x8827c8 base was inside .rela.dyn; only path and label were valid there.",
+        notes="Real {path,label,flags,scale} rows. The previous 0x8827c8 base was inside .rela.dyn; only path and label were valid there.",
     ),
     TableSpec(
         "field_cue",
@@ -656,7 +656,7 @@ TABLES = (
             Field("x0", 0x00, "f32"),
             Field("y0", 0x04, "f32"),
             Field("quest_id", 0x08, "u32"),
-            Field("icon", 0x0C, "u32"),
+            Field("icon_id", 0x0C, "u32"),
             Field("marker_id", 0x10, "u32"),
             Field("x1", 0x14, "f32"),
             Field("y1", 0x18, "f32"),
@@ -697,10 +697,23 @@ TABLES = (
         0x27E3100,
         0x88,
         0xB2B,
-        (Field("id", 0, "u32"), Field("w04", 4, "u32"), Field("name", 8, "strptr"))
-        + tuple(Field(f"w{i:02x}", i, "u32") for i in range(0x10, 0x30, 4))
-        + (Field("label", 0x30, "strptr"),)
-        + tuple(Field(f"w{i:02x}", i, "u32") for i in range(0x38, 0x88, 4)),
+        (
+            Field("id", 0, "u32"),
+            Field("w04", 4, "u32"),
+            Field("name", 8, "strptr"),
+            Field("formation_slot", 0x10, "u32"),
+            Field("faction_id", 0x14, "u32"),
+            Field("chara_set_id", 0x18, "u32"),
+            Field("w1c", 0x1C, "u32"),
+            Field("stage_id", 0x20, "u32"),
+            Field("w24", 0x24, "u32"),
+            Field("w28", 0x28, "u32"),
+            Field("w2c", 0x2C, "u32"),
+            Field("label", 0x30, "strptr"),
+            Field("w38", 0x38, "u32"),
+        )
+        + tuple(Field(f"w{i:02x}", i, "u32") for i in range(0x3C, 0x84, 4))
+        + (Field("boss_index", 0x84, "u32"),),
         kind="rows",
         file="encounter_table.tsv",
         confidence="confirmed",
@@ -712,13 +725,21 @@ TABLES = (
         0x27C4460,
         0x28,
         20,
-        (Field("key", 0, "strptr"), Field("label", 8, "strptr"))
-        + tuple(Field(f"w{i:02x}", i, "u32") for i in range(0x10, 0x28, 4)),
+        (
+            Field("key", 0, "strptr"),
+            Field("label", 8, "strptr"),
+            Field("shop_kind", 0x10, "hex32"),
+            Field("shop_type", 0x14, "hex32"),
+            Field("facility_id", 0x18, "hex32"),
+            Field("shop_group", 0x1C, "hex32"),
+            Field("reserved0", 0x20, "hex32"),
+            Field("reserved4", 0x24, "hex32"),
+        ),
         kind="rows",
         file="deliver_list_table.tsv",
         confidence="confirmed",
         source="FUN_001a91c8: base + id * 0x28; row 0 is the UNKNOWN sentinel",
-        notes="Shop/deliver entries. Keys are WEAPON_START/C0_WEAPON_0/...; w10..w24 retain the numeric columns.",
+        notes="Shop/deliver entries. facility_id indexes the facility table; shop_kind/shop_type/shop_group are shop-type fields. reserved0/reserved4 are zero.",
     ),
     TableSpec(
         "shop_asset",
@@ -781,16 +802,16 @@ TABLES = (
         notes="Twelve floats per slot.",
     ),
     TableSpec(
-        "chara_class_values",
+        "chara_class_items",
         0xCEA240,
         0xC,
         56,
-        tuple(Field(f"v{i}", i * 2, "u16") for i in range(6)),
+        tuple(Field(f"item{i}", i * 2, "u16") for i in range(6)),
         kind="rows",
-        file="chara_class_values_table.tsv",
+        file="chara_class_items_table.tsv",
         confidence="confirmed",
-        source="FUN_0011ad84: base + row * 0xc + column * 2",
-        notes="Six u16 values per row.",
+        source="FUN_0011ad84: base + row * 0xc + item_slot * 2; used as item ids by FUN_000d4a5c",
+        notes="Six default item ids per class/model row.",
     ),
     TableSpec(
         "chara_level_stats",
@@ -885,7 +906,7 @@ RAW_FILES = {
     "chara_stat_curve_a": "chara_stat_curve_a_table.tsv",
     "chara_stat_curve_b": "chara_stat_curve_b_table.tsv",
     "chara_stat_group": "chara_stat_group_table.tsv",
-    "chara_class_values": "chara_class_values_table.tsv",
+    "chara_class_items": "chara_class_items_table.tsv",
     "chara_level_stats": "chara_level_stats_table.tsv",
     "chara_level_growth": "chara_level_growth_table.tsv",
     "coat_of_arms": "coat_of_arms_table.tsv",
@@ -1227,7 +1248,7 @@ def dump_raw(image, spec):
             )
         return header, rows
     if spec.kind == "bbs":
-        header = "idx\tpath\tlabel\tw10\tf14"
+        header = "idx\tpath\tlabel\tflags\tscale"
         rows = []
         for i in range(spec.count):
             record = spec.base + i * spec.stride
@@ -1354,20 +1375,23 @@ def dump_raw(image, spec):
                 rows.append((label, j, image.read_f32(start + j * 8), image.read_f32(start + j * 8 + 4)))
         return header, rows
     if spec.kind == "encounter_slot":
-        header = "encounter\tslot\tcharaset_id\tw4\tw8\tenabled"
+        header = "encounter\tslot\tcharaset_id\tw4\tlevel_offset\tflags\tenabled"
         rows = []
         for i in range(spec.count):
             row = spec.base + i * spec.stride
             for slot in range(6):
                 entry = row + 0x3C + slot * 0xC
+                packed = image.read_u32(entry + 8)
+                flags = (packed >> 8) & 0xFF
                 rows.append(
                     (
                         i,
                         slot,
                         image.read_u32(entry),
                         image.read_u32(entry + 4),
-                        f"0x{image.read_u32(entry + 8):x}",
-                        1 if image.read_u8(entry + 9) & 1 else 0,
+                        packed & 0xFF,
+                        flags,
+                        1 if flags & 1 else 0,
                     )
                 )
         return header, rows

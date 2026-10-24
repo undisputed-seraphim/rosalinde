@@ -1,4 +1,4 @@
-idx	path	label	w10	f14
+idx	path	label	flags	scale
 0	BattleBG/StBtRoad.bbs	道	1	1.0
 1	BattleBG/StBtRoad_1.bbs	橋	1	1.0
 2	BattleBG/StBtPlain.bbs	平原	1	1.0

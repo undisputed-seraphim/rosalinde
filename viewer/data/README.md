@@ -109,25 +109,32 @@ the ground truth for the joins below and are not rewritten by the join step.
   (default 100 when zero). The three 0x20-byte effect blocks start at `+0x2c`,
   `+0x4c`, and `+0x6c`; each stores its effect id at block `+0xc` and its
   float value at block `+0x10`.
-- `bbs_table.tsv` — 185 BattleBG rows: `idx path label w10 f14`. The table
+- `bbs_table.tsv` — 185 BattleBG rows: `idx path label flags scale`. The table
   lives at `0x2737ae8` with stride `0x18`; the old `0x8827c8` base was inside
   `.rela.dyn` and misread relocation triples.
 - `encounter_table.tsv` — 2859 encounter/unit rows (`0x27e3100`, stride
-  `0x88`): `idx id w04 name w10..w2c label w38..w84`. `name` is the
-  `SAMPLE_E_*`/`OW_*` key and `label` is the Japanese unit name.
+  `0x88`): `idx id w04 name formation_slot faction_id chara_set_id w1c
+  stage_id w24 w28 w2c label w38 w3c..w80 boss_index`. `name` is the
+  `SAMPLE_E_*`/`OW_*` key and `label` is the Japanese army/unit name.
+  `formation_slot` is 1..4 (used with the formation config helpers),
+  `faction_id` is 0..4 and tracks the army label, `chara_set_id` references
+  `charaset_table`, `stage_id` indexes `stage_table`, and `boss_index` is the
+  boss/hidden-encounter sequence. `w1c`/`w24`/`w28`/`w2c` remain opaque.
 - `encounter_slot_table.tsv` — 17,154 rows (2859 encounters × 6 slots):
-  `encounter slot charaset_id w4 w8 enabled`. Each slot is a CharaSet
-  reference; byte `+9` bit 0 is the enable flag, and normally exactly one slot
-  is enabled per encounter.
+  `encounter slot charaset_id w4 level_offset flags enabled`. Each slot is a
+  CharaSet reference; `level_offset` is the low byte of the word at `+8`,
+  `flags` is its high byte, and `enabled` is `flags & 1`. Normally exactly one
+  slot is enabled per encounter.
 - `map_node_table.tsv` — 30 world-map quest markers (`0x27e2660`, stride
-  `0x20`): `idx x0 y0 quest_id icon marker_id x1 y1 scale`. `x0/y0` is the
+  `0x20`): `idx x0 y0 quest_id icon_id marker_id x1 y1 scale`. `x0/y0` is the
   map position, `x1/y1` the label position, and `quest_id` is the quest row id.
 - `country_path_table.tsv` — 175 points across the five engine point lists
   (`0x27e2a20`; labels end in `採掘場`): `country idx x y`. Each row of the
   five-row table at `0x27e2fa8` points at the first point of its list.
 - `deliver_list_table.tsv` — 20 shop/deliver rows (`0x27c4460`, stride
-  `0x28`): `idx key label w10..w24`. Row 0 is the `UNKNOWN` sentinel; the
-  remaining keys are `WEAPON_START`, `C0_WEAPON_0`, ...
+  `0x28`): `idx key label shop_kind shop_type facility_id shop_group
+  reserved0 reserved4`. Row 0 is the `UNKNOWN` sentinel; `facility_id` indexes
+  `facility_table` and the remaining keys are `WEAPON_START`, `C0_WEAPON_0`, ...
 - `shop_asset_table.tsv` — 20 shop asset rows (`0x27c4280`, stride `0x18`):
   `idx mbs ftx dsp`. Row 0 is an empty sentinel.
 - `asset_manifest_table.tsv` — 104 global asset paths (`0x26e5470`): fonts,
@@ -143,8 +150,9 @@ the ground truth for the joins below and are not rewritten by the join step.
   two rows (`FUN_0011ab38`/`FUN_0011ac24`).
 - `chara_stat_group_table.tsv` — 7 groups × 4 slots × 12 floats
   (`0xce9d00`, accessor `FUN_0011ad10`).
-- `chara_class_values_table.tsv` — 56 rows × 6 u16 (`0xcea240`, stride
-  `0xc`); accessor `FUN_0011ad84`.
+- `chara_class_items_table.tsv` — 56 rows × 6 item ids (`0xcea240`, stride
+  `0xc`); accessor `FUN_0011ad84`, and the values are passed to
+  `item_get_record` by the character setup path.
 - `chara_level_stats_table.tsv` — 50 rows × 5 u32 (`0xcea4e0`, stride
   `0x14`); accessor `FUN_0011adb0`, used by the damage paths.
 - `chara_level_growth_table.tsv` — 50 rows × 6 u16 (`0xcea8c8`, stride

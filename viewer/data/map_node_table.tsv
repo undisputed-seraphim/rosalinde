@@ -1,4 +1,4 @@
-idx	x0	y0	quest_id	icon	marker_id	x1	y1	scale
+idx	x0	y0	quest_id	icon_id	marker_id	x1	y1	scale
 0	-2215	10604	173	0	30	-1616.5	11457	0.25
 1	-9097	8809	174	1	31	-9700	8748	0.27
 2	-1707	-443	175	2	32	-3058	-443	0.3
