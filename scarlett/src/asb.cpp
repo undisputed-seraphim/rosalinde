@@ -1314,8 +1314,7 @@ DropTables load_drop_tables(const std::string& drop_tables_tsv, const std::strin
 CharaSetTable load_chara_set(
 	const std::string& charaset_tsv,
 	const std::string& classes_tsv,
-	const std::string& charanpc_tsv,
-	const std::string& variants_tsv) {
+	const std::string& charanpc_tsv) {
 	auto split = [](const std::string& line) {
 		std::vector<std::string> c;
 		size_t s = 0;
@@ -1368,10 +1367,14 @@ CharaSetTable load_chara_set(
 			auto it = classes.find(cls + "_" + gender);
 			if (it == classes.end())
 				continue;
+			CharaInfo ci = it->second;
+			ci.appearance_variant = static_cast<uint32_t>(std::atoi(c[4].c_str()));
+			if (c.size() > 7 && !c[7].empty())
+				ci.appearance_mask = static_cast<uint32_t>(std::strtoul(c[7].c_str(), nullptr, 0));
 			if (!label.empty())
-				out.by_key.emplace(label, it->second);
+				out.by_key.emplace(label, ci);
 			if (!name.empty())
-				out.by_key.emplace(name, it->second);
+				out.by_key.emplace(name, std::move(ci));
 		}
 	}
 	// CharaNpc (NPCTYPE) table: key both the JP display name (what
@@ -1394,33 +1397,6 @@ CharaSetTable load_chara_set(
 					out.by_key.emplace(c[2], ci);
 				if (!c[1].empty())
 					out.by_key.emplace(c[1], ci);
-			}
-		}
-	}
-	// Generated appearance masks: key, CharaSet name, mask, JP label.
-	if (!variants_tsv.empty()) {
-		if (std::ifstream f{variants_tsv}) {
-			std::string line;
-			while (std::getline(f, line)) {
-				if (line.empty() || line[0] == '#')
-					continue;
-				auto c = split(line);
-				if (c.size() < 3)
-					continue;
-				char* end = nullptr;
-				const unsigned long mask = std::strtoul(c[2].c_str(), &end, 0);
-				if (end == c[2].c_str())
-					continue;
-				if (!c[1].empty()) {
-					auto it = out.by_key.find(c[1]);
-					if (it != out.by_key.end())
-						it->second.variant_flags = static_cast<uint32_t>(mask);
-				}
-				if (c.size() > 3 && !c[3].empty()) {
-					auto it = out.by_key.find(c[3]);
-					if (it != out.by_key.end())
-						it->second.variant_flags = static_cast<uint32_t>(mask);
-				}
 			}
 		}
 	}

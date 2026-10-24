@@ -53,20 +53,22 @@ engine resolves to class + appearance + colour.
 
 ## Resolution chains we can build
 
-- **Drama**: `dispName`/`charName` → `CharaOp` asset, via the `DrUiCreateChara`
-  calls found across the archive (`asbrun export chara` →
-  `viewer/data/generated/chara_table.tsv`).
+- **Drama**: world characters resolve through the CharaSet table to
+  `Chara/<Class>.mbs`. The only `DrUiCreateChara` calls with a `CharaOp` asset
+  are the 48 opening-parade characters in `Script/Dr_OW_0_Opening.asb`
+  (`asbrun export chara` → `viewer/data/generated/chara_table.tsv`).
 - **Battle**: `class` → `Chara/<Class>_<M|F>` by naming convention; a character
   **def** → class by the class token inside the def name
   (`PL_FIGHTER_C0 → FIGHTER`).
 
-## Open gap
+## Appearance mask
 
-Per-character appearance — the viewer's `variant_flags` mask over an MBS's
-`s4.attribute` groups — is not present in the enum tables, the FMS files, or the
-scene scripts. It is most likely engine-side character data (and/or the `OTBM`
-part maps). Until it is found, that mask is the only part of the viewer's
-hand-written character table that cannot be generated.
+The mask is stored in the exe: `class_model_m/f[class_id].model[variant]`
+selects a `chara_model` row, and that row's 16-bit `mask` (ORed with
+`0xfe000000`) is a **suppression** mask over `s4.attributes`. The viewer draws a
+layer when `(layer.attributes & mask) == 0` and the layer's `SKIP` flag is clear.
+`charaset.tsv` carries the joined mask per CharaSet. See
+`docs/APPEARANCE.md` and `docs/EXE.md`.
 
 ## Engine tables (exe `.data`, not the CPK)
 

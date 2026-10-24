@@ -146,14 +146,14 @@ using LayerVisitor = std::function<void(const LayerVisit&)>;
 
 struct SpriteInstance {
 	SpriteInstance() = default;
-	SpriteInstance(const SpriteData* data, uint32_t track, uint32_t variant)
+	SpriteInstance(const SpriteData* data, uint32_t track, uint32_t attributes)
 		: data(data)
-		, variant_flags(variant) {
+		, attribute_mask(attributes) {
 		playback.track_idx = track;
 	}
 
 	const SpriteData* data = nullptr;
-	uint32_t variant_flags = 0;
+	uint32_t attribute_mask = 0;
 	SpritePlaybackOptions options = sprite_playback_options();
 
 	uint32_t current_sequence = 0; // Mone: current sequence drawn even when inactive

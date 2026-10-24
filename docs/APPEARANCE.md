@@ -1,118 +1,96 @@
-# Character appearance (CharaSet → class/gender/variant)
+# Character appearance (CharaSet → model mask)
 
-How `viewer/data/generated/variants.tsv` is produced, and why it no longer needs to be
-hand-written. See `scarlett/README.md` for the wider drama/script picture.
+How the viewer selects a character's MBS layers. See `scarlett/README.md` for
+the wider drama/script picture.
 
-## The problem
+## The engine rule
 
-The viewer draws an MBS layer when `(layer.attributes & ~variant_flags) == 0`
-(`sprite.cpp`). `variant_flags` is the set of `s4.attributes` bits a character
-enables. It was originally a hand-written table (`variants.tsv`) because the
-game's own selection could not be found in any CPK file.
+The renderer draws an `s4` layer when both are true:
 
-It *is* in the game — in the **executable**, not the CPK.
-
-The viewer loads `variants.tsv` through `load_chara_set`; the mask is stored on
-`CharaInfo`, copied to `RuntimeEntity::variant_flags`, and used by
-`SpriteInstance` for layer selection.
-
-## Where the data lives
-
-`main` (the game NSO, ExeFS) is a **compressed** NSO: three LZ4-compressed
-segments (`.text`, `.rodata`, `.data`). Each segment is a *single* LZ4 block
-(`LZ4_decompress_safe(src, dst, compressed_sizes[seg], decomp_size)`; the LZ4
-length-extension terminator is `255`). The `.rela.dyn` table (`R_AARCH64_RELATIVE`,
-98211 entries) resolves global pointers.
-
-Inside, there is a **per-CharaSet record table** indexed by the `CHARASET` enum:
-
-```
-base   0x2741bb8   (in the decompressed .data segment)
-stride 0x48        (9 × u64)
-idx    = CHARASET enum value (1-based; see Debug/_UcEnum_CharaSet.inc)
+```c
+(s4.flags & 0x02) == 0                    // not the engine's SKIP bit
+(s4.attributes & appearance_mask) == 0    // no suppressed attribute bit
 ```
 
-Record fields (u64 word indices):
+This is a **suppression** test, not an allowlist: bits set in the mask remove
+layers that carry them. `sprite_layer_draw` (`0x57dd40`) applies it while
+walking `atlas+0xd0` (`section_4`, stride `0x14`), and reads the mask from the
+render object at `+0x1cc`.
 
-| idx | meaning |
-|-----|---------|
-| 0   | pointer → Japanese label |
-| 1   | packed `{u8 class_id, u8 gender(1=M,2=F), u8 variant(0..8), u8 _}` |
-| 2,3 | other (CoA preset, model ids) |
-| 6   | pointer → `CharaImg<ABBR>` name |
-| 7,8 | flags |
+The render object mask is built in `sprite_build_matrix` (`0x58d1a8`):
 
-So the engine's appearance key is exactly **`(class_id, gender, variant)`**,
-where `class_id` is the `CLASSTYPE` index (`Debug/_UcEnum_Class.inc`). The upper
-32 bits of word 1 (`w0c`) are a separate recovered value whose meaning is not yet
-known.
-
-The scripts reach it by name: `DrCreateChara(objectName, CharaDefName, CoAPreset)`
-(the string overload, `FUN_0031b0dc`) resolves `CharaDefName` → CharaSet via
-`FUN_0011a100`, then calls `FUN_00175be0`. There is also an int overload
-`DrCreateChara(objectName, int CharaSet, CoAPreset)`.
-
-## From `(class, gender, variant)` to the mask
-
-Within a class MBS the layers that select an appearance all share a common
-attribute group. Empirically:
-
-```
-mask = group(class) | (1 << variant)
+```c
+render_object[0x1cc] = element[0xc4] | chara[0x294];
 ```
 
-`group(class)` is read from the class MBS `s4.attributes`: split each nonzero
-attribute into `group = a & ~0xFF` and `low = a & 0xFF`; the group is the one
-with the most distinct `low` values (ties → smallest group).
+`element[0xc4]` is zero on the normal character paths. `chara[0x294]` is set by
+`chara_apply_model_mask` (`0x11ba28`):
 
-Verified against the previously hand-written rows, which it reproduces exactly:
+```c
+model_id = class_model_get_id(class_id, gender, variant);
+chara[0x294] = chara_model[model_id].mask | 0xfe000000;
+```
 
-| class | group | Generic | Primm (v1) | Sharon (v2) |
-|-------|-------|---------|------------|-------------|
-| CLERIC_F | `0x10000` | `0x10001` | `0x10002` | `0x10004` |
-| WITCH_F  | `0x8000`  | `0x8001`  | —          | Yahna (v1) `0x8002` |
+- `class_model_get_id` (`0x11b9e8`) clamps `variant` to `0..9`, reads
+  `class_model_m[class_id].model[variant]` or `class_model_f[...]`, and returns
+  `0` when the class has no model record.
+- `chara_model` is the 229-row table at `0x2740d68`; its `mask` field is 16 bits.
+- `0xfe000000` suppresses the high attribute groups (`0x4000000..0x80000000`),
+  which are alternate/effect groups rather than base character parts.
 
-Rendering `--class CLERIC_F` with the generated table is **byte-identical** to
-the old handwritten table.
+Therefore the engine key is `(class, gender, variant)`, and the model mask is
+the only per-character layer selector. The mask itself lives in the executable,
+not in the MBS file.
 
-The executable's class table is keyed by `CLASSTYPE` index. Its `+0` field is
-the promotion/base class (`base_class_id`, 0 when none), not the row's own
-class id; `class_table_relation_matches` uses it to match class families. The
-raw `class_table.tsv` also stores the recovered icon assets and opaque fields.
+## Generated data
 
-## Regenerating
+`viewer/data/generated/charaset.tsv` carries the final mask as its eighth
+column:
 
-1. Decompress the game NSO (`ExeFS/main`) into `.text`/`.rodata`/`.data`.
-2. Parse `.rela.dyn` (`DT_RELA` points at `.rodata+0x48`: 98211 × 24-byte
-   entries) to relocate pointers.
-3. Read the CharaSet records at `0x2741bb8` (stride `0x48`).
-4. Map `class_id` → class name (`Debug/_UcEnum_Class.inc`) and `gender` →
-   `M`/`F`; the viewer key is `<CLASS>_<M|F>`.
-5. Dump each class MBS `s4` with the extractor shell
-   (`printf 'd Chara/<Class>.mbs --section s4\nq\n' | ./build/rosalinde --cpk ~/Unicorn.CPK`) and
-   compute `group(class)` as above.
-6. Emit `viewer/data/generated/variants.tsv`:
-   `class_key <TAB> CharaSetName <TAB> 0x<group|1<<variant> <TAB> jp_label`.
-7. Apply `variants_seed.tsv` and `variants_overrides.tsv` before the generated
-   fallback. The overrides cover characters whose texture requires more than one
-   attribute group.
+```text
+idx name class gender variant charaImg label appearance_mask
+```
 
-The raw exe table (all 1388 CharaSets with class/gender/variant) is checked in
-as `viewer/data/charaset_table.tsv`. The generated runtime table is written to
-`viewer/data/generated/variants.tsv`; `viewer/data/variants_seed.tsv` preserves the
-reviewed masks and `viewer/data/variants_overrides.tsv` stores masks that need
-multiple attribute groups. The current seed has 1346 rows; applying the class
-table added after the last regeneration yields 1384 rows.
+`tools/build_viewer_data.py` joins the raw `CharaSet` row with
+`class_model_m/f_table.tsv` and `chara_model_table.tsv`, then ORs
+`0xfe000000`. The runtime loads the column into `CharaInfo::appearance_mask`
+and copies it to `RuntimeEntity::appearance_mask`.
+
+## Viewer behaviour
+
+`SpriteInstance::attribute_mask` receives the entity mask. `sprite.cpp` counts
+and draws a layer only when:
+
+```c
+!(layer.s4_flags & 0x02)
+&& (layer.attributes & attribute_mask) == 0
+&& (layer.attributes & ~layer_mask) == 0   // viewer-only debug filter
+```
+
+Entities without a CharaSet (backgrounds, NPC records without a model row) use
+mask `0`, so every non-SKIP layer is drawn, matching the engine's zeroed
+`+0x294`.
+
+## `CharaOp` needs no special case
+
+`asbrun scan --scene-ir` over all 680 `Script/*.asb` modules found 253 files
+mentioning `CharaOp`, but every `DrUiCreateChara` with a `CharaOp/Op_*.mbs`
+asset is in `Script/Dr_OW_0_Opening.asb` (48 entities). Those characters still
+resolve a CharaSet (`class`, `gender`, `variant`) through the normal name path,
+so the model mask applies independently of the asset. The earlier class-MBS
+group heuristic and its 229 exception rows are gone.
+
+## Replaced data
+
+- `viewer/data/generated/variants.tsv` — removed.
+- `viewer/data/variants_seed.tsv` — removed.
+- `viewer/data/generated/variant_overrides.tsv` (and its reviewed source) —
+  removed.
+- Runtime `group(mbs) | (1 << variant)` computation — removed.
 
 ## Caveats
 
-- `group(class)` is a heuristic derived from the MBS alone. It is exact for
-  single-group classes (Cleric, Witch, Swordsman, …); classes whose characters
-  combine several attribute groups (e.g. the princesses) may still be
-  approximations until the engine's exact per-layer test is reversed.
-- `classes.tsv` is now extracted from the executable (`tools/dump_chara_table.py`),
-  so the class → asset mapping is exact. Only `variants.tsv` (the per-class
-  appearance masks) is still produced by the older heuristic process.
-- A few CharaSets pick an asset slot the class leaves empty (e.g. `TEST_E53`
-  is `WEREFOX` gender `M`, but only `Chara/WereFox_F.mbs` exists); the engine
-  falls back to the filled slot — an asset-resolver concern, not a table one.
+- `element[0xc4]` is not modelled as a second mask source; it is zero on the
+  observed character paths.
+- The character colour preset block (`chara+0x2018`) is separate from layer
+  selection and is not applied by this rule.

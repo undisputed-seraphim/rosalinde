@@ -37,6 +37,7 @@ void SpritePlayback::reset(
 	if (!asset)
 		return;
 
+	const uint32_t attribute_mask = state.appearance_mask;
 	const bool mone_kind = state.kind.rfind("CreateSpriteMone", 0) == 0;
 	auto stateful_mone = [&](int track) {
 		return mone_kind && track >= 0 && static_cast<size_t>(track) < asset->data.tracks.size() &&
@@ -46,7 +47,7 @@ void SpritePlayback::reset(
 		for (uint32_t i : select_background_tracks(asset->data.v77)) {
 			if (!track_usable(asset->data, static_cast<int>(i)))
 				continue;
-			instances.emplace_back(&asset->data, i, state.variant_flags);
+			instances.emplace_back(&asset->data, i, attribute_mask);
 			instances.back().playback.hold_finished = hold_finished;
 			instances.back().background = true;
 			instances.back().character = character;
@@ -60,7 +61,7 @@ void SpritePlayback::reset(
 		if (track < 0)
 			return;
 		track_index = track;
-		instances.emplace_back(&asset->data, static_cast<uint32_t>(track), state.variant_flags);
+		instances.emplace_back(&asset->data, static_cast<uint32_t>(track), attribute_mask);
 		instances.back().playback.hold_finished = hold_finished;
 		instances.back().character = character;
 		instances.back().mone = stateful_mone(track);

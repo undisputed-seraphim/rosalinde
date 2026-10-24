@@ -418,7 +418,7 @@ std::string SceneRenderer::object_json(const RenderItem& object, bool stage, std
 			instance_track = instance.data->tracks[instance.playback.track_idx].name;
 		out += "{\"index\":" + std::to_string(i) + ",\"track\":" + std::to_string(instance.playback.track_idx) +
 			   ",\"track_name\":" + quote(instance_track) +
-			   ",\"variant_flags\":" + std::to_string(instance.variant_flags) +
+			   ",\"attribute_mask\":" + std::to_string(instance.attribute_mask) +
 			   ",\"frame_counter\":" + std::to_string(instance.frame_counter()) +
 			   ",\"hold_finished\":" + asb::trace::boolean(instance.playback.hold_finished) +
 			   ",\"bounds\":" + vec4_json(instance.render_bounds()) + ",\"runs\":" + runs_json(instance) + "}";
@@ -460,7 +460,7 @@ void SceneRenderer::probe_instance(const RenderItem& object, bool stage, size_t 
 				   << ",\"kind\":\"draw\",\"event\":\"instance\",\"object\":" << quote(object.state.name)
 				   << ",\"stage\":" << asb::trace::boolean(stage) << ",\"instance\":" << index
 				   << ",\"track\":" << instance.playback.track_idx << ",\"track_name\":" << quote(track_name)
-				   << ",\"variant_flags\":" << instance.variant_flags
+				   << ",\"attribute_mask\":" << instance.attribute_mask
 				   << ",\"frame_counter\":" << instance.frame_counter()
 				   << ",\"bounds\":" << vec4_json(instance.render_bounds()) << ",\"runs\":" << runs_json(instance)
 				   << "}\n";

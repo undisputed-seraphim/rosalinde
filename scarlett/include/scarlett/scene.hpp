@@ -67,7 +67,8 @@ struct RuntimeEntity {
 	bool action_active = false;
 	long action_end_frame = -1;
 	bool started = false;
-	uint32_t variant_flags = 0xFFFFFFFFu; // s4.attributes mask for layer selection
+	uint32_t appearance_variant = 0xFFFFFFFFu; // CharaSet variant; 0xFFFFFFFF = all layers
+	uint32_t appearance_mask = 0;				// suppressed s4 attribute bits
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	float scale = 1.0f;
 	float dir_x = 1.0f;	 // facing: -1 mirrored, +1 default

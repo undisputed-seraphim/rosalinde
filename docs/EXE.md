@@ -631,11 +631,14 @@ Ghidra names applied during this pass:
 0x5c73cc texture_get_height
 0x581cf4 matrix4_identity
 0x5b1e78 render_object_base_ctor
+0x57dd40 sprite_layer_draw
+0x11b9e8 class_model_get_id
 ``` For the opening title, the colored layer is
 `s4_source_tile_id=104`; its white-mask companion is `105`; nearby `103`/`109`
-layers are additional masks. Nothing in the `sprite_build_matrix` path reads
-`atlas+0xd0` or `s4.s4_source_tile_id`, so the engine's exact material selector
-remains open.
+layers are additional masks. `sprite_build_matrix` does not read
+`atlas+0xd0`; the layer pass `sprite_layer_draw` does (and applies the
+`attributes & appearance_mask` suppression test). The `s4_source_tile_id`
+material selector itself remains open.
 
 The opening title is a useful discriminator:
 
@@ -770,7 +773,8 @@ base 0x2741bb8 (.data)   stride 0x48 (9 × u64, 1388 entries)
 
 `class_id` is a `CLASSTYPE` index (`Debug/_UcEnum_Class.inc`, 74 entries).
 `w0c` is a recovered per-record value (0..127) whose meaning is not yet known.
-Used to generate `viewer/data/charaset_table.tsv` and the build-time `viewer/data/generated/variants.tsv`.
+Used to generate `viewer/data/charaset_table.tsv`. `charaset.tsv` also carries
+the joined `chara_model` suppression mask; see `docs/APPEARANCE.md`.
 
 **CLASSTYPE record table** — `g_class_table` at `0x2738ff8` (`.data`):
 
@@ -1059,5 +1063,5 @@ types), so an offset alone does not identify the UI element.
 3. Resolve the slot (`0x28c6000 + N*8`) via `.rela.dyn` → `r_addend` = impl.
 4. `code_create` + `decompile` the impl.
 
-The generator for the appearance tables (`/tmp/opencode/gen_appearance.py`, not
-yet in the repo) is the worked example of this recipe end-to-end.
+The `class_model` → `chara_model` appearance-mask join in
+`tools/build_viewer_data.py` is a worked example of this recipe end-to-end.

@@ -142,83 +142,6 @@ def enum_map(path):
     return groups
 
 
-def class_groups(rosalinde, cpk, classes):
-    cache = {}
-    groups = {}
-    for key, path in classes.items():
-        if path in cache:
-            groups[key] = cache[path]
-            continue
-        result = subprocess.run(
-            [str(rosalinde), "--cpk", str(cpk)],
-            input=f"d {path} --attributes --json\nq\n",
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            print(f"warning: no attributes for {key} ({path})", flush=True)
-            groups[key] = None
-            continue
-        try:
-            payload = json.loads(result.stdout)
-        except json.JSONDecodeError:
-            print(f"warning: invalid attributes JSON for {key} ({path})", flush=True)
-            groups[key] = None
-            continue
-        low = {}
-        for item in payload.get("s4_attributes", []):
-            attribute = int(item["value"])
-            if not attribute:
-                continue
-            group = attribute & ~0xFF
-            if not group:
-                continue
-            low.setdefault(group, set()).add(attribute & 0xFF)
-        if low:
-            group = max(low, key=lambda value: (len(low[value]), -value))
-        else:
-            group = 0
-        cache[path] = group
-        groups[key] = group
-    return groups
-
-
-def class_paths(classes, class_names):
-    paths = {}
-    for row in classes:
-        index = int(row["idx"])
-        name = class_names[index] if index < len(class_names) else f"CLASS_{index}"
-        for gender, column in (("M", "mbs_m"), ("F", "mbs_f")):
-            path = row[column]
-            if path:
-                paths[f"{name}_{gender}"] = path
-    return paths
-
-
-def build_variants(raw, classes, class_names, chara_names, seed, overrides, groups):
-    rows = []
-    for row in raw:
-        index = int(row["idx"])
-        class_id = int(row["class_id"])
-        gender_id = int(row["gender_id"])
-        if class_id == 0 or class_id >= len(class_names) or gender_id not in (1, 2):
-            continue
-        gender = "M" if gender_id == 1 else "F"
-        class_key = f"{class_names[class_id]}_{gender}"
-        name = chara_names[index] if index < len(chara_names) else f"CHARASET_{index}"
-        flags = overrides.get((class_key, name))
-        if flags is None:
-            flags = seed.get((class_key, name))
-        if flags is None:
-            group = groups.get(class_key)
-            if group is None:
-                continue
-            flags = group | (1 << int(row["variant"]))
-        rows.append((class_key, name, f"0x{flags:08x}", row["label"]))
-    return rows
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cpk", required=True, help="path to Unicorn.CPK (explicit runtime input)")
@@ -254,16 +177,19 @@ def main():
     npctype = read_tsv(raw_dir / "npctype_table.tsv")
     charaset = read_tsv(raw_dir / "charaset_table.tsv")
     bbs = read_tsv(raw_dir / "bbs_table.tsv")
-    variants_seed = [
-        {"key": row[0], "character": row[1], "flags": row[2], "label": row[3] if len(row) > 3 else ""}
-        for row in read_rows(raw_dir / "variants_seed.tsv")
-        if len(row) >= 3
-    ]
-    variants_overrides = [
-        {"key": row[0], "character": row[1], "flags": row[2]}
-        for row in read_rows(raw_dir / "variants_overrides.tsv")
-        if len(row) >= 3
-    ]
+    chara_model = read_tsv(raw_dir / "chara_model_table.tsv")
+    chara_model_mask = [int(row["mask"], 0) for row in chara_model]
+    class_model = {}
+    for gender, name in (("M", "m"), ("F", "f")):
+        rows = read_tsv(raw_dir / f"class_model_{name}_table.tsv")
+        class_model[gender] = {int(row["class_id"]): row for row in rows if row["class_id"]}
+
+    def appearance_mask(class_id, gender, variant):
+        record = class_model.get(gender, {}).get(class_id)
+        model = 0
+        if record:
+            model = int(record.get(f"model{min(max(variant, 0), 9)}") or 0)
+        return (chara_model_mask[model] if model < len(chara_model_mask) else 0) | 0xFE000000
 
     cue_by_name = {row["name"]: int(row["bgm_cue_id"]) for row in cue}
     write_tsv(
@@ -357,11 +283,12 @@ def main():
                 int(row["variant"]),
                 row["chara_img"],
                 row["label"],
+                f"0x{appearance_mask(class_id, gender, int(row['variant'])):08x}",
             )
         )
     write_tsv(
         out_dir / "charaset.tsv",
-        "# idx\tname\tclass\tgender\tvariant\tcharaImg\tlabel (generated from raw CharaSet table)",
+        "# idx\tname\tclass\tgender\tvariant\tcharaImg\tlabel\tappearance_mask (generated from raw CharaSet table)",
         charaset_rows,
     )
 
@@ -369,17 +296,6 @@ def main():
         out_dir / "bbs.tsv",
         "# stage_type\tpath\tlabel (generated from raw BBS table)",
         [(int(row["idx"]), row["path"], row["label"]) for row in bbs if row["path"]],
-    )
-
-    classes_for_variants = class_paths(classes, class_names)
-    groups = class_groups(Path(args.rosalinde), cpk, classes_for_variants)
-    seed = {(row["key"], row["character"]): int(row["flags"], 0) for row in variants_seed}
-    overrides = {(row["key"], row["character"]): int(row["flags"], 0) for row in variants_overrides}
-    variants = build_variants(charaset, classes, class_names, chara_names, seed, overrides, groups)
-    write_tsv(
-        out_dir / "variants.tsv",
-        "# key\tcharacter\tflags\tlabel (generated from raw CharaSet and class MBS attributes)",
-        variants,
     )
 
     country_link = out_dir / "country_regions.tsv"
@@ -390,8 +306,7 @@ def main():
     counts = {}
     for name in EXPECTED:
         counts[name] = sum(1 for _ in open(out_dir / name, encoding="utf-8")) - 1
-    counts["variants.tsv"] = len(variants)
-    expected = dict(EXPECTED, **{"variants.tsv": 1384})
+    expected = dict(EXPECTED)
     for name, wanted in expected.items():
         actual = counts[name]
         if actual != wanted:

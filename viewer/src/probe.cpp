@@ -105,7 +105,8 @@ std::string entity_json(const asb::RuntimeEntity& e, const SceneReportContext& c
 		",\"aliases\":" + array_json(e.aliases, [](const std::string& s) { return quote(s); }) +
 		",\"mbs\":" + quote(e.mbs) + ",\"ftx\":" + quote(e.ftx) + ",\"track\":" + quote(e.track) +
 		",\"track_index\":" + std::to_string(e.track_index) +
-		",\"variant_flags\":" + std::to_string(e.variant_flags) + ",\"idle_track\":" + quote(e.idle_track) +
+		",\"appearance_variant\":" + std::to_string(e.appearance_variant) +
+		",\"appearance_mask\":" + std::to_string(e.appearance_mask) + ",\"idle_track\":" + quote(e.idle_track) +
 		",\"idle_track_index\":" + std::to_string(e.idle_track_index) +
 		",\"action_active\":" + asb::trace::boolean(e.action_active) +
 		",\"action_end_frame\":" + std::to_string(e.action_end_frame) +

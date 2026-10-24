@@ -307,7 +307,8 @@ void SpriteInstance::for_each_layer(
 
 	uint32_t visible = 0;
 	for (const auto& layer : ck.layers) {
-		if ((layer.attributes & ~variant_flags) == 0 && (layer.attributes & ~layer_mask) == 0)
+		if ((layer.s4_flags & 0x02) == 0 && (layer.attributes & attribute_mask) == 0 &&
+			(layer.attributes & ~layer_mask) == 0)
 			visible++;
 	}
 	const float zrate = 1.0f / (visible + 1.0f);
@@ -370,8 +371,13 @@ void SpriteInstance::for_each_layer(
 			v.color[k] = layer.color[k];
 		}
 
-		if ((layer.attributes & ~variant_flags) != 0) {
-			v.skip = "variant";
+		if ((layer.s4_flags & 0x02) != 0) {
+			v.skip = "skip";
+			visit(v);
+			continue;
+		}
+		if ((layer.attributes & attribute_mask) != 0) {
+			v.skip = "attribute";
 			visit(v);
 			continue;
 		}
@@ -545,7 +551,9 @@ glm::vec4 SpriteInstance::render_bounds() const {
 
 		const glm::mat4 m = transform_for_sa(i);
 		for (const auto& layer : ck.layers) {
-			if ((layer.attributes & ~variant_flags) != 0)
+			if ((layer.s4_flags & 0x02) != 0)
+				continue;
+			if ((layer.attributes & attribute_mask) != 0)
 				continue;
 			for (int k = 0; k < 4; ++k) {
 				const glm::vec4 p = m * glm::vec4{layer.xy[k].x, layer.xy[k].y, 0.0f, 1.0f};

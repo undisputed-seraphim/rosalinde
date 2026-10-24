@@ -62,14 +62,18 @@ struct section_3 {
 };
 
 // One drawable layer. The four IDs select the UV, vertex, colour, and texture
-// data for this layer.
+// data for this layer. `attributes` is a suppression mask, not an allowlist:
+// the renderer skips the layer when `(attributes & appearance_mask) != 0` and
+// draws it when the result is zero. `appearance_mask` is the engine's
+// per-character `chara_model` mask (ORed with 0xfe000000); a zero mask draws
+// every non-SKIP layer.
 struct section_4 {
 	uint32_t s4_source_tile_id; // source tile/UV identifier; runtime effect OPEN
 	uint8_t color_id;			// alternate colour selector; runtime role OPEN
 	uint8_t flags;				// layer flags; see s4flag
 	uint8_t blend_id;			// blend mode; engine enum OPEN, viewer uses 0/1/2/3
 	uint8_t tex_id;				// index into the FTX texture array
-	uint32_t attributes;		// class/group/variant mask; exact per-layer test OPEN
+	uint32_t attributes;		// suppression bits; draw when (attributes & appearance_mask) == 0
 	uint16_t s1_uv_id;			// index into section_1
 	uint16_t s0_color_row_id;	// index into section_0
 	uint16_t s2_vertex_id;		// index into section_2
@@ -197,7 +201,7 @@ struct v77 {
 	// are OPEN; do not infer them from the known bits.
 	enum s4flag : uint8_t {
 		ENABLED = 0x01, // valid layer
-		SKIP = 0x02,	// skip layer; exact renderer behavior OPEN
+		SKIP = 0x02,	// set = layer is skipped by the renderer
 		NOTEX = 0x04,	// no texture; solid colour/veil
 	};
 
