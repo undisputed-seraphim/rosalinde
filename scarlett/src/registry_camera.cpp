@@ -47,8 +47,10 @@ DispatchResult Registry::dispatch_camera(std::string_view name, NativeArgs& args
 			camera.tween.start_pos[1] = camera.pos[1];
 			camera.tween.start_pos[2] = camera.pos[2];
 			const float zoom = camera.has_zoom && camera.zoom > 0.0f ? camera.zoom : 1.0f;
+			// FUN_0016e88c: target = pos + origin/zoom. Only the camera's base
+			// offset is scaled; the script position is already in view units.
 			for (int k = 0; k < 3; ++k)
-				camera.tween.target_pos[k] = position[k] / zoom + camera.origin[k];
+				camera.tween.target_pos[k] = position[k] + camera.origin[k] / zoom;
 			camera.tween.active = true;
 			set_camera_ease(camera.tween, duration);
 			camera.pos[0] = camera.tween.start_pos[0];

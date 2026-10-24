@@ -717,7 +717,13 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 			static const glm::mat4 screen_projection = glm::ortho(0.0f, 1920.0f, 1080.0f, 0.0f);
 			const bool screen_chara = e.kind == "DrUiCreateChara";
 			const glm::mat4& object_projection = screen_chara ? screen_projection : projection;
-			const float camera_scale = object->replaces_stage && camera.zoom() > 0.0f ? camera.zoom() : 1.0f;
+			// UI-space stage replacements are drawn with the fixed design camera, so
+			// compensate with the field zoom here. World-space stages already get it
+			// from Camera::lookAt(); applying it again double-zooms the background.
+			const float camera_scale =
+				object->replaces_stage && e.space == asb::RuntimeEntity::Space::Ui && camera.zoom() > 0.0f
+					? camera.zoom()
+					: 1.0f;
 			float object_scale = (e.scale > 0.0f ? e.scale : 1.0f) * camera_scale;
 			// TODO(ui): DrUiCreateChara positions and MBS bounds are in 1920x1080
 			// screen space, but the engine's authored scale is larger than the

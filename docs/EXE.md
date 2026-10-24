@@ -245,7 +245,7 @@ runs, in order: `FUN_0016d99c` (mode / follow-driver reset), `FUN_0016da6c`
 - **`FUN_0016dbd4` — zoom lerp.** `+0x3e8 = +0x3f0 + t * (+0x3f4 − +0x3f0)`,
   `t = func_0x000307cc(+0x450)`, tween end tick `+0x458`.
 - **`FUN_0016e88c` — begin pos tween** (`DrSetCameraPosV` with `mode!=0` calls it).
-  Records `+0xb0` into `+0x350` (start); sets `+0xe0 = pos * (1/zoom) + cam+0xd0`
+  Records `+0xb0` into `+0x350` (start); sets `+0xe0 = pos + cam+0xd0/zoom`
   (target); tween at `+0x43c`, end `+0x444 = start_tick + dur`. Ease ramps: if
   `+0x468` is set (`DrSetCameraParam`) → `+0x448=(int)(+0x46c*dur)`,
   `+0x44c=(int)(+0x470*dur)`; else `+0x448=clamp(dur*0.1,0,60)`,
