@@ -15,16 +15,16 @@ class AssetLoader {
 public:
 	AssetLoader(std::filesystem::path cpk_path);
 
-	// Decoded-but-not-uploaded asset data. `prepare` does the CPU-heavy work
-	// (CPK extract + FTX decode) and is thread-safe; `make_asset` does the GL
-	// upload and must run on the GL thread.
+	// Decoded-but-not-uploaded asset data. `prepare` extracts and decodes the
+	// FTX (thread-safe); `make_asset` preprocesses the shared MBS sections and
+	// uploads the GL textures (GL thread).
 	struct PreparedLayer {
-		std::vector<char> mbs;
 		std::vector<FTX::Entry> ftx;
 	};
 	PreparedLayer prepare(const Job& job) const;
 	SpriteAssetPtr make_asset(
 		PreparedLayer&& prepared,
+		mbs::v77 sections,
 		const std::string& mbs,
 		const std::string& ftx,
 		const std::string& class_name,

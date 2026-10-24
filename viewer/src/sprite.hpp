@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sprite_playback_state.hpp"
+
 #include <eltolinde.hpp>
 #include <glm/glm.hpp>
 #include <impl/mbs/sections.hpp>
@@ -67,11 +69,15 @@ struct SpriteData {
 		uint8_t disabled = 0;
 		bool one_shot = false;
 		int next_track = -1;
+		uint8_t transition_mode = 0;
 	};
 	std::vector<Track> tracks;
 	std::vector<CachedKeyframe> keyframes;
 
+	// Parse and preprocess raw FMBS bytes. `build` takes already-parsed sections
+	// so the runtime catalog and the renderer can share one binary parse.
 	static SpriteData load(std::span<const uint8_t> mbs_raw, std::vector<FTX::Entry> textures);
+	static SpriteData build(mbs::v77 sections, std::vector<FTX::Entry> textures);
 
 	const Track* find_track(const std::string& name) const;
 
@@ -79,7 +85,15 @@ private:
 	void preprocess();
 };
 
+// Parse the FMBS header and versioned sections without building keyframes.
+mbs::v77 parse_mbs_sections(std::span<const uint8_t> mbs_raw);
+
+// Build track metadata from parsed sections. Used by both SpriteData and the
+// runtime MBS catalog so timing and rendering see the same tracks.
+std::vector<SpriteData::Track> analyze_tracks(const mbs::v77& sections);
+
 // Longest sequence in a track, converted from MBS 120 Hz ticks to scene frames.
+long track_duration_frames(const mbs::v77& sections, const SpriteData::Track& track);
 long track_duration_frames(const SpriteData& data, int track);
 
 struct LayerVisit {
@@ -131,33 +145,29 @@ struct LayerVisit {
 using LayerVisitor = std::function<void(const LayerVisit&)>;
 
 struct SpriteInstance {
-	const SpriteData* data = nullptr;
-	uint32_t track_idx = 0;
-	uint32_t variant_flags = 0;
+	SpriteInstance() = default;
+	SpriteInstance(const SpriteData* data, uint32_t track, uint32_t variant)
+		: data(data)
+		, variant_flags(variant) {
+		playback.track_idx = track;
+	}
 
-	float _accum = 0.0f;
-	std::vector<uint32_t> ticks;
-	std::vector<uint32_t> offsets;
-	std::vector<uint32_t> prev_offsets;
-	std::vector<uint32_t> last_visible_offsets;
-	std::vector<uint8_t> done; // per-run: a single-pass (once) run has finished
-	std::vector<uint8_t> hide; // per-run: a finished run that should stop drawing
-	uint32_t _phase = 0;	   // run index currently playing (sequential-runs mode)
+	const SpriteData* data = nullptr;
+	uint32_t variant_flags = 0;
+	SpritePlaybackOptions options = sprite_playback_options();
+
 	uint32_t current_sequence = 0; // Mone: current sequence drawn even when inactive
-	uint32_t _frame_counter = 0;
-	bool paused = false;
-	bool hold_finished = false;
 	bool background = false;
 	bool character = false;
 	bool mone = false;
 	bool flip_v = false;
 
-	std::vector<mbs::section_7> _transition_src_s7;
-	float _transition_t = 1.0f;
+	SpritePlaybackState playback;
+
+	using RunState = SpriteRunState;
 
 	void play(uint32_t track_id);
 	void play(const std::string& name);
-	void update(float dt_seconds);
 	void advance(float dt_seconds);
 	void next_track();
 	void prev_track();
@@ -181,16 +191,6 @@ struct SpriteInstance {
 	glm::mat4 transform_for_sa(uint32_t sa_idx, bool* out_flipx = nullptr, bool* out_flipy = nullptr) const;
 	uint32_t sa_count() const;
 	uint32_t frame_counter() const;
-	struct RunState {
-		uint32_t offset = 0;
-		uint32_t flags = 0;
-		uint32_t frames = 0;
-		int32_t s8 = -1;
-		uint32_t s6 = 0;
-		uint32_t s7 = 0;
-		bool done = false;
-		bool hidden = false;
-	};
 	std::vector<RunState> run_states() const;
 	glm::vec4 track_bounds() const;
 	glm::vec4 content_bounds() const;

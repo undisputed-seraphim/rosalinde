@@ -185,7 +185,7 @@ python3 visiontest/opening_diff.py \
 | `VIEWER_LOG_LEVEL` | spdlog level: `trace`, `debug`, `info`, `warn`, `error`, `off`; `debug` enables startup timing, asset loads, and native-scene detail |
 | `ASB_TEXT`, `ASB_CENSUS`, `ASB_CALLBACKS` | dialogue, native-call, callback diagnostics |
 | `VIEWER_RUN_ONLY`, `VIEWER_RUN_FROM`, `VIEWER_MAIN_ONLY` | restrict MBS runs for debugging |
-| `VIEWER_RUNS=seq`, `VIEWER_SEQ_MAIN`, `VIEWER_ADVANCE`, `VIEWER_ONCE` | sequential-phase / start-offset / end-mode experiments |
+| `VIEWER_S4_SOURCE` | filter MBS layers by section-4 source tile id |
 | `VIEWER_HIDE` | hide objects whose name contains the value |
 | `ROSALINDE_DATA_DIR` / `VIEWER_DATA` | runtime data directory (same as `--data-dir`) |
 | `VIEWER_CAM_Y`, `VIEWER_ORTHO` | camera/design-space overrides |

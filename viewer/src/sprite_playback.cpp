@@ -47,7 +47,7 @@ void SpritePlayback::reset(
 			if (!track_usable(asset->data, static_cast<int>(i)))
 				continue;
 			instances.emplace_back(&asset->data, i, 0xFFFFFFFFu);
-			instances.back().hold_finished = hold_finished;
+			instances.back().playback.hold_finished = hold_finished;
 			instances.back().background = true;
 			instances.back().character = character;
 			instances.back().mone = stateful_mone(static_cast<int>(i));
@@ -61,7 +61,7 @@ void SpritePlayback::reset(
 			return;
 		track_index = track;
 		instances.emplace_back(&asset->data, static_cast<uint32_t>(track), 0xFFFFFFFFu);
-		instances.back().hold_finished = hold_finished;
+		instances.back().playback.hold_finished = hold_finished;
 		instances.back().character = character;
 		instances.back().mone = stateful_mone(track);
 		instances.back().current_sequence = state.sequence_index;
@@ -80,11 +80,11 @@ void SpritePlayback::apply(const asb::RuntimeEntity& state) {
 		}
 	}
 	for (auto& instance : instances) {
-		instance.paused = state.paused || state.anim_paused;
+		instance.playback.paused = state.paused || state.anim_paused;
 		if (instance.current_sequence != state.sequence_index) {
 			instance.current_sequence = state.sequence_index;
 			if (_policy == TrackPolicy::ScriptTrack)
-				instance.play(instance.track_idx);
+				instance.play(instance.playback.track_idx);
 		}
 	}
 }
@@ -97,7 +97,7 @@ void SpritePlayback::apply_track_order(const std::vector<uint32_t>& order) {
 		return it == order.end() ? order.size() : static_cast<size_t>(it - order.begin());
 	};
 	std::stable_sort(instances.begin(), instances.end(), [&](const SpriteInstance& a, const SpriteInstance& b) {
-		return rank(a.track_idx) < rank(b.track_idx);
+		return rank(a.playback.track_idx) < rank(b.playback.track_idx);
 	});
 }
 

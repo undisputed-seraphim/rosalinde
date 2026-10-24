@@ -1,6 +1,7 @@
 #include "headless.hpp"
 
 #include "asset_loader.hpp"
+#include "mbs_catalog.hpp"
 #include "playback_diagnostics.hpp"
 #include "playback_runtime.hpp"
 #include "probe.hpp"
@@ -41,13 +42,14 @@ bool write_output(const std::string& path, const std::string& text) {
 
 int run_headless(const ViewerConfig& config) {
 	AssetLoader loader(config.cpk);
+	MbsCatalog mbs_catalog(loader);
 	PlaybackDiagnostics diagnostics(config);
 	PlaybackRuntime::NativeCallback native_cb;
 	if (diagnostics.wants_native_calls())
 		native_cb = [&diagnostics](const asb::NativeCall& call) { diagnostics.observe_native(call); };
-	PlaybackRuntime runtime(loader, config, diagnostics.trace_callback(), std::move(native_cb));
+	PlaybackRuntime runtime(loader, mbs_catalog, config, diagnostics.trace_callback(), std::move(native_cb));
 	runtime.set_max_frames(config.max_frames);
-	const SceneReportContext report{&runtime.mbs_info()};
+	const SceneReportContext report{&runtime.mbs_catalog()};
 
 	long target = -1;
 	if (config.run_to >= 0)
@@ -62,7 +64,8 @@ int run_headless(const ViewerConfig& config) {
 	if (target < 0)
 		target = config.max_frames;
 	else if (target > config.max_frames) {
-		spdlog::warn("headless: requested frame {} exceeds --max-frames {}; stopping at {}",
+		spdlog::warn(
+			"headless: requested frame {} exceeds --max-frames {}; stopping at {}",
 			target,
 			config.max_frames,
 			config.max_frames);

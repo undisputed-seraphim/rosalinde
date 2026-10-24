@@ -3,14 +3,10 @@
 #include <criware/byte_reader.hpp>
 #include <impl/mbs/detail.hpp>
 
-#include <glm/ext.hpp>
 #include <glm/glm.hpp>
-#include <glm/gtx/euler_angles.hpp>
-#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 #include <cstring>
 #include <span>
 #include <stdexcept>
@@ -19,63 +15,34 @@ namespace mbs {
 glm::mat4 s7_matrix(const section_7& s7, bool flipx, bool flipy);
 }
 
-namespace {
-// How a finished single-pass (s8_intro_ticks < 0) sequence behaves:
-// 0 = hide the part (default), 1 = hold its final frame, 2 = loop (legacy).
-int once_mode() {
-	static const int m = [] {
-		const char* e = std::getenv("VIEWER_ONCE");
-		if (e && std::strcmp(e, "hold") == 0)
-			return 1;
-		if (e && std::strcmp(e, "loop") == 0)
-			return 2;
-		return 0;
-	}();
-	return m;
-}
-
-// A track's runs are either parallel parts (default) or sequential phases
-// (VIEWER_RUNS=seq): in the latter only the current phase draws and advances.
-bool seq_runs() {
-	static const bool on = std::getenv("VIEWER_RUNS") && std::strcmp(std::getenv("VIEWER_RUNS"), "seq") == 0;
-	return on;
-}
-} // namespace
-
-static glm::mat4 s7_matrix_interp(const mbs::section_7& a, const mbs::section_7& b, float t, bool flipx, bool flipy) {
-	const int8_t x = flipx ? -1 : 1;
-	const int8_t y = flipy ? -1 : 1;
-	glm::vec3 move = glm::mix(a.move, b.move, t);
-	glm::vec3 rotate = glm::mix(a.rotate, b.rotate, t);
-	glm::vec2 scale = glm::mix(a.scale, b.scale, t);
-	glm::mat4 m{1.0};
-	m = glm::scale(m, glm::vec3{scale.x * x, scale.y * y, 1.0});
-	m = glm::translate(m, glm::vec3{move.x * x, move.y * y, move.z});
-	m *= glm::eulerAngleXYZ(rotate.x, rotate.y, rotate.z);
-	return m;
-}
-
-SpriteData SpriteData::load(std::span<const uint8_t> data, std::vector<FTX::Entry> textures) {
-	SpriteData sd;
-	sd.textures = std::move(textures);
-
+mbs::v77 parse_mbs_sections(std::span<const uint8_t> data) {
+	mbs::v77 sections;
 	byte_reader r(data);
-	const auto h = r.read<mbs::file_header>();
-	if (std::strncmp(h.magic, "FMBS", 4) != 0) {
+	const auto header = r.read<mbs::file_header>();
+	if (std::strncmp(header.magic, "FMBS", 4) != 0)
 		throw std::runtime_error("Not an FMBS file.");
-	}
 
-	switch (h.version) {
+	switch (header.version) {
 	case 0x76:
-		mbs::parse_v76(data, sd.v77);
+		mbs::parse_v76(data, sections);
 		break;
 	case 0x77:
-		mbs::parse_v77(data, sd.v77);
+		mbs::parse_v77(data, sections);
 		break;
 	default:
 		throw std::runtime_error("Unsupported FMBS version.");
 	}
+	return sections;
+}
 
+SpriteData SpriteData::load(std::span<const uint8_t> data, std::vector<FTX::Entry> textures) {
+	return build(parse_mbs_sections(data), std::move(textures));
+}
+
+SpriteData SpriteData::build(mbs::v77 sections, std::vector<FTX::Entry> textures) {
+	SpriteData sd;
+	sd.textures = std::move(textures);
+	sd.v77 = std::move(sections);
 	sd.preprocess();
 	return sd;
 }
@@ -133,7 +100,11 @@ void SpriteData::preprocess() {
 			attribute_bits.push_back(1u << i);
 	}
 
-	tracks.resize(v77.s9.size());
+	tracks = analyze_tracks(v77);
+}
+
+std::vector<SpriteData::Track> analyze_tracks(const mbs::v77& v77) {
+	std::vector<SpriteData::Track> tracks(v77.s9.size());
 	for (uint32_t s9_id = 0; s9_id < v77.s9.size(); ++s9_id) {
 		const auto& s9 = v77.s9[s9_id];
 		auto& track = tracks[s9_id];
@@ -144,6 +115,7 @@ void SpriteData::preprocess() {
 		track.disabled = s9.disabled;
 		if (s9.sa_sb_count > 0 && s9.sa_sb_start + s9.sa_sb_count <= v77.sb.size()) {
 			const uint16_t transition = v77.sb[s9.sa_sb_start].transition_mode;
+			track.transition_mode = static_cast<uint8_t>(transition);
 			track.one_shot = transition >= 1 && transition <= 3;
 			if (track.one_shot && s9_id + 1 < tracks.size() && !v77.s9[s9_id + 1].disabled)
 				track.next_track = static_cast<int>(s9_id + 1);
@@ -167,22 +139,32 @@ void SpriteData::preprocess() {
 			// s8_intro_ticks < 0 == single-pass ("transitional"/background); play
 			// through once and hold the final frame instead of looping.
 			track.runs.push_back(
-				{sa.s8_frame_start, sa.s8_frame_count, sa.s8_start_offset, loop_start, sa.s8_intro_ticks < 0 && once_mode() != 2, sa.sa_track_slot});
+				{sa.s8_frame_start,
+				 sa.s8_frame_count,
+				 sa.s8_start_offset,
+				 loop_start,
+				 sa.s8_intro_ticks < 0,
+				 sa.sa_track_slot});
 		}
 	}
+	return tracks;
+}
+
+long track_duration_frames(const mbs::v77& sections, const SpriteData::Track& track) {
+	long ticks = 0;
+	for (const auto& run : track.runs) {
+		long run_ticks = 0;
+		for (uint32_t i = 0; i < run.s8_count && run.s8_start + i < sections.s8.size(); ++i)
+			run_ticks += sections.s8[run.s8_start + i].s8_duration_ticks;
+		ticks = std::max(ticks, run_ticks);
+	}
+	return ticks <= 0 ? 0 : (ticks + 1) / 2;
 }
 
 long track_duration_frames(const SpriteData& data, int track) {
 	if (track < 0 || static_cast<size_t>(track) >= data.tracks.size())
 		return 0;
-	long ticks = 0;
-	for (const auto& run : data.tracks[static_cast<size_t>(track)].runs) {
-		long run_ticks = 0;
-		for (uint32_t i = 0; i < run.s8_count && run.s8_start + i < data.v77.s8.size(); ++i)
-			run_ticks += data.v77.s8[run.s8_start + i].s8_duration_ticks;
-		ticks = std::max(ticks, run_ticks);
-	}
-	return ticks <= 0 ? 0 : (ticks + 1) / 2;
+	return track_duration_frames(data.v77, data.tracks[static_cast<size_t>(track)]);
 }
 
 const SpriteData::Track* SpriteData::find_track(const std::string& name) const {
@@ -194,206 +176,28 @@ const SpriteData::Track* SpriteData::find_track(const std::string& name) const {
 }
 
 void SpriteInstance::play(uint32_t track_id) {
-	if (data && track_idx < data->tracks.size() && track_idx != track_id) {
-		uint32_t n = sa_count();
-		_transition_src_s7.resize(n);
-		for (uint32_t i = 0; i < n; ++i) {
-			const auto& run = data->tracks[track_idx].runs[i];
-			if (run.s8_count == 0)
-				continue;
-			const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
-			_transition_src_s7[i] = data->v77.s7[s8.s7_transform_id];
-		}
-		_transition_t = 0.0f;
-	}
-
-	track_idx = track_id;
-	const auto& track = data->tracks[track_idx];
-	ticks.assign(track.runs.size(), 0);
-	offsets.resize(track.runs.size());
-	prev_offsets.assign(track.runs.size(), UINT32_MAX);
-	last_visible_offsets.assign(track.runs.size(), UINT32_MAX);
-	done.assign(track.runs.size(), 0);
-	hide.assign(track.runs.size(), 0);
-	if (std::getenv("VIEWER_MAIN_ONLY")) {
-		for (uint32_t i = 0; i < hide.size(); ++i)
-			hide[i] = i != track.sa_main_sequence;
-	}
-	if (const char* only = std::getenv("VIEWER_RUN_ONLY")) {
-		const int k = std::atoi(only);
-		for (uint32_t i = 0; i < hide.size(); ++i)
-			hide[i] = static_cast<int>(i) != k;
-	}
-	if (const char* from = std::getenv("VIEWER_RUN_FROM")) {
-		const int k = std::atoi(from);
-		for (uint32_t i = 0; i < hide.size(); ++i)
-			hide[i] = static_cast<int>(i) < k;
-	}
-	_phase = 0;
-	if (seq_runs() && std::getenv("VIEWER_SEQ_MAIN"))
-		_phase = std::min<uint32_t>(track.sa_main_sequence, track.runs.size() ? track.runs.size() - 1 : 0);
-	_accum = 0.0f;
-
-	for (uint32_t i = 0; i < track.runs.size(); ++i) {
-		const auto& run = track.runs[i];
-		offsets[i] = run.s8_start_offset;
-		if (run.s8_count > 0 && run.s8_start < data->v77.s8.size()) {
-			ticks[i] = data->v77.s8[run.s8_start + offsets[i]].s8_duration_ticks;
-		}
-	}
-	_frame_counter++;
-	if (const char* adv = std::getenv("VIEWER_ADVANCE")) {
-		const int frames = std::max(0, std::atoi(adv));
-		for (int i = 0; i < frames; ++i)
-			advance(1.0f / 60.0f);
-	}
-	spdlog::debug("anim: play track {} \"{}\"", track_id, track.name);
+	if (data)
+		playback.play(*data, track_id, options);
 }
 
 void SpriteInstance::play(const std::string& name) {
-	for (uint32_t i = 0; i < data->tracks.size(); ++i) {
-		if (data->tracks[i].name == name) {
-			play(i);
-			return;
-		}
-	}
-}
-
-void SpriteInstance::update(float dt_seconds) {
-	// MBS animation sequences advance at 120 frames/s (script Wait/time units are
-	// 60 Hz). Confirmed against the opening reference: a 556-frame logo sequence
-	// ends at 4.6 s, and the title's flash phase lands at 14 s.
-	constexpr float kTicksPerSecond = 120.0f;
-	constexpr float kTransitionDuration = 0.15f;
-	_accum += dt_seconds * kTicksPerSecond;
-
-	if (_transition_t < 1.0f) {
-		_transition_t += dt_seconds / kTransitionDuration;
-		if (_transition_t > 1.0f)
-			_transition_t = 1.0f;
-	}
-
-	bool advanced = false;
-	const auto& track = data->tracks[track_idx];
-	auto can_hold = [&](uint32_t run_idx, uint32_t offset) {
-		const auto& run = track.runs[run_idx];
-		if (run.s8_start + offset >= data->v77.s8.size())
-			return false;
-		const auto& s8 = data->v77.s8[run.s8_start + offset];
-		if (s8.s6_keyframe_id >= data->keyframes.size())
-			return false;
-		const auto& ck = data->keyframes[s8.s6_keyframe_id];
-		const float width = std::abs(ck.bounds.z - ck.bounds.x);
-		const float height = std::abs(ck.bounds.w - ck.bounds.y);
-		if (width > 3000.0f || height > 3000.0f)
-			return false;
-		bool textured = false;
-		for (const auto& layer : ck.layers) {
-			if (!layer.notex)
-				textured = true;
-		}
-		return textured;
-	};
-
-	while (_accum >= 1.0f) {
-		_accum -= 1.0f;
-		const uint32_t first = seq_runs() ? std::min<uint32_t>(_phase, track.runs.size()) : 0;
-		const uint32_t last = seq_runs() ? std::min<uint32_t>(_phase + 1, track.runs.size()) : track.runs.size();
-		for (uint32_t i = first; i < last; ++i) {
-			const auto& run = track.runs[i];
-			if (run.s8_count == 0 || (i < done.size() && done[i]) || offsets[i] >= run.s8_count)
-				continue;
-			const auto& current_s8 = data->v77.s8[run.s8_start + offsets[i]];
-			if ((current_s8.flags & mbs::v77::s8flag::ACTIVE) &&
-				((data->v77.s7[current_s8.s7_transform_id].fog >> 24) != 0))
-				last_visible_offsets[i] = offsets[i];
-			if (--ticks[i] == 0) {
-				advanced = true;
-				const auto& prev_s8 = current_s8;
-				prev_offsets[i] = offsets[i];
-				if (track.one_shot && offsets[i] + 1 >= run.s8_count) {
-					done[i] = 1;
-					offsets[i] = run.s8_count - 1;
-				} else if (prev_s8.flags & mbs::v77::s8flag::JUMP) {
-					const int32_t target =
-						static_cast<int32_t>(run.s8_start_offset) + static_cast<int16_t>(prev_s8.s8_loop_target);
-					if (target >= 0 && static_cast<uint32_t>(target) < run.s8_count) {
-						offsets[i] = static_cast<uint32_t>(target);
-					} else {
-						done[i] = 1;
-						offsets[i] = run.s8_count - 1;
-					}
-				} else if (run.once && offsets[i] + 1 >= run.s8_count) {
-					done[i] = 1;
-					offsets[i] = run.s8_count - 1;
-				} else {
-					++offsets[i];
-					if (offsets[i] >= run.s8_count)
-						offsets[i] = run.loop_start;
-				}
-				// Background layers are static plates: hold their final frame.
-				// Sprite runs hold their final pose while it is still visible
-				// (ACTIVE + non-zero fog alpha); frames that fade to transparent
-				// or clear ACTIVE terminate the run and stop drawing.
-				if (done[i]) {
-					const auto& end = data->v77.s8[run.s8_start + offsets[i]];
-					const uint32_t fog = data->v77.s7[end.s7_transform_id].fog;
-					const bool visible_end = (end.flags & mbs::v77::s8flag::ACTIVE) && ((fog >> 24) != 0);
-					const bool one_tick_last =
-						run.once && !hold_finished && end.s8_duration_ticks <= 1 && (end.flags & mbs::v77::s8flag::LAST);
-					if (one_tick_last && track.runs.size() > 1 && last_visible_offsets[i] != UINT32_MAX &&
-						can_hold(i, last_visible_offsets[i])) {
-						offsets[i] = last_visible_offsets[i];
-						hide[i] = 0;
-					} else if (one_tick_last && prev_offsets[i] != UINT32_MAX) {
-						const auto& prev = data->v77.s8[run.s8_start + prev_offsets[i]];
-						const uint32_t prev_fog = data->v77.s7[prev.s7_transform_id].fog;
-						const bool prev_visible = (prev.flags & mbs::v77::s8flag::ACTIVE) && ((prev_fog >> 24) != 0);
-						if (prev_visible) {
-							offsets[i] = prev_offsets[i];
-							hide[i] = 0;
-						} else {
-							hide[i] = 1;
-						}
-					} else {
-						hide[i] = (hold_finished || visible_end) ? 0 : 1;
-					}
-				}
-				ticks[i] = data->v77.s8[run.s8_start + offsets[i]].s8_duration_ticks;
-			}
-		}
-		// Sequential-runs mode: once a phase finishes, start the next one.
-		if (seq_runs() && _phase < track.runs.size() && done[_phase] && _phase + 1 < track.runs.size()) {
-			++_phase;
-			const auto& r = track.runs[_phase];
-			offsets[_phase] = r.s8_start_offset;
-			if (r.s8_count && r.s8_start < data->v77.s8.size())
-				ticks[_phase] = data->v77.s8[r.s8_start + offsets[_phase]].s8_duration_ticks;
-			hide[_phase] = 0;
-			advanced = true;
-		}
-	}
-
-	if (advanced)
-		_frame_counter++;
+	if (data)
+		playback.play(*data, name, options);
 }
 
 void SpriteInstance::advance(float dt_seconds) {
-	if (paused)
-		return;
-	update(dt_seconds);
+	if (data)
+		playback.advance(*data, dt_seconds);
 }
 
 void SpriteInstance::next_track() {
-	if (data->tracks.empty())
-		return;
-	play((track_idx + 1) % data->tracks.size());
+	if (data)
+		playback.next_track(*data, options);
 }
 
 void SpriteInstance::prev_track() {
-	if (data->tracks.empty())
-		return;
-	play(track_idx == 0 ? data->tracks.size() - 1 : track_idx - 1);
+	if (data)
+		playback.prev_track(*data, options);
 }
 
 namespace {
@@ -416,15 +220,15 @@ void SpriteInstance::for_each_layer(
 	int blend_filter,
 	uint32_t layer_mask,
 	F&& visit) const {
-	if (!data || track_idx >= data->tracks.size())
+	if (!data || playback.track_idx >= data->tracks.size())
 		return;
 
-	const auto& track = data->tracks[track_idx];
+	const auto& track = data->tracks[playback.track_idx];
 	LayerVisit base;
 	base.run = sa_idx;
-	base.transition_t = _transition_t;
-	if (!mone && !character && track.runs.size() > 1 && track.sa_main_sequence < done.size() &&
-		done[track.sa_main_sequence]) {
+	base.transition_t = playback.transition_t;
+	if (!mone && !character && track.runs.size() > 1 && track.sa_main_sequence < playback.done.size() &&
+		playback.done[track.sa_main_sequence]) {
 		base.skip = "main_done";
 		visit(base);
 		return;
@@ -438,9 +242,9 @@ void SpriteInstance::for_each_layer(
 
 	const auto& run = track.runs[sa_idx];
 	base.sa_track_slot = run.sa_track_slot;
-	base.offset = sa_idx < offsets.size() ? offsets[sa_idx] : 0;
-	base.done = sa_idx < done.size() && done[sa_idx] != 0;
-	base.hidden = sa_idx < hide.size() && hide[sa_idx] != 0;
+	base.offset = sa_idx < playback.offsets.size() ? playback.offsets[sa_idx] : 0;
+	base.done = sa_idx < playback.done.size() && playback.done[sa_idx] != 0;
+	base.hidden = sa_idx < playback.hide.size() && playback.hide[sa_idx] != 0;
 
 	if (run.s8_count == 0 || base.offset >= run.s8_count) {
 		base.skip = "empty_run";
@@ -449,11 +253,6 @@ void SpriteInstance::for_each_layer(
 	}
 	if (base.hidden) {
 		base.skip = "hidden";
-		visit(base);
-		return;
-	}
-	if (seq_runs() && sa_idx != _phase) {
-		base.skip = "phase";
 		visit(base);
 		return;
 	}
@@ -514,10 +313,7 @@ void SpriteInstance::for_each_layer(
 	const float zrate = 1.0f / (visible + 1.0f);
 	float depths[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
-	static const int source_filter = [] {
-		const char* e = std::getenv("VIEWER_S4_SOURCE");
-		return e ? std::atoi(e) : -1;
-	}();
+	const int source_filter = options.source_filter;
 
 	for (size_t i = 0; i < ck.layers.size(); ++i) {
 		const auto& layer = ck.layers[i];
@@ -677,74 +473,39 @@ void SpriteInstance::build_vertices(
 }
 
 glm::mat4 SpriteInstance::transform_for_sa(uint32_t sa_idx, bool* out_flipx, bool* out_flipy) const {
-	const auto& track = data->tracks[track_idx];
-	const auto& run = track.runs[sa_idx];
-	const auto& s8 = data->v77.s8[run.s8_start + offsets[sa_idx]];
-
-	bool flipx = s8.flags & mbs::v77::s8flag::FLIPX;
-	bool flipy = s8.flags & mbs::v77::s8flag::FLIPY;
-	if (out_flipx)
-		*out_flipx = flipx;
-	if (out_flipy)
-		*out_flipy = flipy;
-
-	const auto& curr_s7 = data->v77.s7[s8.s7_transform_id];
-
-	if (_transition_t < 1.0f && !_transition_src_s7.empty()) {
-		uint32_t src_idx = sa_idx < _transition_src_s7.size() ? sa_idx : (_transition_src_s7.size() - 1);
-		float t = glm::smoothstep(0.0f, 1.0f, _transition_t);
-		return s7_matrix_interp(_transition_src_s7[src_idx], curr_s7, t, flipx, flipy);
+	if (!data)
+		return glm::mat4{1.0f};
+	const glm::mat4 matrix = playback.transform_for_sa(*data, sa_idx);
+	if (out_flipx || out_flipy) {
+		const auto& track = data->tracks[playback.track_idx];
+		const auto& run = track.runs[sa_idx];
+		const auto& s8 = data->v77.s8[run.s8_start + playback.offsets[sa_idx]];
+		if (out_flipx)
+			*out_flipx = (s8.flags & mbs::v77::s8flag::FLIPX) != 0;
+		if (out_flipy)
+			*out_flipy = (s8.flags & mbs::v77::s8flag::FLIPY) != 0;
 	}
-
-	if (s8.s7_transform_interpolation == 0 || prev_offsets[sa_idx] == UINT32_MAX) {
-		return mbs::s7_matrix(curr_s7, flipx, flipy);
-	}
-
-	const auto& prev_s8 = data->v77.s8[run.s8_start + prev_offsets[sa_idx]];
-	const auto& prev_s7 = data->v77.s7[prev_s8.s7_transform_id];
-	float t = 1.0f - (float)ticks[sa_idx] / (float)s8.s8_duration_ticks;
-	return s7_matrix_interp(prev_s7, curr_s7, t, flipx, flipy);
+	return matrix;
 }
 
-uint32_t SpriteInstance::sa_count() const { return static_cast<uint32_t>(data->tracks[track_idx].runs.size()); }
+uint32_t SpriteInstance::sa_count() const { return data ? playback.sa_count(*data) : 0; }
 
 std::vector<SpriteInstance::RunState> SpriteInstance::run_states() const {
-	std::vector<RunState> out;
-	if (!data || track_idx >= data->tracks.size())
-		return out;
-	const auto& track = data->tracks[track_idx];
-	out.reserve(track.runs.size());
-	for (uint32_t i = 0; i < track.runs.size() && i < offsets.size(); ++i) {
-		const auto& run = track.runs[i];
-		RunState state;
-		state.offset = offsets[i];
-		state.done = i < done.size() && done[i] != 0;
-		state.hidden = i < hide.size() && hide[i] != 0;
-		if (run.s8_count > 0 && run.s8_start + state.offset < data->v77.s8.size()) {
-			state.s8 = static_cast<int32_t>(run.s8_start + state.offset);
-			const auto& s8 = data->v77.s8[run.s8_start + state.offset];
-			state.flags = s8.flags;
-			state.frames = s8.s8_duration_ticks;
-			state.s6 = s8.s6_keyframe_id;
-			state.s7 = s8.s7_transform_id;
-		}
-		out.push_back(state);
-	}
-	return out;
+	return data ? playback.run_states(*data) : std::vector<RunState>{};
 }
 
-uint32_t SpriteInstance::frame_counter() const { return _frame_counter; }
+uint32_t SpriteInstance::frame_counter() const { return playback.frame_counter_value(); }
 
-glm::vec4 SpriteInstance::track_bounds() const { return data->tracks[track_idx].bounds; }
+glm::vec4 SpriteInstance::track_bounds() const { return data ? data->tracks[playback.track_idx].bounds : glm::vec4{}; }
 
 glm::vec4 SpriteInstance::content_bounds() const {
 	float l = INFINITY, t = INFINITY, r = -INFINITY, b = -INFINITY;
-	const auto& track = data->tracks[track_idx];
+	const auto& track = data->tracks[playback.track_idx];
 	for (size_t i = 0; i < track.runs.size(); ++i) {
 		const auto& run = track.runs[i];
-		if (run.s8_count == 0 || i >= offsets.size())
+		if (run.s8_count == 0 || i >= playback.offsets.size())
 			continue;
-		const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
+		const auto& s8 = data->v77.s8[run.s8_start + playback.offsets[i]];
 		if (s8.flags & (mbs::v77::s8flag::HIDDEN | mbs::v77::s8flag::NODRAW))
 			continue;
 		const glm::mat4 m = mbs::s7_matrix(data->v77.s7[s8.s7_transform_id], false, false);
@@ -763,12 +524,12 @@ glm::vec4 SpriteInstance::content_bounds() const {
 
 glm::vec4 SpriteInstance::render_bounds() const {
 	float l = INFINITY, t = INFINITY, r = -INFINITY, b = -INFINITY;
-	const auto& track = data->tracks[track_idx];
+	const auto& track = data->tracks[playback.track_idx];
 	for (uint32_t i = 0; i < track.runs.size(); ++i) {
 		const auto& run = track.runs[i];
-		if (run.s8_count == 0 || i >= offsets.size())
+		if (run.s8_count == 0 || i >= playback.offsets.size())
 			continue;
-		const auto& s8 = data->v77.s8[run.s8_start + offsets[i]];
+		const auto& s8 = data->v77.s8[run.s8_start + playback.offsets[i]];
 		if (s8.flags & (mbs::v77::s8flag::HIDDEN | mbs::v77::s8flag::NODRAW))
 			continue;
 		if ((s8.flags & mbs::v77::s8flag::LAST) && !(s8.flags & mbs::v77::s8flag::ACTIVE))

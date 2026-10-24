@@ -15,11 +15,12 @@
 
 PlaybackRuntime::PlaybackRuntime(
 	const AssetLoader& loader,
+	const MbsCatalog& mbs,
 	const ViewerConfig& config,
 	TraceCallback trace,
 	NativeCallback native_call)
 	: _loader(loader)
-	, _mbs(loader) {
+	, _mbs(mbs) {
 	const cpk::archive& cpk = _loader.cpk();
 	const size_t slash = config.script.find_last_of('/');
 	const std::string dir = slash == std::string::npos ? "" : config.script.substr(0, slash);
@@ -40,9 +41,7 @@ PlaybackRuntime::PlaybackRuntime(
 	_runtime = load_viewer_runtime_data(_loader.cpk(), config.chara_table, data_dir);
 	configure_host(_host, _runtime);
 	_host.set_call_log({});
-	_host.set_track_frames([this](const std::string& mbs, int index) {
-		return _mbs.get(mbs).duration(index);
-	});
+	_host.set_track_frames([this](const std::string& mbs, int index) { return _mbs.get(mbs).duration(index); });
 	_host.set_track_info([this](const std::string& mbs, int index) {
 		asb::TrackInfo info;
 		const auto& parsed = _mbs.get(mbs);
@@ -51,6 +50,7 @@ PlaybackRuntime::PlaybackRuntime(
 			info.one_shot = track->one_shot;
 			info.continuation_track = track->continuation_track;
 			info.continuation_name = track->continuation_name;
+			info.transition_mode = track->transition_mode;
 		}
 		return info;
 	});
@@ -120,18 +120,10 @@ void PlaybackRuntime::log_archive_events() {
 	}
 }
 
-const asb::SceneState& PlaybackRuntime::scene() const {
-	return _session->scene();
-}
+const asb::SceneState& PlaybackRuntime::scene() const { return _session->scene(); }
 
-long PlaybackRuntime::frame() const {
-	return _session->frame();
-}
+long PlaybackRuntime::frame() const { return _session->frame(); }
 
-bool PlaybackRuntime::finished() const {
-	return _session->finished();
-}
+bool PlaybackRuntime::finished() const { return _session->finished(); }
 
-const std::string& PlaybackRuntime::error() const {
-	return _session->error();
-}
+const std::string& PlaybackRuntime::error() const { return _session->error(); }

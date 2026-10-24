@@ -75,9 +75,9 @@ std::string runs_json(const SpriteInstance& instance) {
 			out += ',';
 		const auto& state = states[i];
 		uint32_t track_slot = 0;
-		if (instance.data && instance.track_idx < instance.data->tracks.size() &&
-			i < instance.data->tracks[instance.track_idx].runs.size())
-			track_slot = instance.data->tracks[instance.track_idx].runs[i].sa_track_slot;
+		if (instance.data && instance.playback.track_idx < instance.data->tracks.size() &&
+			i < instance.data->tracks[instance.playback.track_idx].runs.size())
+			track_slot = instance.data->tracks[instance.playback.track_idx].runs[i].sa_track_slot;
 		out += "{\"run\":" + std::to_string(i) + ",\"track_id\":" + std::to_string(track_slot) +
 			   ",\"offset\":" + std::to_string(state.offset) + ",\"s8\":" + std::to_string(state.s8) +
 			   ",\"s6\":" + std::to_string(state.s6) + ",\"s7\":" + std::to_string(state.s7) +
@@ -165,16 +165,14 @@ void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, Spr
 	const TrackPolicy policy =
 		object.background && !object.stage_layer ? TrackPolicy::AllEnabledTracks : TrackPolicy::ScriptTrack;
 	const bool character = e.kind == "DrUiCreateChara" || e.kind == "DrCreateChara" || e.kind == "DrCreateNpc";
-	const bool stateful_mone =
-		asset && e.kind.rfind("CreateSpriteMone", 0) == 0 && !asset->data.tracks.empty() &&
-		(e.track_index >= 0 && static_cast<size_t>(e.track_index) < asset->data.tracks.size()
-			 ? asset->data.tracks[e.track_index].sa_main_sequence > 0
-			 : asset->data.tracks.front().sa_main_sequence > 0);
+	const bool stateful_mone = asset && e.kind.rfind("CreateSpriteMone", 0) == 0 && !asset->data.tracks.empty() &&
+							   (e.track_index >= 0 && static_cast<size_t>(e.track_index) < asset->data.tracks.size()
+									? asset->data.tracks[e.track_index].sa_main_sequence > 0
+									: asset->data.tracks.front().sa_main_sequence > 0);
 	const bool hold_finished = object.background || character || object.stage_layer || stateful_mone;
 	object.playback.reset(std::move(asset), policy, e, flip_v_for(e), hold_finished, character);
 	object.playback.apply_track_order(object.track_order);
-	object.replaces_stage =
-		object.replaces_stage && object.playback.asset && !object.playback.instances.empty();
+	object.replaces_stage = object.replaces_stage && object.playback.asset && !object.playback.instances.empty();
 	update_tints(object);
 
 	if (object.background && object.playback.asset)
@@ -195,8 +193,8 @@ void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, Spr
 
 void SceneRenderer::apply(RenderItem& object, const asb::RuntimeEntity& e) {
 	object.state = e;
-	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0 &&
-						  object.playback.asset && !object.playback.instances.empty();
+	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0 && object.playback.asset &&
+							!object.playback.instances.empty();
 	const int previous_track = object.playback.track_index;
 	object.playback.apply(e);
 	update_tints(object);
@@ -205,8 +203,8 @@ void SceneRenderer::apply(RenderItem& object, const asb::RuntimeEntity& e) {
 			{_frame,
 			 "sprite",
 			 "track",
-			 "\"name\":\"" + asb::trace::quote(e.name) + "\",\"track\":" +
-				 asb::trace::integer(object.playback.track_index)});
+			 "\"name\":\"" + asb::trace::quote(e.name) +
+				 "\",\"track\":" + asb::trace::integer(object.playback.track_index)});
 }
 
 void SceneRenderer::update_tints(RenderItem& object) {
@@ -269,8 +267,8 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			e.kind = "StageBG";
 			e.mbs = _stage_mbs;
 			e.ftx = _stage_ftx;
-			e.space = _stage_mbs.rfind("FieldBG/", 0) == 0 ? asb::RuntimeEntity::Space::Ui
-															 : asb::RuntimeEntity::Space::World;
+			e.space =
+				_stage_mbs.rfind("FieldBG/", 0) == 0 ? asb::RuntimeEntity::Space::Ui : asb::RuntimeEntity::Space::World;
 			e.order = -100000;
 			e.alpha = 255;
 			rebuild(_stage, e, std::move(asset));
@@ -292,8 +290,8 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			e.track_index = spec.track_index;
 			e.started = true;
 			e.visible = true;
-			e.space = spec.mbs.rfind("FieldBG/", 0) == 0 ? asb::RuntimeEntity::Space::Ui
-														 : asb::RuntimeEntity::Space::World;
+			e.space =
+				spec.mbs.rfind("FieldBG/", 0) == 0 ? asb::RuntimeEntity::Space::Ui : asb::RuntimeEntity::Space::World;
 			e.order = -100000 + spec.order;
 			e.pos[0] = spec.x;
 			e.pos[1] = spec.y;
@@ -416,13 +414,13 @@ std::string SceneRenderer::object_json(const RenderItem& object, bool stage, std
 		if (i)
 			out += ',';
 		std::string instance_track;
-		if (instance.data && instance.track_idx < instance.data->tracks.size())
-			instance_track = instance.data->tracks[instance.track_idx].name;
-		out += "{\"index\":" + std::to_string(i) + ",\"track\":" + std::to_string(instance.track_idx) +
+		if (instance.data && instance.playback.track_idx < instance.data->tracks.size())
+			instance_track = instance.data->tracks[instance.playback.track_idx].name;
+		out += "{\"index\":" + std::to_string(i) + ",\"track\":" + std::to_string(instance.playback.track_idx) +
 			   ",\"track_name\":" + quote(instance_track) +
 			   ",\"variant_flags\":" + std::to_string(instance.variant_flags) +
 			   ",\"frame_counter\":" + std::to_string(instance.frame_counter()) +
-			   ",\"hold_finished\":" + asb::trace::boolean(instance.hold_finished) +
+			   ",\"hold_finished\":" + asb::trace::boolean(instance.playback.hold_finished) +
 			   ",\"bounds\":" + vec4_json(instance.render_bounds()) + ",\"runs\":" + runs_json(instance) + "}";
 	}
 	out += "]";
@@ -456,12 +454,12 @@ void SceneRenderer::probe_instance(const RenderItem& object, bool stage, size_t 
 		return;
 	const auto& instance = object.playback.instances[index];
 	std::string track_name;
-	if (instance.data && instance.track_idx < instance.data->tracks.size())
-		track_name = instance.data->tracks[instance.track_idx].name;
+	if (instance.data && instance.playback.track_idx < instance.data->tracks.size())
+		track_name = instance.data->tracks[instance.playback.track_idx].name;
 	_probe->draw() << "{\"frame\":" << _frame
 				   << ",\"kind\":\"draw\",\"event\":\"instance\",\"object\":" << quote(object.state.name)
 				   << ",\"stage\":" << asb::trace::boolean(stage) << ",\"instance\":" << index
-				   << ",\"track\":" << instance.track_idx << ",\"track_name\":" << quote(track_name)
+				   << ",\"track\":" << instance.playback.track_idx << ",\"track_name\":" << quote(track_name)
 				   << ",\"variant_flags\":" << instance.variant_flags
 				   << ",\"frame_counter\":" << instance.frame_counter()
 				   << ",\"bounds\":" << vec4_json(instance.render_bounds()) << ",\"runs\":" << runs_json(instance)
@@ -476,7 +474,7 @@ void SceneRenderer::probe_layers(
 	if (!_probe || index >= object.playback.instances.size())
 		return;
 	const auto& instance = object.playback.instances[index];
-	if (!instance.data || instance.track_idx >= instance.data->tracks.size())
+	if (!instance.data || instance.playback.track_idx >= instance.data->tracks.size())
 		return;
 	for (uint32_t run = 0; run < instance.sa_count(); ++run) {
 		instance.visit_layers(
@@ -507,39 +505,36 @@ void SceneRenderer::probe_layers(
 				}
 				xy += ']';
 
-				_probe->draw() << "{\"frame\":" << _frame
-							   << ",\"kind\":\"draw\",\"event\":\"layer\",\"object\":" << quote(object.state.name)
-							   << ",\"stage\":" << asb::trace::boolean(stage) << ",\"instance\":" << index
-							   << ",\"run\":" << layer.run << ",\"layer\":" << layer.layer
-							   << ",\"track\":" << instance.track_idx << ",\"track_id\":" << layer.sa_track_slot
-							   << ",\"offset\":" << layer.offset << ",\"done\":" << asb::trace::boolean(layer.done)
-							   << ",\"hidden\":" << asb::trace::boolean(layer.hidden) << ",\"s8\":" << layer.s8_frame_start
-							   << ",\"s8_flags\":" << layer.s8_flags << ",\"s8_frames\":" << layer.s8_frames
-							   << ",\"s6\":" << layer.s6_keyframe_id << ",\"s7\":" << layer.s7_transform_id
-							   << ",\"s6_interp\":" << static_cast<unsigned>(layer.s6_keyframe_interpolation)
-							   << ",\"s7_interp\":" << static_cast<unsigned>(layer.s7_transform_interpolation)
-							   << ",\"s4\":" << layer.s4_layer_start << ",\"s4_source_tile_id\":" << layer.s4_source_tile_id
-							   << ",\"s4_flags\":" << static_cast<unsigned>(layer.s4_flags) << ",\"s1\":" << layer.s1_uv_id
-							   << ",\"s2\":" << layer.s2_vertex_id << ",\"s0\":" << layer.s0_color_row_id
-							   << ",\"color_id\":" << static_cast<unsigned>(layer.color_id)
-							   << ",\"alt_color\":" << color_json(layer.alt_color) << ",\"tex\":" << layer.tex_id
-							   << ",\"tex_w\":" << layer.tex_width << ",\"tex_h\":" << layer.tex_height
-							   << ",\"blend\":" << static_cast<unsigned>(layer.blend)
-							   << ",\"attributes\":" << layer.attributes
-							   << ",\"notex\":" << asb::trace::boolean(layer.notex)
-							   << ",\"flip_v\":" << asb::trace::boolean(layer.flip_v)
-							   << ",\"drawn\":" << asb::trace::boolean(layer.drawn) << ",\"skip\":" << quote(layer.skip)
-							   << ",\"depth\":" << number(layer.depth)
-							   << ",\"transition_t\":" << number(layer.transition_t)
-							   << ",\"s6_bounds\":" << vec4_json(layer.s6_bounds)
-							   << ",\"s7_move\":" << vec3_json(layer.s7_move)
-							   << ",\"s7_rotate\":" << vec3_json(layer.s7_rotate)
-							   << ",\"s7_scale\":" << vec2_json(layer.s7_scale) << ",\"s7_fog\":" << layer.s7_fog
-							   << ",\"s1_center\":" << vec2_json(layer.s1_center)
-							   << ",\"s1_topleft\":" << vec2_json(layer.s1_topleft) << ",\"uv\":" << uv
-							   << ",\"uv_norm\":" << uv_norm << ",\"xy\":" << xy
-							   << ",\"raw_color\":" << color_json(layer.raw_color)
-							   << ",\"color\":" << color_json(layer.color) << "}\n";
+				_probe->draw()
+					<< "{\"frame\":" << _frame
+					<< ",\"kind\":\"draw\",\"event\":\"layer\",\"object\":" << quote(object.state.name)
+					<< ",\"stage\":" << asb::trace::boolean(stage) << ",\"instance\":" << index
+					<< ",\"run\":" << layer.run << ",\"layer\":" << layer.layer
+					<< ",\"track\":" << instance.playback.track_idx << ",\"track_id\":" << layer.sa_track_slot
+					<< ",\"offset\":" << layer.offset << ",\"done\":" << asb::trace::boolean(layer.done)
+					<< ",\"hidden\":" << asb::trace::boolean(layer.hidden) << ",\"s8\":" << layer.s8_frame_start
+					<< ",\"s8_flags\":" << layer.s8_flags << ",\"s8_frames\":" << layer.s8_frames
+					<< ",\"s6\":" << layer.s6_keyframe_id << ",\"s7\":" << layer.s7_transform_id
+					<< ",\"s6_interp\":" << static_cast<unsigned>(layer.s6_keyframe_interpolation)
+					<< ",\"s7_interp\":" << static_cast<unsigned>(layer.s7_transform_interpolation)
+					<< ",\"s4\":" << layer.s4_layer_start << ",\"s4_source_tile_id\":" << layer.s4_source_tile_id
+					<< ",\"s4_flags\":" << static_cast<unsigned>(layer.s4_flags) << ",\"s1\":" << layer.s1_uv_id
+					<< ",\"s2\":" << layer.s2_vertex_id << ",\"s0\":" << layer.s0_color_row_id
+					<< ",\"color_id\":" << static_cast<unsigned>(layer.color_id)
+					<< ",\"alt_color\":" << color_json(layer.alt_color) << ",\"tex\":" << layer.tex_id
+					<< ",\"tex_w\":" << layer.tex_width << ",\"tex_h\":" << layer.tex_height
+					<< ",\"blend\":" << static_cast<unsigned>(layer.blend) << ",\"attributes\":" << layer.attributes
+					<< ",\"notex\":" << asb::trace::boolean(layer.notex)
+					<< ",\"flip_v\":" << asb::trace::boolean(layer.flip_v)
+					<< ",\"drawn\":" << asb::trace::boolean(layer.drawn) << ",\"skip\":" << quote(layer.skip)
+					<< ",\"depth\":" << number(layer.depth) << ",\"transition_t\":" << number(layer.transition_t)
+					<< ",\"s6_bounds\":" << vec4_json(layer.s6_bounds) << ",\"s7_move\":" << vec3_json(layer.s7_move)
+					<< ",\"s7_rotate\":" << vec3_json(layer.s7_rotate) << ",\"s7_scale\":" << vec2_json(layer.s7_scale)
+					<< ",\"s7_fog\":" << layer.s7_fog << ",\"s1_center\":" << vec2_json(layer.s1_center)
+					<< ",\"s1_topleft\":" << vec2_json(layer.s1_topleft) << ",\"uv\":" << uv
+					<< ",\"uv_norm\":" << uv_norm << ",\"xy\":" << xy
+					<< ",\"raw_color\":" << color_json(layer.raw_color) << ",\"color\":" << color_json(layer.color)
+					<< "}\n";
 			});
 	}
 }
@@ -591,18 +586,17 @@ std::string SceneRenderer::timeline_json(const asb::SceneState& scene) const {
 		const auto& e = object->state;
 		out += "{\"name\":" + quote(e.name) + ",\"kind\":" + quote(e.kind) + ",\"mbs\":" + quote(e.mbs) +
 			   ",\"order\":" + std::to_string(e.order) + ",\"alpha\":" + std::to_string(e.alpha) +
-			   ",\"visible\":" + asb::trace::boolean(e.visible) +
-			   ",\"started\":" + asb::trace::boolean(e.started) +
-			   ",\"background\":" + asb::trace::boolean(object->background) + ",\"track\":" +
-			   std::to_string(object->playback.track_index) + ",\"instances\":[";
+			   ",\"visible\":" + asb::trace::boolean(e.visible) + ",\"started\":" + asb::trace::boolean(e.started) +
+			   ",\"background\":" + asb::trace::boolean(object->background) +
+			   ",\"track\":" + std::to_string(object->playback.track_index) + ",\"instances\":[";
 		for (size_t i = 0; i < object->playback.instances.size(); ++i) {
 			if (i)
 				out += ',';
 			const auto& instance = object->playback.instances[i];
 			std::string track_name;
-			if (instance.data && instance.track_idx < instance.data->tracks.size())
-				track_name = instance.data->tracks[instance.track_idx].name;
-			out += "{\"index\":" + std::to_string(i) + ",\"track\":" + std::to_string(instance.track_idx) +
+			if (instance.data && instance.playback.track_idx < instance.data->tracks.size())
+				track_name = instance.data->tracks[instance.playback.track_idx].name;
+			out += "{\"index\":" + std::to_string(i) + ",\"track\":" + std::to_string(instance.playback.track_idx) +
 				   ",\"track_name\":" + quote(track_name) + ",\"runs\":" + runs_json(instance) + "}";
 		}
 		out += "]}";
@@ -632,7 +626,8 @@ std::string SceneRenderer::summary(const asb::SceneState& scene) const {
 			static_cast<size_t>(object->playback.track_index) < object->playback.asset->data.tracks.size())
 			track_name = object->playback.asset->data.tracks[object->playback.track_index].name;
 		out << object->state.name << " track=" << object->playback.track_index << " name=" << track_name
-			<< " instances=" << object->playback.instances.size() << " reason=" << filter_reason(object->state, stage) << '\n';
+			<< " instances=" << object->playback.instances.size() << " reason=" << filter_reason(object->state, stage)
+			<< '\n';
 	}
 	return out.str();
 }
@@ -707,12 +702,13 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 		for (size_t i = 0; i < object->playback.instances.size(); ++i) {
 			auto& instance = object->playback.instances[i];
 			if (_trace)
-				_trace({_frame,
-						"draw",
-						"runs",
-						"\"object\":\"" + asb::trace::quote(e.name) + "\",\"instance\":" + std::to_string(i) +
-							",\"track\":" + std::to_string(instance.track_idx) + ",\"runs\":" +
-							runs_json(instance)});
+				_trace(
+					{_frame,
+					 "draw",
+					 "runs",
+					 "\"object\":\"" + asb::trace::quote(e.name) + "\",\"instance\":" + std::to_string(i) +
+						 ",\"track\":" + std::to_string(instance.playback.track_idx) +
+						 ",\"runs\":" + runs_json(instance)});
 			if (_probe) {
 				probe_instance(*object, object->stage, i);
 				probe_layers(*object, i, object->stage, object->tints);
@@ -721,8 +717,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 			static const glm::mat4 screen_projection = glm::ortho(0.0f, 1920.0f, 1080.0f, 0.0f);
 			const bool screen_chara = e.kind == "DrUiCreateChara";
 			const glm::mat4& object_projection = screen_chara ? screen_projection : projection;
-			const float camera_scale =
-				object->replaces_stage && camera.zoom() > 0.0f ? camera.zoom() : 1.0f;
+			const float camera_scale = object->replaces_stage && camera.zoom() > 0.0f ? camera.zoom() : 1.0f;
 			float object_scale = (e.scale > 0.0f ? e.scale : 1.0f) * camera_scale;
 			// TODO(ui): DrUiCreateChara positions and MBS bounds are in 1920x1080
 			// screen space, but the engine's authored scale is larger than the

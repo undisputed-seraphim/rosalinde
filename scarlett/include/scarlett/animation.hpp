@@ -14,6 +14,7 @@ struct TrackInfo {
 	bool one_shot = false;
 	int continuation_track = -1;
 	std::string continuation_name;
+	uint8_t transition_mode = 0;
 };
 
 using TrackInfoProvider = std::function<TrackInfo(const std::string& mbs, int track_index)>;

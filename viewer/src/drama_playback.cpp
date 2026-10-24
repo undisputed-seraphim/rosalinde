@@ -20,7 +20,8 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, ViewerConfig config)
 	}
 	if (!_cfg.probe_dir.empty() && !_cfg.probe_frames.empty()) {
 		std::sort(_cfg.probe_frames.begin(), _cfg.probe_frames.end());
-		_cfg.probe_frames.erase(std::unique(_cfg.probe_frames.begin(), _cfg.probe_frames.end()), _cfg.probe_frames.end());
+		_cfg.probe_frames.erase(
+			std::unique(_cfg.probe_frames.begin(), _cfg.probe_frames.end()), _cfg.probe_frames.end());
 		_cfg.scene_frame = std::max(_cfg.scene_frame, _cfg.probe_frames.back());
 	}
 
@@ -29,7 +30,7 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, ViewerConfig config)
 	PlaybackRuntime::NativeCallback native_cb;
 	if (_diagnostics->wants_native_calls())
 		native_cb = [this](const asb::NativeCall& call) { _diagnostics->observe_native(call); };
-	_runtime = std::make_unique<PlaybackRuntime>(_loader, _cfg, trace_cb, std::move(native_cb));
+	_runtime = std::make_unique<PlaybackRuntime>(_loader, _library.mbs_catalog(), _cfg, trace_cb, std::move(native_cb));
 	_view = std::make_unique<SceneView>(_loader, _library, _cfg);
 	_view->set_trace(trace_cb);
 	_view->set_filters(_cfg.only, _cfg.hide, _cfg.keep_stage);
@@ -44,9 +45,7 @@ DramaPlayback::~DramaPlayback() {
 		_diagnostics->write_calls(_runtime->module(), _cfg.script, _runtime->entry_name());
 }
 
-bool DramaPlayback::handle_inputs() {
-	return _quit;
-}
+bool DramaPlayback::handle_inputs() { return _quit; }
 
 void DramaPlayback::step() {
 	if (!_runtime || _runtime->finished())
@@ -148,18 +147,10 @@ void DramaPlayback::capture() {
 		_diagnostics->capture(_runtime->scene(), _render_count);
 }
 
-bool DramaPlayback::is_done() const {
-	return _runtime && _runtime->finished();
-}
+bool DramaPlayback::is_done() const { return _runtime && _runtime->finished(); }
 
-bool DramaPlayback::probes_done() const {
-	return _diagnostics && _diagnostics->probes_done();
-}
+bool DramaPlayback::probes_done() const { return _diagnostics && _diagnostics->probes_done(); }
 
-bool DramaPlayback::captured() const {
-	return _diagnostics && _diagnostics->captured();
-}
+bool DramaPlayback::captured() const { return _diagnostics && _diagnostics->captured(); }
 
-bool DramaPlayback::captures_done() const {
-	return _diagnostics && _diagnostics->captures_done();
-}
+bool DramaPlayback::captures_done() const { return _diagnostics && _diagnostics->captures_done(); }

@@ -66,17 +66,11 @@ AssetLoader::PreparedLayer AssetLoader::prepare(const Job& job) const {
 	PreparedLayer p;
 	std::vector<char> ftx_raw;
 	{
-		viewer::trace::Scoped sc("prepare extract " + job.mbs.path);
-		if (auto entry = _cpkt.find(job.mbs.dir, job.mbs.path); entry == _cpkt.end()) {
-			throw std::runtime_error("MBS was not found: " + job.mbs.dir + "/" + job.mbs.path);
-		} else {
-			_cpkt.extract(*entry, p.mbs);
-		}
-		if (auto entry = _cpkt.find(job.ftx.dir, job.ftx.path); entry == _cpkt.end()) {
+		viewer::trace::Scoped sc("prepare extract " + job.ftx.path);
+		auto entry = _cpkt.find(job.ftx.dir, job.ftx.path);
+		if (entry == _cpkt.end())
 			throw std::runtime_error("FTX was not found: " + job.ftx.dir + "/" + job.ftx.path);
-		} else {
-			_cpkt.extract(*entry, ftx_raw);
-		}
+		_cpkt.extract(*entry, ftx_raw);
 	}
 	{
 		viewer::trace::Scoped sc("prepare ftx parse " + job.ftx.path);
@@ -87,6 +81,7 @@ AssetLoader::PreparedLayer AssetLoader::prepare(const Job& job) const {
 
 SpriteAssetPtr AssetLoader::make_asset(
 	PreparedLayer&& p,
+	mbs::v77 sections,
 	const std::string& mbs,
 	const std::string& ftx,
 	const std::string& class_name,
@@ -99,8 +94,7 @@ SpriteAssetPtr AssetLoader::make_asset(
 	asset->is_background = mbs.rfind("BattleBG/", 0) == 0 || mbs.rfind("FieldBG/", 0) == 0;
 	{
 		viewer::trace::Scoped sc("make mbs parse " + class_name);
-		asset->data = SpriteData::load(
-			std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(p.mbs.data()), p.mbs.size()), std::move(p.ftx));
+		asset->data = SpriteData::build(std::move(sections), std::move(p.ftx));
 	}
 	{
 		viewer::trace::Scoped sc("make gpu upload " + class_name);

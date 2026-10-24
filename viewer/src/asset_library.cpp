@@ -18,9 +18,12 @@ std::optional<Job> AssetLibrary::job_for(const std::string& mbs, const std::stri
 	return job;
 }
 
-SpriteAssetPtr
-AssetLibrary::upload(AssetLoader::PreparedLayer&& prepared, const std::string& mbs, const std::string& ftx) {
-	auto asset = _loader.make_asset(std::move(prepared), mbs, ftx, mbs, {});
+SpriteAssetPtr AssetLibrary::upload(
+	AssetLoader::PreparedLayer&& prepared,
+	mbs::v77 sections,
+	const std::string& mbs,
+	const std::string& ftx) {
+	auto asset = _loader.make_asset(std::move(prepared), std::move(sections), mbs, ftx, mbs, {});
 	if (asset)
 		_assets[key_for(mbs, ftx)] = asset;
 	return asset;
@@ -51,7 +54,13 @@ SpriteAssetPtr AssetLibrary::get(const std::string& mbs, const std::string& ftx)
 		return {};
 	}
 	try {
-		auto asset = upload(_loader.prepare(*job), mbs, ftx);
+		auto sections = _mbs.take_sections(mbs);
+		if (!sections) {
+			spdlog::error("asset: {}: MBS sections unavailable", key);
+			_failed[key] = true;
+			return {};
+		}
+		auto asset = upload(_loader.prepare(*job), std::move(*sections), mbs, ftx);
 		spdlog::debug("asset: load {} ftx={} {:.1f}ms", key, ftx, elapsed_ms());
 		if (_trace && asset)
 			_trace(

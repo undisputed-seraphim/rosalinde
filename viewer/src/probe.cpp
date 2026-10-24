@@ -1,6 +1,6 @@
 #include "probe.hpp"
 
-#include "mbs_info.hpp"
+#include "mbs_catalog.hpp"
 
 #include <scarlett/trace.hpp>
 
@@ -55,26 +55,26 @@ std::string array_json(const std::vector<T>& values, F&& fn) {
 
 struct EntityReport {
 	int selected_track = -1;
-	const MbsInfoCache::Track* selected = nullptr;
+	const MbsCatalog::Track* selected = nullptr;
 	int resolved_track = -1;
-	const MbsInfoCache::Track* resolved = nullptr;
+	const MbsCatalog::Track* resolved = nullptr;
 	bool mbs_found = false;
 	bool ftx_found = false;
 	bool drawable = false;
 	std::string missing;
 };
 
-EntityReport report_entity(const asb::RuntimeEntity& e, const MbsInfoCache& cache) {
+EntityReport report_entity(const asb::RuntimeEntity& e, const MbsCatalog& cache) {
 	EntityReport report;
-	const MbsInfoCache::Info& info = cache.get(e.mbs);
+	const MbsCatalog::Entry& info = cache.get(e.mbs);
 	report.mbs_found = info.found;
 	report.ftx_found = cache.ftx_exists(e.ftx, e.mbs);
-	if (const MbsInfoCache::Track* by_index = info.track(e.track_index)) {
+	if (const MbsCatalog::Track* by_index = info.track(e.track_index)) {
 		report.selected_track = e.track_index;
 		report.selected = by_index;
 	} else if (!e.track.empty()) {
 		const int by_name = info.resolve(e.track);
-		if (const MbsInfoCache::Track* track = info.track(by_name)) {
+		if (const MbsCatalog::Track* track = info.track(by_name)) {
 			report.selected_track = by_name;
 			report.selected = track;
 		}
@@ -100,43 +100,39 @@ EntityReport report_entity(const asb::RuntimeEntity& e, const MbsInfoCache& cach
 }
 
 std::string entity_json(const asb::RuntimeEntity& e, const SceneReportContext& context) {
-	std::string out = "{\"name\":" + quote(e.name) + ",\"kind\":" + quote(e.kind) +
-					  ",\"aliases\":" + array_json(e.aliases, [](const std::string& s) { return quote(s); }) +
-					  ",\"mbs\":" + quote(e.mbs) + ",\"ftx\":" + quote(e.ftx) + ",\"track\":" + quote(e.track) +
-					  ",\"track_index\":" + std::to_string(e.track_index) +
-					  ",\"idle_track\":" + quote(e.idle_track) +
-					  ",\"idle_track_index\":" + std::to_string(e.idle_track_index) +
-					  ",\"action_active\":" + asb::trace::boolean(e.action_active) +
-					  ",\"action_end_frame\":" + std::to_string(e.action_end_frame) +
-					  ",\"started\":" + asb::trace::boolean(e.started) + ",\"pos\":" + vec3_json(e.pos) +
-					  ",\"scale\":" + number(e.scale) + ",\"dir_x\":" + number(e.dir_x) +
-					  ",\"alpha\":" + std::to_string(e.alpha) + ",\"layer\":" + std::to_string(e.layer) +
-					  ",\"visible\":" + asb::trace::boolean(e.visible) +
-					  ",\"reverse\":" + asb::trace::boolean(e.reverse) +
-					  ",\"layer_mask\":" + std::to_string(e.layer_mask) +
-					  ",\"breath_off\":" + asb::trace::boolean(e.breath_off) +
-					  ",\"lipsync\":" + asb::trace::boolean(e.lipsync) +
-					  ",\"shadow_off\":" + asb::trace::boolean(e.shadow_off) +
-					  ",\"sort_id_offset\":" + std::to_string(e.sort_id_offset) +
-					  ",\"dlprio\":" + std::to_string(e.dlprio) +
-					  ",\"window_id_offset\":" + std::to_string(e.window_id_offset) +
-					  ",\"prerender_force\":" + asb::trace::boolean(e.prerender_force) + ",\"color\":[" +
-					  std::to_string(e.color[0]) + "," + std::to_string(e.color[1]) + "," +
-					  std::to_string(e.color[2]) + "," + std::to_string(e.color[3]) + "]" +
-					  ",\"state\":" + std::to_string(e.state) + ",\"state_icon\":" + std::to_string(e.state_icon) +
-					  ",\"height\":" + number(e.height) + ",\"emote\":" + std::to_string(e.emote) +
-					  ",\"search_flag\":" + asb::trace::boolean(e.search_flag) +
-					  ",\"paused\":" + asb::trace::boolean(e.paused) +
-					  ",\"anim_paused\":" + asb::trace::boolean(e.anim_paused) +
-					  ",\"ai_paused\":" + asb::trace::boolean(e.ai_paused) +
-					  ",\"auto_dir_off\":" + asb::trace::boolean(e.auto_dir_off) +
-					  ",\"reverse_x\":" + asb::trace::boolean(e.reverse_x) + ",\"order\":" + std::to_string(e.order) +
-					  ",\"space\":" + quote(e.space == asb::RuntimeEntity::Space::Ui ? "ui" : "world") +
-					  ",\"parent\":" + quote(e.parent);
+	std::string out =
+		"{\"name\":" + quote(e.name) + ",\"kind\":" + quote(e.kind) +
+		",\"aliases\":" + array_json(e.aliases, [](const std::string& s) { return quote(s); }) +
+		",\"mbs\":" + quote(e.mbs) + ",\"ftx\":" + quote(e.ftx) + ",\"track\":" + quote(e.track) +
+		",\"track_index\":" + std::to_string(e.track_index) + ",\"idle_track\":" + quote(e.idle_track) +
+		",\"idle_track_index\":" + std::to_string(e.idle_track_index) +
+		",\"action_active\":" + asb::trace::boolean(e.action_active) +
+		",\"action_end_frame\":" + std::to_string(e.action_end_frame) +
+		",\"started\":" + asb::trace::boolean(e.started) + ",\"pos\":" + vec3_json(e.pos) +
+		",\"scale\":" + number(e.scale) + ",\"dir_x\":" + number(e.dir_x) + ",\"alpha\":" + std::to_string(e.alpha) +
+		",\"layer\":" + std::to_string(e.layer) + ",\"visible\":" + asb::trace::boolean(e.visible) +
+		",\"reverse\":" + asb::trace::boolean(e.reverse) + ",\"layer_mask\":" + std::to_string(e.layer_mask) +
+		",\"breath_off\":" + asb::trace::boolean(e.breath_off) + ",\"lipsync\":" + asb::trace::boolean(e.lipsync) +
+		",\"shadow_off\":" + asb::trace::boolean(e.shadow_off) +
+		",\"sort_id_offset\":" + std::to_string(e.sort_id_offset) + ",\"dlprio\":" + std::to_string(e.dlprio) +
+		",\"window_id_offset\":" + std::to_string(e.window_id_offset) +
+		",\"prerender_force\":" + asb::trace::boolean(e.prerender_force) + ",\"color\":[" + std::to_string(e.color[0]) +
+		"," + std::to_string(e.color[1]) + "," + std::to_string(e.color[2]) + "," + std::to_string(e.color[3]) + "]" +
+		",\"state\":" + std::to_string(e.state) + ",\"state_icon\":" + std::to_string(e.state_icon) +
+		",\"height\":" + number(e.height) + ",\"emote\":" + std::to_string(e.emote) +
+		",\"search_flag\":" + asb::trace::boolean(e.search_flag) + ",\"paused\":" + asb::trace::boolean(e.paused) +
+		",\"anim_paused\":" + asb::trace::boolean(e.anim_paused) +
+		",\"ai_paused\":" + asb::trace::boolean(e.ai_paused) +
+		",\"auto_dir_off\":" + asb::trace::boolean(e.auto_dir_off) +
+		",\"reverse_x\":" + asb::trace::boolean(e.reverse_x) + ",\"order\":" + std::to_string(e.order) +
+		",\"space\":" + quote(e.space == asb::RuntimeEntity::Space::Ui ? "ui" : "world") +
+		",\"parent\":" + quote(e.parent);
 	if (context.mbs) {
 		const EntityReport report = report_entity(e, *context.mbs);
 		out += ",\"track_name\":" + quote(report.selected ? report.selected->name : e.track);
 		out += ",\"track_runs\":" + std::to_string(report.selected ? report.selected->runs : 0);
+		out += ",\"transition_mode\":" +
+			   std::to_string(report.selected ? static_cast<int>(report.selected->transition_mode) : 0);
 		out += ",\"resolved_track\":" + std::to_string(report.resolved_track);
 		out += ",\"resolved_track_name\":" + quote(report.resolved ? report.resolved->name : "");
 		out += ",\"drawable\":" + asb::trace::boolean(report.drawable);
@@ -329,12 +325,11 @@ std::string scene_state_text(const asb::SceneState& scene, const SceneReportCont
 	for (const auto& e : scene.entities) {
 		out << e.name << " kind=" << e.kind << " mbs=" << e.mbs << " ftx=" << e.ftx << " track=" << e.track
 			<< " track_index=" << e.track_index << " idle=" << e.idle_track
-			<< " action=" << (e.action_active ? "true" : "false")
-			<< " action_end=" << e.action_end_frame << " started=" << (e.started ? "true" : "false")
-			<< " visible=" << (e.visible ? "true" : "false") << " alpha=" << e.alpha << " order=" << e.order
-			<< " layer=" << e.layer << " layer_mask=" << e.layer_mask << " scale=" << number(e.scale) << " pos=("
-			<< number(e.pos[0]) << ',' << number(e.pos[1]) << ',' << number(e.pos[2]) << ')'
-			<< " paused=" << (e.paused ? "true" : "false")
+			<< " action=" << (e.action_active ? "true" : "false") << " action_end=" << e.action_end_frame
+			<< " started=" << (e.started ? "true" : "false") << " visible=" << (e.visible ? "true" : "false")
+			<< " alpha=" << e.alpha << " order=" << e.order << " layer=" << e.layer << " layer_mask=" << e.layer_mask
+			<< " scale=" << number(e.scale) << " pos=(" << number(e.pos[0]) << ',' << number(e.pos[1]) << ','
+			<< number(e.pos[2]) << ')' << " paused=" << (e.paused ? "true" : "false")
 			<< " anim_paused=" << (e.anim_paused ? "true" : "false")
 			<< " space=" << (e.space == asb::RuntimeEntity::Space::Ui ? "ui" : "world");
 		if (context.mbs) {

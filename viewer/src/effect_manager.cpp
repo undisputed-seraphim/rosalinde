@@ -23,9 +23,7 @@ SpriteAssetPtr EffectManager::asset_for(const std::string& mbs, const std::strin
 	return _library.get(mbs, ftx);
 }
 
-long EffectManager::track_frames(const SpriteData& data, int track) {
-	return track_duration_frames(data, track);
-}
+long EffectManager::track_frames(const SpriteData& data, int track) { return track_duration_frames(data, track); }
 
 void EffectManager::apply(const asb::RuntimeEffect& e, long frame, const EntityPos& entity_pos) {
 	(void)frame;
@@ -43,7 +41,6 @@ void EffectManager::apply(const asb::RuntimeEffect& e, long frame, const EntityP
 		ef.name = e.name.empty() ? "effect#" + std::to_string(_next++) : e.name;
 		ef.asset = std::move(asset);
 		ef.instance.data = &ef.asset->data;
-		ef.instance.track_idx = static_cast<uint32_t>(track);
 		ef.instance.play(static_cast<uint32_t>(track));
 		ef.base_pos = {e.pos[0], e.pos[1]};
 		ef.pos = ef.base_pos;
@@ -147,15 +144,6 @@ void EffectManager::draw(const glm::mat4& projection, const Camera& cam, const g
 		if (!ef.asset || ef.alpha <= 0.0f)
 			continue;
 		ef.asset->renderer.draw(
-			ef.instance,
-			projection,
-			cam,
-			ef.pos + shake,
-			nullptr,
-			false,
-			ef.scale,
-			ef.alpha,
-			ef.dir_x < 0.0f,
-			ef.rot);
+			ef.instance, projection, cam, ef.pos + shake, nullptr, false, ef.scale, ef.alpha, ef.dir_x < 0.0f, ef.rot);
 	}
 }

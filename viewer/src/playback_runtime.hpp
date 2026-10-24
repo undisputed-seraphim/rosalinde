@@ -1,12 +1,12 @@
 #pragma once
 
-#include "mbs_info.hpp"
+#include "mbs_catalog.hpp"
 #include "runtime_data.hpp"
 #include "viewer_config.hpp"
 
 #include <scarlett/host.hpp>
-#include <scarlett/scene.hpp>
 #include <scarlett/runtime.hpp>
+#include <scarlett/scene.hpp>
 
 #include <functional>
 #include <memory>
@@ -21,6 +21,7 @@ public:
 
 	PlaybackRuntime(
 		const AssetLoader& loader,
+		const MbsCatalog& mbs,
 		const ViewerConfig& config,
 		TraceCallback trace,
 		NativeCallback native_call);
@@ -34,13 +35,13 @@ public:
 	const std::string& error() const;
 	const asb::Module& module() const { return *_module; }
 	const std::string& entry_name() const { return _entry_name; }
-	const MbsInfoCache& mbs_info() const { return _mbs; }
+	const MbsCatalog& mbs_catalog() const { return _mbs; }
 
 private:
 	void log_archive_events();
 
 	const AssetLoader& _loader;
-	MbsInfoCache _mbs;
+	const MbsCatalog& _mbs;
 	ViewerRuntimeData _runtime;
 	asb::Host _host;
 	std::shared_ptr<asb::Module> _module;
