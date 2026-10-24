@@ -104,6 +104,10 @@ std::string entity_json(const asb::RuntimeEntity& e, const SceneReportContext& c
 					  ",\"aliases\":" + array_json(e.aliases, [](const std::string& s) { return quote(s); }) +
 					  ",\"mbs\":" + quote(e.mbs) + ",\"ftx\":" + quote(e.ftx) + ",\"track\":" + quote(e.track) +
 					  ",\"track_index\":" + std::to_string(e.track_index) +
+					  ",\"idle_track\":" + quote(e.idle_track) +
+					  ",\"idle_track_index\":" + std::to_string(e.idle_track_index) +
+					  ",\"action_active\":" + asb::trace::boolean(e.action_active) +
+					  ",\"action_end_frame\":" + std::to_string(e.action_end_frame) +
 					  ",\"started\":" + asb::trace::boolean(e.started) + ",\"pos\":" + vec3_json(e.pos) +
 					  ",\"scale\":" + number(e.scale) + ",\"dir_x\":" + number(e.dir_x) +
 					  ",\"alpha\":" + std::to_string(e.alpha) + ",\"layer\":" + std::to_string(e.layer) +
@@ -324,7 +328,9 @@ std::string scene_state_text(const asb::SceneState& scene, const SceneReportCont
 		<< '\n';
 	for (const auto& e : scene.entities) {
 		out << e.name << " kind=" << e.kind << " mbs=" << e.mbs << " ftx=" << e.ftx << " track=" << e.track
-			<< " track_index=" << e.track_index << " started=" << (e.started ? "true" : "false")
+			<< " track_index=" << e.track_index << " idle=" << e.idle_track
+			<< " action=" << (e.action_active ? "true" : "false")
+			<< " action_end=" << e.action_end_frame << " started=" << (e.started ? "true" : "false")
 			<< " visible=" << (e.visible ? "true" : "false") << " alpha=" << e.alpha << " order=" << e.order
 			<< " layer=" << e.layer << " layer_mask=" << e.layer_mask << " scale=" << number(e.scale) << " pos=("
 			<< number(e.pos[0]) << ',' << number(e.pos[1]) << ',' << number(e.pos[2]) << ')'

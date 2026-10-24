@@ -5,6 +5,7 @@
 #include "tables.hpp"
 
 #include <criware/cpk.hpp>
+#include <scarlett/animation.hpp>
 #include <scarlett/asb.hpp>
 
 #include <spdlog/spdlog.h>
@@ -41,6 +42,17 @@ PlaybackRuntime::PlaybackRuntime(
 	_host.set_call_log({});
 	_host.set_track_frames([this](const std::string& mbs, int index) {
 		return _mbs.get(mbs).duration(index);
+	});
+	_host.set_track_info([this](const std::string& mbs, int index) {
+		asb::TrackInfo info;
+		const auto& parsed = _mbs.get(mbs);
+		if (const auto* track = parsed.track(index)) {
+			info.duration_frames = track->duration_frames;
+			info.one_shot = track->one_shot;
+			info.continuation_track = track->continuation_track;
+			info.continuation_name = track->continuation_name;
+		}
+		return info;
 	});
 	_host.set_resolve_track([this](const std::string& mbs, const std::string& name) {
 		if (name.empty())

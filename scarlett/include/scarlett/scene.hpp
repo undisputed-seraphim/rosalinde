@@ -25,6 +25,10 @@ struct RuntimeEntity {
 	int track_index = -1;
 	uint32_t sequence_index = 0; // Mone current sequence (drawn even without ACTIVE)
 	long animation_start_frame = 0; // scene frame when track_index was selected
+	std::string idle_track;
+	int idle_track_index = -1;
+	bool action_active = false;
+	long action_end_frame = -1;
 	bool started = false;
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	float scale = 1.0f;

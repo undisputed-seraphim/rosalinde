@@ -1,5 +1,6 @@
 #pragma once
 
+#include <scarlett/animation.hpp>
 #include <scarlett/asb.hpp>
 #include <scarlett/scene.hpp>
 #include <scarlett/trace.hpp>
@@ -59,6 +60,7 @@ public:
 	// Optional animation-length provider (frames) for an asset + track index,
 	// used to model `WaitSpriteMoneAnimationEnd` during run().
 	void set_track_frames(std::function<long(const std::string&, int)> fn);
+	void set_track_info(TrackInfoProvider fn);
 
 	// Optional animation-name resolver: maps an MBS track name (as passed to
 	// `DrSetIdleAnimation` / `DrAnimation*`) to its track index for the asset.

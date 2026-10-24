@@ -372,12 +372,6 @@ void SpriteInstance::update(float dt_seconds) {
 			hide[_phase] = 0;
 			advanced = true;
 		}
-		if (track.one_shot && track.next_track >= 0 && track.sa_main_sequence < done.size() &&
-			done[track.sa_main_sequence]) {
-			play(static_cast<uint32_t>(track.next_track));
-			advanced = true;
-			break;
-		}
 	}
 
 	if (advanced)

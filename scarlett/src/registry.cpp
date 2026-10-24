@@ -141,7 +141,6 @@ void Registry::reset(std::string source, std::string function) {
 	_units.clear();
 	_moves.clear();
 	_animations.reset();
-	_animation_actions.clear();
 	_db_params.clear();
 	_help.clear();
 	_balloons.clear();
@@ -220,43 +219,11 @@ void Registry::set_animation(RuntimeEntity& entity, const std::string& track) {
 	int track_index = -1;
 	if (!track.empty() && _resolve_track)
 		track_index = _resolve_track(entity.mbs, track);
-	_animations.play(entity, track, track_index, frame);
+	_animations.play_idle(entity, track, track_index, frame);
 }
 
 void Registry::set_animation_index(RuntimeEntity& entity, int track_index) {
 	_animations.play_index(entity, track_index, frame);
-}
-
-long Registry::animation_duration(const RuntimeEntity& entity) const {
-	if (!_track_frames || entity.track_index < 0)
-		return 1;
-	return std::max(1L, _track_frames(entity.mbs, entity.track_index));
-}
-
-void Registry::advance_animation_actions() {
-	for (auto it = _animation_actions.begin(); it != _animation_actions.end();) {
-		auto bi = _by_name.find(it->first);
-		if (bi == _by_name.end()) {
-			it = _animation_actions.erase(it);
-			continue;
-		}
-		if (frame < it->second.end_frame) {
-			++it;
-			continue;
-		}
-		auto& entity = _timeline.entities[bi->second];
-		if (!it->second.idle_track.empty()) {
-			set_animation(entity, it->second.idle_track);
-			spdlog::debug(
-				"anim: {} action end frame={} -> idle {} index={}",
-				entity.name,
-				frame,
-				entity.track,
-				entity.track_index);
-			mark_dirty();
-		}
-		it = _animation_actions.erase(it);
-	}
 }
 
 const char* Registry::callback_event_name(ScriptEvent event) {
@@ -1751,18 +1718,17 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		if (RuntimeEntity* e = ent(0)) {
 			const std::string animation = S(1);
 			if (!animation.empty()) {
-				AnimationAction action;
-				action.idle_track = e->track;
-				set_animation(*e, animation);
-				action.end_frame = frame + animation_duration(*e);
-				_animation_actions[e->name] = std::move(action);
+				int animation_index = -1;
+				if (_resolve_track)
+					animation_index = _resolve_track(e->mbs, animation);
+				_animations.play_action(*e, animation, animation_index, frame);
 				spdlog::debug(
 					"anim: {} action {} index={} start={} end={}",
 					e->name,
 					e->track,
 					e->track_index,
 					frame,
-					_animation_actions[e->name].end_frame);
+					e->action_end_frame);
 			}
 			mark_dirty();
 		}
@@ -1771,29 +1737,27 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "DrSetIdleAnimation") {
 		if (RuntimeEntity* e = ent(0)) {
 			const std::string animation = S(1);
-			auto it = _animation_actions.find(e->name);
-			if (it != _animation_actions.end()) {
-				it->second.idle_track = animation;
-				spdlog::debug(
-					"anim: {} idle deferred {} end={} frame={}",
-					e->name,
-					animation,
-					it->second.end_frame,
-					frame);
-			} else {
-				set_animation(*e, animation);
-				spdlog::debug("anim: {} idle {} index={} frame={}", e->name, e->track, e->track_index, frame);
-			}
+			int animation_index = -1;
+			if (_resolve_track)
+				animation_index = _resolve_track(e->mbs, animation);
+			_animations.set_idle(*e, animation, animation_index, frame);
+			spdlog::debug(
+				"anim: {} idle {} index={} deferred={} frame={}",
+				e->name,
+				animation,
+				animation_index,
+				e->action_active,
+				frame);
 			mark_dirty();
 		}
 		return true;
 	}
 	if (name == "DrActionWait") {
 		if (RuntimeEntity* e = ent(0)) {
-			auto it = _animation_actions.find(e->name);
-			if (it != _animation_actions.end() && it->second.end_frame > frame) {
-				pending_wait = it->second.end_frame - frame;
-				spdlog::debug("wait: action {} end={}", e->name, it->second.end_frame);
+			const long remaining = _animations.action_remaining(*e, frame);
+			if (remaining > 0) {
+				pending_wait = remaining;
+				spdlog::debug("wait: action {} end={}", e->name, e->action_end_frame);
 				if (asIScriptContext* ctx = asGetActiveContext())
 					ctx->Suspend();
 			}
@@ -3599,7 +3563,10 @@ void Registry::advance() {
 		} else
 			++it;
 	}
-	advance_animation_actions();
+	for (auto& entity : _timeline.entities) {
+		if (_animations.advance(entity, frame))
+			mark_dirty();
+	}
 	advance_camera();
 }
 

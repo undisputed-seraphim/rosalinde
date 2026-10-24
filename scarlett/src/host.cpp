@@ -394,6 +394,7 @@ struct Host::Impl {
 	TraceCallback trace;
 	NativeCallCallback native_call;
 	std::function<long(const std::string&, int)> track_frames;
+	TrackInfoProvider track_info;
 	std::function<int(const std::string&, const std::string&)> resolve_track;
 	std::function<std::string(const std::string&)> facility_name;
 	const CharTable* chars = nullptr;
@@ -763,6 +764,8 @@ void Host::set_chara_set_table(const CharaSetTable& sets) { _impl->chara_sets = 
 
 void Host::set_track_frames(std::function<long(const std::string&, int)> fn) { _impl->track_frames = std::move(fn); }
 
+void Host::set_track_info(TrackInfoProvider fn) { _impl->track_info = std::move(fn); }
+
 void Host::set_resolve_track(std::function<int(const std::string&, const std::string&)> fn) {
 	_impl->resolve_track = std::move(fn);
 }
@@ -807,6 +810,8 @@ RuntimeSession::RuntimeSession(Host& host, std::string source)
 		_impl->reg.set_chara_set_table(h->chara_sets);
 	if (h->track_frames)
 		_impl->reg.set_track_frames(h->track_frames);
+	if (h->track_info)
+		_impl->reg.set_track_info(h->track_info);
 	if (h->resolve_track)
 		_impl->reg.set_resolve_track(h->resolve_track);
 	if (h->facility_name)

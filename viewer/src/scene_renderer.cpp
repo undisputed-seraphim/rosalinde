@@ -397,6 +397,9 @@ std::string SceneRenderer::object_json(const RenderItem& object, bool stage, std
 		std::to_string(e.color[1]) + "," + std::to_string(e.color[2]) + "," + std::to_string(e.color[3]) + "]" +
 		",\"paused\":" + asb::trace::boolean(e.paused) + ",\"anim_paused\":" + asb::trace::boolean(e.anim_paused) +
 		",\"animation_start_frame\":" + std::to_string(e.animation_start_frame) +
+		",\"idle_track\":" + quote(e.idle_track) + ",\"idle_track_index\":" + std::to_string(e.idle_track_index) +
+		",\"action_active\":" + asb::trace::boolean(e.action_active) +
+		",\"action_end_frame\":" + std::to_string(e.action_end_frame) +
 		",\"background\":" + asb::trace::boolean(object.background) +
 		",\"replaces_stage\":" + asb::trace::boolean(object.replaces_stage) +
 		",\"asset_loaded\":" + asb::trace::boolean(object.playback.asset != nullptr);

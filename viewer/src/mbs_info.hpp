@@ -18,6 +18,9 @@ public:
 		long duration_frames = 0;
 		uint32_t runs = 0;
 		bool usable = false;
+		bool one_shot = false;
+		int continuation_track = -1;
+		std::string continuation_name;
 	};
 
 	struct Info {

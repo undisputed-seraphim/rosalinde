@@ -59,6 +59,9 @@ public:
 	// immediate.
 	void set_track_frames(std::function<long(const std::string&, int)> fn) { _track_frames = std::move(fn); }
 
+	// Optional: complete track metadata used by the animation state machine.
+	void set_track_info(TrackInfoProvider fn) { _animations.set_track_info(std::move(fn)); }
+
 	// Optional: resolve an MBS track name to its index for an asset. When unset
 	// (or returning < 0) a name-based animation call records the name but leaves
 	// `track_index` at -1.
@@ -130,8 +133,6 @@ private:
 		float scale);
 	void create_chara(const std::string& kind, const std::vector<std::string>& names);
 	void advance_camera();
-	void advance_animation_actions();
-	long animation_duration(const RuntimeEntity& entity) const;
 	void set_camera_ease(CameraTween& tween, long duration) const;
 	void set_animation(RuntimeEntity& entity, const std::string& track);
 	void set_animation_index(RuntimeEntity& entity, int track_index);
@@ -168,11 +169,6 @@ private:
 	};
 	AnimationController _animations;
 	std::unordered_map<std::string, Move> _moves;
-	struct AnimationAction {
-		long end_frame = 0;
-		std::string idle_track;
-	};
-	std::unordered_map<std::string, AnimationAction> _animation_actions;
 	std::unordered_map<std::string, int> _db_params; // DbSet/GetDebugParam + LocalParam
 	std::unordered_set<std::string> _help;			 // AddToHelpList
 

@@ -162,6 +162,34 @@ TEST_CASE("vector call arguments survive scene extraction") {
 	CHECK(move->floats.back() == 3.0);
 }
 
+TEST_CASE("animation controller follows a one-shot continuation") {
+	asb::RuntimeEntity entity;
+	entity.name = "test";
+	entity.track = "A";
+	entity.track_index = 0;
+	entity.started = true;
+
+	asb::AnimationController controller;
+	controller.set_track_info([](const std::string&, int index) {
+		asb::TrackInfo info;
+		info.duration_frames = 10;
+		if (index == 0) {
+			info.one_shot = true;
+			info.continuation_track = 1;
+			info.continuation_name = "B";
+		}
+		return info;
+	});
+
+	const uint64_t token = controller.begin_motion(entity, "A", 0, 0);
+	REQUIRE(token != 0);
+	CHECK(controller.advance(entity, 9) == false);
+	CHECK(entity.track == "A");
+	CHECK(controller.advance(entity, 10) == true);
+	CHECK(entity.track == "B");
+	CHECK(entity.track_index == 1);
+}
+
 TEST_CASE("async animation actions defer their idle track") {
 	const std::filesystem::path cpk = find_cpk();
 	if (cpk.empty()) {
@@ -188,6 +216,11 @@ TEST_CASE("async animation actions defer their idle track") {
 		return -1;
 	});
 	host.set_track_frames([](const std::string&, int) { return 10L; });
+	host.set_track_info([](const std::string&, int) {
+		asb::TrackInfo info;
+		info.duration_frames = 10;
+		return info;
+	});
 	REQUIRE(host.load(bytes));
 
 	asIScriptFunction* fn = host.find_function({"scene00"});

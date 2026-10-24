@@ -68,11 +68,17 @@ const MbsInfoCache::Info& MbsInfoCache::get(const std::string& mbs) const {
 					info.tracks.reserve(data.tracks.size());
 					for (size_t i = 0; i < data.tracks.size(); ++i) {
 						const SpriteData::Track& track = data.tracks[i];
+						std::string continuation_name;
+						if (track.next_track >= 0 && static_cast<size_t>(track.next_track) < data.tracks.size())
+							continuation_name = data.tracks[static_cast<size_t>(track.next_track)].name;
 						info.tracks.push_back(Track{
 							track.name,
 							track_duration_frames(data, static_cast<int>(i)),
 							static_cast<uint32_t>(track.runs.size()),
-							!track.disabled && !track.runs.empty()});
+							!track.disabled && !track.runs.empty(),
+							track.one_shot,
+							track.next_track,
+							std::move(continuation_name)});
 					}
 				}
 			}
