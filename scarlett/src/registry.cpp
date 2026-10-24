@@ -1,5 +1,7 @@
 #include "registry.hpp"
 
+#include "native_args.hpp"
+
 #include <angelscript.h>
 #include <scriptarray/scriptarray.h>
 #include <spdlog/spdlog.h>
@@ -94,12 +96,6 @@ unsigned parse_hex(const std::string& s) {
 		v = (v << 4) | static_cast<unsigned>(d);
 	}
 	return v;
-}
-
-int motion_duration_frames(float distance, float speed) {
-	if (distance <= 1e-3f || speed <= 1e-3f)
-		return 0;
-	return std::max(1, static_cast<int>(std::ceil(distance / speed / 2.0f)));
 }
 
 float camera_tween_progress(long elapsed, long duration, float ease_in, float ease_out) {
@@ -213,6 +209,11 @@ void Registry::reset(std::string source, std::string function) {
 	_talk_move_back = false;
 	frame = 0;
 	pending_wait = -1;
+}
+
+RuntimeEntity* Registry::entity_arg(const NativeArgs& args, int index) {
+	auto it = _by_name.find(args.str(index));
+	return it == _by_name.end() ? nullptr : &_timeline.entities[it->second];
 }
 
 void Registry::set_animation(RuntimeEntity& entity, const std::string& track) {
@@ -946,6 +947,12 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return false;
 	std::string_view name = fn->GetName();
 	trace_event("vm", "call", "\"name\":\"" + trace::quote(name) + "\"");
+	NativeArgs native_args(gen);
+
+	if (dispatch_animation(name, native_args) != DispatchResult::Unhandled ||
+		dispatch_movement(name, native_args) != DispatchResult::Unhandled ||
+		dispatch_camera(name, native_args) != DispatchResult::Unhandled)
+		return true;
 
 	if (name == "Wait") {
 		long n = static_cast<long>(gen->GetArgDWord(0));
@@ -1085,12 +1092,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		gen->SetReturnDWord(it == _unit_dir.end() ? 0u : static_cast<asDWORD>(it->second));
 		return true;
 	}
-	if (name == "CameraMoveWait")
-		return true; // immediate: the recorded camera already reflects the move
-	if (name == "ClearCamera" || name == "DrClearCamera") {
-		mark_dirty();
-		return true;
-	}
+
 	// Save/party getters with no script-side mutator. There is no save file and
 	// none is required: the script-facing state API is entirely in-memory (owned
 	// by this shim), so the plan is to invent our own save format and seed these
@@ -1163,15 +1165,6 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			}
 			return true;
 		}
-	}
-
-	if (name == "GetCameraPosV") {
-		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
-		if (r) {
-			r[0] = _timeline.camera.pos[0];
-			r[1] = _timeline.camera.pos[1];
-		}
-		return true;
 	}
 
 	if (name == "GetPosV") {
@@ -1406,96 +1399,6 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 	if (name == "SetMsgFaceAnimation" || name == "SetMsgFaceLayerMask" || name == "ShowAddCharaDialog")
 		return true;
 
-	// Movement tweens: Move (relative delta) / MoveAbs (absolute) + the drama
-	// DrMove* family set a position tween; MoveWait/MoveWaitAll park the script
-	// until it finishes. Easing (the trailing int) is ignored.
-	if (name == "Move" || name == "MoveAbs") {
-		float to[2] = {0.0f, 0.0f};
-		V(1, to, 2);
-		if (RuntimeEntity* e = ent(0)) {
-			Move m{};
-			for (int k = 0; k < 2; ++k) {
-				m.from[k] = e->pos[k];
-				m.to[k] = (name == "Move") ? e->pos[k] + to[k] : to[k];
-			}
-			m.from[2] = m.to[2] = e->pos[2];
-			m.f0 = frame;
-			m.f1 = frame + std::max(1, I(2));
-			_moves[e->name] = m;
-			mark_dirty();
-		}
-		return true;
-	}
-	if (name == "DrMoveAbs" || name == "DrMoveAbsAsync" || name == "DrMoveAsync" || name == "DrShortMoveAsync" ||
-		name == "DrMove") {
-		float to[3] = {0.0f, 0.0f, 0.0f};
-		V(1, to, 3);
-		if (RuntimeEntity* e = ent(0)) {
-			Move m{};
-			for (int k = 0; k < 3; ++k) {
-				m.from[k] = e->pos[k];
-				m.to[k] = to[k];
-			}
-			int dur = I(4);
-			const float speed = F(3);
-			const float dx = m.to[0] - m.from[0];
-			const float dy = m.to[1] - m.from[1];
-			const float dz = m.to[2] - m.from[2];
-			if (const int speed_duration =
-					motion_duration_frames(std::sqrt(dx * dx + dy * dy + dz * dz), speed);
-				speed_duration > 0)
-				dur = speed_duration;
-			if (dur <= 0)
-				dur = 30;
-			m.f0 = frame;
-			m.f1 = frame + dur;
-			const std::string animation = S(2);
-			if (!animation.empty()) {
-				int animation_index = -1;
-				if (_resolve_track)
-					animation_index = _resolve_track(e->mbs, animation);
-				m.animation_token = _animations.begin_motion(*e, animation, animation_index, frame);
-				if (name != "DrShortMoveAsync") {
-					m.followup_track = S(6);
-					if (!m.followup_track.empty() && _resolve_track)
-						m.followup_track_index = _resolve_track(e->mbs, m.followup_track);
-				}
-			}
-			_moves[e->name] = m;
-			mark_dirty();
-			if (name == "DrMove") {
-				pending_wait = dur;
-				if (asIScriptContext* ctx = asGetActiveContext())
-					ctx->Suspend();
-			}
-		}
-		return true;
-	}
-	if (name == "MoveWait" || name == "MoveWaitAll") {
-		const std::string only = name == "MoveWait" ? S(0) : std::string();
-		long wait = 0;
-		for (const auto& [n, m] : _moves) {
-			if (!only.empty() && n != only)
-				continue;
-			wait = std::max(wait, m.f1 - frame);
-		}
-		if (wait > 0) {
-			pending_wait = wait;
-			if (asIScriptContext* ctx = asGetActiveContext())
-				ctx->Suspend();
-		}
-		return true;
-	}
-	if (name == "FollowDir" || name == "DrTurnAsync") {
-		if (RuntimeEntity* e = ent(0)) {
-			auto it = _by_name.find(S(1));
-			if (it != _by_name.end()) {
-				e->dir_x = _timeline.entities[it->second].pos[0] < e->pos[0] ? -1.0f : 1.0f;
-				mark_dirty();
-			}
-		}
-		return true;
-	}
 	// Scene reads.
 	if (name == "DrGetPosV" || name == "DrGetCollisionPosV") {
 		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
@@ -1714,57 +1617,6 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		}
 		return true;
 	}
-	if (name == "DrAnimation" || name == "DrAnimationAsync") {
-		if (RuntimeEntity* e = ent(0)) {
-			const std::string animation = S(1);
-			if (!animation.empty()) {
-				int animation_index = -1;
-				if (_resolve_track)
-					animation_index = _resolve_track(e->mbs, animation);
-				_animations.play_action(*e, animation, animation_index, frame);
-				spdlog::debug(
-					"anim: {} action {} index={} start={} end={}",
-					e->name,
-					e->track,
-					e->track_index,
-					frame,
-					e->action_end_frame);
-			}
-			mark_dirty();
-		}
-		return true;
-	}
-	if (name == "DrSetIdleAnimation") {
-		if (RuntimeEntity* e = ent(0)) {
-			const std::string animation = S(1);
-			int animation_index = -1;
-			if (_resolve_track)
-				animation_index = _resolve_track(e->mbs, animation);
-			_animations.set_idle(*e, animation, animation_index, frame);
-			spdlog::debug(
-				"anim: {} idle {} index={} deferred={} frame={}",
-				e->name,
-				animation,
-				animation_index,
-				e->action_active,
-				frame);
-			mark_dirty();
-		}
-		return true;
-	}
-	if (name == "DrActionWait") {
-		if (RuntimeEntity* e = ent(0)) {
-			const long remaining = _animations.action_remaining(*e, frame);
-			if (remaining > 0) {
-				pending_wait = remaining;
-				spdlog::debug("wait: action {} end={}", e->name, e->action_end_frame);
-				if (asIScriptContext* ctx = asGetActiveContext())
-					ctx->Suspend();
-			}
-		}
-		return true;
-	}
-
 	if (name == "DrUiSetDirX" || name == "SetSpriteDirX" || name == "DrSetDirX") {
 		if (RuntimeEntity* e = ent(0)) {
 			e->dir_x = I(1) < 0 ? -1.0f : 1.0f;
@@ -1828,94 +1680,6 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return true;
 	}
 
-	if (name == "DrGetCameraPosV") {
-		float* r = static_cast<float*>(gen->GetAddressOfReturnLocation());
-		if (r)
-			for (int k = 0; k < 3; ++k)
-				r[k] = _timeline.camera.pos[k];
-		return true;
-	}
-
-	if (name == "DrSetCameraPosV" || name == "SetCameraPosV" || name == "SetCameraTargetPosV" ||
-		name == "SetCameraTargetPosVBySpeed") {
-		float p[3] = {0.0f, 0.0f, 0.0f};
-		V(0, p, 3);
-		auto& cam = _timeline.camera;
-		const long duration = std::max(0L, static_cast<long>(I(1)));
-		const long delay = std::max(0L, static_cast<long>(I(2)));
-		cam.has_pos = true;
-		if (name == "DrSetCameraPosV" && duration > 0) {
-			cam.tween.start_frame = frame + delay;
-			cam.tween.end_frame = cam.tween.start_frame + duration;
-			cam.tween.start_pos[0] = cam.pos[0];
-			cam.tween.start_pos[1] = cam.pos[1];
-			cam.tween.start_pos[2] = cam.pos[2];
-			const float zoom = cam.has_zoom && cam.zoom > 0.0f ? cam.zoom : 1.0f;
-			for (int k = 0; k < 3; ++k)
-				cam.tween.target_pos[k] = p[k] / zoom + cam.origin[k];
-			cam.tween.active = true;
-			set_camera_ease(cam.tween, duration);
-			cam.pos[0] = cam.tween.start_pos[0];
-			cam.pos[1] = cam.tween.start_pos[1];
-			cam.pos[2] = cam.tween.start_pos[2];
-			_camera_move_end = cam.tween.end_frame;
-		} else {
-			for (int k = 0; k < 3; ++k)
-				cam.pos[k] = p[k];
-			cam.tween.active = false;
-			cam.tween.zoom_active = false;
-			_camera_move_end = frame;
-		}
-		trace_event(
-			"camera",
-			"pos",
-			"\"pos\":" + trace::vec3(p) + ",\"duration\":" + trace::integer(duration) +
-				",\"delay\":" + trace::integer(delay) + ",\"end\":" + trace::integer(cam.tween.end_frame) +
-				",\"target\":" + trace::vec3(duration > 0 ? cam.tween.target_pos : p));
-		mark_dirty();
-		return true;
-	}
-	if (name == "DrSetCameraZoom") {
-		float z = F(0);
-		if (plausible_scale(z)) {
-			auto& cam = _timeline.camera;
-			const long duration = std::max(0L, static_cast<long>(I(1)));
-			const long delay = std::max(0L, static_cast<long>(I(2)));
-			if (duration > 0) {
-				cam.tween.start_frame = frame + delay;
-				cam.tween.end_frame = cam.tween.start_frame + duration;
-				cam.tween.start_zoom = cam.has_zoom && cam.zoom > 0.0f ? cam.zoom : 1.0f;
-				cam.tween.target_zoom = z;
-				cam.tween.zoom_active = true;
-				set_camera_ease(cam.tween, duration);
-				cam.zoom = cam.tween.start_zoom;
-				cam.has_zoom = true;
-			} else {
-				cam.zoom = z;
-				cam.has_zoom = true;
-				cam.tween.zoom_active = false;
-			}
-			trace_event(
-				"camera",
-				"zoom",
-				"\"zoom\":" + trace::number(z) + ",\"duration\":" + trace::integer(duration) +
-					",\"delay\":" + trace::integer(delay));
-			mark_dirty();
-		}
-		return true;
-	}
-	if (name == "DrSetCameraParam" || name == "SetCameraParam") {
-		_timeline.camera.accel = F(0);
-		_timeline.camera.decel = F(1);
-		_timeline.camera.param_set = true;
-		trace_event(
-			"camera",
-			"param",
-			"\"accel\":" + trace::number(_timeline.camera.accel) +
-				",\"decel\":" + trace::number(_timeline.camera.decel));
-		mark_dirty();
-		return true;
-	}
 
 	// Whole-screen colour fades: ColorFadeAsync(FnColor, time) ramps the
 	// overlay to `color`; CrossFadeAsync(time) is modelled as a dip to black.
@@ -2008,90 +1772,6 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 			const long dur = _track_frames ? _track_frames(e->mbs, e->track_index) : 0;
 			if (dur > 0) {
 				pending_wait = dur;
-				if (asIScriptContext* ctx = asGetActiveContext())
-					ctx->Suspend();
-			}
-		}
-		return true;
-	}
-	if (name == "DrMoveAbsByTimeAsync") {
-		float to[3] = {0.0f, 0.0f, 0.0f};
-		V(1, to, 3);
-		if (RuntimeEntity* e = ent(0)) {
-			Move m{};
-			for (int k = 0; k < 3; ++k) {
-				m.from[k] = e->pos[k];
-				m.to[k] = to[k];
-			}
-			m.f0 = frame;
-			m.f1 = frame + std::max(1, I(3));
-			const std::string animation = S(2);
-			if (!animation.empty()) {
-				int animation_index = -1;
-				if (_resolve_track)
-					animation_index = _resolve_track(e->mbs, animation);
-				m.animation_token = _animations.begin_motion(*e, animation, animation_index, frame);
-				m.followup_track = S(4);
-				if (!m.followup_track.empty() && _resolve_track)
-					m.followup_track_index = _resolve_track(e->mbs, m.followup_track);
-			}
-			_moves[e->name] = m;
-			mark_dirty();
-		}
-		return true;
-	}
-	if (name == "DrShortMoveAbsAsync" || name == "DrShortMove") {
-		float to[3] = {0.0f, 0.0f, 0.0f};
-		V(1, to, 3);
-		if (RuntimeEntity* e = ent(0)) {
-			Move m{};
-			float dist2 = 0.0f;
-			for (int k = 0; k < 3; ++k) {
-				m.from[k] = e->pos[k];
-				m.to[k] = to[k];
-				const float d = to[k] - e->pos[k];
-				dist2 += d * d;
-			}
-			const float speed = F(3);
-			const int speed_duration = motion_duration_frames(std::sqrt(dist2), speed);
-			const int dur = speed_duration > 0 ? speed_duration : 30;
-			m.f0 = frame;
-			m.f1 = frame + std::max(1, dur);
-			const std::string animation = S(2);
-			if (!animation.empty()) {
-				int animation_index = -1;
-				if (_resolve_track)
-					animation_index = _resolve_track(e->mbs, animation);
-				m.animation_token = _animations.begin_motion(*e, animation, animation_index, frame);
-			}
-			_moves[e->name] = m;
-			mark_dirty();
-			if (name == "DrShortMove") {
-				pending_wait = std::max(1, dur);
-				if (asIScriptContext* ctx = asGetActiveContext())
-					ctx->Suspend();
-			}
-		}
-		return true;
-	}
-	if (name == "DrJumpAsync" || name == "DrJump") {
-		if (RuntimeEntity* e = ent(0)) {
-			const float move = F(1), height = F(2), speed = F(4);
-			Move m{};
-			for (int k = 0; k < 3; ++k) {
-				m.from[k] = e->pos[k];
-				m.to[k] = e->pos[k];
-			}
-			m.to[0] += e->dir_x * move;
-			const int dur = speed > 1e-3f ? static_cast<int>(std::ceil(std::abs(move) / speed)) : 30;
-			m.f0 = frame;
-			m.f1 = frame + std::max(1, dur);
-			// TODO(anim): the arc is applied to pos[2]; the up axis is assumed.
-			m.arc = std::abs(height);
-			_moves[e->name] = m;
-			mark_dirty();
-			if (name == "DrJump") {
-				pending_wait = std::max(1, dur);
 				if (asIScriptContext* ctx = asGetActiveContext())
 					ctx->Suspend();
 			}

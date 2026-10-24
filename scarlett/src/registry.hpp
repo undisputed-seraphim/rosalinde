@@ -22,6 +22,15 @@ class asIScriptFunction;
 
 namespace asb {
 
+enum class DispatchResult {
+	Unhandled,
+	Handled,
+	RecordOnly,
+	Stub,
+};
+
+class NativeArgs;
+
 // A deferred script callback registration. The callback is stored with the
 // event/key it belongs to; dispatch is added when the event source exists.
 enum class ScriptEvent {
@@ -119,6 +128,10 @@ public:
 	Timeline& timeline() { return _timeline; }
 
 private:
+	DispatchResult dispatch_animation(std::string_view name, NativeArgs& args);
+	DispatchResult dispatch_movement(std::string_view name, NativeArgs& args);
+	DispatchResult dispatch_camera(std::string_view name, NativeArgs& args);
+	RuntimeEntity* entity_arg(const NativeArgs& args, int index = 0);
 	bool construct_value(asIScriptGeneric* gen);
 	bool vec_binary(asIScriptGeneric* gen, std::string_view op);
 	int ensure(const std::string& name);
