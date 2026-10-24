@@ -67,7 +67,7 @@ Behavior:
 - `--capture-frames` steps to each requested scene frame and captures it in a single
   process, reusing the asset cache. Output names are `<prefix>-<frame:06>.png`.
 - `--scene-frame` is still used for a single deterministic screenshot via `--screenshot`.
-- `--headless` runs the same `PlaybackRuntime` without creating a window or GL
+- `--headless` runs the same `GameRuntime` without creating a window or GL
   context. `--run-to N` stops and exits at a scene frame; `--max-frames N` caps
   the run.
 - `--state FILE|-` and `--state-json FILE|-` write a scene snapshot at the stop

@@ -81,6 +81,7 @@ int main(int argc, char* argv[]) try {
 	std::string clear_color_text;
 	std::string probe_frames_text;
 	std::string trace_frames_text;
+	std::string mode_text;
 	::boost::program_options::options_description desc;
 	desc.add_options()("help,h", "Print this help message")(
 		"cpk", ::boost::program_options::value<std::filesystem::path>(&config.cpk)->required(), "Path to Unicorn.cpk")(
@@ -90,9 +91,12 @@ int main(int argc, char* argv[]) try {
 		"frames",
 		::boost::program_options::value<uint32_t>(&config.frames)->default_value(1),
 		"Frames to render before taking the screenshot")(
+		"mode",
+		::boost::program_options::value<std::string>(&mode_text)->default_value("drama"),
+		"Scene mode: drama|field|battle|menu (only drama runs scripts)")(
 		"script",
 		::boost::program_options::value<std::string>(&config.script),
-		"Drama script to play (e.g. Script/Dr_OW_0_Opening.asb)")(
+		"Scene script to play (e.g. Script/Dr_OW_0_Opening.asb)")(
 		"scene-func",
 		::boost::program_options::value<std::string>(&config.scene_func),
 		"Scene entry function (default: auto-pick)")(
@@ -192,6 +196,12 @@ int main(int argc, char* argv[]) try {
 		std::cout << desc << '\n';
 		throw;
 	}
+	if (const auto mode = asb::parse_scene_mode(mode_text))
+		config.scene_mode = *mode;
+	else {
+		spdlog::error("invalid --mode: {} (expected drama, field, battle, or menu)", mode_text);
+		return 1;
+	}
 	if (config.script.empty()) {
 		spdlog::error("--script is required");
 		return 1;
@@ -258,8 +268,8 @@ int main(int argc, char* argv[]) try {
 		return 1;
 	}
 	int stdout_sinks = 0;
-	for (const auto& path : {config.trace, config.record, config.state, config.state_json, config.calls,
-							config.calls_json})
+	for (const auto& path :
+		 {config.trace, config.record, config.state, config.state_json, config.calls, config.calls_json})
 		if (path == "-")
 			++stdout_sinks;
 	if (stdout_sinks > 1) {

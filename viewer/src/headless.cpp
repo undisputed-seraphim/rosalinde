@@ -1,9 +1,9 @@
 #include "headless.hpp"
 
 #include "asset_loader.hpp"
+#include "game_runtime.hpp"
 #include "mbs_catalog.hpp"
 #include "playback_diagnostics.hpp"
-#include "playback_runtime.hpp"
 #include "probe.hpp"
 
 #include <spdlog/spdlog.h>
@@ -44,12 +44,16 @@ int run_headless(const ViewerConfig& config) {
 	AssetLoader loader(config.cpk);
 	MbsCatalog mbs_catalog(loader);
 	PlaybackDiagnostics diagnostics(config);
-	PlaybackRuntime::NativeCallback native_cb;
+	GameRuntime::NativeCallback native_cb;
 	if (diagnostics.wants_native_calls())
 		native_cb = [&diagnostics](const asb::NativeCall& call) { diagnostics.observe_native(call); };
-	PlaybackRuntime runtime(loader, mbs_catalog, config, diagnostics.trace_callback(), std::move(native_cb));
+	GameRuntime runtime(loader, mbs_catalog, config, diagnostics.trace_callback(), std::move(native_cb));
+	if (!runtime.start()) {
+		spdlog::error("headless: {}", runtime.error());
+		return 1;
+	}
 	runtime.set_max_frames(config.max_frames);
-	const SceneReportContext report{&runtime.mbs_catalog()};
+	const SceneReportContext report{&runtime.mbs_catalog(), &runtime.save()};
 
 	long target = -1;
 	if (config.run_to >= 0)

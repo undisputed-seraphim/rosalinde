@@ -1,19 +1,19 @@
 #pragma once
 
-#include "asset_loader.hpp"
 #include "asset_library.hpp"
+#include "asset_loader.hpp"
+#include "game_runtime.hpp"
 #include "playback_diagnostics.hpp"
-#include "playback_runtime.hpp"
 #include "scene_view.hpp"
 #include "viewer_config.hpp"
 
 #include <cstdint>
 #include <memory>
 
-class DramaPlayback {
+class ScenePlayback {
 public:
-	DramaPlayback(const AssetLoader& loader, ViewerConfig config);
-	~DramaPlayback();
+	ScenePlayback(const AssetLoader& loader, ViewerConfig config);
+	~ScenePlayback();
 
 	bool handle_inputs();
 	void update(float dt);
@@ -35,7 +35,7 @@ private:
 	ViewerConfig _cfg;
 	AssetLibrary _library;
 	std::unique_ptr<PlaybackDiagnostics> _diagnostics;
-	std::unique_ptr<PlaybackRuntime> _runtime;
+	std::unique_ptr<GameRuntime> _runtime;
 	std::unique_ptr<SceneView> _view;
 
 	long _frame = 0;

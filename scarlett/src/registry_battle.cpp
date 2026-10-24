@@ -351,7 +351,7 @@ DispatchResult Registry::dispatch_battle(std::string_view name, NativeArgs& args
 	if (name == "StIsTimeLimit") {
 		bool over = false;
 		if (_time_limit_day >= 0) {
-			const int now = _clock_hour * 60 + _clock_minute;
+			const int now = save().clock_hour * 60 + save().clock_minute;
 			const int lim = _time_limit_hour * 60 + _time_limit_minute;
 			over = now >= lim;
 		}
@@ -359,11 +359,11 @@ DispatchResult Registry::dispatch_battle(std::string_view name, NativeArgs& args
 		return DispatchResult::Handled;
 	}
 	if (name == "StGetElapsedClockHour") {
-		gen->SetReturnDWord(static_cast<asDWORD>(_clock_hour));
+		gen->SetReturnDWord(static_cast<asDWORD>(save().clock_hour));
 		return DispatchResult::Handled;
 	}
 	if (name == "StGetElapsedClockMin") {
-		gen->SetReturnDWord(static_cast<asDWORD>(_clock_minute));
+		gen->SetReturnDWord(static_cast<asDWORD>(save().clock_minute));
 		return DispatchResult::Handled;
 	}
 	if (name == "StSetStageTimer") {
@@ -376,7 +376,7 @@ DispatchResult Registry::dispatch_battle(std::string_view name, NativeArgs& args
 		return DispatchResult::Handled; // battle result/message hooks: engine UI
 	}
 	if (name == "BtFindChara") {
-		bool hit = _party.count(S(0)) != 0;
+		bool hit = save().party.count(S(0)) != 0;
 		for (const auto& kv : _battle_units)
 			if (kv.second.def == S(0))
 				hit = true;
@@ -401,15 +401,15 @@ DispatchResult Registry::dispatch_battle(std::string_view name, NativeArgs& args
 
 	// ---- facilities / gimmicks / vehicles / regions --------------------
 	if (name == "StCreateFacility") {
-		_facilities.insert(S(0));
+		save().facilities.insert(S(0));
 		return DispatchResult::Handled;
 	}
 	if (name == "StCreateFacility_DefName") {
-		_facilities.insert(S(0));
+		save().facilities.insert(S(0));
 		return DispatchResult::Handled;
 	}
 	if (name == "StDeleteAllFacility") {
-		_facilities.clear();
+		save().facilities.clear();
 		return DispatchResult::Handled;
 	}
 	if (name == "StSetFacilityArmyType") {

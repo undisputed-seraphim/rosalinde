@@ -1,4 +1,4 @@
-#include "playback_runtime.hpp"
+#include "drama_session.hpp"
 
 #include "asset_loader.hpp"
 #include "runtime_data.hpp"
@@ -13,9 +13,11 @@
 #include <span>
 #include <stdexcept>
 
-PlaybackRuntime::PlaybackRuntime(
+DramaSession::DramaSession(
 	const AssetLoader& loader,
 	const MbsCatalog& mbs,
+	asb::SaveState& save,
+	asb::SceneMode mode,
 	const ViewerConfig& config,
 	TraceCallback trace,
 	NativeCallback native_call)
@@ -81,26 +83,27 @@ PlaybackRuntime::PlaybackRuntime(
 			picked ? "scene function not found: " + picked->name : "no scene function in " + config.script);
 	asIScriptFunction* prelude = _host.find_function({"ON_TITLE_UI_START"});
 
-	_session = std::make_unique<asb::RuntimeSession>(_host, config.script);
+	_session = std::make_unique<asb::RuntimeSession>(_host, config.script, &save);
+	_session->set_scene_mode(mode);
 	if (!_session->start(fn, prelude))
 		throw std::runtime_error("could not start " + config.script + ": " + _session->error());
 	log_archive_events();
 }
 
-PlaybackRuntime::~PlaybackRuntime() = default;
+DramaSession::~DramaSession() = default;
 
-void PlaybackRuntime::set_max_frames(long frames) {
+void DramaSession::set_max_frames(long frames) {
 	if (_session)
 		_session->set_max_frames(frames);
 }
 
-asb::RuntimeSession::StepResult PlaybackRuntime::advance() {
+asb::RuntimeSession::StepResult DramaSession::advance() {
 	const auto result = _session->advance();
 	log_archive_events();
 	return result;
 }
 
-void PlaybackRuntime::log_archive_events() {
+void DramaSession::log_archive_events() {
 	const auto& ui = _session->scene().ui;
 	for (; _seen_ui < ui.size(); ++_seen_ui) {
 		const auto& event = ui[_seen_ui];
@@ -120,10 +123,10 @@ void PlaybackRuntime::log_archive_events() {
 	}
 }
 
-const asb::SceneState& PlaybackRuntime::scene() const { return _session->scene(); }
+const asb::SceneState& DramaSession::scene() const { return _session->scene(); }
 
-long PlaybackRuntime::frame() const { return _session->frame(); }
+long DramaSession::frame() const { return _session->frame(); }
 
-bool PlaybackRuntime::finished() const { return _session->finished(); }
+bool DramaSession::finished() const { return _session->finished(); }
 
-const std::string& PlaybackRuntime::error() const { return _session->error(); }
+const std::string& DramaSession::error() const { return _session->error(); }

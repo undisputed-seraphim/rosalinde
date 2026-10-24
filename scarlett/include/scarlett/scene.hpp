@@ -2,11 +2,48 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace asb {
+
+// Which game layer owns the current scene. Script modules can be hosted in any
+// mode; handlers that are mode-specific should consult this instead of assuming
+// a drama scene.
+enum class SceneMode {
+	Drama,
+	Field,
+	Battle,
+	Menu,
+};
+
+inline const char* scene_mode_name(SceneMode mode) {
+	switch (mode) {
+	case SceneMode::Drama:
+		return "drama";
+	case SceneMode::Field:
+		return "field";
+	case SceneMode::Battle:
+		return "battle";
+	case SceneMode::Menu:
+		return "menu";
+	}
+	return "unknown";
+}
+
+inline std::optional<SceneMode> parse_scene_mode(std::string_view text) {
+	if (text == "drama")
+		return SceneMode::Drama;
+	if (text == "field")
+		return SceneMode::Field;
+	if (text == "battle")
+		return SceneMode::Battle;
+	if (text == "menu")
+		return SceneMode::Menu;
+	return std::nullopt;
+}
 
 // A live scene object the engine would have created (a sprite or character),
 // as recorded from the hosted module's create/mutate calls.
@@ -23,7 +60,7 @@ struct RuntimeEntity {
 	std::string ftx;
 	std::string track;
 	int track_index = -1;
-	uint32_t sequence_index = 0; // Mone current sequence (drawn even without ACTIVE)
+	uint32_t sequence_index = 0;	// Mone current sequence (drawn even without ACTIVE)
 	long animation_start_frame = 0; // scene frame when track_index was selected
 	std::string idle_track;
 	int idle_track_index = -1;
@@ -283,6 +320,7 @@ struct Keyframe {
 struct SceneState {
 	std::string source;
 	std::string function;
+	SceneMode mode = SceneMode::Drama;
 	long frame = 0;
 	uint64_t revision = 0;
 	std::vector<RuntimeEntity> entities;

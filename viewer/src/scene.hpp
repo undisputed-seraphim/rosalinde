@@ -2,8 +2,8 @@
 
 #include "asset_loader.hpp"
 #include "debug_ui.hpp"
-#include "drama_playback.hpp"
 #include "engine/Engine.hpp"
+#include "scene_playback.hpp"
 #include "viewer_config.hpp"
 
 #include <memory>
@@ -21,5 +21,5 @@ private:
 	AssetLoader _loader;
 	DebugUI _ui;
 
-	std::unique_ptr<DramaPlayback> _drama;
+	std::unique_ptr<ScenePlayback> _playback;
 };

@@ -207,12 +207,18 @@ TEST_CASE("async animation actions defer their idle track") {
 	host.register_module(mod);
 	host.set_call_log([](const std::string&) {});
 	host.set_resolve_track([](const std::string&, const std::string& name) {
-		if (name == "D_SIT_A2") return 166;
-		if (name == "D_SIT_A3") return 167;
-		if (name == "D_IDLE_A") return 85;
-		if (name == "D_THINK_A1") return 144;
-		if (name == "D_THINK_A2") return 145;
-		if (name == "D_THINK_A3") return 146;
+		if (name == "D_SIT_A2")
+			return 166;
+		if (name == "D_SIT_A3")
+			return 167;
+		if (name == "D_IDLE_A")
+			return 85;
+		if (name == "D_THINK_A1")
+			return 144;
+		if (name == "D_THINK_A2")
+			return 145;
+		if (name == "D_THINK_A3")
+			return 146;
 		return -1;
 	});
 	host.set_track_frames([](const std::string&, int) { return 10L; });
@@ -251,8 +257,7 @@ TEST_CASE("drama scripts pick their void MAIN entry") {
 		return;
 	}
 
-	for (const std::string entry : {"Script/Dr_OW_Z_1_St_Before_1_SCR.asb",
-			 "Script/Dr_OW_0_Opening.asb"}) {
+	for (const std::string entry : {"Script/Dr_OW_Z_1_St_Before_1_SCR.asb", "Script/Dr_OW_0_Opening.asb"}) {
 		const std::vector<uint8_t> bytes = extract_entry(cpk, entry);
 		REQUIRE_FALSE(bytes.empty());
 		const asb::Module mod = asb::parse(bytes);
@@ -588,4 +593,39 @@ TEST_CASE("runtime session advances a live scene") {
 	}
 	CHECK(session.error().empty());
 	CHECK((session.finished() || session.limit_reached()));
+}
+
+TEST_CASE("save progression survives scene resets and mode is recorded") {
+	asb::Host host;
+	REQUIRE(host.compile("void MAIN() {}\n"));
+	asIScriptFunction* fn = host.find_function({"MAIN"});
+	REQUIRE(fn);
+
+	asb::SaveState save;
+	save.gold = 42;
+	save.party.insert("scarlet");
+	save.quests[7] = 3;
+
+	asb::RuntimeSession first(host, "first", &save);
+	first.set_scene_mode(asb::SceneMode::Field);
+	REQUIRE(first.start(fn));
+	CHECK(first.scene().mode == asb::SceneMode::Field);
+	CHECK(first.save().gold == 42);
+	CHECK(first.save().party.count("scarlet") == 1);
+
+	first.set_scene_mode(asb::SceneMode::Battle);
+	CHECK(first.scene().mode == asb::SceneMode::Battle);
+
+	asb::RuntimeSession second(host, "second", &save);
+	second.set_scene_mode(asb::SceneMode::Menu);
+	REQUIRE(second.start(fn));
+	CHECK(second.scene().mode == asb::SceneMode::Menu);
+	CHECK(second.save().gold == 42);
+	CHECK(second.save().quests.at(7) == 3);
+
+	asb::RuntimeSession local(host, "local");
+	local.save().gold = 9;
+	REQUIRE(local.start(fn));
+	CHECK(local.save().gold == 9);
+	CHECK(save.gold == 42);
 }

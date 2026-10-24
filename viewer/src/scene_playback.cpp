@@ -1,4 +1,4 @@
-#include "drama_playback.hpp"
+#include "scene_playback.hpp"
 #include "playback_clock.hpp"
 #include "trace.hpp"
 
@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <utility>
 
-DramaPlayback::DramaPlayback(const AssetLoader& loader, ViewerConfig config)
+ScenePlayback::ScenePlayback(const AssetLoader& loader, ViewerConfig config)
 	: _loader(loader)
 	, _cfg(std::move(config))
 	, _library(loader) {
@@ -27,27 +27,29 @@ DramaPlayback::DramaPlayback(const AssetLoader& loader, ViewerConfig config)
 
 	_diagnostics = std::make_unique<PlaybackDiagnostics>(_cfg);
 	const auto trace_cb = _diagnostics->trace_callback();
-	PlaybackRuntime::NativeCallback native_cb;
+	GameRuntime::NativeCallback native_cb;
 	if (_diagnostics->wants_native_calls())
 		native_cb = [this](const asb::NativeCall& call) { _diagnostics->observe_native(call); };
-	_runtime = std::make_unique<PlaybackRuntime>(_loader, _library.mbs_catalog(), _cfg, trace_cb, std::move(native_cb));
+	_runtime = std::make_unique<GameRuntime>(_loader, _library.mbs_catalog(), _cfg, trace_cb, std::move(native_cb));
+	if (!_runtime->start())
+		throw std::runtime_error(_runtime->error());
 	_view = std::make_unique<SceneView>(_loader, _library, _cfg);
 	_view->set_trace(trace_cb);
 	_view->set_filters(_cfg.only, _cfg.hide, _cfg.keep_stage);
 	_view->initialize(_runtime->scene());
 	_started = true;
 	_diagnostics->write_record(_runtime->scene(), _view->renderer(), 0);
-	viewer::trace::stamp("DramaPlayback: started %s::%s", _cfg.script.c_str(), _runtime->entry_name().c_str());
+	viewer::trace::stamp("ScenePlayback: started %s::%s", _cfg.script.c_str(), _runtime->entry_name().c_str());
 }
 
-DramaPlayback::~DramaPlayback() {
+ScenePlayback::~ScenePlayback() {
 	if (_runtime && _diagnostics)
 		_diagnostics->write_calls(_runtime->module(), _cfg.script, _runtime->entry_name());
 }
 
-bool DramaPlayback::handle_inputs() { return _quit; }
+bool ScenePlayback::handle_inputs() { return _quit; }
 
-void DramaPlayback::step() {
+void ScenePlayback::step() {
 	if (!_runtime || _runtime->finished())
 		return;
 	const long trace_frame = static_cast<long>(_runtime->scene().frame);
@@ -92,7 +94,7 @@ void DramaPlayback::step() {
 		_diagnostics->write_record(scene, _view->renderer(), _frame);
 }
 
-void DramaPlayback::update(float dt) {
+void ScenePlayback::update(float dt) {
 	if (!_runtime || !_started)
 		return;
 	if (_diagnostics->capture_mode()) {
@@ -130,7 +132,7 @@ void DramaPlayback::update(float dt) {
 	}
 }
 
-void DramaPlayback::render() {
+void ScenePlayback::render() {
 	++_render_count;
 	if (!_runtime)
 		return;
@@ -142,15 +144,15 @@ void DramaPlayback::render() {
 		_diagnostics->finish_probe(scene, _view->renderer());
 }
 
-void DramaPlayback::capture() {
+void ScenePlayback::capture() {
 	if (_runtime)
 		_diagnostics->capture(_runtime->scene(), _render_count);
 }
 
-bool DramaPlayback::is_done() const { return _runtime && _runtime->finished(); }
+bool ScenePlayback::is_done() const { return _runtime && _runtime->finished(); }
 
-bool DramaPlayback::probes_done() const { return _diagnostics && _diagnostics->probes_done(); }
+bool ScenePlayback::probes_done() const { return _diagnostics && _diagnostics->probes_done(); }
 
-bool DramaPlayback::captured() const { return _diagnostics && _diagnostics->captured(); }
+bool ScenePlayback::captured() const { return _diagnostics && _diagnostics->captured(); }
 
-bool DramaPlayback::captures_done() const { return _diagnostics && _diagnostics->captures_done(); }
+bool ScenePlayback::captures_done() const { return _diagnostics && _diagnostics->captures_done(); }

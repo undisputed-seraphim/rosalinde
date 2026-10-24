@@ -54,14 +54,9 @@ void Registry::reset(std::string source, std::string function) {
 	_timeline = Timeline{};
 	_timeline.source = std::move(source);
 	_timeline.function = std::move(function);
+	_timeline.mode = _mode;
 	_by_name.clear();
-	_party.clear();
-	_slots.clear();
-	_class_changed.clear();
-	_disabled.clear();
-	_quests.clear();
 	_unit_dir.clear();
-	_units.clear();
 	_moves.clear();
 	_animations.reset();
 	_db_params.clear();
@@ -79,8 +74,6 @@ void Registry::reset(std::string source, std::string function) {
 	_timeline.camera = RuntimeCamera{};
 	_shake_seq = 0;
 	_follow_offset[0] = _follow_offset[1] = 0.0f;
-	_balcony_bru = false;
-	_balcony_scr = false;
 	_partner_select_open = false;
 	_disable_backlog = false;
 	_disable_option = false;
@@ -90,20 +83,6 @@ void Registry::reset(std::string source, std::string function) {
 	_add_class_pedia_flag = false;
 	_staff_roll_scroll = false;
 	_staff_roll_speed = 0.0f;
-	_gold = 0;
-	_fame = 0;
-	_stage_flags.clear();
-	_stage_bits.clear();
-	_global_flags.clear();
-	_items.clear();
-	_facilities.clear();
-	_friendship.clear();
-	_treasures.clear();
-	_quest_pinned.clear();
-	_quest_preopened.clear();
-	_town_lv.clear();
-	_clock_hour = _clock_minute = _clock_second = 0;
-	_clock_paused = false;
 	_demo_mode = false;
 	_world_map_disabled = false;
 	_battle_mode = false;
@@ -156,31 +135,41 @@ void Registry::set_animation_index(RuntimeEntity& entity, int track_index) {
 
 const char* Registry::callback_event_name(ScriptEvent event) {
 	switch (event) {
-	case ScriptEvent::BattleBefore: return "battle_before";
-	case ScriptEvent::BattleDie: return "battle_die";
-	case ScriptEvent::EncounterBefore: return "encounter_before";
-	case ScriptEvent::EncounterAfter: return "encounter_after";
-	case ScriptEvent::Talk: return "talk";
-	case ScriptEvent::Facility: return "facility";
-	case ScriptEvent::GateBreakAfter: return "gate_break_after";
-	case ScriptEvent::TownLvUp: return "town_lv_up";
-	case ScriptEvent::BattleAfter: return "battle_after";
-	case ScriptEvent::BattleDieAfter: return "battle_die_after";
-	case ScriptEvent::FacilityAfter: return "facility_after";
-	case ScriptEvent::Treasure: return "treasure";
-	case ScriptEvent::Chase: return "chase";
-	case ScriptEvent::Portal: return "portal";
-	case ScriptEvent::Port: return "port";
+	case ScriptEvent::BattleBefore:
+		return "battle_before";
+	case ScriptEvent::BattleDie:
+		return "battle_die";
+	case ScriptEvent::EncounterBefore:
+		return "encounter_before";
+	case ScriptEvent::EncounterAfter:
+		return "encounter_after";
+	case ScriptEvent::Talk:
+		return "talk";
+	case ScriptEvent::Facility:
+		return "facility";
+	case ScriptEvent::GateBreakAfter:
+		return "gate_break_after";
+	case ScriptEvent::TownLvUp:
+		return "town_lv_up";
+	case ScriptEvent::BattleAfter:
+		return "battle_after";
+	case ScriptEvent::BattleDieAfter:
+		return "battle_die_after";
+	case ScriptEvent::FacilityAfter:
+		return "facility_after";
+	case ScriptEvent::Treasure:
+		return "treasure";
+	case ScriptEvent::Chase:
+		return "chase";
+	case ScriptEvent::Portal:
+		return "portal";
+	case ScriptEvent::Port:
+		return "port";
 	}
 	return "unknown";
 }
 
-void Registry::add_callback(
-	ScriptEvent event,
-	std::string key,
-	std::string function,
-	bool replace,
-	std::string slot) {
+void Registry::add_callback(ScriptEvent event, std::string key, std::string function, bool replace, std::string slot) {
 	if (function.empty())
 		return;
 	const char* name = callback_event_name(event);
@@ -189,9 +178,7 @@ void Registry::add_callback(
 			std::remove_if(
 				_timeline.callbacks.begin(),
 				_timeline.callbacks.end(),
-				[&](const RuntimeCallback& cb) {
-					return cb.event == name && cb.key == key && cb.slot == slot;
-				}),
+				[&](const RuntimeCallback& cb) { return cb.event == name && cb.key == key && cb.slot == slot; }),
 			_timeline.callbacks.end());
 	}
 	_timeline.callbacks.push_back(RuntimeCallback{frame, name, std::move(key), std::move(slot), std::move(function)});
@@ -626,7 +613,7 @@ bool Registry::dispatch(asIScriptGeneric* gen) {
 		return construct_value(gen);
 
 	if ((name == "opAdd" || name == "opSub" || name == "opMul" || name == "opDiv" || name == "opAddAssign" ||
-			name == "opSubAssign" || name == "opMulAssign" || name == "opDivAssign") &&
+		 name == "opSubAssign" || name == "opMulAssign" || name == "opDivAssign") &&
 		vec_binary(gen, name))
 		return true;
 
@@ -769,12 +756,7 @@ void Registry::advance() {
 		mark_dirty();
 		if (frame >= m.f1) {
 			auto& entity = _timeline.entities[bi->second];
-			_animations.finish_motion(
-				entity,
-				m.animation_token,
-				m.followup_track,
-				m.followup_track_index,
-				frame);
+			_animations.finish_motion(entity, m.animation_token, m.followup_track, m.followup_track_index, frame);
 			it = _moves.erase(it);
 		} else
 			++it;

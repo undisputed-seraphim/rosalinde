@@ -169,10 +169,31 @@ std::string stage_json(const asb::StageConfig& s) {
 
 } // namespace
 
+static std::string save_json(const asb::SaveState* save) {
+	if (!save)
+		return "null";
+	std::string party = "[";
+	bool first = true;
+	for (const auto& name : save->party) {
+		if (!first)
+			party += ',';
+		party += quote(name);
+		first = false;
+	}
+	party += ']';
+	return "{\"gold\":" + std::to_string(save->gold) + ",\"fame\":" + std::to_string(save->fame) +
+		   ",\"party\":" + party + ",\"quests\":" + std::to_string(save->quests.size()) +
+		   ",\"items\":" + std::to_string(save->items.size()) +
+		   ",\"stage_bits\":" + std::to_string(save->stage_bits.size()) +
+		   ",\"global_flags\":" + std::to_string(save->global_flags.size()) + ",\"clock\":[" +
+		   std::to_string(save->clock_hour) + "," + std::to_string(save->clock_minute) + "," +
+		   std::to_string(save->clock_second) + "]}";
+}
+
 std::string scene_state_json(const asb::SceneState& scene, const SceneReportContext& context) {
 	return "{\"source\":" + quote(scene.source) + ",\"function\":" + quote(scene.function) +
-		   ",\"frame\":" + std::to_string(scene.frame) + ",\"revision\":" + std::to_string(scene.revision) +
-		   ",\"entities\":" +
+		   ",\"mode\":" + quote(asb::scene_mode_name(scene.mode)) + ",\"frame\":" + std::to_string(scene.frame) +
+		   ",\"revision\":" + std::to_string(scene.revision) + ",\"entities\":" +
 		   array_json(scene.entities, [&](const asb::RuntimeEntity& e) { return entity_json(e, context); }) +
 		   ",\"camera\":" + camera_json(scene.camera) + ",\"stage\":" + stage_json(scene.stage) +
 		   ",\"stages\":" + array_json(scene.stages, [](const asb::StageConfig& s) { return stage_json(s); }) +
@@ -313,13 +334,15 @@ std::string scene_state_json(const asb::SceneState& scene, const SceneReportCont
 						  ",\"ints\":" + array_json(f.ints, [](int value) { return std::to_string(value); }) + "}";
 			   }) +
 		   ",\"opening_resources\":" +
-		   array_json(scene.opening_resources, [](const std::string& s) { return quote(s); }) + "}";
+		   array_json(scene.opening_resources, [](const std::string& s) { return quote(s); }) +
+		   ",\"save\":" + save_json(context.save) + "}";
 }
 
 std::string scene_state_text(const asb::SceneState& scene, const SceneReportContext& context) {
 	std::ostringstream out;
 	out << "source: " << scene.source << '\n';
 	out << "function: " << scene.function << '\n';
+	out << "mode: " << asb::scene_mode_name(scene.mode) << '\n';
 	out << "frame: " << scene.frame << " revision: " << scene.revision << " entities: " << scene.entities.size()
 		<< '\n';
 	for (const auto& e : scene.entities) {
@@ -361,6 +384,11 @@ std::string scene_state_text(const asb::SceneState& scene, const SceneReportCont
 		<< " has_zoom=" << asb::trace::boolean(scene.camera.has_zoom) << '\n';
 	out << "stage: type=" << scene.stage.stage_type << " weather=" << scene.stage.weather_type
 		<< " coa=" << scene.stage.coa_preset << " flag=" << scene.stage.flag_color << '\n';
+	if (context.save)
+		out << "save: gold=" << context.save->gold << " fame=" << context.save->fame
+			<< " party=" << context.save->party.size() << " quests=" << context.save->quests.size()
+			<< " items=" << context.save->items.size() << " clock=" << context.save->clock_hour << ':'
+			<< context.save->clock_minute << ':' << context.save->clock_second << '\n';
 	out << "channels: fades=" << scene.fades.size() << " texts=" << scene.texts.size()
 		<< " shakes=" << scene.shakes.size() << " bokashi=" << scene.bokashi.size()
 		<< " variations=" << scene.variations.size() << " effects=" << scene.effects.size()

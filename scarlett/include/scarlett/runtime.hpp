@@ -1,5 +1,6 @@
 #pragma once
 
+#include <scarlett/save.hpp>
 #include <scarlett/scene.hpp>
 
 #include <memory>
@@ -24,13 +25,21 @@ public:
 		Error,
 	};
 
-	explicit RuntimeSession(Host& host, std::string source = {});
+	explicit RuntimeSession(Host& host, std::string source = {}, SaveState* save = nullptr);
 	~RuntimeSession();
 
 	RuntimeSession(const RuntimeSession&) = delete;
 	RuntimeSession& operator=(const RuntimeSession&) = delete;
 
 	bool start(asIScriptFunction* fn, asIScriptFunction* prelude = nullptr);
+
+	// Active game layer. Stored in SceneState so renderers/tools can report it.
+	void set_scene_mode(SceneMode mode);
+	SceneMode scene_mode() const;
+
+	// Persistent progression shared by this session (or its own local store).
+	SaveState& save();
+	const SaveState& save() const;
 
 	StepResult advance();
 

@@ -365,7 +365,7 @@ DispatchResult Registry::dispatch_effects(std::string_view name, NativeArgs& arg
 						RuntimeItem di = it;
 						di.item = e.item;
 						di.count = e.count;
-						_items[di.item] += di.count;
+						save().items[di.item] += di.count;
 						_timeline.items.push_back(std::move(di));
 					}
 					return DispatchResult::Handled;
@@ -377,13 +377,13 @@ DispatchResult Registry::dispatch_effects(std::string_view name, NativeArgs& arg
 				if (_drops)
 					it.item = _drops->item_name(it.id);
 				if (!it.item.empty())
-					_items[it.item] += it.count;
+					save().items[it.item] += it.count;
 			}
 		} else {
 			it.item = S(0);
 			it.count = gen->GetArgCount() >= 2 ? I(1) : 1;
 			it.dialog = gen->GetArgCount() >= 3 ? I(2) != 0 : true;
-			_items[it.item] += it.count;
+			save().items[it.item] += it.count;
 		}
 		_timeline.items.push_back(it);
 		return DispatchResult::Handled;
@@ -404,8 +404,8 @@ DispatchResult Registry::dispatch_effects(std::string_view name, NativeArgs& arg
 			it.dialog = gen->GetArgCount() >= 3 ? I(2) != 0 : true;
 		}
 		if (!it.item.empty()) {
-			auto q = _items.find(it.item);
-			if (q != _items.end())
+			auto q = save().items.find(it.item);
+			if (q != save().items.end())
 				q->second = std::max(0, q->second - it.count);
 		}
 		_timeline.items.push_back(it);
@@ -430,7 +430,7 @@ DispatchResult Registry::dispatch_effects(std::string_view name, NativeArgs& arg
 				di.item = e.item;
 				di.count = std::max(0, e.count + extra);
 				di.add_count = 0;
-				_items[di.item] += di.count;
+				save().items[di.item] += di.count;
 				_timeline.items.push_back(std::move(di));
 			}
 			return DispatchResult::Handled;

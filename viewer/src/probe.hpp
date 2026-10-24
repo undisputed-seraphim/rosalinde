@@ -1,5 +1,6 @@
 #pragma once
 
+#include <scarlett/save.hpp>
 #include <scarlett/scene.hpp>
 
 #include <fstream>
@@ -37,6 +38,7 @@ class MbsCatalog;
 
 struct SceneReportContext {
 	const MbsCatalog* mbs = nullptr;
+	const asb::SaveState* save = nullptr;
 };
 
 std::string scene_state_json(const asb::SceneState& scene, const SceneReportContext& context = {});

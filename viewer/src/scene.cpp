@@ -27,8 +27,8 @@ Scene::Scene(ViewerConfig config)
 		throw std::runtime_error("--script is required");
 
 	ImGui::GetIO().IniFilename = nullptr;
-	_drama = std::make_unique<DramaPlayback>(_loader, _config);
-	viewer::trace::stamp("Scene ctor: DramaPlayback ready");
+	_playback = std::make_unique<ScenePlayback>(_loader, _config);
+	viewer::trace::stamp("Scene ctor: ScenePlayback ready");
 }
 
 bool Scene::handle_inputs() {
@@ -38,15 +38,15 @@ bool Scene::handle_inputs() {
 		if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
 			return true;
 		if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)
-			_drama->request_quit();
+			_playback->request_quit();
 	}
-	if (_drama && _drama->should_quit())
+	if (_playback && _playback->should_quit())
 		return true;
-	if (!_config.screenshot.empty() && _drama && _drama->captured())
+	if (!_config.screenshot.empty() && _playback && _playback->captured())
 		return true;
-	if (!_config.capture_frames.empty() && _drama && _drama->captures_done())
+	if (!_config.capture_frames.empty() && _playback && _playback->captures_done())
 		return true;
-	if (!_config.probe_dir.empty() && _drama && (_drama->probes_done() || _drama->is_done()))
+	if (!_config.probe_dir.empty() && _playback && (_playback->probes_done() || _playback->is_done()))
 		return true;
 	return false;
 }
@@ -58,10 +58,10 @@ void Scene::render() {
 		viewer::trace::stamp("first frame: Scene::render()");
 	}
 	_ui.begin_frame();
-	_drama->render();
+	_playback->render();
 	_ui.end_frame();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-	_drama->capture();
+	_playback->capture();
 }
 
-void Scene::update(float dt) { _drama->update(dt); }
+void Scene::update(float dt) { _playback->update(dt); }

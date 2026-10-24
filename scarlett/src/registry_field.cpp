@@ -142,33 +142,33 @@ DispatchResult Registry::dispatch_field(std::string_view name, NativeArgs& args)
 		return DispatchResult::Handled;
 	}
 	if (name == "FlSetClock") {
-		_clock_hour = I(0);
-		_clock_minute = I(1);
-		_clock_second = I(2);
-		push_field("clock", {}, {}, _clock_hour, _clock_minute, _clock_second, 0.0f, nullptr, false);
+		save().clock_hour = I(0);
+		save().clock_minute = I(1);
+		save().clock_second = I(2);
+		push_field("clock", {}, {}, save().clock_hour, save().clock_minute, save().clock_second, 0.0f, nullptr, false);
 		return DispatchResult::Handled;
 	}
 	if (name == "FlSetClockHour") {
-		_clock_hour = I(0);
-		push_field("clock", {}, {}, _clock_hour, _clock_minute, 0, 0.0f, nullptr, false);
+		save().clock_hour = I(0);
+		push_field("clock", {}, {}, save().clock_hour, save().clock_minute, 0, 0.0f, nullptr, false);
 		return DispatchResult::Handled;
 	}
 	if (name == "FlSetClockMinute") {
-		_clock_minute = I(0);
-		push_field("clock", {}, {}, _clock_hour, _clock_minute, 0, 0.0f, nullptr, false);
+		save().clock_minute = I(0);
+		push_field("clock", {}, {}, save().clock_hour, save().clock_minute, 0, 0.0f, nullptr, false);
 		return DispatchResult::Handled;
 	}
 	if (name == "FlGetClockHour") {
-		gen->SetReturnDWord(static_cast<asDWORD>(_clock_hour));
+		gen->SetReturnDWord(static_cast<asDWORD>(save().clock_hour));
 		return DispatchResult::Handled;
 	}
 	if (name == "FlGetClockMinute") {
-		gen->SetReturnDWord(static_cast<asDWORD>(_clock_minute));
+		gen->SetReturnDWord(static_cast<asDWORD>(save().clock_minute));
 		return DispatchResult::Handled;
 	}
 	if (name == "FlPauseClock") {
-		_clock_paused = I(0) != 0;
-		push_field("clock_pause", {}, {}, _clock_paused ? 1 : 0, 0, 0, 0.0f, nullptr, _clock_paused);
+		save().clock_paused = I(0) != 0;
+		push_field("clock_pause", {}, {}, save().clock_paused ? 1 : 0, 0, 0, 0.0f, nullptr, save().clock_paused);
 		return DispatchResult::Handled;
 	}
 	if (name == "FlSetupWeatherByCamera") {
@@ -562,12 +562,12 @@ DispatchResult Registry::dispatch_field(std::string_view name, NativeArgs& args)
 		return DispatchResult::Handled;
 	}
 	if (name == "FlOnlyOneTownLvMax") {
-		_town_lv[S(0)] = 99;
+		save().town_lv[S(0)] = 99;
 		push_field("town_max", S(0), {}, 99, 0, 0, 0.0f, nullptr, false);
 		return DispatchResult::Handled;
 	}
 	if (name == "FlAllTownLvMax") {
-		for (auto& [k, v] : _town_lv)
+		for (auto& [k, v] : save().town_lv)
 			v = 99;
 		push_field("town_max_all", {}, {}, 0, 0, 0, 0.0f, nullptr, false);
 		return DispatchResult::Handled;
@@ -588,8 +588,8 @@ DispatchResult Registry::dispatch_field(std::string_view name, NativeArgs& args)
 		return DispatchResult::Handled;
 	}
 	if (name == "FlGetTownLv") {
-		auto it = _town_lv.find(S(0));
-		gen->SetReturnDWord(it == _town_lv.end() ? 0u : static_cast<asDWORD>(it->second));
+		auto it = save().town_lv.find(S(0));
+		gen->SetReturnDWord(it == save().town_lv.end() ? 0u : static_cast<asDWORD>(it->second));
 		return DispatchResult::Handled;
 	}
 	if (name == "FlGetItemChangeShopLevel") {

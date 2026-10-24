@@ -3,6 +3,7 @@
 #include <scarlett/animation.hpp>
 
 #include <scarlett/asb.hpp>
+#include <scarlett/save.hpp>
 #include <scarlett/scene.hpp>
 #include <scarlett/trace.hpp>
 
@@ -86,6 +87,20 @@ public:
 	void set_drop_tables(const DropTables& d) { _drops = &d; }
 	void set_sound_length(std::function<int(int)> fn) { _sound_length = std::move(fn); }
 
+	// Persistent progression shared across sessions. When unset the registry
+	// keeps its own local save.
+	void set_save_state(SaveState* save) { _save_state = save; }
+	SaveState& save() { return _save_state ? *_save_state : _local_save; }
+	const SaveState& save() const { return _save_state ? *_save_state : _local_save; }
+
+	// Active game layer. Mode-specific native handlers consult this; shared
+	// scene handlers still run in every mode.
+	void set_scene_mode(SceneMode mode) {
+		_mode = mode;
+		_timeline.mode = mode;
+	}
+	SceneMode scene_mode() const { return _mode; }
+
 	// Optional structured event sink. Events are emitted with the current scene
 	// frame and a category (`vm`, `stage`, `camera`, `sprite`, ...).
 	void set_trace(TraceCallback fn) { _trace = std::move(fn); }
@@ -115,10 +130,13 @@ public:
 	// inspection; `fire_script_event` is a stub until combat/field events exist.
 	void set_module(asIScriptModule* module) { _module = module; }
 	asIScriptFunction* resolve_callback(std::string_view name) const;
-	void add_callback(ScriptEvent event, std::string key, std::string function, bool replace = false,
-					  std::string slot = {});
-	void remove_callback(ScriptEvent event, const std::string& key, const std::string& function = {},
-						 const std::string& slot = {});
+	void
+	add_callback(ScriptEvent event, std::string key, std::string function, bool replace = false, std::string slot = {});
+	void remove_callback(
+		ScriptEvent event,
+		const std::string& key,
+		const std::string& function = {},
+		const std::string& slot = {});
 	bool fire_script_event(ScriptEvent event, std::string_view key = {});
 
 	long frame = 0;
@@ -152,15 +170,8 @@ private:
 		int layer,
 		float scale);
 	void create_chara(const std::string& kind, const std::vector<std::string>& names);
-	RuntimeUi& push_ui(
-		std::string kind,
-		std::string text,
-		int id,
-		int i0,
-		int i1,
-		const float* pos,
-		float rate,
-		bool flag);
+	RuntimeUi&
+	push_ui(std::string kind, std::string text, int id, int i0, int i1, const float* pos, float rate, bool flag);
 	RuntimeField& push_field(
 		std::string kind,
 		std::string name,
@@ -192,15 +203,7 @@ private:
 	TraceCallback _trace;
 	const CharTable* _chars = nullptr;
 	const CharaSetTable* _chara_sets = nullptr;
-	// Script-accumulated save/party state: recruited chara def names and the
-	// integer slot-flag store. Read back by the state getters.
-	std::unordered_set<std::string> _party;
-	std::unordered_map<int, int> _slots;
-	std::unordered_set<std::string> _class_changed;
-	std::unordered_set<std::string> _disabled;
-	std::unordered_map<int, int> _quests;			// quest id -> bits (1 open, 2 completed)
 	std::unordered_map<std::string, int> _unit_dir; // unit name -> direction/degree
-	std::unordered_set<int> _units;					// recruited unit ids (AddUnitSaveData)
 	// Movement tweens (Move/MoveAbs/DrMove*): interpolate an entity's position
 	// from `from` to `to` over [f0, f1]; advanced in advance().
 	struct Move {
@@ -248,13 +251,11 @@ private:
 	int _sprite_text_handle = 0;
 
 	// Drama playback state (Phase 5A).
-	unsigned _variation = 0;	  // DrSetVariationType (global bitmask)
-	bool _skip_mode = false;	  // IsSkipMode / CancelSkipMode
-	long _camera_move_end = 0;	  // DrCameraMoveWait
-	int _shake_seq = 0;			  // DrSetShake handle counter
+	unsigned _variation = 0;				// DrSetVariationType (global bitmask)
+	bool _skip_mode = false;				// IsSkipMode / CancelSkipMode
+	long _camera_move_end = 0;				// DrCameraMoveWait
+	int _shake_seq = 0;						// DrSetShake handle counter
 	float _follow_offset[2] = {0.0f, 0.0f}; // FollowOffsetV
-	bool _balcony_bru = false;	  // DrEnableBalconyFlagBRU / DrGetBalconyFlagBRU
-	bool _balcony_scr = false;	  // DrEnableBalconyFlagSCR / DrGetBalconyFlagSCR
 	// 5C UI / archive / HUD state.
 	bool _partner_select_open = false;
 	bool _disable_backlog = false;
@@ -267,20 +268,9 @@ private:
 	float _staff_roll_speed = 0.0f;
 
 	// Phase 6 field/overworld + game-state.
-	int _gold = 0;
-	int _fame = 0;
-	std::unordered_map<int, int> _stage_flags;
-	std::unordered_set<int> _stage_bits;
-	std::unordered_map<int, int> _global_flags;
-	std::unordered_map<std::string, int> _items;
-	std::unordered_set<std::string> _facilities;
-	std::unordered_map<std::string, int> _friendship;
-	std::unordered_set<int> _treasures;
-	std::unordered_set<int> _quest_pinned;
-	std::unordered_set<int> _quest_preopened;
-	std::unordered_map<std::string, int> _town_lv;
-	int _clock_hour = 0, _clock_minute = 0, _clock_second = 0;
-	bool _clock_paused = false;
+	SaveState _local_save;
+	SaveState* _save_state = nullptr;
+	SceneMode _mode = SceneMode::Drama;
 	bool _demo_mode = false;
 	bool _world_map_disabled = false;
 	bool _battle_mode = false;

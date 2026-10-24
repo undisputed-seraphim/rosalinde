@@ -793,7 +793,7 @@ struct RuntimeSession::Impl {
 	unsigned long steps = 0;
 };
 
-RuntimeSession::RuntimeSession(Host& host, std::string source)
+RuntimeSession::RuntimeSession(Host& host, std::string source, SaveState* save)
 	: _host(host)
 	, _source(std::move(source))
 	, _impl(std::make_unique<Impl>()) {
@@ -822,12 +822,21 @@ RuntimeSession::RuntimeSession(Host& host, std::string source)
 		_impl->reg.set_drop_tables(*h->drops);
 	if (h->sound_length)
 		_impl->reg.set_sound_length(h->sound_length);
+	_impl->reg.set_save_state(save);
 }
 
 RuntimeSession::~RuntimeSession() {
 	if (_impl && _impl->ctx)
 		_impl->ctx->Release();
 }
+
+void RuntimeSession::set_scene_mode(SceneMode mode) { _impl->reg.set_scene_mode(mode); }
+
+SceneMode RuntimeSession::scene_mode() const { return _impl->reg.scene_mode(); }
+
+SaveState& RuntimeSession::save() { return _impl->reg.save(); }
+
+const SaveState& RuntimeSession::save() const { return _impl->reg.save(); }
 
 bool RuntimeSession::start(asIScriptFunction* fn, asIScriptFunction* prelude) {
 	if (!fn) {
@@ -891,11 +900,7 @@ bool RuntimeSession::run_prelude(asIScriptFunction* fn) {
 		if (er == asEXECUTION_EXCEPTION) {
 			std::fprintf(stderr, "[as] prelude exception: %s\n", ctx->GetExceptionString());
 			if (asIScriptFunction* ef = ctx->GetExceptionFunction())
-				std::fprintf(
-					stderr,
-					"[as]   in %s line %d\n",
-					ef->GetDeclaration(),
-					ctx->GetExceptionLineNumber());
+				std::fprintf(stderr, "[as]   in %s line %d\n", ef->GetDeclaration(), ctx->GetExceptionLineNumber());
 		}
 	}
 	ctx->Release();

@@ -6,6 +6,7 @@
 
 #include <scarlett/host.hpp>
 #include <scarlett/runtime.hpp>
+#include <scarlett/save.hpp>
 #include <scarlett/scene.hpp>
 
 #include <functional>
@@ -14,18 +15,20 @@
 
 class AssetLoader;
 
-class PlaybackRuntime {
+class DramaSession {
 public:
 	using TraceCallback = std::function<void(const asb::TraceEvent&)>;
 	using NativeCallback = std::function<void(const asb::NativeCall&)>;
 
-	PlaybackRuntime(
+	DramaSession(
 		const AssetLoader& loader,
 		const MbsCatalog& mbs,
+		asb::SaveState& save,
+		asb::SceneMode mode,
 		const ViewerConfig& config,
 		TraceCallback trace,
 		NativeCallback native_call);
-	~PlaybackRuntime();
+	~DramaSession();
 
 	void set_max_frames(long frames);
 	asb::RuntimeSession::StepResult advance();

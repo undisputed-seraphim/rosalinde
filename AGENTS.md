@@ -94,7 +94,7 @@ SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
   mention the object; structural stage/camera events remain unless they mention it.
 - `--calls FILE` / `--calls-json FILE` write a native-call census with call counts,
   stubs, first/last frame, and imported-but-uncalled natives.
-- `--headless` runs the same `PlaybackRuntime` without a window or GL context;
+- `--headless` runs the same `GameRuntime` without a window or GL context;
   `--run-to N` stops and exits at a scene frame, and `--max-frames N` caps the run.
 - `--state FILE|-` / `--state-json FILE|-` snapshot the scene at the stop frame,
   including selected/resolved MBS tracks, run counts, drawability, and missing-asset reasons.
@@ -110,7 +110,8 @@ SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
   `--keep-stage` retains the stage with `--only`. `--clear-color #RRGGBB[AA]` overrides
   the background (default is the blue-gray editor clear).
 - `--data-dir DIR` selects the runtime tables (default: `viewer/data/generated`, installed `share/rosalinde`, or `$ROSALINDE_DATA_DIR`; `$VIEWER_DATA` remains an alias).
-- `--scene-fps` controls playback stepping; `--chara-table` overrides the viewer data table.
+- `--mode drama|field|battle|menu` selects the scene layer (drama is implemented).
+  `--scene-fps` controls playback stepping; `--chara-table` overrides the viewer data table.
 
 ### Perceptual opening regression (`visiontest/`)
 
@@ -146,8 +147,9 @@ python3 visiontest/opening_diff.py \
 
 ## Engine / runtime facts
 
-- **Live model**: `asb::RuntimeSession` owns `SceneState`; `DramaPlayback` steps it at 60 Hz;
-  `SceneRenderer` consumes the live entities. `--script` is the only viewer playback path.
+- **Live model**: `GameRuntime` owns the active `SceneMode` and persistent `SaveState`;
+  `ScenePlayback` steps a `DramaSession` at 60 Hz; `SceneRenderer` consumes the live entities.
+  Drama playback is one scene mode, selected with `--mode` (only `drama` runs scripts today).
 - **Natives vs scripts**: `.asb` `usedFunctions` kind `a` = engine native (shimmed by
   `Registry`), kind `m` = module code executed by the VM (no shim).
 - **Behaviours**: `$beh0` constructor, `$beh2` destructor, `$beh3`/`$fact` factory (returns a
