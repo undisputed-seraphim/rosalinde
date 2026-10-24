@@ -46,10 +46,12 @@ the ground truth for the joins below and are not rewritten by the join step.
   `modifier_a`/`modifier_b` labels at `+0x22`/`+0x23` were incorrect; those
   bytes are now retained as `w22`/`w23` (zero in all rows).
 - `quest_table.tsv` — 183 quest rows:
-  `idx key quest_type quest_id w10 w14 req0_a req0_b req1_a req1_b req2_a
-  req2_b stage flag reserved`. `quest_type` is the switch value 0..4 used by the
-  quest setup code; the three requirement pairs are the `FUN_0021ce74` /
-  `FUN_0021ce10` getter outputs.
+  `idx key quest_type quest_id reward0_id reward0_count reward1_id
+  reward1_count reward2_id reward2_count w28 w2c stage flag reserved`.
+  `quest_type` is the switch value 0..4 used by the quest setup code. The three
+  reward slots are `(item id, count)`; item id 2 is money, and the quest UI
+  renders each slot with an item icon and count. `w28`/`w2c` look like rank and
+  recommended level but are not read by the native accessors.
 - `stage_effect_table.tsv` — 185 display-effect rows:
   `idx id se_id_0 se_id_1 se_id_2 se_id_3 reserved name`. The four `se_id_*`
   fields are `Sound/se.acb` cue ids; every nonzero value resolves in the SE cue
