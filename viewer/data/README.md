@@ -107,7 +107,36 @@ the ground truth for the joins below and are not rewritten by the join step.
   (default 100 when zero). The three 0x20-byte effect blocks start at `+0x2c`,
   `+0x4c`, and `+0x6c`; each stores its effect id at block `+0xc` and its
   float value at block `+0x10`.
-- `bbs_table.tsv` — `idx path ptr_a flags_a label ptr_b flags_b`
+- `bbs_table.tsv` — 185 BattleBG rows: `idx path label w10 f14`. The table
+  lives at `0x2737ae8` with stride `0x18`; the old `0x8827c8` base was inside
+  `.rela.dyn` and misread relocation triples.
+- `encounter_table.tsv` — 2859 encounter/unit rows (`0x27e3100`, stride
+  `0x88`): `idx id w04 name w10..w2c label w38..w84`. `name` is the
+  `SAMPLE_E_*`/`OW_*` key and `label` is the Japanese unit name.
+- `deliver_list_table.tsv` — 20 shop/deliver rows (`0x27c4460`, stride
+  `0x28`): `idx key label w10..w24`. Row 0 is the `UNKNOWN` sentinel; the
+  remaining keys are `WEAPON_START`, `C0_WEAPON_0`, ...
+- `shop_asset_table.tsv` — 20 shop asset rows (`0x27c4280`, stride `0x18`):
+  `idx mbs ftx dsp`. Row 0 is an empty sentinel.
+- `asset_manifest_table.tsv` — 104 global asset paths (`0x26e5470`): fonts,
+  effects, GUI, message sheets, OTM, and sound files.
+- `coat_of_arms_table.tsv` — 336 coat-of-arms asset names:
+  `part idx path`. The eight arrays are Compartment (38), Escutcheon (33),
+  EscutcheonBG (33), Charge (46), Helmet (46), Crown (44), Supporter (57),
+  and Scroll (39).
+- `chara_level_curve_table.tsv` — 51 rows × 3 floats (`0xce972c`,
+  stride `0xc`); accessor `FUN_0011a058`.
+- `chara_stat_curve_a_table.tsv` / `chara_stat_curve_b_table.tsv` — 10 rows
+  × 11 floats (`0xce9990`/`0xce9b48`, stride `0x2c`); the accessors average
+  two rows (`FUN_0011ab38`/`FUN_0011ac24`).
+- `chara_stat_group_table.tsv` — 7 groups × 4 slots × 12 floats
+  (`0xce9d00`, accessor `FUN_0011ad10`).
+- `chara_class_values_table.tsv` — 56 rows × 6 u16 (`0xcea240`, stride
+  `0xc`); accessor `FUN_0011ad84`.
+- `chara_level_stats_table.tsv` — 50 rows × 5 u32 (`0xcea4e0`, stride
+  `0x14`); accessor `FUN_0011adb0`, used by the damage paths.
+- `chara_level_growth_table.tsv` — 50 rows × 6 u16 (`0xcea8c8`, stride
+  `0xc`); accessor `FUN_0011ade0`, same callers as `chara_level_stats`.
 - `drop_table.tsv` — `idx key label start count`; `drop_entry_table.tsv` —
   drop entries
 - `country_regions.tsv` — country-region quads extracted from the executable
@@ -118,21 +147,14 @@ the ground truth for the joins below and are not rewritten by the join step.
 Every raw table row carries the full header column count. Empty trailing
 fields are written as empty cells, not omitted.
 
-### Pointer columns in raw tables
+### Relocation views
 
-These are real fields, not joins:
-
-- `bbs.ptr_a` points at `battlebg_variant.label` (`battlebg +0x10`);
-  `bbs.ptr_b` points at `battlebg_variant.bbs` (`battlebg +0x08`).
-- `npc_appearance.ptr_a`/`ptr_b` point into `npctype` or `chara_model`
-  records.
-- `stage_map.ptr08` points into an `encounter` row at `+0x10`/`+0x28`/
-  `+0x40`; `stage_map.ptr20` points into an encounter row at `+0x0`/
-  `+0x18`/`+0x30`.
-- `enum_name_table.ptr08` points into a `drop_table` row.
-
-These references are useful for resolving the remaining `w*` columns without
-treating the pointer values themselves as new data.
+The former `npc_appearance_table.tsv`, `stage_map_table.tsv`, and
+`enum_name_table.tsv` were removed: their bases pointed inside `.rela.dyn`,
+so every `flags`/`w*` value was the relocation type `0x403` and the row
+grouping was an artefact of the relocation triples. NPC appearance is already
+covered by `npctype_table` + `chara_model_table`; the stage-map graph remains
+open. Raw tables no longer retain `r_offset` or `0x403` columns.
 
 ## Generated outputs
 

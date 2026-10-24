@@ -64,6 +64,17 @@ CLASS_PART_ARRAYS = (
 
 CLASS_PART_DEFAULTS = ((10, 0xD00990), (11, 0xD01680))
 
+COAT_OF_ARMS = (
+    ("Compartment", 0x2895B48, 38),
+    ("Escutcheon", 0x2896348, 33),
+    ("EscutcheonBG", 0x2896B48, 33),
+    ("Charge", 0x2897348, 46),
+    ("Helmet", 0x2897B48, 46),
+    ("Crown", 0x2898348, 44),
+    ("Supporter", 0x2898B48, 57),
+    ("Scroll", 0x2899348, 39),
+)
+
 
 TABLES = (
     TableSpec(
@@ -212,7 +223,7 @@ TABLES = (
         kind="battlebg",
         file="battlebg_variant_table.tsv",
         confidence="confirmed",
-        source="bbs_table ptr_a/ptr_b references; 0x27384b8..0x2738c38",
+        source="BattleBG variant rows at 0x27384b8, selected by DrCreateStage",
         notes="BattleBG variant rows referenced by the BBS catalog; 80 entries.",
     ),
     TableSpec(
@@ -522,13 +533,15 @@ TABLES = (
     ),
     TableSpec(
         "bbs",
-        0x8827C8,
-        0x30,
+        0x2737AE8,
+        0x18,
         185,
-        (Field("path", 0, "strptr"), Field("label", 0x18, "strptr")),
+        (Field("path", 0, "strptr"), Field("label", 8, "strptr"), Field("w10", 0x10, "u32"), Field("f14", 0x14, "f32")),
         kind="bbs",
         file="bbs.tsv",
-        source="tools/dump_bbs_table.py; DrCreateStage",
+        confidence="confirmed",
+        source="relocation slots at 0x2737ae8; DrCreateStage",
+        notes="Real {path,label,w10,f14} rows. The previous 0x8827c8 base was inside .rela.dyn; only path and label were valid there.",
     ),
     TableSpec(
         "field_cue",
@@ -635,80 +648,154 @@ TABLES = (
         notes="`talk_part` is the 1/2/3 conversation part within an FT script; `facility_id` indexes facility_table; `x`/`y` are the conversation trigger position near that facility. `w18` is the global talk order; w1c/w20 remain unresolved.",
     ),
     TableSpec(
-        "npc_appearance",
-        0x892068,
-        0x30,
-        1505,
-        (
-            Field("label_a", 0, "strptr"),
-            Field("ptr_a", 8, "ptr"),
-            Field("flags_a", 0x10, "u32"),
-            Field("label_b", 0x18, "strptr"),
-            Field("ptr_b", 0x20, "ptr"),
-            Field("flags_b", 0x28, "u32"),
-        ),
-        file="npc_appearance.tsv",
-        confidence="candidate",
-        source="CharaNpc and GUI/IconNpc labels; no accessor recovered yet",
-        notes="Rows hold two 0x18 label/pointer/flags entries.",
-    ),
-    TableSpec(
         "encounter",
-        0x27E2FF8,
+        0x27E3100,
         0x88,
-        2861,
-        (Field("name", 0, "strptr"),)
-        + raw_fields(8, (0x88 - 8) // 4),
-        file="encounter.tsv",
-        confidence="candidate",
-        source="stage and SAMPLE_E_* / OW_*_EN_* labels",
-        notes="Likely enemy or encounter data; row semantics are OPEN.",
-    ),
-    TableSpec(
-        "stage_map",
-        0x93D4D0,
-        0x30,
-        2874,
-        (
-            Field("name", 0, "strptr"),
-            Field("ptr08", 8, "ptr"),
-            Field("w10", 0x10, "u32"),
-            Field("ptr18", 0x18, "ptr"),
-            Field("ptr20", 0x20, "ptr"),
-            Field("w28", 0x28, "u32"),
-        ),
-        file="stage_map.tsv",
-        confidence="candidate",
-        source="rodata stage labels plus pointers into the encounter region",
+        0xB2B,
+        (Field("id", 0, "u32"), Field("w04", 4, "u32"), Field("name", 8, "strptr"))
+        + tuple(Field(f"w{i:02x}", i, "u32") for i in range(0x10, 0x30, 4))
+        + (Field("label", 0x30, "strptr"),)
+        + tuple(Field(f"w{i:02x}", i, "u32") for i in range(0x38, 0x88, 4)),
+        kind="rows",
+        file="encounter_table.tsv",
+        confidence="confirmed",
+        source="FUN_002a7358: bound 0xb2b, base + idx * 0x88",
+        notes="Encounter/unit records start with SAMPLE_E_* and a Japanese label at +0x30; the remaining words retain numeric data.",
     ),
     TableSpec(
         "deliver_list",
-        0x90D878,
-        0x30,
-        344,
-        (
-            Field("label_a", 0, "strptr"),
-            Field("ptr_a", 8, "ptr"),
-            Field("flags_a", 0x10, "u32"),
-            Field("label_b", 0x18, "strptr"),
-            Field("ptr_b", 0x20, "ptr"),
-            Field("flags_b", 0x28, "u32"),
-        ),
-        file="deliver_list.tsv",
-        confidence="candidate",
-        source="344 GUI/shop asset rows; matches _UcEnum_DeliverList size",
-        notes="Rows hold two 0x18 label/pointer/flags entries.",
+        0x27C4460,
+        0x28,
+        20,
+        (Field("key", 0, "strptr"), Field("label", 8, "strptr"))
+        + tuple(Field(f"w{i:02x}", i, "u32") for i in range(0x10, 0x28, 4)),
+        kind="rows",
+        file="deliver_list_table.tsv",
+        confidence="confirmed",
+        source="FUN_001a91c8: base + id * 0x28; row 0 is the UNKNOWN sentinel",
+        notes="Shop/deliver entries. Keys are WEAPON_START/C0_WEAPON_0/...; w10..w24 retain the numeric columns.",
     ),
     TableSpec(
-        "enum_names",
-        0x82FA40,
+        "shop_asset",
+        0x27C4280,
         0x18,
-        2449,
-        (Field("label", 0, "strptr"), Field("ptr08", 8, "ptr"), Field("w10", 0x10, "u32")),
-        file="enum_names.tsv",
-        confidence="candidate",
-        source="combined enum-name/string table; not a game data table",
+        20,
+        (Field("mbs", 0, "strptr"), Field("ftx", 8, "strptr"), Field("dsp", 0x10, "strptr")),
+        kind="rows",
+        file="shop_asset_table.tsv",
+        confidence="confirmed",
+        source="FUN_001a91b8 region; 20 rows at 0x27c4280",
+        notes="Shop asset pairs {mbs, ftx, dsp}. Row 0 is an empty sentinel.",
     ),
+    TableSpec(
+        "chara_level_curve",
+        0xCE972C,
+        0xC,
+        51,
+        (Field("f0", 0, "f32"), Field("f1", 4, "f32"), Field("f2", 8, "f32")),
+        kind="rows",
+        file="chara_level_curve_table.tsv",
+        confidence="confirmed",
+        source="FUN_0011a058: base + level * 0xc, levels 1..50",
+        notes="Three floats per level; row 0 is the level-0 row.",
+    ),
+    TableSpec(
+        "chara_stat_curve_a",
+        0xCE9990,
+        0x2C,
+        10,
+        tuple(Field(f"f{i:02d}", i * 4, "f32") for i in range(11)),
+        kind="rows",
+        file="chara_stat_curve_a_table.tsv",
+        confidence="confirmed",
+        source="FUN_0011ab38: averages two 0x2c rows",
+        notes="Eleven floats per row; used by the stat/pose midpoint helper.",
+    ),
+    TableSpec(
+        "chara_stat_curve_b",
+        0xCE9B48,
+        0x2C,
+        10,
+        tuple(Field(f"f{i:02d}", i * 4, "f32") for i in range(11)),
+        kind="rows",
+        file="chara_stat_curve_b_table.tsv",
+        confidence="confirmed",
+        source="FUN_0011ac24: averages two 0x2c rows",
+        notes="Second eleven-float curve table, same shape as chara_stat_curve_a.",
+    ),
+    TableSpec(
+        "chara_stat_group",
+        0xCE9D00,
+        0x30,
+        28,
+        (),
+        kind="chara_stat_group",
+        file="chara_stat_group_table.tsv",
+        confidence="confirmed",
+        source="FUN_0011ad10: group * 0xc0 + slot * 0x30, 7 groups x 4 slots",
+        notes="Twelve floats per slot.",
+    ),
+    TableSpec(
+        "chara_class_values",
+        0xCEA240,
+        0xC,
+        56,
+        tuple(Field(f"v{i}", i * 2, "u16") for i in range(6)),
+        kind="rows",
+        file="chara_class_values_table.tsv",
+        confidence="confirmed",
+        source="FUN_0011ad84: base + row * 0xc + column * 2",
+        notes="Six u16 values per row.",
+    ),
+    TableSpec(
+        "chara_level_stats",
+        0xCEA4E0,
+        0x14,
+        50,
+        tuple(Field(f"v{i}", i * 4, "u32") for i in range(5)),
+        kind="rows",
+        file="chara_level_stats_table.tsv",
+        confidence="confirmed",
+        source="FUN_0011adb0: base + (level - 1) * 0x14 + stat * 4; used by damage paths",
+        notes="Five u32 values per level; damage code scales them by 0.2 and 0.8.",
+    ),
+    TableSpec(
+        "chara_level_growth",
+        0xCEA8C8,
+        0xC,
+        50,
+        tuple(Field(f"v{i}", i * 2, "u16") for i in range(6)),
+        kind="rows",
+        file="chara_level_growth_table.tsv",
+        confidence="confirmed",
+        source="FUN_0011ade0: base + (level - 1) * 0xc + column * 2; used by damage paths",
+        notes="Six u16 values per level; same callers as chara_level_stats.",
+    ),
+    TableSpec(
+        "coat_of_arms",
+        0x2895B48,
+        0x800,
+        8,
+        (),
+        kind="coat_of_arms",
+        file="coat_of_arms_table.tsv",
+        confidence="confirmed",
+        source="eight string-pointer arrays at 0x2895b48..0x2899348; parts are 0x800 apart",
+        notes="Compartment, Escutcheon, EscutcheonBG, Charge, Helmet, Crown, Supporter and Scroll asset-name arrays.",
+    ),
+    TableSpec(
+        "asset_manifest",
+        0x26E5470,
+        8,
+        104,
+        (Field("path", 0, "strptr"),),
+        kind="rows",
+        file="asset_manifest_table.tsv",
+        confidence="confirmed",
+        source="104 consecutive string pointers at 0x26e5470",
+        notes="Global asset list: fonts, effects, GUI, message sheets, OTM and sound files.",
+    ),
+
 )
 
 TABLE_BY_NAME = {table.name: table for table in TABLES}
@@ -743,11 +830,18 @@ RAW_FILES = {
     "item": "item_table.tsv",
     "story_name": "story_name_table.tsv",
     "friendship_talk": "friendship_talk_table.tsv",
-    "npc_appearance": "npc_appearance_table.tsv",
     "encounter": "encounter_table.tsv",
-    "stage_map": "stage_map_table.tsv",
     "deliver_list": "deliver_list_table.tsv",
-    "enum_names": "enum_name_table.tsv",
+    "shop_asset": "shop_asset_table.tsv",
+    "chara_level_curve": "chara_level_curve_table.tsv",
+    "chara_stat_curve_a": "chara_stat_curve_a_table.tsv",
+    "chara_stat_curve_b": "chara_stat_curve_b_table.tsv",
+    "chara_stat_group": "chara_stat_group_table.tsv",
+    "chara_class_values": "chara_class_values_table.tsv",
+    "chara_level_stats": "chara_level_stats_table.tsv",
+    "chara_level_growth": "chara_level_growth_table.tsv",
+    "coat_of_arms": "coat_of_arms_table.tsv",
+    "asset_manifest": "asset_manifest_table.tsv",
 }
 
 
@@ -919,7 +1013,7 @@ def dump_bbs(image, spec, _enums):
         path = image.read_cstr(image.read_ptr(record))
         if not path:
             continue
-        label = image.read_cstr(image.read_ptr(record + 0x18))
+        label = image.read_cstr(image.read_ptr(record + 8))
         rows.append((i, path, label))
     return "# stage_type\tpath\tlabel", rows
 
@@ -972,6 +1066,8 @@ def render_table(image, spec, enums):
         return dump_bbs(image, spec, enums)
     if spec.kind == "field_cue":
         return dump_field_cue(image, spec, enums)
+    if spec.kind in ("chara_stat_group", "coat_of_arms"):
+        return dump_raw(image, spec)
     return dump_rows(image, spec, enums)
 
 
@@ -1083,7 +1179,7 @@ def dump_raw(image, spec):
             )
         return header, rows
     if spec.kind == "bbs":
-        header = "idx\tpath\tptr_a\tflags_a\tlabel\tptr_b\tflags_b"
+        header = "idx\tpath\tlabel\tw10\tf14"
         rows = []
         for i in range(spec.count):
             record = spec.base + i * spec.stride
@@ -1091,11 +1187,9 @@ def dump_raw(image, spec):
                 (
                     i,
                     image.read_cstr(image.read_ptr(record)),
-                    f"0x{image.read_ptr(record + 8):x}",
+                    image.read_cstr(image.read_ptr(record + 8)),
                     image.read_u32(record + 0x10),
-                    image.read_cstr(image.read_ptr(record + 0x18)),
-                    f"0x{image.read_ptr(record + 0x20):x}",
-                    image.read_u32(record + 0x28),
+                    image.read_f32(record + 0x14),
                 )
             )
         return header, rows
@@ -1176,6 +1270,23 @@ def dump_raw(image, spec):
                     w18,
                 )
             )
+        return header, rows
+    if spec.kind == "chara_stat_group":
+        header = "idx\tgroup\tslot\t" + "\t".join(f"f{i:02d}" for i in range(12))
+        rows = []
+        index = 0
+        for group in range(7):
+            for slot in range(4):
+                record = spec.base + group * 0xC0 + slot * 0x30
+                rows.append([index, group, slot] + [image.read_f32(record + j * 4) for j in range(12)])
+                index += 1
+        return header, rows
+    if spec.kind == "coat_of_arms":
+        header = "part\tidx\tpath"
+        rows = []
+        for part, base, count in COAT_OF_ARMS:
+            for i in range(count):
+                rows.append((part, i, image.read_cstr(image.read_ptr(base + i * 8))))
         return header, rows
     header = "\t".join(["idx"] + [field.name for field in spec.fields])
     rows = []

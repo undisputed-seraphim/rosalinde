@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Dump the engine BBS catalog indexed by DrCreateStage stage type.
 
-The catalog is an array of 185 rows at 0x8827c8 in the decompressed ELF
+The catalog is an array of 185 rows at 0x2737ae8 in the decompressed ELF
 (stage type -> path, label). This is the selector used by DrCreateStage.
 
     python3 tools/dump_bbs_table.py ~/zwei/unicorn_overlord/main2.elf \
@@ -13,8 +13,8 @@ import sys
 
 from engine_data import EngineImage
 
-TABLE_BASE = 0x8827C8
-TABLE_STRIDE = 0x30
+TABLE_BASE = 0x2737AE8
+TABLE_STRIDE = 0x18
 TABLE_COUNT = 185
 
 
@@ -30,7 +30,7 @@ def main():
     for index in range(TABLE_COUNT):
         row = TABLE_BASE + index * TABLE_STRIDE
         path = image.read_cstr(image.read_ptr(row))
-        label = image.read_cstr(image.read_ptr(row + 0x18))
+        label = image.read_cstr(image.read_ptr(row + 8))
         rows.append((index, path, label))
 
     with open(args.out, "w", encoding="utf-8") as file:

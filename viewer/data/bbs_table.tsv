@@ -1,186 +1,186 @@
-idx	path	ptr_a	flags_a	label	ptr_b	flags_b
-0	BattleBG/StBtRoad.bbs	0x2737af0	1027	道	0x2737b00	1027
-1	BattleBG/StBtRoad_1.bbs	0x2737b08	1027	橋	0x2737b18	1027
-2	BattleBG/StBtPlain.bbs	0x2737b20	1027	平原	0x2737b30	1027
-3	BattleBG/StBtForest.bbs	0x2737b38	1027	森	0x2737b48	1027
-4	BattleBG/StBtShore.bbs	0x2737b50	1027	海岸	0x2737b60	1027
-5	BattleBG/StBtWetland.bbs	0x2737b68	1027	湿地	0x2737b78	1027
-6	BattleBG/StBtSnowPlain.bbs	0x2737b80	1027	雪：平原	0x2737b90	1027
-7	BattleBG/StBtSnowPlain.bbs	0x2737b98	1027	雪：道	0x2737ba8	1027
-8	BattleBG/StBtSnowPlain.bbs	0x2737bb0	1027	雪：橋	0x2737bc0	1027
-9	BattleBG/StBtSnowForest.bbs	0x2737bc8	1027	雪：森	0x2737bd8	1027
-10	BattleBG/StBtSnowShore.bbs	0x2737be0	1027	雪：海岸	0x2737bf0	1027
-11	BattleBG/StBtSnowRuins.bbs	0x2737bf8	1027	雪：廃墟	0x2737c08	1027
-12	BattleBG/StBtWasteland.bbs	0x2737c10	1027	荒地	0x2737c20	1027
-13	BattleBG/StBtWasteland.bbs	0x2737c28	1027	荒地：道	0x2737c38	1027
-14	BattleBG/StBtWasteland.bbs	0x2737c40	1027	荒地：道反転	0x2737c50	1027
-15	BattleBG/StBtWasteland.bbs	0x2737c58	1027	荒地：橋	0x2737c68	1027
-16	BattleBG/StBtWastelandForest.bbs	0x2737c70	1027	荒地：森	0x2737c80	1027
-17	BattleBG/StBtWastelandMist.bbs	0x2737c88	1027	荒地：霧	0x2737c98	1027
-18	BattleBG/StBtDesertPlain.bbs	0x2737ca0	1027	砂漠	0x2737cb0	1027
-19	BattleBG/StBtDesertPlain.bbs	0x2737cb8	1027	砂漠：道	0x2737cc8	1027
-20	BattleBG/StBtDesertOasis.bbs	0x2737cd0	1027	砂漠：オアシス	0x2737ce0	1027
-21	BattleBG/STBtColosseum.bbs	0x2737ce8	1027	闘技場	0x2737cf8	1027
-22	BattleBG/StBtLakeside.bbs	0x2737d00	1027	湖畔	0x2737d10	1027
-23	BattleBG/StBtLakeside.bbs	0x2737d18	1027	湖畔：大聖堂	0x2737d28	1027
-24	BattleBG/StBtElfForest.bbs	0x2737d30	1027	エルヘイム：森	0x2737d40	1027
-25	BattleBG/StBtElfForest_Burn.bbs	0x2737d48	1027	エルヘイム：森(炎)	0x2737d58	1027
-26	BattleBG/StBtElfForest_Burn.bbs	0x2737d60	1027	エルヘイム：森(鎮火)	0x2737d70	1027
-27	BattleBG/StBtElfPlain.bbs	0x2737d78	1027	エルヘイム：平原	0x2737d88	1027
-28	BattleBG/StBtElfPlain_Burn.bbs	0x2737d90	1027	エルヘイム：平原(炎)	0x2737da0	1027
-29	BattleBG/StBtElfPlain.bbs	0x2737da8	1027	エルヘイム：道	0x2737db8	1027
-30	BattleBG/StBtElfPlain_Burn.bbs	0x2737dc0	1027	エルヘイム：道(炎)	0x2737dd0	1027
-31	BattleBG/StBtElfPlain.bbs	0x2737dd8	1027	エルヘイム：橋	0x2737de8	1027
-32	BattleBG/StBtThornForest.bbs	0x2737df0	1027	茨の森	0x2737e00	1027
-33	BattleBG/StBtThornForest.bbs	0x2737e08	1027	茨の森：道	0x2737e18	1027
-34	BattleBG/StBtGraveyard.bbs	0x2737e20	1027	茨の森：墓地	0x2737e30	1027
-35	BattleBG/StBtSanctuary.bbs	0x2737e38	1027	茨の塔	0x2737e48	1027
-36	BattleBG/StBtDarkElfForest.bbs	0x2737e50	1027	ダークエルフ：森	0x2737e60	1027
-37	BattleBG/StBtPlain_A.bbs	0x2737e68	1027	アルビオン：平原	0x2737e78	1027
-38	BattleBG/StBtPlain_A_1.bbs	0x2737e80	1027	アルビオン：道	0x2737e90	1027
-39	BattleBG/StBtAlbionForest.bbs	0x2737e98	1027	アルビオン：森	0x2737ea8	1027
-40	BattleBG/StBtPlain_A_2.bbs	0x2737eb0	1027	アルビオン：橋	0x2737ec0	1027
-41	BattleBG/StBtBRIDGE_A.bbs	0x2737ec8	1027	アルビオン大橋	0x2737ed8	1027
-42	BattleBG/StBtRuins.bbs	0x2737ee0	1027	廃墟	0x2737ef0	1027
-43	BattleBG/StBtCave.bbs	0x2737ef8	1027	洞窟	0x2737f08	1027
-44	BattleBG/StBtUndergroundRuins.bbs	0x2737f10	1027	地下の遺跡	0x2737f20	1027
-45	BattleBG/StBtUndergroundRuinsDesert.bbs	0x2737f28	1027	地下の遺跡(砂漠)	0x2737f38	1027
-46	BattleBG/StBtUndergroundRuinsSnow.bbs	0x2737f40	1027	地下の遺跡(雪原)	0x2737f50	1027
-47	BattleBG/StBtLimestoneCave.bbs	0x2737f58	1027	天然洞窟	0x2737f68	1027
-48	BattleBG/StBtFort.bbs	0x2737f70	1027	砦	0x2737f80	1027
-49	BattleBG/StBtFort_E.bbs	0x2737f88	1027	砦(エルヘイム）	0x2737f98	1027
-50	BattleBG/StBtFort_E_Burn.bbs	0x2737fa0	1027	砦(エルヘイム）(炎)	0x2737fb0	1027
-51	BattleBG/StBtFort_A.bbs	0x2737fb8	1027	砦(アルビオン）	0x2737fc8	1027
-52	BattleBG/StBtWoodFort.bbs	0x2737fd0	1027	木造砦	0x2737fe0	1027
-53	BattleBG/StBtWoodFort_B.bbs	0x2737fe8	1027	木造砦(バストリアス）	0x2737ff8	1027
-54	BattleBG/StBtTown.bbs	0x2738000	1027	町	0x2738010	1027
-55	BattleBG/StBtTown_C_Citadel.bbs	0x2738018	1027	町(コルニア城塞都市)	0x2738028	1027
-56	BattleBG/StBtTown_B.bbs	0x2738030	1027	町(バストリアス)	0x2738040	1027
-57	BattleBG/StBtTown_B_Forest.bbs	0x2738048	1027	町(バストリアス森)	0x2738058	1027
-58	BattleBG/StBtTown_D.bbs	0x2738060	1027	町(ドラケンガルド)	0x2738070	1027
-59	BattleBG/StBtTown_D.bbs	0x2738078	1027	町(ドラケンガルド)反転	0x2738088	1027
-60	BattleBG/StBtTown_D_Citadel.bbs	0x2738090	1027	町(ドラケンガルド城塞都市)	0x27380a0	1027
-61	BattleBG/StBtTown_E_Elf.bbs	0x27380a8	1027	町(エルフ)	0x27380b8	1027
-62	BattleBG/StBtTown_E_Elf_Burn.bbs	0x27380c0	1027	町(エルフ)(炎)	0x27380d0	1027
-63	BattleBG/StBtTown_E_Human.bbs	0x27380d8	1027	町(エルフ人間)	0x27380e8	1027
-64	BattleBG/StBtTown_E_Human.bbs	0x27380f0	1027	町(エルフ人間)反転	0x2738100	1027
-65	BattleBG/StBtTown_A.bbs	0x2738108	1027	町(アルビオン)	0x2738118	1027
-66	BattleBG/StBtTown_A_Cliff.bbs	0x2738120	1027	町(アルビオン崖)	0x2738130	1027
-67	BattleBG/StBtTown_A_Citadel.bbs	0x2738138	1027	町(アルビオン城塞都市)	0x2738148	1027
-68	BattleBG/StBtTown_A_Citadel.bbs	0x2738150	1027	町(アルビオン城塞都市)反転	0x2738160	1027
-69	BattleBG/StBtVillage.bbs	0x2738168	1027	村	0x2738178	1027
-70	BattleBG/StBtPort.bbs	0x2738180	1027	港町	0x2738190	1027
-71	BattleBG/StBtPort.bbs	0x2738198	1027	港町反転	0x27381a8	1027
-72	BattleBG/StBtPortBurn.bbs	0x27381b0	1027	港町(炎)	0x27381c0	1027
-73	BattleBG/StBtPortBurn.bbs	0x27381c8	1027	港町(炎)反転	0x27381d8	1027
-74	BattleBG/StBtPort_B.bbs	0x27381e0	1027	港町(バストリアス)	0x27381f0	1027
-75	BattleBG/StBtAbandonedPort_B.bbs	0x27381f8	1027	廃墟の港町(バストリアス)	0x2738208	1027
-76	BattleBG/StBtPort_D.bbs	0x2738210	1027	港町(ドラケンガルド)	0x2738220	1027
-77	BattleBG/StBtWetlandVillage.bbs	0x2738228	1027	湿地集落	0x2738238	1027
-78	BattleBG/StBtCapital_A.bbs	0x2738240	1027	アルビオン首都	0x2738250	1027
-79	BattleBG/StBtCapital_B.bbs	0x2738258	1027	バストリアス首都	0x2738268	1027
-80	BattleBG/StBtCapital_C.bbs	0x2738270	1027	コルニア首都	0x2738280	1027
-81	BattleBG/StBtCapital_C_Battle.bbs	0x2738288	1027	コルニア首都(戦場)	0x2738298	1027
-82	BattleBG/StBtCapital_D.bbs	0x27382a0	1027	ドラケンガルド首都	0x27382b0	1027
-83	BattleBG/StBtCapital_E.bbs	0x27382b8	1027	エルヘイム首都	0x27382c8	1027
-84	BattleBG/StBtSquare_C.bbs	0x27382d0	1027	広場(ドラマ)	0x27382e0	1027
-85	BattleBG/StBtSquare_C_Battle.bbs	0x27382e8	1027	広場(ヴァルモア戦)	0x27382f8	1027
-86	BattleBG/StBtCathedral.bbs	0x2738300	1027	聖堂	0x2738310	1027
-87	BattleBG/StBtCathedral_a.bbs	0x2738318	1027	アルビオン聖堂	0x2738328	1027
-88	BattleBG/StBtDarkElfCave.bbs	0x2738330	1027	ダークエルフの洞窟	0x2738340	1027
-89	BattleBG/StBtIceFall.bbs	0x2738348	1027	氷瀑	0x2738358	1027
-90	BattleBG/StBtIceFall.bbs	0x2738360	1027	氷瀑反転	0x2738370	1027
-91	BattleBG/StBtCampDesertPlain.bbs	0x2738378	1027	野営地(砂漠)	0x2738388	1027
-92	BattleBG/StBtCampDesertPlain.bbs	0x2738390	1027	野営地(砂漠)反転	0x27383a0	1027
-93	BattleBG/StBtCampElfPlain.bbs	0x27383a8	1027	野営地(エルヘイム：森)	0x27383b8	1027
-94	BattleBG/StBtCampElfPlain_Burn.bbs	0x27383c0	1027	野営地(エルヘイム：森)(炎)	0x27383d0	1027
-95	BattleBG/StBtCampPlain.bbs	0x27383d8	1027	野営地(草原)	0x27383e8	1027
-96	BattleBG/StBtCampPlain_A.bbs	0x27383f0	1027	野営地(アルビオン：平原)	0x2738400	1027
-97	BattleBG/StBtCampSnowPlain.bbs	0x2738408	1027	野営地(雪：平原)	0x2738418	1027
-98	BattleBG/StBtCampThornForest.bbs	0x2738420	1027	野営地(茨の森)	0x2738430	1027
-99	BattleBG/StBtCampWasteland.bbs	0x2738438	1027	野営地(荒地)	0x2738448	1027
-100	BattleBG/StBtJousting.bbs	0x2738450	1027	馬上槍試合	0x2738460	1027
-101	BattleBG/StBtAirRock.bbs	0x2738468	1027	空中戦(岩山)	0x2738478	1027
-102	BattleBG/StBtAirRock_D.bbs	0x2738480	1027	空中戦(荒地)	0x2738490	1027
-103	BattleBG/StBtAirRock_B.bbs	0x2738498	1027	空中戦(雪山)	0x27384a8	1027
-104	BattleBG/StBtCastleGate.bbs	0x27384b0	1027	城門（コルニア）	0x27384c0	1027
-105	BattleBG/StBtWarPlain.bbs	0x27384c8	1027	戦争（コルニア）	0x27384d8	1027
-106	BattleBG/StBtWarPlain.bbs	0x27384e0	1027	戦争（コルニア）草原差分	0x27384f0	1027
-107	BattleBG/StBtWarPlain_mist.bbs	0x27384f8	1027	戦争（コルニア）霧	0x2738508	1027
-108	BattleBG/StBtWarPlain_mist.bbs	0x2738510	1027	戦争（コルニア）草原差分　霧	0x2738520	1027
-109	BattleBG/StBtWar_AirRock.bbs	0x2738528	1027	戦争(コルニア)空中戦(岩山)	0x2738538	1027
-110	BattleBG/StBtWar_Bridge.bbs	0x2738540	1027	戦争(コルニア)橋	0x2738550	1027
-111	BattleBG/StBtWar_Forest.bbs	0x2738558	1027	戦争(コルニア)森	0x2738568	1027
-112	BattleBG/StBtWar_Fort.bbs	0x2738570	1027	戦争(コルニア)砦	0x2738580	1027
-113	BattleBG/StBtWar_Town.bbs	0x2738588	1027	戦争(コルニア)街	0x2738598	1027
-114	BattleBG/StBtWar_Village.bbs	0x27385a0	1027	戦争(コルニア)村	0x27385b0	1027
-115	BattleBG/StBtSanctum.bbs	0x27385b8	1027	聖所（破壊後）	0x27385c8	1027
-116	BattleBG/StBtSanctum.bbs	0x27385d0	1027	聖所（破壊前）	0x27385e0	1027
-117	BattleBG/StEvRoad.bbs	0x27385e8	1027	イベント道	0x27385f8	1027
-118	BattleBG/StEvForest.bbs	0x2738600	1027	イベント森(ループ)反転	0x2738610	1027
-119	BattleBG/StEvFort.bbs	0x2738618	1027	イベント砦内部	0x2738628	1027
-120	BattleBG/StEvFort.bbs	0x2738630	1027	イベント砦内部反転	0x2738640	1027
-121	BattleBG/StEvBar.bbs	0x2738648	1027	イベント酒場	0x2738658	1027
-122	BattleBG/StEvHeadquarters.bbs	0x2738660	1027	イベント拠点	0x2738670	1027
-123	BattleBG/StEvHeadquarters.bbs	0x2738678	1027	イベント拠点反転	0x2738688	1027
-124	BattleBG/StEvWoodHeadquarters.bbs	0x2738690	1027	イベント木造拠点	0x27386a0	1027
-125	BattleBG/StEvHeadquarters_B.bbs	0x27386a8	1027	イベント拠点(バストリアス砦)	0x27386b8	1027
-126	BattleBG/StEvHeadquarters_B.bbs	0x27386c0	1027	イベント拠点(バストリアス砦)反転	0x27386d0	1027
-127	BattleBG/StEvJousting.bbs	0x27386d8	1027	イベント馬上槍試合	0x27386e8	1027
-128	BattleBG/StEvFarmer_C.bbs	0x27386f0	1027	イベント民家	0x2738700	1027
-129	BattleBG/StEvFarmer_C.bbs	0x2738708	1027	イベント民家反転	0x2738718	1027
-130	BattleBG/StEvFarmer_D.bbs	0x2738720	1027	イベント民家（ドラケンガルド）	0x2738730	1027
-131	BattleBG/StEvFarmer_B.bbs	0x2738738	1027	イベント民家（バストリアス）	0x2738748	1027
-132	BattleBG/StEvFarmer_E.bbs	0x2738750	1027	イベント民家（エルヘイム）	0x2738760	1027
-133	BattleBG/StEvFarmer_A.bbs	0x2738768	1027	イベント民家（アルビオン）	0x2738778	1027
-134	BattleBG/StEvFarmer_A_Capital.bbs	0x2738780	1027	イベント民家（アルビオン)亜種	0x2738790	1027
-135	BattleBG/StEvFarmer_A_Capital.bbs	0x2738798	1027	イベント民家（アルビオン)亜種反転	0x27387a8	1027
-136	BattleBG/StEvBasin.bbs	0x27387b0	1027	イベント滝壺	0x27387c0	1027
-137	BattleBG/StEvShipDeck.bbs	0x27387c8	1027	イベント船の上	0x27387d8	1027
-138	BattleBG/StEvShipDeck.bbs	0x27387e0	1027	イベント船の上反転	0x27387f0	1027
-139	BattleBG/StEvCaveEntrance.bbs	0x27387f8	1027	イベント洞窟の入り口	0x2738808	1027
-140	BattleBG/StEvCaveEntrance.bbs	0x2738810	1027	イベント洞窟の入り口反転	0x2738820	1027
-141	BattleBG/StEvCaveEntrance_C.bbs	0x2738828	1027	イベント洞窟の入り口(コルニア)	0x2738838	1027
-142	BattleBG/StEvCaveEntrance_C.bbs	0x2738840	1027	イベント洞窟の入り口反転(コルニア)	0x2738850	1027
-143	BattleBG/StEvAssemblyHall.bbs	0x2738858	1027	イベント集会場（バストリアス）	0x2738868	1027
-144	BattleBG/STEvElfTree.bbs	0x2738870	1027	イベントエルフの樹	0x2738880	1027
-145	BattleBG/StEvThrone_C.bbs	0x2738888	1027	イベントコルニア玉座	0x2738898	1027
-146	BattleBG/StEvThrone_D.bbs	0x27388a0	1027	イベントドラケンガルド玉座	0x27388b0	1027
-147	BattleBG/StEvThrone_E.bbs	0x27388b8	1027	イベントエルヘイム玉座	0x27388c8	1027
-148	BattleBG/StEvWaitingRoom.bbs	0x27388d0	1027	イベント闘技場控室	0x27388e0	1027
-149	BattleBG/StEvWitchHouse.bbs	0x27388e8	1027	イベント魔女の家	0x27388f8	1027
-150	BattleBG/StEvForestFlowerField.bbs	0x2738900	1027	イベント花畑	0x2738910	1027
-151	BattleBG/StEvHotSpring_B.bbs	0x2738918	1027	イベント温泉（バストリアス）	0x2738928	1027
-152	BattleBG/STEvHouse_C.bbs	0x2738930	1027	イベントコルニアの家	0x2738940	1027
-153	BattleBG/STEvHouse_C.bbs	0x2738948	1027	イベントコルニアの家反転	0x2738958	1027
-154	BattleBG/StEvCorridor.bbs	0x2738960	1027	イベント城の廊下	0x2738970	1027
-155	BattleBG/StEvCorridor.bbs	0x2738978	1027	イベント城の廊下(ループ)	0x2738988	1027
-156	BattleBG/StEvWoodPassage.bbs	0x2738990	1027	イベント木造砦の廊下	0x27389a0	1027
-157	BattleBG/StEvWoodPassage.bbs	0x27389a8	1027	イベント木造砦の廊下(ループ)	0x27389b8	1027
-158	BattleBG/StEvDungeon.bbs	0x27389c0	1027	イベント地下牢	0x27389d0	1027
-159	BattleBG/StEvDungeon.bbs	0x27389d8	1027	イベント地下牢反転	0x27389e8	1027
-160	BattleBG/StEvBazaar.bbs	0x27389f0	1027	イベントバザール	0x2738a00	1027
-161	BattleBG/StEvBedroom.bbs	0x2738a08	1027	イベント寝室	0x2738a18	1027
-162	BattleBG/StEvBalcony_D.bbs	0x2738a20	1027	イベントバルコニー(ドラケンガルド)	0x2738a30	1027
-163	BattleBG/StEvChurch.bbs	0x2738a38	1027	イベント教会	0x2738a48	1027
-164	BattleBG/StEvChurch_D.bbs	0x2738a50	1027	イベント教会(ドラケンガルド)	0x2738a60	1027
-165	BattleBG/StEvChurch_B.bbs	0x2738a68	1027	イベント教会(バストリアス)	0x2738a78	1027
-166	BattleBG/StEvFortGate_D.bbs	0x2738a80	1027	イベント砦城門(ドラケンガルド)	0x2738a90	1027
-167	BattleBG/StEvFortGate_D.bbs	0x2738a98	1027	イベント砦城門(ドラケンガルド)反転	0x2738aa8	1027
-168	BattleBG/StEvFortGate_A.bbs	0x2738ab0	1027	イベント砦城門(アルビオン)	0x2738ac0	1027
-169	BattleBG/StEvFortGate_A.bbs	0x2738ac8	1027	イベント砦城門(アルビオン)反転	0x2738ad8	1027
-170	BattleBG/StEvArenaRoom.bbs	0x2738ae0	1027	イベント闘技場の部屋	0x2738af0	1027
-171	BattleBG/StEvDarkElf_Room.bbs	0x2738af8	1027	イベントダークエルフの部屋	0x2738b08	1027
-172	BattleBG/StEvTent.bbs	0x2738b10	1027	イベント野営地内部	0x2738b20	1027
-173	BattleBG/StEvRitual.bbs	0x2738b28	1027	イベント継承の儀式	0x2738b38	1027
-174	BattleBG/StEvEnding_01.bbs	0x2738b40	1027	イベントエンディング(コルニア城)	0x2738b50	1027
-175	BattleBG/StEvEnding_02.bbs	0x2738b58	1027	イベントエンディング(宴)	0x2738b68	1027
-176	BattleBG/StEvVikingSword.bbs	0x2738b70	1027	イベントヴァイキングソード	0x2738b80	1027
-177	BattleBG/StEvCourtyard_C.bbs	0x2738b88	1027	イベントコルニア城中庭	0x2738b98	1027
-178	BattleBG/Classpedia_BG.bbs	0x2738ba0	1027	クラス図巻	0x2738bb0	1027
-179	BattleBG/Opening_00.bbs	0x2738bb8	1027	オープニング00	0x2738bc8	1027
-180	BattleBG/Opening_010.bbs	0x2738bd0	1027	オープニング010	0x2738be0	1027
-181	BattleBG/Opening_011.bbs	0x2738be8	1027	オープニング011	0x2738bf8	1027
-182	BattleBG/Opening_090.bbs	0x2738c00	1027	オープニング090	0x2738c10	1027
-183	BattleBG/StEvThrone_C_Long.bbs	0x2738c18	1027	エンディング玉座	0x2738c28	1027
-184	BattleBG/StTest.bbs	0x2738c30	1027	テスト	0x2738c50	1027
+idx	path	label	w10	f14
+0	BattleBG/StBtRoad.bbs	道	1	1.0
+1	BattleBG/StBtRoad_1.bbs	橋	1	1.0
+2	BattleBG/StBtPlain.bbs	平原	1	1.0
+3	BattleBG/StBtForest.bbs	森	1	1.0
+4	BattleBG/StBtShore.bbs	海岸	1	1.0
+5	BattleBG/StBtWetland.bbs	湿地	1	1.0
+6	BattleBG/StBtSnowPlain.bbs	雪：平原	16385	1.0
+7	BattleBG/StBtSnowPlain.bbs	雪：道	16386	1.0
+8	BattleBG/StBtSnowPlain.bbs	雪：橋	8196	1.0
+9	BattleBG/StBtSnowForest.bbs	雪：森	16385	1.0
+10	BattleBG/StBtSnowShore.bbs	雪：海岸	16385	1.0
+11	BattleBG/StBtSnowRuins.bbs	雪：廃墟	1	1.0
+12	BattleBG/StBtWasteland.bbs	荒地	1	1.0
+13	BattleBG/StBtWasteland.bbs	荒地：道	2	1.0
+14	BattleBG/StBtWasteland.bbs	荒地：道反転	2	-1.0
+15	BattleBG/StBtWasteland.bbs	荒地：橋	4	1.0
+16	BattleBG/StBtWastelandForest.bbs	荒地：森	1	1.0
+17	BattleBG/StBtWastelandMist.bbs	荒地：霧	3	1.0
+18	BattleBG/StBtDesertPlain.bbs	砂漠	16385	1.0
+19	BattleBG/StBtDesertPlain.bbs	砂漠：道	16386	1.0
+20	BattleBG/StBtDesertOasis.bbs	砂漠：オアシス	16385	1.0
+21	BattleBG/STBtColosseum.bbs	闘技場	1	1.0
+22	BattleBG/StBtLakeside.bbs	湖畔	1	1.0
+23	BattleBG/StBtLakeside.bbs	湖畔：大聖堂	3	1.0
+24	BattleBG/StBtElfForest.bbs	エルヘイム：森	1	1.0
+25	BattleBG/StBtElfForest_Burn.bbs	エルヘイム：森(炎)	3	1.0
+26	BattleBG/StBtElfForest_Burn.bbs	エルヘイム：森(鎮火)	1	1.0
+27	BattleBG/StBtElfPlain.bbs	エルヘイム：平原	1	1.0
+28	BattleBG/StBtElfPlain_Burn.bbs	エルヘイム：平原(炎)	1	1.0
+29	BattleBG/StBtElfPlain.bbs	エルヘイム：道	2	1.0
+30	BattleBG/StBtElfPlain_Burn.bbs	エルヘイム：道(炎)	2	1.0
+31	BattleBG/StBtElfPlain.bbs	エルヘイム：橋	4	1.0
+32	BattleBG/StBtThornForest.bbs	茨の森	1	1.0
+33	BattleBG/StBtThornForest.bbs	茨の森：道	2	1.0
+34	BattleBG/StBtGraveyard.bbs	茨の森：墓地	1	1.0
+35	BattleBG/StBtSanctuary.bbs	茨の塔	1	1.0
+36	BattleBG/StBtDarkElfForest.bbs	ダークエルフ：森	1	1.0
+37	BattleBG/StBtPlain_A.bbs	アルビオン：平原	1	1.0
+38	BattleBG/StBtPlain_A_1.bbs	アルビオン：道	1	1.0
+39	BattleBG/StBtAlbionForest.bbs	アルビオン：森	1	1.0
+40	BattleBG/StBtPlain_A_2.bbs	アルビオン：橋	1	1.0
+41	BattleBG/StBtBRIDGE_A.bbs	アルビオン大橋	1	1.0
+42	BattleBG/StBtRuins.bbs	廃墟	1	1.0
+43	BattleBG/StBtCave.bbs	洞窟	1	1.0
+44	BattleBG/StBtUndergroundRuins.bbs	地下の遺跡	1	1.0
+45	BattleBG/StBtUndergroundRuinsDesert.bbs	地下の遺跡(砂漠)	1	1.0
+46	BattleBG/StBtUndergroundRuinsSnow.bbs	地下の遺跡(雪原)	1	1.0
+47	BattleBG/StBtLimestoneCave.bbs	天然洞窟	1	1.0
+48	BattleBG/StBtFort.bbs	砦	1	1.0
+49	BattleBG/StBtFort_E.bbs	砦(エルヘイム）	1	1.0
+50	BattleBG/StBtFort_E_Burn.bbs	砦(エルヘイム）(炎)	1	1.0
+51	BattleBG/StBtFort_A.bbs	砦(アルビオン）	1	1.0
+52	BattleBG/StBtWoodFort.bbs	木造砦	1	1.0
+53	BattleBG/StBtWoodFort_B.bbs	木造砦(バストリアス）	1	1.0
+54	BattleBG/StBtTown.bbs	町	1	1.0
+55	BattleBG/StBtTown_C_Citadel.bbs	町(コルニア城塞都市)	1	1.0
+56	BattleBG/StBtTown_B.bbs	町(バストリアス)	1	1.0
+57	BattleBG/StBtTown_B_Forest.bbs	町(バストリアス森)	1	1.0
+58	BattleBG/StBtTown_D.bbs	町(ドラケンガルド)	1	1.0
+59	BattleBG/StBtTown_D.bbs	町(ドラケンガルド)反転	1	-1.0
+60	BattleBG/StBtTown_D_Citadel.bbs	町(ドラケンガルド城塞都市)	1	1.0
+61	BattleBG/StBtTown_E_Elf.bbs	町(エルフ)	1	1.0
+62	BattleBG/StBtTown_E_Elf_Burn.bbs	町(エルフ)(炎)	1	1.0
+63	BattleBG/StBtTown_E_Human.bbs	町(エルフ人間)	1	1.0
+64	BattleBG/StBtTown_E_Human.bbs	町(エルフ人間)反転	1	-1.0
+65	BattleBG/StBtTown_A.bbs	町(アルビオン)	1	1.0
+66	BattleBG/StBtTown_A_Cliff.bbs	町(アルビオン崖)	1	1.0
+67	BattleBG/StBtTown_A_Citadel.bbs	町(アルビオン城塞都市)	1	1.0
+68	BattleBG/StBtTown_A_Citadel.bbs	町(アルビオン城塞都市)反転	1	-1.0
+69	BattleBG/StBtVillage.bbs	村	1	1.0
+70	BattleBG/StBtPort.bbs	港町	3	1.0
+71	BattleBG/StBtPort.bbs	港町反転	3	-1.0
+72	BattleBG/StBtPortBurn.bbs	港町(炎)	1	1.0
+73	BattleBG/StBtPortBurn.bbs	港町(炎)反転	1	-1.0
+74	BattleBG/StBtPort_B.bbs	港町(バストリアス)	16387	1.0
+75	BattleBG/StBtAbandonedPort_B.bbs	廃墟の港町(バストリアス)	1	1.0
+76	BattleBG/StBtPort_D.bbs	港町(ドラケンガルド)	1	1.0
+77	BattleBG/StBtWetlandVillage.bbs	湿地集落	1	1.0
+78	BattleBG/StBtCapital_A.bbs	アルビオン首都	1	1.0
+79	BattleBG/StBtCapital_B.bbs	バストリアス首都	1	1.0
+80	BattleBG/StBtCapital_C.bbs	コルニア首都	1	1.0
+81	BattleBG/StBtCapital_C_Battle.bbs	コルニア首都(戦場)	1	1.0
+82	BattleBG/StBtCapital_D.bbs	ドラケンガルド首都	1	1.0
+83	BattleBG/StBtCapital_E.bbs	エルヘイム首都	1	1.0
+84	BattleBG/StBtSquare_C.bbs	広場(ドラマ)	1	1.0
+85	BattleBG/StBtSquare_C_Battle.bbs	広場(ヴァルモア戦)	52	1.0
+86	BattleBG/StBtCathedral.bbs	聖堂	1	1.0
+87	BattleBG/StBtCathedral_a.bbs	アルビオン聖堂	1	1.0
+88	BattleBG/StBtDarkElfCave.bbs	ダークエルフの洞窟	1	1.0
+89	BattleBG/StBtIceFall.bbs	氷瀑	1	1.0
+90	BattleBG/StBtIceFall.bbs	氷瀑反転	1	-1.0
+91	BattleBG/StBtCampDesertPlain.bbs	野営地(砂漠)	1	1.0
+92	BattleBG/StBtCampDesertPlain.bbs	野営地(砂漠)反転	1	-1.0
+93	BattleBG/StBtCampElfPlain.bbs	野営地(エルヘイム：森)	1	1.0
+94	BattleBG/StBtCampElfPlain_Burn.bbs	野営地(エルヘイム：森)(炎)	1	1.0
+95	BattleBG/StBtCampPlain.bbs	野営地(草原)	1	1.0
+96	BattleBG/StBtCampPlain_A.bbs	野営地(アルビオン：平原)	1	1.0
+97	BattleBG/StBtCampSnowPlain.bbs	野営地(雪：平原)	1	1.0
+98	BattleBG/StBtCampThornForest.bbs	野営地(茨の森)	1	1.0
+99	BattleBG/StBtCampWasteland.bbs	野営地(荒地)	1	1.0
+100	BattleBG/StBtJousting.bbs	馬上槍試合	1	1.0
+101	BattleBG/StBtAirRock.bbs	空中戦(岩山)	1	1.0
+102	BattleBG/StBtAirRock_D.bbs	空中戦(荒地)	16385	1.0
+103	BattleBG/StBtAirRock_B.bbs	空中戦(雪山)	16385	1.0
+104	BattleBG/StBtCastleGate.bbs	城門（コルニア）	1	1.0
+105	BattleBG/StBtWarPlain.bbs	戦争（コルニア）	3	1.0
+106	BattleBG/StBtWarPlain.bbs	戦争（コルニア）草原差分	5	1.0
+107	BattleBG/StBtWarPlain_mist.bbs	戦争（コルニア）霧	3	1.0
+108	BattleBG/StBtWarPlain_mist.bbs	戦争（コルニア）草原差分　霧	5	1.0
+109	BattleBG/StBtWar_AirRock.bbs	戦争(コルニア)空中戦(岩山)	1	1.0
+110	BattleBG/StBtWar_Bridge.bbs	戦争(コルニア)橋	1	1.0
+111	BattleBG/StBtWar_Forest.bbs	戦争(コルニア)森	1	1.0
+112	BattleBG/StBtWar_Fort.bbs	戦争(コルニア)砦	1	1.0
+113	BattleBG/StBtWar_Town.bbs	戦争(コルニア)街	1	1.0
+114	BattleBG/StBtWar_Village.bbs	戦争(コルニア)村	1	1.0
+115	BattleBG/StBtSanctum.bbs	聖所（破壊後）	8	1.0
+116	BattleBG/StBtSanctum.bbs	聖所（破壊前）	1	1.0
+117	BattleBG/StEvRoad.bbs	イベント道	1	1.0
+118	BattleBG/StEvForest.bbs	イベント森(ループ)反転	1	-1.0
+119	BattleBG/StEvFort.bbs	イベント砦内部	1	1.0
+120	BattleBG/StEvFort.bbs	イベント砦内部反転	1	-1.0
+121	BattleBG/StEvBar.bbs	イベント酒場	1	1.0
+122	BattleBG/StEvHeadquarters.bbs	イベント拠点	1	1.0
+123	BattleBG/StEvHeadquarters.bbs	イベント拠点反転	1	-1.0
+124	BattleBG/StEvWoodHeadquarters.bbs	イベント木造拠点	1	1.0
+125	BattleBG/StEvHeadquarters_B.bbs	イベント拠点(バストリアス砦)	1	1.0
+126	BattleBG/StEvHeadquarters_B.bbs	イベント拠点(バストリアス砦)反転	1	-1.0
+127	BattleBG/StEvJousting.bbs	イベント馬上槍試合	1	1.0
+128	BattleBG/StEvFarmer_C.bbs	イベント民家	1	1.0
+129	BattleBG/StEvFarmer_C.bbs	イベント民家反転	1	-1.0
+130	BattleBG/StEvFarmer_D.bbs	イベント民家（ドラケンガルド）	131115	1.0
+131	BattleBG/StEvFarmer_B.bbs	イベント民家（バストリアス）	131079	1.0
+132	BattleBG/StEvFarmer_E.bbs	イベント民家（エルヘイム）	131073	1.0
+133	BattleBG/StEvFarmer_A.bbs	イベント民家（アルビオン）	1	1.0
+134	BattleBG/StEvFarmer_A_Capital.bbs	イベント民家（アルビオン)亜種	1	1.0
+135	BattleBG/StEvFarmer_A_Capital.bbs	イベント民家（アルビオン)亜種反転	1	-1.0
+136	BattleBG/StEvBasin.bbs	イベント滝壺	1	1.0
+137	BattleBG/StEvShipDeck.bbs	イベント船の上	1	1.0
+138	BattleBG/StEvShipDeck.bbs	イベント船の上反転	1	-1.0
+139	BattleBG/StEvCaveEntrance.bbs	イベント洞窟の入り口	1	1.0
+140	BattleBG/StEvCaveEntrance.bbs	イベント洞窟の入り口反転	1	-1.0
+141	BattleBG/StEvCaveEntrance_C.bbs	イベント洞窟の入り口(コルニア)	1	1.0
+142	BattleBG/StEvCaveEntrance_C.bbs	イベント洞窟の入り口反転(コルニア)	1	-1.0
+143	BattleBG/StEvAssemblyHall.bbs	イベント集会場（バストリアス）	1	1.0
+144	BattleBG/STEvElfTree.bbs	イベントエルフの樹	1	1.0
+145	BattleBG/StEvThrone_C.bbs	イベントコルニア玉座	1	1.0
+146	BattleBG/StEvThrone_D.bbs	イベントドラケンガルド玉座	1	1.0
+147	BattleBG/StEvThrone_E.bbs	イベントエルヘイム玉座	1	1.0
+148	BattleBG/StEvWaitingRoom.bbs	イベント闘技場控室	1	1.0
+149	BattleBG/StEvWitchHouse.bbs	イベント魔女の家	1	1.0
+150	BattleBG/StEvForestFlowerField.bbs	イベント花畑	1	1.0
+151	BattleBG/StEvHotSpring_B.bbs	イベント温泉（バストリアス）	1	1.0
+152	BattleBG/STEvHouse_C.bbs	イベントコルニアの家	1	1.0
+153	BattleBG/STEvHouse_C.bbs	イベントコルニアの家反転	1	-1.0
+154	BattleBG/StEvCorridor.bbs	イベント城の廊下	1	1.0
+155	BattleBG/StEvCorridor.bbs	イベント城の廊下(ループ)	4	1.0
+156	BattleBG/StEvWoodPassage.bbs	イベント木造砦の廊下	1	1.0
+157	BattleBG/StEvWoodPassage.bbs	イベント木造砦の廊下(ループ)	4	1.0
+158	BattleBG/StEvDungeon.bbs	イベント地下牢	1	1.0
+159	BattleBG/StEvDungeon.bbs	イベント地下牢反転	1	-1.0
+160	BattleBG/StEvBazaar.bbs	イベントバザール	1	1.0
+161	BattleBG/StEvBedroom.bbs	イベント寝室	1	1.0
+162	BattleBG/StEvBalcony_D.bbs	イベントバルコニー(ドラケンガルド)	1	-1.0
+163	BattleBG/StEvChurch.bbs	イベント教会	1	1.0
+164	BattleBG/StEvChurch_D.bbs	イベント教会(ドラケンガルド)	1	1.0
+165	BattleBG/StEvChurch_B.bbs	イベント教会(バストリアス)	1	1.0
+166	BattleBG/StEvFortGate_D.bbs	イベント砦城門(ドラケンガルド)	1	1.0
+167	BattleBG/StEvFortGate_D.bbs	イベント砦城門(ドラケンガルド)反転	1	-1.0
+168	BattleBG/StEvFortGate_A.bbs	イベント砦城門(アルビオン)	1	1.0
+169	BattleBG/StEvFortGate_A.bbs	イベント砦城門(アルビオン)反転	1	-1.0
+170	BattleBG/StEvArenaRoom.bbs	イベント闘技場の部屋	1	1.0
+171	BattleBG/StEvDarkElf_Room.bbs	イベントダークエルフの部屋	1	1.0
+172	BattleBG/StEvTent.bbs	イベント野営地内部	1	1.0
+173	BattleBG/StEvRitual.bbs	イベント継承の儀式	1	1.0
+174	BattleBG/StEvEnding_01.bbs	イベントエンディング(コルニア城)	1	1.0
+175	BattleBG/StEvEnding_02.bbs	イベントエンディング(宴)	1	1.0
+176	BattleBG/StEvVikingSword.bbs	イベントヴァイキングソード	1	1.0
+177	BattleBG/StEvCourtyard_C.bbs	イベントコルニア城中庭	1	1.0
+178	BattleBG/Classpedia_BG.bbs	クラス図巻	1	1.0
+179	BattleBG/Opening_00.bbs	オープニング00	1	1.0
+180	BattleBG/Opening_010.bbs	オープニング010	1	1.0
+181	BattleBG/Opening_011.bbs	オープニング011	1	1.0
+182	BattleBG/Opening_090.bbs	オープニング090	1	1.0
+183	BattleBG/StEvThrone_C_Long.bbs	エンディング玉座	1	1.0
+184	BattleBG/StTest.bbs	テスト	1	1.0
