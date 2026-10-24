@@ -18,6 +18,7 @@ public:
 	SpriteAssetPtr asset;
 	std::vector<SpriteInstance> instances;
 	int track_index = -1;
+	long applied_start_frame = -1;
 	float rate = 1.0f;
 
 	void reset(

@@ -68,16 +68,21 @@ void SpritePlayback::reset(
 		instances.back().flip_v = flip_v;
 		instances.back().play(static_cast<uint32_t>(track));
 	}
+	applied_start_frame = state.animation_start_frame;
 	apply(state);
 }
 
 void SpritePlayback::apply(const asb::RuntimeEntity& state) {
 	if (_policy == TrackPolicy::ScriptTrack && asset && !instances.empty()) {
 		const int track = choose_track(asset->data, state);
-		if (track >= 0 && track != track_index) {
+		// Re-selecting the same track is meaningful: DrUiSetAnimation /
+		// DrAnimation can restart the current animation from its first frame.
+		const bool restart = state.animation_start_frame != applied_start_frame;
+		if (track >= 0 && (track != track_index || restart)) {
 			track_index = track;
 			instances[0].play(static_cast<uint32_t>(track));
 		}
+		applied_start_frame = state.animation_start_frame;
 	}
 	for (auto& instance : instances) {
 		instance.playback.paused = state.paused || state.anim_paused;
