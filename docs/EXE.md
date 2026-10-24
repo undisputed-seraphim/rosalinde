@@ -823,7 +823,7 @@ These sit immediately before/after `g_class_table`, `g_npctype_table`, and
 
 | Table | Base | Stride | Count | Layout / accessor |
 |---|---|---|---|---|
-| `battlebg_variant` | `0x27384b8` | `0x18` | 80 | `{u32 id, f32 scale, char* bbs, char* label}`; referenced by `bbs_table` `ptr_a`/`ptr_b` |
+| `battlebg_variant` | `0x27384b8` | `0x18` | 80 | `{u32 id, f32 scale, char* bbs, char* label}`; selected by `DrCreateStage` |
 | `chara_model` | `0x2740d68` | `0x10` | 229 | `{char* label, u16 mask, u16 w0a, u32 w0c}`; `FUN_0011ba28` reads the mask at `+8` |
 | `class_part` | `0x275a218` | `0x08` | 729 | ten contiguous pointer arrays -> `0x48` records `{u32 class_id, u32 part_id[17]}`; getters `FUN_00119d0c`, `0x00119de4`, `0x00119e34`, `0x0011ae2c`, `0x0011b3d0` |
 | `class_model_m` | `0x275bb30` | `0x08` | 73 | pointer array -> `0x30` records `{u32 class_id, u32 model_id[10], u32 variant_count}`; `FUN_0011b998(param,1)` |
@@ -892,15 +892,19 @@ damage code, `FUN_0021c878` by movement/pathfinding code, and both return
 `(100 - signed_byte) / 100`. `snow` is set on all `SNOW_*` and `*_B`
 (Bastorias) rows.
 
+The character level/stat cluster at `0xce972c..0xcea8c8` is dumped as
+`chara_level_curve_table.tsv`, `chara_stat_curve_a/b_table.tsv`,
+`chara_stat_group_table.tsv`, `chara_class_values_table.tsv`,
+`chara_level_stats_table.tsv`, and `chara_level_growth_table.tsv`.
+
 All of the above are dumped raw into `viewer/data`; the exact TSV headers are
 listed in `viewer/data/README.md`. Unknown words are intentionally retained as
 `w*` columns and will be named one at a time.
 
-> Coverage note: the `encounter`/`stage_map` region around `0x27e2ff8` is a
-> graph of stage edges and encounter records, not a clean uniform row table.
-> The current `encounter_table.tsv`/`stage_map_table.tsv` are candidate
-> projections; re-derive them from the graph before treating their row stride
-> as authoritative.
+> Coverage note: the encounter records are a real `0x88`-stride array at
+> `0x27e3100` (2859 rows, accessor `FUN_002a7358`). The adjacent stage-map data
+> at `0x27e2fa8` is a five-country symbol/name graph, not a uniform row table,
+> and is not dumped yet.
 
 ---
 
