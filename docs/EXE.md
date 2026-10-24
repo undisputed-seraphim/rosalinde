@@ -213,6 +213,15 @@ rect **centre** and derives only the *x* half-width from `screen_w/(2*zoom)`.
 It is the **only** function that writes `+0x314/0x318/0x31c/0x320` with a literal
 offset.
 
+The rect centre is a **world-space** position: `DrSetCameraPosV` stores the
+script vector at `+0xb0` and the tween writes the world target to `+0xe0`
+(`FUN_0016e88c`: `+0xe0 = pos + cam+0xd0/zoom`). The world→screen scale is the
+zoom. `Camera::lookAt()` in the viewer scales world points by the zoom but not
+the eye, so `SceneView::apply_camera` recentres on `camera.pos * zoom` plus the
+`VIEWER_CAM_Y` debug offset. Treating the script vector as screen pixels makes
+the whole scene `pos * (zoom - 1)` pixels off (116 px at zoom 1.6 in
+`Dr_OW_C_0_Fl_Main_0` frame 420).
+
 ### How to reproduce the typing (reagent)
 
 1. `types_create` struct **`TrackInstance`** (see §5 for the layout; the camera

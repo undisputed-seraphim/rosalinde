@@ -106,7 +106,11 @@ void SceneView::apply_camera(const asb::SceneState& scene) {
 		float offset_y = 0.0f;
 		if (const char* value = std::getenv("VIEWER_CAM_Y"))
 			offset_y = static_cast<float>(std::atof(value));
-		_camera.recenter({cam.pos[0], cam.pos[1] + offset_y});
+		// The script camera position is a world-space rect centre (see
+		// FUN_0016e88c / cam_update_view_rect). Camera::lookAt() applies the zoom
+		// to the world point but not to the eye, so the eye must be given in
+		// screen units: world_pos * zoom.
+		_camera.recenter({cam.pos[0] * zoom, cam.pos[1] * zoom + offset_y});
 	}
 	if (cam.has_zoom && cam.zoom > 0.0f)
 		_camera.set_zoom(cam.zoom);
