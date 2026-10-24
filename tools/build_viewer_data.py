@@ -27,6 +27,7 @@ EXPECTED = {
     "classes.tsv": 83,
     "charanpc_assets.tsv": 319,
     "charaset.tsv": 1387,
+    "chara_colors.tsv": 123,
     "bbs.tsv": 185,
     "uc_enums.tsv": 4099,
     "chara_table.tsv": 47,
@@ -177,6 +178,7 @@ def main():
     npctype = read_tsv(raw_dir / "npctype_table.tsv")
     charaset = read_tsv(raw_dir / "charaset_table.tsv")
     bbs = read_tsv(raw_dir / "bbs_table.tsv")
+    chara_color = read_tsv(raw_dir / "chara_color_table.tsv")
     chara_model = read_tsv(raw_dir / "chara_model_table.tsv")
     chara_model_mask = [int(row["mask"], 0) for row in chara_model]
     class_model = {}
@@ -190,6 +192,24 @@ def main():
         if record:
             model = int(record.get(f"model{min(max(variant, 0), 9)}") or 0)
         return (chara_model_mask[model] if model < len(chara_model_mask) else 0) | 0xFE000000
+
+    def color_preset(row):
+        return int(row.get("w10") or 0, 0) & 0xFFFFFFFF
+
+    write_tsv(
+        out_dir / "chara_colors.tsv",
+        "# idx\tcolor0\tcolor1\tcolor2\tcolor3 (generated from raw chara_color table)",
+        [
+            (
+                int(row["idx"]),
+                row["color0"],
+                row["color1"],
+                row["color2"],
+                row["color3"],
+            )
+            for row in chara_color
+        ],
+    )
 
     cue_by_name = {row["name"]: int(row["bgm_cue_id"]) for row in cue}
     write_tsv(
@@ -284,11 +304,12 @@ def main():
                 row["chara_img"],
                 row["label"],
                 f"0x{appearance_mask(class_id, gender, int(row['variant'])):08x}",
+                color_preset(row),
             )
         )
     write_tsv(
         out_dir / "charaset.tsv",
-        "# idx\tname\tclass\tgender\tvariant\tcharaImg\tlabel\tappearance_mask (generated from raw CharaSet table)",
+        "# idx\tname\tclass\tgender\tvariant\tcharaImg\tlabel\tappearance_mask\tcolor_preset (generated from raw CharaSet table)",
         charaset_rows,
     )
 

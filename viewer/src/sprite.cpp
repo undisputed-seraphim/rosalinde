@@ -386,6 +386,12 @@ void SpriteInstance::for_each_layer(
 			visit(v);
 			continue;
 		}
+		if (layer.color_id >= 1 && layer.color_id <= 3 && (color_mask & (1u << layer.color_id)) != 0) {
+			static constexpr uint32_t preset_for_color[4] = {0, 1, 3, 0};
+			const uint32_t rgb = color_palette[preset_for_color[layer.color_id]] & 0x00FFFFFFu;
+			for (int k = 0; k < 4; ++k)
+				v.color[k] = (layer.color[k] & 0xFF000000u) | rgb;
+		}
 		if (blend_filter >= 0 && layer.blend != blend_filter)
 			continue;
 		// NOTEX quads are solid fills without a texture. Full-screen veils

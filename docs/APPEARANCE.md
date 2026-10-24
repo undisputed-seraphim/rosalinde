@@ -56,6 +56,46 @@ idx name class gender variant charaImg label appearance_mask
 `0xfe000000`. The runtime loads the column into `CharaInfo::appearance_mask`
 and copies it to `RuntimeEntity::appearance_mask`.
 
+## Colour presets
+
+Named characters also carry a colour preset. The source table is
+`g_chara_color_presets` at `0xCEAB20` (123 rows × `0x18`):
+
+```c
+uint8_t  appearance[8]; // +0x00
+uint32_t color0;        // +0x08  RGB
+uint32_t color1;        // +0x0c
+uint32_t color2;        // +0x10
+uint32_t color3;        // +0x14  not used by the clothing path
+```
+
+The preset index is `CharaSet + 0x10` (`w10` low 32 bits), unless the script's
+`DrCreateChara(..., coaPreset)` argument is non-zero. `chara_color_get_preset`
+(`0x11AE10`) bounds the index to 123 rows.
+
+`chara_color_block_apply_preset` (`0x2C2E08`) copies the first three colours
+(and the eight appearance bytes) into the character colour block, and
+`chara_apply_color_block` (`0xD1AB8`) copies that block to `chara+0x2018`.
+`color3` is retained as the preset's `w14` field. The viewer uses the observed
+layer-role mapping:
+
+| `color_id` | preset colour | role |
+|---|---|---|
+| 1 | `color1` | dress / skirt |
+| 2 | `color3` | hair |
+| 3 | `color0` | torso / sweater |
+
+`color_id == 0` keeps the `section_0` colours. `color2` is retained for other
+characters/roles but is not used by this mapping.
+
+The viewer generates `chara_colors.tsv` from this table, reads `color_preset`
+from `charaset.tsv`, and applies the three colours to layers with matching
+`color_id`. `color_id == 0` keeps the `section_0` colours.
+
+Story/placed characters can override the preset with a per-stage character-def
+colour block at `def + 0x160` (looked up by `FUN_002BF900`); that path is not
+implemented in the viewer yet.
+
 ## Viewer behaviour
 
 `SpriteInstance::attribute_mask` receives the entity mask. `sprite.cpp` counts

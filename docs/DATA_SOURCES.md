@@ -67,7 +67,9 @@ The mask is stored in the exe: `class_model_m/f[class_id].model[variant]`
 selects a `chara_model` row, and that row's 16-bit `mask` (ORed with
 `0xfe000000`) is a **suppression** mask over `s4.attributes`. The viewer draws a
 layer when `(layer.attributes & mask) == 0` and the layer's `SKIP` flag is clear.
-`charaset.tsv` carries the joined mask per CharaSet. See
+`charaset.tsv` carries the joined mask per CharaSet. Named-character colour
+presets come from the `chara_color` table at `0xCEAB20` (indexed by
+`CharaSet + 0x10`) and apply through `section_4.color_id`. See
 `docs/APPEARANCE.md` and `docs/EXE.md`.
 
 ## Engine tables (exe `.data`, not the CPK)

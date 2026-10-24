@@ -69,13 +69,13 @@ struct section_3 {
 // every non-SKIP layer.
 struct section_4 {
 	uint32_t s4_source_tile_id; // source tile/UV identifier; runtime effect OPEN
-	uint8_t color_id;			// alternate colour selector; runtime role OPEN
+	uint8_t color_id;			// 1..3 selects a CharaSet colour-preset role; 0 = section_0
 	uint8_t flags;				// layer flags; see s4flag
 	uint8_t blend_id;			// blend mode; engine enum OPEN, viewer uses 0/1/2/3
 	uint8_t tex_id;				// index into the FTX texture array
 	uint32_t attributes;		// suppression bits; draw when (attributes & appearance_mask) == 0
 	uint16_t s1_uv_id;			// index into section_1
-	uint16_t s0_color_row_id;	// index into section_0
+	uint16_t s0_color_row_id;	// default per-corner colours; colour_id overrides when enabled
 	uint16_t s2_vertex_id;		// index into section_2
 	uint16_t _pad;				// reserved; observed zero
 };

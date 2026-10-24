@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <array>
 #include <fstream>
 #include <memory>
 #include <unordered_map>
@@ -1314,7 +1315,8 @@ DropTables load_drop_tables(const std::string& drop_tables_tsv, const std::strin
 CharaSetTable load_chara_set(
 	const std::string& charaset_tsv,
 	const std::string& classes_tsv,
-	const std::string& charanpc_tsv) {
+	const std::string& charanpc_tsv,
+	const std::string& chara_colors_tsv) {
 	auto split = [](const std::string& line) {
 		std::vector<std::string> c;
 		size_t s = 0;
@@ -1340,6 +1342,28 @@ CharaSetTable load_chara_set(
 			ci.mbs = c[2].find('/') == std::string::npos ? "Chara/" + c[2] : c[2];
 			ci.ftx = c[3].find('/') == std::string::npos ? "Chara/" + c[3] : c[3];
 			classes.emplace(c[0], std::move(ci));
+		}
+	}
+
+	std::vector<std::array<uint32_t, 4>> color_presets;
+	if (!chara_colors_tsv.empty()) {
+		if (std::ifstream f{chara_colors_tsv}) {
+			std::string line;
+			while (std::getline(f, line)) {
+				if (line.empty() || line[0] == '#')
+					continue;
+				auto c = split(line);
+				if (c.size() < 5)
+					continue;
+				const int idx = std::atoi(c[0].c_str());
+				if (idx < 0)
+					continue;
+				if (static_cast<size_t>(idx) >= color_presets.size())
+					color_presets.resize(static_cast<size_t>(idx) + 1);
+				for (int i = 0; i < 4; ++i)
+					color_presets[static_cast<size_t>(idx)][i] =
+						static_cast<uint32_t>(std::strtoul(c[static_cast<size_t>(i) + 1].c_str(), nullptr, 0));
+			}
 		}
 	}
 
@@ -1371,6 +1395,14 @@ CharaSetTable load_chara_set(
 			ci.appearance_variant = static_cast<uint32_t>(std::atoi(c[4].c_str()));
 			if (c.size() > 7 && !c[7].empty())
 				ci.appearance_mask = static_cast<uint32_t>(std::strtoul(c[7].c_str(), nullptr, 0));
+			if (c.size() > 8 && !c[8].empty()) {
+				ci.color_preset = static_cast<uint32_t>(std::atoi(c[8].c_str()));
+				if (ci.color_preset < color_presets.size()) {
+					for (int i = 0; i < 4; ++i)
+						ci.color_palette[i] = color_presets[ci.color_preset][static_cast<size_t>(i)];
+					ci.color_mask = 1u << 1 | 1u << 2 | 1u << 3;
+				}
+			}
 			if (!label.empty())
 				out.by_key.emplace(label, ci);
 			if (!name.empty())

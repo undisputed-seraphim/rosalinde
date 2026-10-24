@@ -295,6 +295,9 @@ struct CharaInfo {
 	std::string ftx;
 	uint32_t appearance_variant = 0xFFFFFFFFu; // CharaSet variant; 0xFFFFFFFF = no selector
 	uint32_t appearance_mask = 0;				// suppressed s4 attribute bits from chara_model.mask
+	uint32_t color_preset = 0;					// chara_color_table row
+	uint32_t color_palette[4] = {};				// preset colour0..colour3
+	uint32_t color_mask = 0;					// enabled s4.color_id bits
 };
 using CharTable = std::unordered_map<std::string, CharaInfo>;
 
@@ -319,13 +322,15 @@ struct CharaSetTable {
 	}
 };
 
-// charaset.tsv: `idx name class gender variant charaImg label appearance_mask`
+// charaset.tsv: `idx name class gender variant charaImg label appearance_mask color_preset`
 // classes.tsv:  `key jp_name mbs ftx` (mbs/ftx are `Chara/`-relative)
 // charanpc.tsv: `idx name jp mbs ftx` (from the engine NPCTYPE table; optional)
+// chara_colors.tsv: `idx color0 color1 color2 color3` (optional)
 CharaSetTable load_chara_set(
 	const std::string& charaset_tsv,
 	const std::string& classes_tsv,
-	const std::string& charanpc_tsv = {});
+	const std::string& charanpc_tsv = {},
+	const std::string& chara_colors_tsv = {});
 
 // Facility id/enum -> localized name (uc_enums.tsv rows with kind ST_FACILITYID,
 // generated from Debug/_UcEnum_Facility.inc). `GetStationFacilityName` uses it.

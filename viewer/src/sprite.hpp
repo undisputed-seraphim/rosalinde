@@ -154,6 +154,8 @@ struct SpriteInstance {
 
 	const SpriteData* data = nullptr;
 	uint32_t attribute_mask = 0;
+	uint32_t color_mask = 0;
+	uint32_t color_palette[4] = {};
 	SpritePlaybackOptions options = sprite_playback_options();
 
 	uint32_t current_sequence = 0; // Mone: current sequence drawn even when inactive

@@ -69,6 +69,9 @@ struct RuntimeEntity {
 	bool started = false;
 	uint32_t appearance_variant = 0xFFFFFFFFu; // CharaSet variant; 0xFFFFFFFF = all layers
 	uint32_t appearance_mask = 0;				// suppressed s4 attribute bits
+	uint32_t color_preset = 0;					// chara_color_table row
+	uint32_t color_palette[4] = {};				// preset colour0..colour3
+	uint32_t color_mask = 0;					// enabled s4.color_id bits
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	float scale = 1.0f;
 	float dir_x = 1.0f;	 // facing: -1 mirrored, +1 default
