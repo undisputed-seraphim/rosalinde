@@ -8,9 +8,7 @@ namespace asb {
 
 namespace {
 
-bool plausible_scale(float value) {
-	return std::isfinite(value) && value > 1e-4f && value < 1e4f;
-}
+bool plausible_scale(float value) { return std::isfinite(value) && value > 1e-4f && value < 1e4f; }
 
 } // namespace
 
@@ -22,16 +20,14 @@ DispatchResult Registry::dispatch_camera(std::string_view name, NativeArgs& args
 		return DispatchResult::Handled;
 	}
 	if (name == "GetCameraPosV") {
-		float* result = static_cast<float*>(args.generic()->GetAddressOfReturnLocation());
-		if (result) {
+		if (float* result = static_cast<float*>(args.generic()->GetAddressOfReturnLocation())) {
 			result[0] = _timeline.camera.pos[0];
 			result[1] = _timeline.camera.pos[1];
 		}
 		return DispatchResult::Handled;
 	}
 	if (name == "DrGetCameraPosV") {
-		float* result = static_cast<float*>(args.generic()->GetAddressOfReturnLocation());
-		if (result)
+		if (float* result = static_cast<float*>(args.generic()->GetAddressOfReturnLocation()))
 			for (int k = 0; k < 3; ++k)
 				result[k] = _timeline.camera.pos[k];
 		return DispatchResult::Handled;
@@ -116,6 +112,90 @@ DispatchResult Registry::dispatch_camera(std::string_view name, NativeArgs& args
 		mark_dirty();
 		return DispatchResult::Handled;
 	}
+	if (name == "DrResetCameraParam") {
+		_timeline.camera.accel = 0.0f;
+		_timeline.camera.decel = 0.0f;
+		_timeline.camera.param_set = false;
+		mark_dirty();
+		return DispatchResult::Handled;
+	}
+	if (name == "ResetCameraParam") {
+		_timeline.camera.accel = _timeline.camera.decel = 0.0f;
+		mark_dirty();
+		return DispatchResult::Handled;
+	}
+	if (name == "DrTebureCamera") {
+		_timeline.camera.tebure = args.i32(0) != 0;
+		mark_dirty();
+		return DispatchResult::Handled;
+	}
+	if (name == "DrFollowCamera" || name == "FollowCamera" || name == "FollowCameraBySpeed") {
+		if (RuntimeEntity* entity = entity_arg(args)) {
+			for (int k = 0; k < 3; ++k)
+				_timeline.camera.pos[k] = entity->pos[k];
+			_timeline.camera.has_pos = true;
+			if (name == "DrFollowCamera") {
+				_timeline.camera.tween.active = false;
+				_timeline.camera.tween.zoom_active = false;
+			}
+			mark_dirty();
+		}
+		const long wait = std::max(0, args.i32(2));
+		if (wait > 0) {
+			pending_wait = wait;
+			if (asIScriptContext* context = asGetActiveContext())
+				context->Suspend();
+		}
+		return DispatchResult::Handled;
+	}
+	if (name == "DrCameraMoveWait") {
+		if (_camera_move_end > frame) {
+			pending_wait = _camera_move_end - frame;
+			if (asIScriptContext* context = asGetActiveContext())
+				context->Suspend();
+		}
+		return DispatchResult::Handled;
+	}
+	if (name == "SetDemoCameraPosY") {
+		// TODO(demo-camera): the value is an absolute Y (FlDemoCameraStart); it is
+		// applied to the recorded camera, but the engine may layer it differently.
+		_timeline.camera.demo_y = args.f32(0);
+		_timeline.camera.pos[1] = args.f32(0);
+		mark_dirty();
+		return DispatchResult::Handled;
+	}
+	if (name == "ResetDemoCameraPosY") {
+		_timeline.camera.demo_y = 0.0f;
+		mark_dirty();
+		return DispatchResult::Handled;
+	}
+	if (name == "ResetDemoCameraPosXZ") {
+		_timeline.camera.demo_xz[0] = _timeline.camera.demo_xz[1] = 0.0f;
+		mark_dirty();
+		return DispatchResult::Handled;
+	}
+	if (name == "SetCameraDegreeOffset") {
+		_timeline.camera.degree_offset = args.f32(0);
+		mark_dirty();
+		return DispatchResult::Handled;
+	}
+	if (name == "FollowOffsetV") {
+		args.vec2(0, _follow_offset);
+		return DispatchResult::Handled;
+	}
+	if (name == "DrCameraStop") {
+		_timeline.camera.tween.active = false;
+		_timeline.camera.tween.zoom_active = false;
+		_camera_move_end = frame;
+		return DispatchResult::Handled;
+	}
+	if (name == "DrWaveCamera") {
+		_timeline.camera.wave = args.i32(0) != 0;
+		mark_dirty();
+		return DispatchResult::Handled;
+	}
+	if (name == "DrResetCameraZoomParam")
+		return DispatchResult::RecordOnly;
 	return DispatchResult::Unhandled;
 }
 

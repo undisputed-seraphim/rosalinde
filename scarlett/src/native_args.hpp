@@ -30,6 +30,12 @@ public:
 
 	void vec3(int index, float* out) const { read_vec(index, out, 3); }
 
+	void color(int index, float* out) const {
+		auto* value = static_cast<const unsigned char*>(_gen->GetArgAddress(index));
+		for (int i = 0; i < 4; ++i)
+			out[i] = (value ? value[i] : 0.0f) / 255.0f;
+	}
+
 	std::vector<int> ints(int index) const {
 		std::vector<int> out;
 		auto* array = static_cast<CScriptArray*>(_gen->GetArgObject(index));

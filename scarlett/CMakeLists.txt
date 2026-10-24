@@ -6,6 +6,14 @@ add_library(scarlett STATIC
 	src/registry_animation.cpp
 	src/registry_movement.cpp
 	src/registry_camera.cpp
+	src/registry_battle.cpp
+	src/registry_text.cpp
+	src/registry_effects.cpp
+	src/registry_ui.cpp
+	src/registry_debug.cpp
+	src/registry_field.cpp
+	src/registry_save.cpp
+	src/registry_sprite.cpp
 )
 target_include_directories(scarlett PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

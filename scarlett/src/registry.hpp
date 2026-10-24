@@ -131,6 +131,13 @@ private:
 	DispatchResult dispatch_animation(std::string_view name, NativeArgs& args);
 	DispatchResult dispatch_movement(std::string_view name, NativeArgs& args);
 	DispatchResult dispatch_camera(std::string_view name, NativeArgs& args);
+	DispatchResult dispatch_text(std::string_view name, NativeArgs& args);
+	DispatchResult dispatch_effects(std::string_view name, NativeArgs& args);
+	DispatchResult dispatch_sprite(std::string_view name, NativeArgs& args);
+	DispatchResult dispatch_ui(std::string_view name, NativeArgs& args);
+	DispatchResult dispatch_field(std::string_view name, NativeArgs& args);
+	DispatchResult dispatch_save(std::string_view name, NativeArgs& args);
+	DispatchResult dispatch_debug(std::string_view name, NativeArgs& args);
 	RuntimeEntity* entity_arg(const NativeArgs& args, int index = 0);
 	bool construct_value(asIScriptGeneric* gen);
 	bool vec_binary(asIScriptGeneric* gen, std::string_view op);
@@ -145,6 +152,31 @@ private:
 		int layer,
 		float scale);
 	void create_chara(const std::string& kind, const std::vector<std::string>& names);
+	RuntimeUi& push_ui(
+		std::string kind,
+		std::string text,
+		int id,
+		int i0,
+		int i1,
+		const float* pos,
+		float rate,
+		bool flag);
+	RuntimeField& push_field(
+		std::string kind,
+		std::string name,
+		std::string text,
+		int i0,
+		int i1,
+		int i2,
+		float f0,
+		const float* pos,
+		bool flag);
+	RuntimeEntity* field_object(
+		const char* kind,
+		const std::string& object,
+		const float* pos,
+		const std::string& mbs = {},
+		const std::string& ftx = {});
 	void advance_camera();
 	void set_camera_ease(CameraTween& tween, long duration) const;
 	void set_animation(RuntimeEntity& entity, const std::string& track);
@@ -299,7 +331,7 @@ private:
 	std::string _battle_found_last;
 	std::vector<std::string> _partner_defs;
 	std::vector<std::string> _battle_unit_order;
-	bool dispatch_battle(std::string_view name, asIScriptGeneric* gen);
+	DispatchResult dispatch_battle(std::string_view name, NativeArgs& args);
 	static const char* callback_event_name(ScriptEvent event);
 	bool _talk_move_back = false;
 	asIScriptModule* _module = nullptr;
