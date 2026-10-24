@@ -285,6 +285,19 @@ TABLES = (
         notes="Scale is stored as percent (id value * 0.01 in FUN_001197bc). -1 = absent.",
     ),
     TableSpec(
+        "chara_color",
+        0xCEAB20,
+        0x18,
+        123,
+        tuple(Field(f"w{i:02x}", i, "u8") for i in range(8))
+        + tuple(Field(f"color{i}", 8 + i * 4, "hex32") for i in range(4)),
+        kind="chara_color",
+        file="chara_color_table.tsv",
+        confidence="confirmed",
+        source="FUN_0011ae10 bounds the index to 0x7b; FUN_002c0ba4 passes CharaSet+0x10 to FUN_002c2e08",
+        notes="Character colour preset: eight appearance bytes followed by four RGB colours (low 24 bits; alpha comes from DAT_028c3950). FUN_002c2e08 copies only the first three colours, so +0x14 is retained as w14.",
+    ),
+    TableSpec(
         "field_terrain",
         0x27CF660,
         0x50,
@@ -715,6 +728,7 @@ RAW_FILES = {
     "class_model_f": "class_model_f_table.tsv",
     "class_part": "class_part_table.tsv",
     "chara_part": "chara_part_table.tsv",
+    "chara_color": "chara_color_table.tsv",
     "field_terrain": "field_terrain_table.tsv",
     "quest": "quest_table.tsv",
     "stage_effect": "stage_effect_table.tsv",
