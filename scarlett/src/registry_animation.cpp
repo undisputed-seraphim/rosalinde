@@ -45,11 +45,16 @@ DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& a
 		return DispatchResult::Handled;
 	}
 	if (name == "DrActionWait") {
+		// DrActionWait (0x31e550 -> 0x17079c) parks the script on a dedicated
+		// action wait and never consults the clip length. The action is the
+		// one-shot intro of the sequence (the rest loops), so the wait is
+		// bounded by that intro: D_SIT_A3 is 51 ticks, not its 303-tick loop.
 		if (RuntimeEntity* entity = entity_arg(args)) {
 			const long remaining = _animations.action_remaining(*entity, frame);
 			if (remaining > 0) {
 				pending_wait = remaining;
-				spdlog::debug("wait: action {} end={}", entity->name, entity->action_end_frame);
+				spdlog::debug(
+					"wait: action {} end={} remaining={}", entity->name, entity->action_end_frame, remaining);
 				if (asIScriptContext* context = asGetActiveContext())
 					context->Suspend();
 			}

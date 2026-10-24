@@ -146,6 +146,16 @@ std::vector<SpriteData::Track> analyze_tracks(const mbs::v77& v77) {
 				 sa.s8_intro_ticks < 0,
 				 sa.sa_track_slot});
 		}
+		// The action length is the one-shot intro of the main sequence; the rest
+		// of the sequence loops and is what the idle/follow-up clip replaces.
+		long intro_ticks = 0;
+		if (!track.runs.empty()) {
+			const auto& run = track.runs[std::min<size_t>(track.sa_main_sequence, track.runs.size() - 1)];
+			for (uint32_t i = 0; i < run.loop_start && run.s8_start + i < v77.s8.size(); ++i)
+				intro_ticks += v77.s8[run.s8_start + i].s8_duration_ticks;
+		}
+		track.action_frames =
+			intro_ticks > 0 ? (intro_ticks + 1) / 2 : track_duration_frames(v77, track);
 	}
 	return tracks;
 }

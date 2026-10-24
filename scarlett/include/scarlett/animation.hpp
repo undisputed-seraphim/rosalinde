@@ -10,7 +10,8 @@
 namespace asb {
 
 struct TrackInfo {
-	long duration_frames = 0;
+	long duration_frames = 0; // whole sequence, in 60 Hz scene frames
+	long action_frames = 0;	  // one-shot intro of the main sequence
 	bool one_shot = false;
 	int continuation_track = -1;
 	std::string continuation_name;
@@ -73,7 +74,12 @@ public:
 		apply(entity, track, track_index, frame);
 		const TrackInfo info = info_for(entity, track_index);
 		state.action_active = true;
-		state.action_end = frame + std::max(1L, info.duration_frames);
+		// An action is the one-shot intro of the clip; the remaining frames loop
+		// and are replaced by the idle/follow-up. Waiting for the whole sequence
+		// stalls scripts for seconds (D_SIT_A3 is a 31-frame stand-up inside a
+		// 152-frame loop).
+		const long action = info.action_frames > 0 ? info.action_frames : info.duration_frames;
+		state.action_end = frame + std::max(1L, action);
 		state.action_continuation = info.one_shot ? info.continuation_track : -1;
 		state.action_continuation_name = info.one_shot ? info.continuation_name : std::string();
 		entity.action_active = true;

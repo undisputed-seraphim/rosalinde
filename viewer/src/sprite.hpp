@@ -67,6 +67,9 @@ struct SpriteData {
 		glm::vec4 bounds;
 		uint8_t sa_main_sequence = 0;
 		uint8_t disabled = 0;
+		// One-shot (intro) length of the main sequence, in 60 Hz scene frames.
+		// DrActionWait/DrChangeAnimation use this, not the whole loop.
+		long action_frames = 0;
 		bool one_shot = false;
 		int next_track = -1;
 		uint8_t transition_mode = 0;
