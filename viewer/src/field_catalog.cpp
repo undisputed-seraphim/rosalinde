@@ -151,7 +151,7 @@ std::optional<StageComposition> FieldCatalog::bbs_background(int stage_type, int
 		const auto& weather = file->weather[static_cast<size_t>(weather_type)];
 		result.weather_amount = weather.cloud;
 		result.weather_fog = weather.fog;
-		spdlog::debug(
+		spdlog::trace(
 			"bbs: weather={} amount={} fog={} flags=0x{:x}",
 			weather_type,
 			weather.cloud,

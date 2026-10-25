@@ -297,7 +297,7 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 				region.spec = spec;
 				region.bounds = track->bounds;
 				region.rain = track->name.find("RAIN") != std::string::npos;
-				spdlog::debug(
+				spdlog::trace(
 					"weather: layer={} track={} name={} rain={} bounds=({},{},{},{})",
 					i,
 					spec.track_index,
@@ -333,6 +333,12 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			rebuild(object, e, std::move(asset));
 			_stage_layer_items.push_back(std::move(object));
 		}
+		spdlog::debug(
+			"weather: stage amount={} request={} fog={} regions={}",
+			_weather_amount,
+			_weather_request,
+			_weather_fog,
+			_weather_regions.size());
 	}
 
 	for (auto& layer : _stage.meshes) {
@@ -781,13 +787,6 @@ void SceneRenderer::render_weather(const glm::mat4& projection, const Camera& ca
 	if (std::getenv("VIEWER_NO_WEATHER"))
 		return;
 	const float amount = _weather_amount * _weather_request;
-	spdlog::debug(
-		"weather: frame={} amount={} request={} fog={} regions={}",
-		_frame,
-		amount,
-		_weather_request,
-		_weather_fog,
-		_weather_regions.size());
 	if (amount <= 0.01f || _weather_regions.empty())
 		return;
 	const glm::mat4 mvp = projection * camera.lookAt();
