@@ -158,6 +158,34 @@ struct environment_record {
 struct material_record {
 	std::array<uint8_t, 16> data;
 };
+
+// One weather preset from the fixed scene header (0x58 + index * 0x5c).
+// The engine copies these eight records into the stage at +0x334 and indexes
+// them with the DrCreateStage weather argument (stage + 0x764). The first
+// floats drive the sky/fog blend. `cloud` is zero for the clear preset on most
+// stages and 0.2-0.4 for the wet presets, so the viewer uses it as the screen
+// weather amount. The engine's exact rain/snow intensity lives in its runtime
+// configuration table (FUN_0011ddd0), not in the BBS.
+struct weather_record {
+	uint32_t flags;
+	float cloud;
+	float fog;
+	uint32_t sky[4];
+	uint32_t terrain_flags;
+	uint32_t ground[4];
+	float height;
+	uint32_t reserved;
+	uint32_t color;
+	float density;
+	float range;
+	float range_inv;
+	uint32_t flags_48;
+	uint32_t flags_4c;
+	uint32_t flags_50;
+	uint32_t flags_54;
+	uint32_t flags_58;
+};
+static_assert(sizeof(weather_record) == 0x5c);
 #pragma pack(pop)
 
 static_assert(sizeof(header) == 0x38);
@@ -200,6 +228,7 @@ struct file {
 	std::vector<fog_record> fog;
 	std::vector<environment_record> environment;
 	std::vector<material_record> materials;
+	std::array<weather_record, 8> weather{};
 };
 
 std::optional<file> parse(std::span<const uint8_t> data);

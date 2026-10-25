@@ -6,6 +6,7 @@
 #include "sprite_asset.hpp"
 #include "sprite_playback.hpp"
 #include "stage_asset.hpp"
+#include "weather_renderer.hpp"
 
 #include <scarlett/scene.hpp>
 #include <scarlett/trace.hpp>
@@ -28,11 +29,13 @@ public:
 
 	void sync(const asb::SceneState& scene);
 	void set_stage(const StageComposition& composition);
+	void set_weather_request(float request) { _weather_request = glm::clamp(request, 0.0f, 1.0f); }
 	void set_trace(asb::TraceCallback fn);
 	void set_filters(std::vector<std::string> only, std::vector<std::string> hide, bool keep_stage);
 	void set_probe(ProbeWriter* probe) { _probe = probe; }
 	void advance(float dt);
 	void render(const glm::mat4& projection, const Camera& camera);
+	void render_weather(const glm::mat4& projection, const Camera& camera);
 	void clear();
 	std::string state_json(const asb::SceneState& scene) const;
 	std::string timeline_json(const asb::SceneState& scene) const;
@@ -46,6 +49,12 @@ private:
 		StageMpdLayer spec;
 		std::unique_ptr<MpdAsset> asset;
 		bool attempted = false;
+	};
+
+	struct WeatherRegion {
+		StageLayer spec;
+		glm::vec4 bounds{};
+		bool rain = false;
 	};
 
 	struct RenderItem {
@@ -88,6 +97,12 @@ private:
 	RenderItem _stage;
 	std::vector<StageLayer> _stage_layer_specs;
 	std::vector<RenderItem> _stage_layer_items;
+	std::vector<WeatherRegion> _weather_regions;
+	WeatherRenderer _weather;
+	float _weather_amount = 0.0f;
+	float _weather_fog = 0.0f;
+	float _weather_request = 0.0f;
+	bool _stage_layers_built = false;
 
 	std::string _stage_mbs;
 	std::string _stage_ftx;

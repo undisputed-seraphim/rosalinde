@@ -50,4 +50,5 @@ private:
 	int _initial_stage = -1;
 	int _stage_type = -1;
 	int _stage_coa = -1;
+	int _stage_weather = -1;
 };

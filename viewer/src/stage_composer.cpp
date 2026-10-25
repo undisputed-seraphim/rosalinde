@@ -10,6 +10,9 @@ void StageComposer::seed(StageComposition composition) {
 }
 
 void StageComposer::apply(StageComposition composition) {
+	_current.weather_type = composition.weather_type;
+	_current.weather_amount = composition.weather_amount;
+	_current.weather_fog = composition.weather_fog;
 	if (composition.has_base()) {
 		_current.mbs = std::move(composition.mbs);
 		_current.ftx = std::move(composition.ftx);

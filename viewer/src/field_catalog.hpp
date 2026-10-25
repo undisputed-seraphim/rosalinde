@@ -17,7 +17,7 @@ class FieldCatalog {
 public:
 	explicit FieldCatalog(const AssetLoader& loader, std::string data_dir = {});
 
-	std::optional<StageComposition> background(int stage_type, int coa_preset, std::string_view entry);
+	std::optional<StageComposition> background(int stage_type, int coa_preset, int weather_type, std::string_view entry);
 
 private:
 	struct Asset {
@@ -42,7 +42,7 @@ private:
 	bool load_stages();
 	bool load_bbs_catalog();
 	std::optional<bbs::file> load_bbs(std::string_view path) const;
-	std::optional<StageComposition> bbs_background(int stage_type);
+	std::optional<StageComposition> bbs_background(int stage_type, int weather_type);
 	std::optional<std::string> resolve_bbs_asset(std::string_view name) const;
 	const Asset* find_layer(int area, int variant, char kind, std::string_view extension) const;
 	std::optional<StageMpdLayer> far_layer(int area, int variant) const;

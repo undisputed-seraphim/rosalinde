@@ -45,3 +45,56 @@ const Shader& GetKeyframeShader() {
 	}
 	return shader;
 }
+
+// clang-format off
+constexpr std::string_view weather_vert_src = "#version 450\n"
+"layout(location = 0) in highp vec2 a_ndc;\n"
+"out      highp vec2 v_ndc;\n"
+"void main(void) {\n"
+"    v_ndc = a_ndc;\n"
+"    gl_Position = vec4(a_ndc, 0.0, 1.0);\n"
+"}";
+
+constexpr std::string_view weather_frag_src = "#version 450\n"
+"in      highp vec2  v_ndc;\n"
+"uniform highp vec2  u_ndc_min;\n"
+"uniform highp vec2  u_ndc_max;\n"
+"uniform highp float u_amount;\n"
+"uniform highp float u_time;\n"
+"out     highp vec4  fragColor;\n"
+
+"float hash(highp vec2 p) {\n"
+"    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);\n"
+"}\n"
+
+"void main(void) {\n"
+"    if (any(lessThan(v_ndc, u_ndc_min)) || any(greaterThan(v_ndc, u_ndc_max)))\n"
+"        discard;\n"
+"    highp vec2 uv = v_ndc * 0.5 + 0.5;\n"
+"    highp vec2 p = vec2(uv.x * (16.0 / 9.0), uv.y);\n"
+"    highp float a = 0.0;\n"
+"    for (int i = 0; i < 3; ++i) {\n"
+"        highp float fi = float(i);\n"
+"        highp vec2 q = p * vec2(80.0 + fi * 26.0, 16.0 + fi * 7.0);\n"
+"        q.x += p.y * (10.0 + fi * 6.0);\n"
+"        q.y -= u_time * (22.0 + fi * 14.0);\n"
+"        highp float col = floor(q.x);\n"
+"        highp float rnd = hash(vec2(col, fi * 17.0 + 1.0));\n"
+"        highp float y = fract(q.y + rnd);\n"
+"        highp float streak = smoothstep(0.0, 0.18, y) * smoothstep(1.0, 0.55, y);\n"
+"        highp float sparse = step(0.78, hash(vec2(col, floor(q.y * 0.09) + fi * 31.0)));\n"
+"        a += streak * sparse * (0.32 - fi * 0.08);\n"
+"    }\n"
+"    a *= u_amount * 1.6;\n"
+"    highp vec3 tint = mix(vec3(0.58, 0.68, 0.78), vec3(0.92, 0.95, 1.0), uv.y);\n"
+"    fragColor = vec4(tint, clamp(a, 0.0, 0.55));\n"
+"}";
+// clang-format on
+
+const Shader& GetWeatherShader() {
+	static Shader shader;
+	if (!shader) {
+		shader.Compile(weather_vert_src, weather_frag_src);
+	}
+	return shader;
+}

@@ -133,7 +133,7 @@ std::optional<std::string> FieldCatalog::resolve_bbs_asset(std::string_view name
 	return std::nullopt;
 }
 
-std::optional<StageComposition> FieldCatalog::bbs_background(int stage_type) {
+std::optional<StageComposition> FieldCatalog::bbs_background(int stage_type, int weather_type) {
 	if (!load_bbs_catalog())
 		return std::nullopt;
 	const auto entry = _bbs_catalog.find(stage_type);
@@ -146,6 +146,18 @@ std::optional<StageComposition> FieldCatalog::bbs_background(int stage_type) {
 	// UcStStage +0xab0 is the stage object/scene database, not a BBS
 	// base/overlay flag. The BBS object list is the composition source here.
 	StageComposition result;
+	result.weather_type = weather_type;
+	if (weather_type >= 0 && weather_type < static_cast<int>(file->weather.size())) {
+		const auto& weather = file->weather[static_cast<size_t>(weather_type)];
+		result.weather_amount = weather.cloud;
+		result.weather_fog = weather.fog;
+		spdlog::debug(
+			"bbs: weather={} amount={} fog={} flags=0x{:x}",
+			weather_type,
+			weather.cloud,
+			weather.fog,
+			weather.flags);
+	}
 	result.layers.reserve(file->objects.size());
 	for (size_t i = 0; i < file->objects.size(); ++i) {
 		const auto& object = file->objects[i];
@@ -358,9 +370,10 @@ std::string FieldCatalog::texture_of(const Asset& asset) const {
 	return normalize(asset.texture);
 }
 
-std::optional<StageComposition> FieldCatalog::background(int stage_type, int coa_preset, std::string_view entry) {
+std::optional<StageComposition> FieldCatalog::background(
+	int stage_type, int coa_preset, int weather_type, std::string_view entry) {
 	(void)coa_preset;
-	if (auto bbs = bbs_background(stage_type))
+	if (auto bbs = bbs_background(stage_type, weather_type))
 		return bbs;
 
 	if (!load())

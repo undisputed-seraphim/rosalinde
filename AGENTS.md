@@ -191,6 +191,8 @@ python3 visiontest/opening_diff.py \
 | `VIEWER_HIDE` | hide objects whose name contains the value |
 | `ROSALINDE_DATA_DIR` / `VIEWER_DATA` | runtime data directory (same as `--data-dir`) |
 | `VIEWER_CAM_Y`, `VIEWER_ORTHO` | camera/design-space overrides |
+| `VIEWER_WEATHER` | force the screen-weather pass amount (0..1) for inspection |
+| `VIEWER_NO_WEATHER` | disable the screen-weather pass |
 | `FTX_GPU_DUMP_DIR`, `FTX_GPU_DUMP_MATCH` | dump uploaded texture arrays to PNGs, optionally filtered by asset label |
 | `VIEWER_FLIP_V` | experimental UV V-flip by MBS/FTX substring for orientation diagnosis |
 | `VIEWER_RUN_ORDER` | experimental run draw order: `reverse` or `track` |

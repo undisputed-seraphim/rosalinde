@@ -28,6 +28,10 @@ struct StageComposition {
 	std::string ftx;
 	std::vector<StageMpdLayer> mpd_layers;
 	std::vector<StageLayer> layers;
+	int weather_type = 0;
+	// Screen-weather amount from the BBS weather preset (bbs::weather_record::cloud).
+	float weather_amount = 0.0f;
+	float weather_fog = 0.0f;
 
 	bool has_base() const { return !mbs.empty() || !mpd_layers.empty(); }
 };

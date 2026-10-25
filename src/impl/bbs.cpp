@@ -28,6 +28,7 @@ std::optional<file> parse(std::span<const uint8_t> data) {
 		return std::nullopt;
 
 	std::memcpy(f.prefix.data(), data.data() + prefix_offset, f.prefix.size());
+	std::memcpy(f.weather.data(), f.prefix.data() + (0x58 - prefix_offset), sizeof(f.weather));
 	const auto* offset_table = f.prefix.data() + (0x338 - prefix_offset);
 	std::memcpy(&f.offsets, offset_table, sizeof(section_offsets));
 

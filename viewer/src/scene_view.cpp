@@ -26,7 +26,7 @@ SceneView::SceneView(const AssetLoader& loader, AssetLibrary& library, const Vie
 
 void SceneView::initialize(const asb::SceneState& scene) {
 	if (_initial_stage >= 0) {
-		auto seed = _fields.background(_initial_stage, 0, _entry);
+		auto seed = _fields.background(_initial_stage, 0, 0, _entry);
 		if (seed) {
 			_stages.seed(std::move(*seed));
 			_renderer.set_stage(_stages.current());
@@ -48,6 +48,14 @@ void SceneView::initialize(const asb::SceneState& scene) {
 }
 
 void SceneView::sync(const asb::SceneState& scene) {
+	float weather_request = 0.0f;
+	for (const auto& field : scene.field) {
+		if (field.kind == "weather_fade")
+			weather_request = static_cast<float>(field.i0) / 255.0f;
+	}
+	if (const char* forced = std::getenv("VIEWER_WEATHER"))
+		weather_request = static_cast<float>(std::atof(forced));
+	_renderer.set_weather_request(weather_request);
 	sync_stage(scene);
 	_renderer.sync(scene);
 	_effects.update(scene.frame, scene.effects, [&scene](const std::string& name) -> glm::vec2 {
@@ -66,11 +74,13 @@ void SceneView::advance(float dt) {
 void SceneView::sync_stage(const asb::SceneState& scene) {
 	const int type = scene.stage.stage_type;
 	const int coa = scene.stage.coa_preset;
-	if (type == _stage_type && coa == _stage_coa)
+	const int weather = scene.stage.weather_type;
+	if (type == _stage_type && coa == _stage_coa && weather == _stage_weather)
 		return;
 	_stage_type = type;
 	_stage_coa = coa;
-	auto composition = _fields.background(type, coa, _entry);
+	_stage_weather = weather;
+	auto composition = _fields.background(type, coa, weather, _entry);
 	if (!composition) {
 		spdlog::debug("stage: frame={} type={} -> none", scene.frame, type);
 		_stages.clear();
@@ -82,9 +92,10 @@ void SceneView::sync_stage(const asb::SceneState& scene) {
 	// UcStStage +0xab0 is stage object/scene data, not the BBS base/overlay
 	// selector. A cold scene still needs an explicit prior-stage seed.
 	spdlog::debug(
-		"stage: frame={} type={} -> mbs={} layers={} mpd={}",
+		"stage: frame={} type={} weather={} -> mbs={} layers={} mpd={}",
 		scene.frame,
 		type,
+		weather,
 		stage.mbs.empty() ? "<none>" : stage.mbs,
 		stage.layers.size(),
 		stage.mpd_layers.size());
@@ -150,6 +161,7 @@ void SceneView::render(const asb::SceneState& scene, ProbeWriter* probe) {
 	apply_camera(scene);
 	_renderer.render(_projection, _camera);
 	_effects.draw(_projection, _camera, {0.0f, 0.0f});
+	_renderer.render_weather(_projection, _camera);
 
 	float fade[4];
 	asb::fade_at(scene.fades, scene.frame, fade);

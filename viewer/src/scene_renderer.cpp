@@ -141,6 +141,10 @@ std::string SceneRenderer::filter_reason(const asb::RuntimeEntity& e, bool stage
 void SceneRenderer::set_stage(const StageComposition& composition) {
 	_stage_layer_specs = composition.layers;
 	_stage_layer_items.clear();
+	_weather_regions.clear();
+	_stage_layers_built = false;
+	_weather_amount = composition.weather_amount;
+	_weather_fog = composition.weather_fog;
 	_stage = RenderItem{};
 	_stage_mbs = composition.mbs;
 	_stage_ftx = composition.ftx;
@@ -275,13 +279,37 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 		}
 	}
 
-	if (!_stage_layer_specs.empty() && _stage_layer_items.empty()) {
+	if (!_stage_layer_specs.empty() && !_stage_layers_built) {
+		_stage_layers_built = true;
 		_stage_layer_items.reserve(_stage_layer_specs.size());
 		for (size_t i = 0; i < _stage_layer_specs.size(); ++i) {
 			const auto& spec = _stage_layer_specs[i];
 			auto asset = _library.get(spec.mbs, spec.ftx);
 			if (!asset)
 				continue;
+			const SpriteData::Track* track =
+				spec.track_index >= 0 && static_cast<size_t>(spec.track_index) < asset->data.tracks.size()
+					? &asset->data.tracks[static_cast<size_t>(spec.track_index)]
+					: nullptr;
+			if (track && (track->name.find("RAIN_FOG") != std::string::npos ||
+						  track->name.find("SNOW_FOG") != std::string::npos)) {
+				WeatherRegion region;
+				region.spec = spec;
+				region.bounds = track->bounds;
+				region.rain = track->name.find("RAIN") != std::string::npos;
+				spdlog::debug(
+					"weather: layer={} track={} name={} rain={} bounds=({},{},{},{})",
+					i,
+					spec.track_index,
+					track->name,
+					region.rain,
+					track->bounds.x,
+					track->bounds.y,
+					track->bounds.z,
+					track->bounds.w);
+				_weather_regions.push_back(std::move(region));
+				continue;
+			}
 			asb::RuntimeEntity e;
 			e.name = "__stage__:" + std::to_string(i);
 			e.kind = "StageLayer";
@@ -749,10 +777,59 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 	}
 }
 
+void SceneRenderer::render_weather(const glm::mat4& projection, const Camera& camera) {
+	if (std::getenv("VIEWER_NO_WEATHER"))
+		return;
+	const float amount = _weather_amount * _weather_request;
+	spdlog::debug(
+		"weather: frame={} amount={} request={} fog={} regions={}",
+		_frame,
+		amount,
+		_weather_request,
+		_weather_fog,
+		_weather_regions.size());
+	if (amount <= 0.01f || _weather_regions.empty())
+		return;
+	const glm::mat4 mvp = projection * camera.lookAt();
+	glm::vec2 ndc_min{1.0f, 1.0f};
+	glm::vec2 ndc_max{-1.0f, -1.0f};
+	bool any = false;
+	for (const auto& region : _weather_regions) {
+		if (!region.rain)
+			continue;
+		const auto& spec = region.spec;
+		const auto& b = region.bounds;
+		const float sy = spec.scale_y > 0.0f ? spec.scale_y : spec.scale;
+		const glm::vec2 corners[4] = {
+			{b.x, b.y},
+			{b.z, b.y},
+			{b.z, b.w},
+			{b.x, b.w},
+		};
+		for (const auto& corner : corners) {
+			const glm::vec4 clip =
+				mvp * glm::vec4(spec.x + corner.x * spec.scale, spec.y + corner.y * sy, 0.0f, 1.0f);
+			if (clip.w <= 0.0f)
+				continue;
+			const glm::vec2 ndc{clip.x / clip.w, clip.y / clip.w};
+			ndc_min = glm::min(ndc_min, ndc);
+			ndc_max = glm::max(ndc_max, ndc);
+			any = true;
+		}
+	}
+	if (!any)
+		return;
+	ndc_min = glm::clamp(ndc_min, glm::vec2(-1.0f), glm::vec2(1.0f));
+	ndc_max = glm::clamp(ndc_max, glm::vec2(-1.0f), glm::vec2(1.0f));
+	_weather.draw(ndc_min, ndc_max, amount, static_cast<float>(_frame) / 60.0f);
+}
+
 void SceneRenderer::clear() {
 	_objects.clear();
 	_stage_layer_items.clear();
 	_stage_layer_specs.clear();
+	_weather_regions.clear();
+	_stage_layers_built = false;
 	_stage = RenderItem{};
 	_stage_mbs.clear();
 	_stage_ftx.clear();
