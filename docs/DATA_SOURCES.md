@@ -46,7 +46,7 @@ Scene scripts create characters by **name**, never by a numeric appearance mask:
 - `DrCreateNpc(name, ...)`, `DrUiCreateChara(ftx, mbs, dispName, charName, int)`.
 - `StCreateUnit(defName, ...)` / `FlCreateCharaSymbol(...)`.
 
-A scan of all 680 `Script/*.asb` found **none** of the viewer's `variant_flags`
+A scan of all 680 `Script/*.asb` found **none** of the MBS `s4.attributes` group
 values (`0x10000`, `0x20000`, `0x54010000`, `0x60030000`, …). The "flag" a scene
 passes is the character **def name** (`PL_*`, `DRNPC_*`, `STNPC_*`, …), which the
 engine resolves to class + appearance + colour.

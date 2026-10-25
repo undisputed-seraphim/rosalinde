@@ -44,11 +44,11 @@ not in the MBS file.
 
 ## Generated data
 
-`viewer/data/generated/charaset.tsv` carries the final mask as its eighth
-column:
+`viewer/data/generated/charaset.tsv` carries the final mask and the colour
+preset index as its eighth and ninth columns:
 
 ```text
-idx name class gender variant charaImg label appearance_mask
+idx name class gender variant charaImg label appearance_mask color_preset
 ```
 
 `tools/build_viewer_data.py` joins the raw `CharaSet` row with
@@ -90,7 +90,7 @@ characters/roles but is not used by this mapping.
 
 The viewer generates `chara_colors.tsv` from this table, reads `color_preset`
 from `charaset.tsv`, and applies the three colours to layers with matching
-`color_id`. `color_id == 0` keeps the `section_0` colours.
+`color_id`.
 
 Story/placed characters can override the preset with a per-stage character-def
 colour block at `def + 0x160` (looked up by `FUN_002BF900`); that path is not

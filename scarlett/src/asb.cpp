@@ -1,11 +1,11 @@
 #include <scarlett/asb.hpp>
 
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <array>
 #include <fstream>
 #include <memory>
 #include <unordered_map>

@@ -133,10 +133,10 @@ std::optional<std::string> FieldCatalog::resolve_bbs_asset(std::string_view name
 	return std::nullopt;
 }
 
-std::optional<StageComposition> FieldCatalog::bbs_background(int stage_type, int weather_type) {
+std::optional<StageComposition> FieldCatalog::bbs_background(const StageRequest& request) {
 	if (!load_bbs_catalog())
 		return std::nullopt;
-	const auto entry = _bbs_catalog.find(stage_type);
+	const auto entry = _bbs_catalog.find(request.stage_type);
 	if (entry == _bbs_catalog.end())
 		return std::nullopt;
 	auto file = load_bbs(entry->second.path);
@@ -146,14 +146,14 @@ std::optional<StageComposition> FieldCatalog::bbs_background(int stage_type, int
 	// UcStStage +0xab0 is the stage object/scene database, not a BBS
 	// base/overlay flag. The BBS object list is the composition source here.
 	StageComposition result;
-	result.weather_type = weather_type;
-	if (weather_type >= 0 && weather_type < static_cast<int>(file->weather.size())) {
-		const auto& weather = file->weather[static_cast<size_t>(weather_type)];
+	result.weather_type = request.weather_type;
+	if (request.weather_type >= 0 && request.weather_type < static_cast<int>(file->weather.size())) {
+		const auto& weather = file->weather[static_cast<size_t>(request.weather_type)];
 		result.weather_amount = weather.cloud;
 		result.weather_fog = weather.fog;
 		spdlog::trace(
 			"bbs: weather={} amount={} fog={} flags=0x{:x}",
-			weather_type,
+			request.weather_type,
 			weather.cloud,
 			weather.fog,
 			weather.flags);
@@ -196,7 +196,11 @@ std::optional<StageComposition> FieldCatalog::bbs_background(int stage_type, int
 	if (result.layers.empty())
 		return std::nullopt;
 	spdlog::debug(
-		"bbs: stage={} path={} label={} layers={}", stage_type, entry->second.path, entry->second.label, result.layers.size());
+		"bbs: stage={} path={} label={} layers={}",
+		request.stage_type,
+		entry->second.path,
+		entry->second.label,
+		result.layers.size());
 	return result;
 }
 
@@ -370,24 +374,23 @@ std::string FieldCatalog::texture_of(const Asset& asset) const {
 	return normalize(asset.texture);
 }
 
-std::optional<StageComposition> FieldCatalog::background(
-	int stage_type, int coa_preset, int weather_type, std::string_view entry) {
-	(void)coa_preset;
-	if (auto bbs = bbs_background(stage_type, weather_type))
+std::optional<StageComposition> FieldCatalog::background(const StageRequest& request) {
+	(void)request.coa_preset;
+	if (auto bbs = bbs_background(request))
 		return bbs;
 
 	if (!load())
 		return std::nullopt;
 
 	const StageRow* row = nullptr;
-	if (stage_type >= 1 && static_cast<size_t>(stage_type) <= _stages.size())
-		row = &_stages[static_cast<size_t>(stage_type - 1)];
+	if (request.stage_type >= 1 && static_cast<size_t>(request.stage_type) <= _stages.size())
+		row = &_stages[static_cast<size_t>(request.stage_type - 1)];
 
 	int area = row ? area_for_country(row->country) : -1;
 	int variant = row ? stage_variant(row->name) : 0;
 	if (area < 0) {
-		area = area_for_entry(entry);
-		variant = stage_variant(entry);
+		area = area_for_entry(request.entry);
+		variant = stage_variant(request.entry);
 	}
 	if (area < 0)
 		return std::nullopt;
@@ -415,7 +418,7 @@ std::optional<StageComposition> FieldCatalog::background(
 	const std::string row_name = row ? row->name : std::string("<none>");
 	spdlog::debug(
 		"field: type={} stage={} country={} area=AC{} variant={} mbs={} layers={}",
-		stage_type,
+		request.stage_type,
 		row_name,
 		row ? row->country : -1,
 		two(area),

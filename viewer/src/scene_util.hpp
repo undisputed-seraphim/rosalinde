@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glad/glad.h>
+#include <glm/glm.hpp>
 
 inline void enable_blend(const glm::vec4 blend) {
 	glBlendColor(blend[0], blend[1], blend[2], blend[3]);

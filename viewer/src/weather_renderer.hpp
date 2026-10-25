@@ -3,10 +3,10 @@
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 
-// Screen-space weather pass. The engine draws rain as procedural streaks in a
-// full-screen quad clipped by the BBS weather-mask rect; this is the viewer's
-// port of that pass. The mask is in NDC, so callers can feed the projected
-// bounds of the RAIN_FOG/SNOW_FOG quads without touching the GL state machine.
+// Screen-space weather pass. The engine submits rain/snow as procedural streaks
+// clipped by a screen-space mask rect per draw; the viewer draws one pass over
+// the union of the projected RAIN_FOG/SNOW_FOG regions. The mask is in NDC, so
+// callers pass the bounds directly without touching the GL state machine.
 class WeatherRenderer {
 public:
 	WeatherRenderer();

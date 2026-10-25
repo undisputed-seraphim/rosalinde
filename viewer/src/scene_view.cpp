@@ -26,7 +26,7 @@ SceneView::SceneView(const AssetLoader& loader, AssetLibrary& library, const Vie
 
 void SceneView::initialize(const asb::SceneState& scene) {
 	if (_initial_stage >= 0) {
-		auto seed = _fields.background(_initial_stage, 0, 0, _entry);
+		auto seed = _fields.background({_initial_stage, 0, 0, _entry});
 		if (seed) {
 			_stages.seed(std::move(*seed));
 			_renderer.set_stage(_stages.current());
@@ -86,7 +86,7 @@ void SceneView::sync_stage(const asb::SceneState& scene) {
 	_stage_type = type;
 	_stage_coa = coa;
 	_stage_weather = weather;
-	auto composition = _fields.background(type, coa, weather, _entry);
+	auto composition = _fields.background({type, coa, weather, _entry});
 	if (!composition) {
 		spdlog::debug("stage: frame={} type={} -> none", scene.frame, type);
 		_stages.clear();

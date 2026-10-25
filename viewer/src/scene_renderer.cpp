@@ -138,14 +138,21 @@ std::string SceneRenderer::filter_reason(const asb::RuntimeEntity& e, bool stage
 	return {};
 }
 
-void SceneRenderer::set_stage(const StageComposition& composition) {
-	_stage_layer_specs = composition.layers;
+void SceneRenderer::reset_stage() {
+	_stage_layer_specs.clear();
 	_stage_layer_items.clear();
 	_weather_regions.clear();
 	_stage_layers_built = false;
+	_stage = RenderItem{};
+	_stage_mbs.clear();
+	_stage_ftx.clear();
+}
+
+void SceneRenderer::set_stage(const StageComposition& composition) {
+	reset_stage();
+	_stage_layer_specs = composition.layers;
 	_weather_amount = composition.weather_amount;
 	_weather_fog = composition.weather_fog;
-	_stage = RenderItem{};
 	_stage_mbs = composition.mbs;
 	_stage_ftx = composition.ftx;
 
@@ -806,8 +813,7 @@ void SceneRenderer::render_weather(const glm::mat4& projection, const Camera& ca
 			{b.x, b.w},
 		};
 		for (const auto& corner : corners) {
-			const glm::vec4 clip =
-				mvp * glm::vec4(spec.x + corner.x * spec.scale, spec.y + corner.y * sy, 0.0f, 1.0f);
+			const glm::vec4 clip = mvp * glm::vec4(spec.x + corner.x * spec.scale, spec.y + corner.y * sy, 0.0f, 1.0f);
 			if (clip.w <= 0.0f)
 				continue;
 			const glm::vec2 ndc{clip.x / clip.w, clip.y / clip.w};
@@ -825,11 +831,5 @@ void SceneRenderer::render_weather(const glm::mat4& projection, const Camera& ca
 
 void SceneRenderer::clear() {
 	_objects.clear();
-	_stage_layer_items.clear();
-	_stage_layer_specs.clear();
-	_weather_regions.clear();
-	_stage_layers_built = false;
-	_stage = RenderItem{};
-	_stage_mbs.clear();
-	_stage_ftx.clear();
+	reset_stage();
 }

@@ -79,6 +79,7 @@ private:
 	};
 
 	void rebuild(RenderItem& item, const asb::RuntimeEntity& e, SpriteAssetPtr asset);
+	void reset_stage();
 	void apply(RenderItem& item, const asb::RuntimeEntity& e);
 	void update_tints(RenderItem& item);
 	glm::vec2 parent_position(const RenderItem& item) const;

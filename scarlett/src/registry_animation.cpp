@@ -53,8 +53,7 @@ DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& a
 			const long remaining = _animations.action_remaining(*entity, frame);
 			if (remaining > 0) {
 				pending_wait = remaining;
-				spdlog::debug(
-					"wait: action {} end={} remaining={}", entity->name, entity->action_end_frame, remaining);
+				spdlog::debug("wait: action {} end={} remaining={}", entity->name, entity->action_end_frame, remaining);
 				if (asIScriptContext* context = asGetActiveContext())
 					context->Suspend();
 			}

@@ -1,4 +1,5 @@
 #include "weather_renderer.hpp"
+#include "scene_util.hpp"
 #include "shader.hpp"
 
 #include <glm/glm.hpp>
@@ -32,11 +33,8 @@ WeatherRenderer::~WeatherRenderer() {
 
 void WeatherRenderer::draw(const glm::vec2& ndc_min, const glm::vec2& ndc_max, float amount, float time) {
 	const bool depth = glIsEnabled(GL_DEPTH_TEST);
-	const bool blend = glIsEnabled(GL_BLEND);
 	glDisable(GL_DEPTH_TEST);
-	glEnable(GL_BLEND);
-	glBlendEquation(GL_FUNC_ADD);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	enable_blend(glm::vec4(1.0f));
 
 	const auto& shader = GetWeatherShader().Use();
 	shader.SetUniform("u_ndc_min", ndc_min.x, ndc_min.y);
@@ -50,6 +48,4 @@ void WeatherRenderer::draw(const glm::vec2& ndc_min, const glm::vec2& ndc_max, f
 
 	if (depth)
 		glEnable(GL_DEPTH_TEST);
-	if (!blend)
-		glDisable(GL_BLEND);
 }

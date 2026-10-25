@@ -57,7 +57,7 @@ void SpriteData::preprocess() {
 		ck.layers.reserve(s6.s4_layer_count);
 		for (uint32_t j = 0; j < s6.s4_layer_count; ++j) {
 			const auto& s4 = v77.s4[s6.s4_layer_start + j];
-			const bool notex = (s4.flags & 0x04) != 0;
+			const bool notex = (s4.flags & mbs::v77::s4flag::NOTEX) != 0;
 			if (!notex && s4.tex_id >= textures.size())
 				continue;
 
@@ -146,8 +146,7 @@ std::vector<SpriteData::Track> analyze_tracks(const mbs::v77& v77) {
 			for (uint32_t i = 0; i < run.loop_start && run.s8_start + i < v77.s8.size(); ++i)
 				intro_ticks += v77.s8[run.s8_start + i].s8_duration_ticks;
 		}
-		track.action_frames =
-			intro_ticks > 0 ? (intro_ticks + 1) / 2 : track_duration_frames(v77, track);
+		track.action_frames = intro_ticks > 0 ? (intro_ticks + 1) / 2 : track_duration_frames(v77, track);
 	}
 	return tracks;
 }
@@ -309,7 +308,7 @@ void SpriteInstance::for_each_layer(
 
 	uint32_t visible = 0;
 	for (const auto& layer : ck.layers) {
-		if ((layer.s4_flags & 0x02) == 0 && (layer.attributes & attribute_mask) == 0 &&
+		if ((layer.s4_flags & mbs::v77::s4flag::SKIP) == 0 && (layer.attributes & attribute_mask) == 0 &&
 			(layer.attributes & ~layer_mask) == 0)
 			visible++;
 	}
@@ -340,10 +339,10 @@ void SpriteInstance::for_each_layer(
 		// A flags=1/blend=1 layer is a mask companion only when the same
 		// keyframe carries its flags=1/blend=0 source. Standalone blend=1
 		// layers (opening fire, glow, and effect passes) are real draws.
-		if (layer.blend == 1 && layer.s4_flags == 1) {
+		if (layer.blend == 1 && layer.s4_flags == mbs::v77::s4flag::ENABLED) {
 			bool paired = false;
 			for (const auto& other : ck.layers) {
-				if (&other == &layer || other.blend != 0 || other.s4_flags != 1)
+				if (&other == &layer || other.blend != 0 || other.s4_flags != mbs::v77::s4flag::ENABLED)
 					continue;
 				if (other.s4_source_tile_id == layer.s4_source_tile_id && other.s1_uv_id == layer.s1_uv_id &&
 					other.s2_vertex_id == layer.s2_vertex_id) {
@@ -373,7 +372,7 @@ void SpriteInstance::for_each_layer(
 			v.color[k] = layer.color[k];
 		}
 
-		if ((layer.s4_flags & 0x02) != 0) {
+		if ((layer.s4_flags & mbs::v77::s4flag::SKIP) != 0) {
 			v.skip = "skip";
 			visit(v);
 			continue;
@@ -559,7 +558,7 @@ glm::vec4 SpriteInstance::render_bounds() const {
 
 		const glm::mat4 m = transform_for_sa(i);
 		for (const auto& layer : ck.layers) {
-			if ((layer.s4_flags & 0x02) != 0)
+			if ((layer.s4_flags & mbs::v77::s4flag::SKIP) != 0)
 				continue;
 			if ((layer.attributes & attribute_mask) != 0)
 				continue;
