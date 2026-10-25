@@ -28,6 +28,8 @@ struct StageComposition {
 	std::string ftx;
 	std::vector<StageMpdLayer> mpd_layers;
 	std::vector<StageLayer> layers;
+	// Weather type and fog are carried for the fog/snow/sky-grade pass; the rain
+	// gate only reads weather_amount.
 	int weather_type = 0;
 	// Screen-weather amount from the BBS weather preset (bbs::weather_record::cloud).
 	float weather_amount = 0.0f;

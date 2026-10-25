@@ -335,12 +335,6 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 	if (e.space == RuntimeEntity::Space::Ui)
 		e.alpha = 0;
 	e.aliases = names;
-	e.appearance_variant = 0xFFFFFFFFu;
-	e.appearance_mask = 0;
-	e.color_preset = 0;
-	for (int i = 0; i < 4; ++i)
-		e.color_palette[i] = 0;
-	e.color_mask = 0;
 	// DrUiCreateChara carries the asset pair explicitly (ftx, mbs, label,
 	// chara-set name). World characters instead resolve through the CharaSet
 	// appearance table; keep that path separate.
@@ -359,12 +353,7 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 					e.mbs = ci->mbs;
 					e.ftx = ci->ftx;
 				}
-				e.appearance_variant = ci->appearance_variant;
-				e.appearance_mask = ci->appearance_mask;
-				e.color_preset = ci->color_preset;
-				for (int i = 0; i < 4; ++i)
-					e.color_palette[i] = ci->color_palette[i];
-				e.color_mask = ci->color_mask;
+				e.appearance = ci->appearance;
 				break;
 			}
 		}
@@ -376,12 +365,7 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 		if (it != _chars->end()) {
 			e.mbs = it->second.mbs;
 			e.ftx = it->second.ftx;
-			e.appearance_variant = it->second.appearance_variant;
-			e.appearance_mask = it->second.appearance_mask;
-			e.color_preset = it->second.color_preset;
-			for (int i = 0; i < 4; ++i)
-				e.color_palette[i] = it->second.color_palette[i];
-			e.color_mask = it->second.color_mask;
+			e.appearance = it->second.appearance;
 		}
 	}
 	for (const auto& n : names)

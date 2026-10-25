@@ -1,5 +1,7 @@
 #pragma once
 
+#include <scarlett/appearance.hpp>
+
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -293,11 +295,7 @@ struct CharaInfo {
 	std::string disp_name;
 	std::string mbs;
 	std::string ftx;
-	uint32_t appearance_variant = 0xFFFFFFFFu; // CharaSet variant; 0xFFFFFFFF = no selector
-	uint32_t appearance_mask = 0;				// suppressed s4 attribute bits from chara_model.mask
-	uint32_t color_preset = 0;					// chara_color_table row
-	uint32_t color_palette[4] = {};				// preset colour0..colour3
-	uint32_t color_mask = 0;					// enabled s4.color_id bits
+	CharaAppearance appearance;
 };
 using CharTable = std::unordered_map<std::string, CharaInfo>;
 

@@ -53,8 +53,8 @@ idx name class gender variant charaImg label appearance_mask
 
 `tools/build_viewer_data.py` joins the raw `CharaSet` row with
 `class_model_m/f_table.tsv` and `chara_model_table.tsv`, then ORs
-`0xfe000000`. The runtime loads the column into `CharaInfo::appearance_mask`
-and copies it to `RuntimeEntity::appearance_mask`.
+`0xfe000000`. The runtime loads the column into `CharaInfo::appearance.mask`
+and copies it to `RuntimeEntity::appearance.mask`.
 
 ## Colour presets
 

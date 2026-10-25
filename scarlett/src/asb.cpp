@@ -1392,15 +1392,15 @@ CharaSetTable load_chara_set(
 			if (it == classes.end())
 				continue;
 			CharaInfo ci = it->second;
-			ci.appearance_variant = static_cast<uint32_t>(std::atoi(c[4].c_str()));
+			ci.appearance.variant = static_cast<uint32_t>(std::atoi(c[4].c_str()));
 			if (c.size() > 7 && !c[7].empty())
-				ci.appearance_mask = static_cast<uint32_t>(std::strtoul(c[7].c_str(), nullptr, 0));
+				ci.appearance.mask = static_cast<uint32_t>(std::strtoul(c[7].c_str(), nullptr, 0));
 			if (c.size() > 8 && !c[8].empty()) {
-				ci.color_preset = static_cast<uint32_t>(std::atoi(c[8].c_str()));
-				if (ci.color_preset < color_presets.size()) {
+				ci.appearance.preset = static_cast<uint32_t>(std::atoi(c[8].c_str()));
+				if (ci.appearance.preset < color_presets.size()) {
 					for (int i = 0; i < 4; ++i)
-						ci.color_palette[i] = color_presets[ci.color_preset][static_cast<size_t>(i)];
-					ci.color_mask = 1u << 1 | 1u << 2 | 1u << 3;
+						ci.appearance.palette[i] = color_presets[ci.appearance.preset][static_cast<size_t>(i)];
+					ci.appearance.color_mask = 1u << 1 | 1u << 2 | 1u << 3;
 				}
 			}
 			if (!label.empty())

@@ -48,7 +48,13 @@ void SceneView::initialize(const asb::SceneState& scene) {
 }
 
 void SceneView::sync(const asb::SceneState& scene) {
-	float weather_request = 0.0f;
+	// The stage weather pass is enabled by default; the fade value only scales
+	// it. FUN_00103c50 falls back to 1.0 when the stage has no fade object, and
+	// FlWeatherFade(_nAlpha, _nFadeTime) lowers that scale (every shipped call
+	// passes alpha 0 to clear rain). The pass still needs a nonzero BBS weather
+	// amount plus the engine's runtime gate, which the ELF does not expose
+	// statically. The fade time argument is not applied yet.
+	float weather_request = 1.0f;
 	for (const auto& field : scene.field) {
 		if (field.kind == "weather_fade")
 			weather_request = static_cast<float>(field.i0) / 255.0f;

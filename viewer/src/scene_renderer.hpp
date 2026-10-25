@@ -101,7 +101,8 @@ private:
 	WeatherRenderer _weather;
 	float _weather_amount = 0.0f;
 	float _weather_fog = 0.0f;
-	float _weather_request = 0.0f;
+	// The engine's fade scale is 1.0 when the stage has no weather fade object.
+	float _weather_request = 1.0f;
 	bool _stage_layers_built = false;
 
 	std::string _stage_mbs;

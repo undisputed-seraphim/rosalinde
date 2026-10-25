@@ -1,5 +1,7 @@
 #pragma once
 
+#include <scarlett/appearance.hpp>
+
 #include <algorithm>
 #include <cstdint>
 #include <optional>
@@ -67,11 +69,7 @@ struct RuntimeEntity {
 	bool action_active = false;
 	long action_end_frame = -1;
 	bool started = false;
-	uint32_t appearance_variant = 0xFFFFFFFFu; // CharaSet variant; 0xFFFFFFFF = all layers
-	uint32_t appearance_mask = 0;				// suppressed s4 attribute bits
-	uint32_t color_preset = 0;					// chara_color_table row
-	uint32_t color_palette[4] = {};				// preset colour0..colour3
-	uint32_t color_mask = 0;					// enabled s4.color_id bits
+	CharaAppearance appearance; // CharaSet variant, layer mask, and colour preset
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	float scale = 1.0f;
 	float scale_y = 0.0f; // BBS object Y scale; 0 = uniform with `scale`

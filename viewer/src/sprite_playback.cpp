@@ -37,7 +37,7 @@ void SpritePlayback::reset(
 	if (!asset)
 		return;
 
-	const uint32_t attribute_mask = state.appearance_mask;
+	const uint32_t attribute_mask = state.appearance.mask;
 	const bool mone_kind = state.kind.rfind("CreateSpriteMone", 0) == 0;
 	auto stateful_mone = [&](int track) {
 		return mone_kind && track >= 0 && static_cast<size_t>(track) < asset->data.tracks.size() &&
@@ -87,9 +87,9 @@ void SpritePlayback::apply(const asb::RuntimeEntity& state) {
 	}
 	for (auto& instance : instances) {
 		instance.playback.paused = state.paused || state.anim_paused;
-		instance.color_mask = state.color_mask;
+		instance.color_mask = state.appearance.color_mask;
 		for (int i = 0; i < 4; ++i)
-			instance.color_palette[i] = state.color_palette[i];
+			instance.color_palette[i] = state.appearance.palette[i];
 		if (instance.current_sequence != state.sequence_index) {
 			instance.current_sequence = state.sequence_index;
 			if (_policy == TrackPolicy::ScriptTrack)
