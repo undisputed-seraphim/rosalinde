@@ -377,6 +377,25 @@ glm::vec2 SceneRenderer::parent_position(const RenderItem& object) const {
 	return {it->second.state.pos[0], it->second.state.pos[1]};
 }
 
+// The engine anchors a world character by its standing foot line, not by the
+// MBS origin: the chara element's node pivot is the model's foot offset. The
+// idle track's bounds bottom is that line (12.97 for Scarlet_F, 21.25 for
+// Lord_M, 10.5 for Cleric_F) and it reproduces the reference at
+// Dr_OW_C_0 frames 410/485/528.
+float SceneRenderer::character_foot_offset(const RenderItem& object) const {
+	if (!object.playback.asset)
+		return 0.0f;
+	const auto& data = object.playback.asset->data;
+	auto usable = [](const SpriteData::Track* track) { return track && !track->disabled && !track->runs.empty(); };
+	const SpriteData::Track* idle = data.find_track("D_IDLE_A");
+	if (!usable(idle))
+		idle = data.find_track(object.state.idle_track);
+	if (!usable(idle) && object.playback.track_index >= 0 &&
+		static_cast<size_t>(object.playback.track_index) < data.tracks.size())
+		idle = &data.tracks[static_cast<size_t>(object.playback.track_index)];
+	return usable(idle) ? idle->bounds.w : 0.0f;
+}
+
 std::vector<const SceneRenderer::RenderItem*> SceneRenderer::ordered_items() const {
 	std::vector<const RenderItem*> items;
 	items.reserve(_objects.size() + _stage_layer_items.size() + 1);
@@ -730,7 +749,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 	for (const RenderItem* object : order) {
 		const auto& e = object->state;
 		const glm::vec2 offset = parent_position(*object);
-		const glm::vec2 pos{e.pos[0] + offset.x, e.pos[1] + offset.y};
+		glm::vec2 pos{e.pos[0] + offset.x, e.pos[1] + offset.y};
 		const float alpha = std::clamp(e.alpha / 255.0f, 0.0f, 1.0f);
 		std::string reason = filter_reason(e, object->stage);
 		if (reason.empty() && alpha <= 0.0f)
@@ -767,6 +786,9 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 					? camera.zoom()
 					: 1.0f;
 			float object_scale = (e.scale > 0.0f ? e.scale : 1.0f) * camera_scale;
+			const bool world_chara = !screen_chara && object->playback.asset->is_character;
+			if (world_chara)
+				pos.y += character_foot_offset(*object) * object_scale;
 			// TODO(ui): DrUiCreateChara positions and MBS bounds are in 1920x1080
 			// screen space, but the engine's authored scale is larger than the
 			// screen projection. 0.6 is calibrated against the opening montage;
