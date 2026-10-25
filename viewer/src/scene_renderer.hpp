@@ -83,6 +83,7 @@ private:
 	void apply(RenderItem& item, const asb::RuntimeEntity& e);
 	void update_tints(RenderItem& item);
 	glm::vec2 parent_position(const RenderItem& item) const;
+	float character_foot_offset(const RenderItem& item) const;
 	std::string filter_reason(const asb::RuntimeEntity& e, bool stage) const;
 	std::string object_json(const RenderItem& item, bool stage, std::string_view reason) const;
 	void probe_object(const RenderItem& item, bool stage, std::string_view reason);

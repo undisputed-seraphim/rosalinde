@@ -166,6 +166,11 @@ python3 visiontest/opening_diff.py \
   A started background object with `prerender_force` (set by
   `SetSpriteMonePreRenderAll`) replaces `__stage__` and is scaled by the field
   camera zoom.
+- **Chara anchor**: world characters are placed at the script position plus their foot line,
+  the `D_IDLE_A` track bounds bottom (fallback: the entity's live idle track, then the current
+  track). Stage sprites use the MBS origin, and `DrUiCreateChara` keeps the UI/design path. The
+  foot line is per character (12.97 units for `Scarlet_F`, 21.25 for `Lord_M`, 10.5 for
+  `Cleric_F`), matching the engine's chara pivot rather than a global offset.
 - **Viewer host**: the viewer supplies all runtime providers: chara tables, track
   name/length callbacks, facility names, stage tables, drop tables, and ACB sound
   lengths. `asbrun` is a static inspector; scene execution with real waits is the viewer's `--headless` mode.
