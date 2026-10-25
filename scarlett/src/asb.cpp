@@ -1346,6 +1346,7 @@ CharaSetTable load_chara_set(
 	}
 
 	std::vector<std::array<uint32_t, 4>> color_presets;
+	std::vector<std::array<uint8_t, 8>> color_appearance;
 	if (!chara_colors_tsv.empty()) {
 		if (std::ifstream f{chara_colors_tsv}) {
 			std::string line;
@@ -1358,11 +1359,16 @@ CharaSetTable load_chara_set(
 				const int idx = std::atoi(c[0].c_str());
 				if (idx < 0)
 					continue;
-				if (static_cast<size_t>(idx) >= color_presets.size())
+				if (static_cast<size_t>(idx) >= color_presets.size()) {
 					color_presets.resize(static_cast<size_t>(idx) + 1);
+					color_appearance.resize(static_cast<size_t>(idx) + 1);
+				}
 				for (int i = 0; i < 4; ++i)
 					color_presets[static_cast<size_t>(idx)][i] =
 						static_cast<uint32_t>(std::strtoul(c[static_cast<size_t>(i) + 1].c_str(), nullptr, 0));
+				for (int i = 0; i < 8 && static_cast<size_t>(i) + 5 < c.size(); ++i)
+					color_appearance[static_cast<size_t>(idx)][static_cast<size_t>(i)] =
+						static_cast<uint8_t>(std::atoi(c[static_cast<size_t>(i) + 5].c_str()));
 			}
 		}
 	}
@@ -1400,6 +1406,9 @@ CharaSetTable load_chara_set(
 				if (ci.appearance.preset < color_presets.size()) {
 					for (int i = 0; i < 4; ++i)
 						ci.appearance.palette[i] = color_presets[ci.appearance.preset][static_cast<size_t>(i)];
+					if (ci.appearance.preset < color_appearance.size())
+						for (int i = 0; i < 8; ++i)
+							ci.appearance.parts[i] = color_appearance[ci.appearance.preset][static_cast<size_t>(i)];
 					ci.appearance.color_mask = 1u << 1 | 1u << 2 | 1u << 3;
 				}
 			}

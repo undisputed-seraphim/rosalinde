@@ -198,7 +198,8 @@ def main():
 
     write_tsv(
         out_dir / "chara_colors.tsv",
-        "# idx\tcolor0\tcolor1\tcolor2\tcolor3 (generated from raw chara_color table)",
+        "# idx\tcolor0\tcolor1\tcolor2\tcolor3\tappearance0\tappearance1\tappearance2\tappearance3"
+        "\tappearance4\tappearance5\tappearance6\tappearance7 (generated from raw chara_color table)",
         [
             (
                 int(row["idx"]),
@@ -206,6 +207,14 @@ def main():
                 row["color1"],
                 row["color2"],
                 row["color3"],
+                row["w00"],
+                row["w01"],
+                row["w02"],
+                row["w03"],
+                row["w04"],
+                row["w05"],
+                row["w06"],
+                row["w07"],
             )
             for row in chara_color
         ],

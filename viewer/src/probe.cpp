@@ -108,7 +108,12 @@ std::string entity_json(const asb::RuntimeEntity& e, const SceneReportContext& c
 		",\"appearance_variant\":" + std::to_string(e.appearance.variant) +
 		",\"appearance_mask\":" + std::to_string(e.appearance.mask) +
 		",\"color_preset\":" + std::to_string(e.appearance.preset) +
-		",\"color_mask\":" + std::to_string(e.appearance.color_mask) + ",\"idle_track\":" + quote(e.idle_track) +
+		",\"color_mask\":" + std::to_string(e.appearance.color_mask) + ",\"appearance\":[" +
+		std::to_string(e.appearance.parts[0]) + "," + std::to_string(e.appearance.parts[1]) + "," +
+		std::to_string(e.appearance.parts[2]) + "," + std::to_string(e.appearance.parts[3]) + "," +
+		std::to_string(e.appearance.parts[4]) + "," + std::to_string(e.appearance.parts[5]) + "," +
+		std::to_string(e.appearance.parts[6]) + "," + std::to_string(e.appearance.parts[7]) + "]" +
+		",\"idle_track\":" + quote(e.idle_track) +
 		",\"idle_track_index\":" + std::to_string(e.idle_track_index) +
 		",\"action_active\":" + asb::trace::boolean(e.action_active) +
 		",\"action_end_frame\":" + std::to_string(e.action_end_frame) +

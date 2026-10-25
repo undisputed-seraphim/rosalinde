@@ -15,8 +15,7 @@
 
 class SpriteRenderer {
 public:
-	SpriteRenderer();
-	~SpriteRenderer();
+	SpriteRenderer();	~SpriteRenderer();
 	SpriteRenderer(const SpriteRenderer&) = delete;
 	SpriteRenderer(SpriteRenderer&& other) noexcept;
 	SpriteRenderer& operator=(SpriteRenderer&& other) noexcept;
@@ -53,3 +52,7 @@ private:
 	std::vector<SpriteVertex> _verts;
 	std::vector<uint32_t> _indices;
 };
+
+// Upload GradientMap/GradientMap00.ftx once (GL thread). Layers whose vertex
+// `gradient` field is >= 0 sample this LUT instead of taking a flat tint.
+void upload_gradient_map(std::span<const FTX::Entry> textures);

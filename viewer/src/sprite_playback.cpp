@@ -90,6 +90,8 @@ void SpritePlayback::apply(const asb::RuntimeEntity& state) {
 		instance.color_mask = state.appearance.color_mask;
 		for (int i = 0; i < 4; ++i)
 			instance.color_palette[i] = state.appearance.palette[i];
+		for (int i = 0; i < 8; ++i)
+			instance.appearance[i] = state.appearance.parts[i];
 		if (instance.current_sequence != state.sequence_index) {
 			instance.current_sequence = state.sequence_index;
 			if (_policy == TrackPolicy::ScriptTrack)

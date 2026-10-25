@@ -388,10 +388,20 @@ void SpriteInstance::for_each_layer(
 			continue;
 		}
 		if (layer.color_id >= 1 && layer.color_id <= 3 && (color_mask & (1u << layer.color_id)) != 0) {
+			// chara_color_block_apply_preset (0x2c2e08) copies the preset's
+			// colour0..colour2 into block slots 0..2 (colour3 is never copied by
+			// the preset path). The layer roles below were validated against the
+			// reference frame with an A/B/C/D slot-order sweep at Dr_OW_C_0
+			// frame 420: color_id 1 = dress, 2 = hair, 3 = torso.
 			static constexpr uint32_t preset_for_color[4] = {0, 1, 3, 0};
 			const uint32_t rgb = color_palette[preset_for_color[layer.color_id]] & 0x00FFFFFFu;
 			for (int k = 0; k < 4; ++k)
 				v.color[k] = (layer.color[k] & 0xFF000000u) | rgb;
+			// Hair can be recoloured by GradientMap00.ftx, but the LUT V
+			// coordinate (g_GradientMapPartsValue) is a CPU-supplied per-unit
+			// gradient value whose default we have not located yet. Until it is
+			// traced, leave v.gradient at -1 so the shader keeps the flat tint.
+			// The shader formula itself is exact (docs/GRADIENT_MAP.md).
 		}
 		if (blend_filter >= 0 && layer.blend != blend_filter)
 			continue;
@@ -475,10 +485,10 @@ void SpriteInstance::build_vertices(
 		if (!layer.drawn)
 			return;
 
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[0], {layer.xy[0], layer.depth}, layer.color[0]});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[1], {layer.xy[1], layer.depth}, layer.color[1]});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[2], {layer.xy[2], layer.depth}, layer.color[2]});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[3], {layer.xy[3], layer.depth}, layer.color[3]});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[0], {layer.xy[0], layer.depth}, layer.color[0], layer.gradient});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[1], {layer.xy[1], layer.depth}, layer.color[1], layer.gradient});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[2], {layer.xy[2], layer.depth}, layer.color[2], layer.gradient});
+		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[3], {layer.xy[3], layer.depth}, layer.color[3], layer.gradient});
 
 		indices.insert(indices.end(), {base, base + 1, base + 3, base + 1, base + 2, base + 3});
 		base += 4;
