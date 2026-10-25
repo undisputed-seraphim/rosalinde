@@ -297,6 +297,7 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			e.pos[1] = spec.y;
 			e.pos[2] = spec.z;
 			e.scale = spec.scale;
+			e.scale_y = spec.scale_y;
 			e.alpha = spec.alpha;
 			RenderItem object;
 			object.stage = true;
@@ -742,7 +743,8 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				alpha,
 				flip,
 				0.0f,
-				e.layer_mask);
+				e.layer_mask,
+				e.scale_y > 0.0f ? e.scale_y * camera_scale : 0.0f);
 		}
 	}
 }

@@ -74,6 +74,7 @@ struct RuntimeEntity {
 	uint32_t color_mask = 0;					// enabled s4.color_id bits
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	float scale = 1.0f;
+	float scale_y = 0.0f; // BBS object Y scale; 0 = uniform with `scale`
 	float dir_x = 1.0f;	 // facing: -1 mirrored, +1 default
 	int alpha = 255;	 // 0-255, from DrUiSetColorA (0 = not yet faded in)
 	long fade_start = 0; // alpha tween start (scene frame)

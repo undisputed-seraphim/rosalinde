@@ -163,7 +163,8 @@ void SpriteRenderer::draw(
 	float alpha,
 	bool flip_x,
 	float rotation,
-	uint32_t layer_mask) {
+	uint32_t layer_mask,
+	float scale_y) {
 	const auto& shader = GetKeyframeShader().Use();
 
 	glActiveTexture(GL_TEXTURE0);
@@ -174,7 +175,8 @@ void SpriteRenderer::draw(
 	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(offset, 0.0f));
 	if (rotation != 0.0f)
 		model = glm::rotate(model, rotation, glm::vec3(0.0f, 0.0f, 1.0f));
-	model = glm::scale(model, glm::vec3(flip_x ? -scale : scale, scale, 1.0f));
+	const float sy = scale_y > 0.0f ? scale_y : scale;
+	model = glm::scale(model, glm::vec3(flip_x ? -scale : scale, sy, 1.0f));
 	shader.SetUniform("u_alpha", alpha);
 	const glm::mat4 view_offset = cam.lookAt() * model;
 	uint32_t n = inst.sa_count();

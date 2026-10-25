@@ -40,7 +40,8 @@ public:
 		float alpha = 1.0f,
 		bool flip_x = false,
 		float rotation = 0.0f,
-		uint32_t layer_mask = 0xFFFFFFFFu);
+		uint32_t layer_mask = 0xFFFFFFFFu,
+		float scale_y = 0.0f);
 
 private:
 	GLuint _texture_array = 0;

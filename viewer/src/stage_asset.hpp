@@ -18,6 +18,7 @@ struct StageLayer {
 	float y = 0.0f;
 	float z = 0.0f;
 	float scale = 1.0f;
+	float scale_y = 0.0f; // BBS Y scale; 0 = uniform with `scale`
 	int alpha = 255;
 	int order = 0;
 };

@@ -176,6 +176,7 @@ std::optional<StageComposition> FieldCatalog::bbs_background(int stage_type) {
 		placed.y = object.y;
 		placed.z = object.z;
 		placed.scale = object.scale_x > 0.0f ? object.scale_x : 1.0f;
+		placed.scale_y = object.scale_y > 0.0f ? object.scale_y : placed.scale;
 		placed.alpha = std::clamp(static_cast<int>(std::lround(object.alpha * 255.0f)), 0, 255);
 		placed.order = static_cast<int>(i);
 		result.layers.push_back(std::move(placed));
