@@ -18,6 +18,7 @@ struct SpriteVertex {
 	glm::vec2 uv;
 	glm::vec3 xyz;
 	uint32_t color;
+	float gradient;
 };
 #pragma pack(pop)
 
@@ -127,6 +128,7 @@ struct LayerVisit {
 	uint32_t attributes = 0;
 	uint8_t blend = 0;
 	const char* skip = "";
+	float gradient = -1.0f;
 	float depth = 0.0f;
 	float transition_t = 1.0f;
 	glm::vec4 s6_bounds{};
@@ -156,6 +158,7 @@ struct SpriteInstance {
 	uint32_t attribute_mask = 0;
 	uint32_t color_mask = 0;
 	uint32_t color_palette[4] = {};
+	uint8_t appearance[8] = {};
 	SpritePlaybackOptions options = sprite_playback_options();
 
 	uint32_t current_sequence = 0; // Mone: current sequence drawn even when inactive
