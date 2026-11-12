@@ -87,7 +87,8 @@ public:
 	void set_stage_table(const StageTable& t) { _stages = &t; }
 	void set_drop_tables(const DropTables& d) { _drops = &d; }
 	void set_sound_length(std::function<int(int)> fn) { _sound_length = std::move(fn); }
-	void set_play_voice(std::function<int(int)> fn) { _play_voice = std::move(fn); }
+	void set_play_voice(std::function<int(int, long)> fn) { _play_voice = std::move(fn); }
+	void set_message_text(std::function<std::string(int)> fn) { _message_text = std::move(fn); }
 	void set_message_timing(const MessageTiming& timing) { _message_timing = timing; }
 
 	// Persistent progression shared across sessions. When unset the registry
@@ -335,7 +336,8 @@ private:
 	const StageTable* _stages = nullptr;
 	const DropTables* _drops = nullptr;
 	std::function<int(int)> _sound_length;
-	std::function<int(int)> _play_voice;
+	std::function<int(int, long)> _play_voice;
+	std::function<std::string(int)> _message_text;
 	MessageTiming _message_timing;
 	Timeline _timeline;
 	std::unordered_map<std::string, int> _by_name;

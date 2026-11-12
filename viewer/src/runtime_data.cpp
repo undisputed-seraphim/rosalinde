@@ -9,6 +9,7 @@
 
 #include <criware/cpk.hpp>
 #include <impl/dbreg.hpp>
+#include <impl/fms.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -23,8 +24,8 @@
 
 namespace {
 
-bool read_cpk_entry(const cpk::archive& archive, const char* name, std::vector<char>& out) {
-	const auto entry = archive.find("DbReg", name);
+bool read_cpk_entry(const cpk::archive& archive, std::string_view path, std::vector<char>& out) {
+	const auto entry = archive.find(path);
 	if (entry == archive.end())
 		return false;
 	try {
@@ -38,8 +39,8 @@ bool read_cpk_entry(const cpk::archive& archive, const char* name, std::vector<c
 std::optional<asb::MessageTiming> load_message_timing(const cpk::archive& archive) {
 	std::vector<char> catalog_bytes;
 	std::vector<char> value_bytes;
-	if (!read_cpk_entry(archive, "DbRegDb.drg", catalog_bytes) ||
-		!read_cpk_entry(archive, "DbReg.drg", value_bytes))
+	if (!read_cpk_entry(archive, "DbReg/DbRegDb.drg", catalog_bytes) ||
+		!read_cpk_entry(archive, "DbReg/DbReg.drg", value_bytes))
 		return std::nullopt;
 
 	const auto as_bytes = [](const std::vector<char>& bytes) {
@@ -84,6 +85,17 @@ std::optional<asb::MessageTiming> load_message_timing(const cpk::archive& archiv
 		timing.sprite_per_char,
 		timing.select_wait);
 	return timing;
+}
+
+std::shared_ptr<const fms::table> load_message_table(const cpk::archive& archive) {
+	std::vector<char> bytes;
+	if (!read_cpk_entry(archive, "MsgSheet/UcScriptMsgConv.fms", bytes))
+		return nullptr;
+	auto table = fms::parse_fms(
+		std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size()));
+	if (!table)
+		return nullptr;
+	return std::make_shared<fms::table>(std::move(*table));
 }
 
 } // namespace
@@ -145,6 +157,15 @@ load_viewer_runtime_data(const cpk::archive& archive, const std::string& chara_t
 	if (const auto timing = load_message_timing(archive))
 		data.message_timing = *timing;
 
+	if (auto table = load_message_table(archive)) {
+		data.message_text = [table](int id) -> std::string {
+			if (id < 0 || static_cast<size_t>(id) >= table->strings.size())
+				return {};
+			return table->strings[static_cast<size_t>(id)].text;
+		};
+		spdlog::debug("fms: message table loaded, {} entries", table->strings.size());
+	}
+
 	data.voice_lines = std::make_shared<viewer::VoiceLines>();
 	std::filesystem::path voice_path = base / "voice_line_table.tsv";
 	if (!std::filesystem::exists(voice_path) && base.filename() == "generated")
@@ -164,5 +185,7 @@ void configure_host(asb::Host& host, const ViewerRuntimeData& data) {
 	host.set_drop_tables(data.drops);
 	if (data.sound_length)
 		host.set_sound_length(data.sound_length);
+	if (data.message_text)
+		host.set_message_text(data.message_text);
 	host.set_message_timing(data.message_timing);
 }

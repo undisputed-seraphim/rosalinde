@@ -53,15 +53,18 @@ DramaSession::DramaSession(
 		options.master_volume = config.audio_volume;
 		_audio = std::make_unique<viewer::AudioEngine>(_runtime.audio_banks, std::move(options));
 	}
-	_host.set_play_voice([this](int text_id) -> int {
+	_host.set_play_voice([this](int text_id, long at_frame) -> int {
 		if (!_runtime.voice_lines)
 			return 0;
 		const auto cue = _runtime.voice_lines->cue_for_text(static_cast<uint32_t>(text_id));
-		if (!cue)
+		if (!cue) {
+			spdlog::debug("voice: no cue for text={} at={}", text_id, at_frame);
 			return 0;
+		}
 		const int frames = _runtime.audio_banks ? _runtime.audio_banks->cue_length_frames(*cue) : 0;
+		spdlog::debug("voice: text={} cue={} at={} frames={}", text_id, *cue, at_frame, frames);
 		if (_audio)
-			_audio->play_voice(*cue);
+			_audio->play_voice(*cue, at_frame);
 		return frames;
 	});
 

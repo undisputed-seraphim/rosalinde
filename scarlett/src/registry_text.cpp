@@ -82,38 +82,19 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 	};
 
 	auto emit =
-		[&](RuntimeText::Kind kind, std::string speaker, std::string text, int ids_arg, int balloon_arg, int pos_arg)
-		-> RuntimeText& {
+		[&](RuntimeText::Kind kind,
+			std::string speaker,
+			std::string text,
+			std::vector<int> ids,
+			int balloon_arg,
+			int pos_arg,
+			long at_frame) -> RuntimeText& {
 		RuntimeText entry;
-		entry.frame = frame;
+		entry.frame = at_frame;
 		entry.kind = kind;
 		entry.speaker = std::move(speaker);
 		entry.text = std::move(text);
-		if (ids_arg >= 0) {
-			if (auto* array = static_cast<CScriptArray*>(gen->GetArgObject(ids_arg))) {
-				const asUINT count = array->GetSize();
-				const asUINT probe = std::min<asUINT>(count, 64);
-				bool all_zero = true;
-				for (asUINT i = 0; i < probe; ++i) {
-					const int value = *static_cast<const int*>(array->At(i));
-					if (value != 0) {
-						all_zero = false;
-						break;
-					}
-				}
-				if (count > 0 && all_zero) {
-					// The game's `$fact(int)` message helper builds a zero-filled
-					// array whose length is the local message id.
-					const int id = static_cast<int>(count);
-					entry.ids.push_back(id < 0x10000 ? id + 0x10000 : id);
-				} else if (!all_zero) {
-					for (asUINT i = 0; i < probe; ++i) {
-						int value = *static_cast<const int*>(array->At(i));
-						entry.ids.push_back(value >= 0 && value < 0x10000 ? value + 0x10000 : value);
-					}
-				}
-			}
-		}
+		entry.ids = std::move(ids);
 		if (balloon_arg >= 0) {
 			if (BalloonParam* balloon = balloon_of(balloon_arg)) {
 				entry.disp_type = balloon->disp_type;
@@ -124,12 +105,12 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 		}
 		if (pos_arg >= 0)
 			args.vec2(pos_arg, entry.pos);
-		entry.end = frame + text_wait(kind, entry.text);
+		entry.end = at_frame + text_wait(kind, entry.text);
 		if (text_trace()) {
 			std::fprintf(
 				stderr,
 				"[text f=%ld] kind=%d speaker=\"%s\" disp=%d name=%d dir=%d flags=%x pos=(%.1f,%.1f): %s\n",
-				frame,
+				at_frame,
 				static_cast<int>(kind),
 				entry.speaker.c_str(),
 				entry.disp_type,
@@ -144,22 +125,86 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 		return _timeline.texts.back();
 	};
 
-	auto play_voice_ids = [this](const RuntimeText& entry) -> long {
-		long frames = 0;
-		if (!_play_voice)
-			return frames;
-		for (int id : entry.ids)
-			if (id >= 0)
-				frames = std::max(frames, static_cast<long>(_play_voice(id)));
-		return frames;
+	auto parse_ids = [&](int ids_arg) -> std::vector<int> {
+		std::vector<int> ids;
+		if (ids_arg < 0)
+			return ids;
+		auto* array = static_cast<CScriptArray*>(gen->GetArgObject(ids_arg));
+		if (!array)
+			return ids;
+		const asUINT count = array->GetSize();
+		const asUINT probe = std::min<asUINT>(count, 64);
+		bool all_zero = true;
+		for (asUINT i = 0; i < probe; ++i) {
+			if (*static_cast<const int*>(array->At(i)) != 0) {
+				all_zero = false;
+				break;
+			}
+		}
+		if (count > 0 && all_zero) {
+			// The game's `$fact(int)` message helper builds a zero-filled
+			// array whose length is the local message id.
+			const int id = static_cast<int>(count);
+			ids.push_back(id < 0x10000 ? id + 0x10000 : id);
+		} else if (!all_zero) {
+			for (asUINT i = 0; i < probe; ++i) {
+				const int value = *static_cast<const int*>(array->At(i));
+				ids.push_back(value >= 0 && value < 0x10000 ? value + 0x10000 : value);
+			}
+		}
+		return ids;
 	};
 
-	auto apply_voice_wait = [&](RuntimeText& entry, long voice_frames) {
+	auto play_voice_id = [this](int id, long at_frame) -> long {
+		if (!_play_voice || id < 0)
+			return 0;
+		return std::max<long>(0, _play_voice(id, at_frame));
+	};
+
+	auto page_end = [&](RuntimeText& entry, long voice_frames) {
 		if (voice_frames <= 0)
 			return;
 		const long text_frames = std::max(1L, entry.end - entry.frame);
-		const long voice_wait = std::max<long>(_message_timing.voice_wait_min, voice_frames);
-		entry.end = entry.frame + voice_wait + text_frames;
+		entry.end = entry.frame + std::max<long>(_message_timing.voice_wait_min, voice_frames) + text_frames;
+	};
+
+	auto message_page_text = [this](int id) -> std::string {
+		if (!_message_text || id < 0)
+			return {};
+		return _message_text(id);
+	};
+
+	// A message-id array holds one page per id. The game pops the pages in
+	// order, so each page gets its own voice, voice wait and text wait.
+	auto emit_message = [&](RuntimeText::Kind kind,
+							std::string speaker,
+							std::string text,
+							int ids_arg,
+							int balloon_arg,
+							int pos_arg) {
+		std::vector<int> ids = parse_ids(ids_arg);
+		if (ids.size() <= 1 || !_message_text) {
+			RuntimeText& entry =
+				emit(kind, std::move(speaker), std::move(text), std::move(ids), balloon_arg, pos_arg, frame);
+			page_end(entry, play_voice_id(entry.ids.empty() ? -1 : entry.ids.front(), frame));
+			return;
+		}
+
+		long page_start = frame;
+		for (size_t i = 0; i < ids.size(); ++i) {
+			const int id = ids[i];
+			std::string page = message_page_text(id);
+			if (page.empty()) {
+				if (i == 0)
+					page = text;
+				else
+					spdlog::debug("text: no page text for message id {}", id);
+			}
+			RuntimeText& entry =
+				emit(kind, speaker, std::move(page), std::vector<int>{id}, balloon_arg, pos_arg, page_start);
+			page_end(entry, play_voice_id(id, page_start));
+			page_start = entry.end;
+		}
 	};
 
 	// Msg/Dialog/Select block until the message has been read; park the script
@@ -228,53 +273,56 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 
 	if (name == "Msg" || name == "MsgScreen") {
 		const bool screen = name == "MsgScreen";
-		RuntimeText& entry =
-			emit(screen ? RuntimeText::Kind::Screen : RuntimeText::Kind::Msg, args.str(0), args.str(1), 2, 3, 4);
-		apply_voice_wait(entry, play_voice_ids(entry));
+		emit_message(
+			screen ? RuntimeText::Kind::Screen : RuntimeText::Kind::Msg, args.str(0), args.str(1), 2, 3, 4);
 		block_text();
 		return DispatchResult::Handled;
 	}
 	if (name == "MsgAsync" || name == "MsgScreenAsync") {
-		RuntimeText& entry = emit(
+		emit_message(
 			name == "MsgScreenAsync" ? RuntimeText::Kind::Screen : RuntimeText::Kind::Msg,
 			args.str(0),
 			args.str(1),
 			2,
 			3,
 			4);
-		apply_voice_wait(entry, play_voice_ids(entry));
 		return DispatchResult::Handled;
 	}
 	if (name == "SelectMsg" || name == "SelectMsgScreen") {
-		RuntimeText& entry = emit(RuntimeText::Kind::Select, args.str(0), args.str(1), 2, 3, 4);
-		apply_voice_wait(entry, play_voice_ids(entry));
+		emit_message(RuntimeText::Kind::Select, args.str(0), args.str(1), 2, 3, 4);
 		_select_result = 0; // deterministic default: first option
 		block_text();
 		return DispatchResult::Handled;
 	}
 	if (name == "MsgStageVoice") {
-		emit(RuntimeText::Kind::Msg, args.str(0), {}, -1, 2, 3);
+		emit(RuntimeText::Kind::Msg, args.str(0), {}, {}, 2, 3, frame);
 		block_text();
 		return DispatchResult::Handled;
 	}
 	if (name == "Dialog" || name == "YNDialog") {
-		emit(name == "YNDialog" ? RuntimeText::Kind::YesNo : RuntimeText::Kind::Dialog, {}, args.str(0), -1, -1, -1);
+		emit(name == "YNDialog" ? RuntimeText::Kind::YesNo : RuntimeText::Kind::Dialog,
+			 {},
+			 args.str(0),
+			 {},
+			 -1,
+			 -1,
+			 frame);
 		if (name == "YNDialog")
 			_select_result = 0;
 		block_text();
 		return DispatchResult::Handled;
 	}
 	if (name == "CommonMsg") {
-		emit(RuntimeText::Kind::Msg, {}, args.str(0), -1, -1, -1);
+		emit(RuntimeText::Kind::Msg, {}, args.str(0), {}, -1, -1, frame);
 		block_text();
 		return DispatchResult::Handled;
 	}
 	if (name == "StShowTutorialMsg") {
-		emit(RuntimeText::Kind::Msg, {}, args.str(1), -1, -1, -1);
+		emit(RuntimeText::Kind::Msg, {}, args.str(1), {}, -1, -1, frame);
 		return DispatchResult::Handled;
 	}
 	if (name == "Message") {
-		RuntimeText& entry = emit(RuntimeText::Kind::Message, {}, args.str(0), -1, -1, -1);
+		RuntimeText& entry = emit(RuntimeText::Kind::Message, {}, args.str(0), {}, -1, -1, frame);
 		entry.end = 0; // banner is open until CloseMessage()
 		if (args.i32(1) >= 0)
 			entry.ids.push_back(args.i32(1));
@@ -310,7 +358,7 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 		return DispatchResult::Handled;
 	}
 	if (name == "CreateSpriteText") {
-		RuntimeText& entry = emit(RuntimeText::Kind::Sprite, args.str(0), args.str(1), -1, -1, 3);
+		RuntimeText& entry = emit(RuntimeText::Kind::Sprite, args.str(0), args.str(1), {}, -1, 3, frame);
 		if (gen->GetArgCount() > 9) {
 			const int period = args.i32(9);
 			if (period >= 0)

@@ -215,14 +215,27 @@ bool AudioEngine::play(Bus bus, AudioBanks::Group group, uint32_t cue, int fade_
 		voice.envelope = 1.0f;
 	_voices.push_back(std::move(voice));
 
-	spdlog::debug(
-		"audio: play bus={} cue={} frames={} loop={} fade={} start_ms={}",
-		static_cast<int>(bus),
-		cue,
-		_voices.back().audio->num_frames,
-		_voices.back().audio->loop,
-		fade_frames,
-		start_ms);
+	const uint64_t num_frames = _voices.back().audio->num_frames;
+	const uint32_t sample_rate = _voices.back().audio->sample_rate;
+	if (bus == Bus::Voice)
+		spdlog::info(
+			"audio: voice cue={} frame={} frames={} ({} ms)",
+			cue,
+			_frame,
+			num_frames,
+			sample_rate ? static_cast<uint64_t>(std::llround(
+							  static_cast<double>(num_frames) * 1000.0 / static_cast<double>(sample_rate)))
+						: 0);
+	else
+		spdlog::debug(
+			"audio: play bus={} cue={} frame={} frames={} loop={} fade={} start_ms={}",
+			static_cast<int>(bus),
+			cue,
+			_frame,
+			num_frames,
+			_voices.back().audio->loop,
+			fade_frames,
+			start_ms);
 	return true;
 }
 
@@ -245,6 +258,8 @@ void AudioEngine::stop_bus(Bus bus, int fade_frames) {
 }
 
 void AudioEngine::stop_bus_locked(Bus bus, int fade_frames) {
+	if (bus == Bus::Voice)
+		_pending_voices.clear();
 	for (auto& voice : _voices) {
 		if (voice.bus != static_cast<uint8_t>(bus) || voice.stop_at_end)
 			continue;
@@ -254,6 +269,11 @@ void AudioEngine::stop_bus_locked(Bus bus, int fade_frames) {
 
 void AudioEngine::stop_cue(Bus bus, uint32_t cue, int fade_frames) {
 	std::lock_guard lock(_mutex);
+	if (bus == Bus::Voice) {
+		std::erase_if(_pending_voices, [cue](const PendingVoice& pending) {
+			return cue == 0 || pending.cue == cue;
+		});
+	}
 	for (auto& voice : _voices) {
 		if (voice.bus != static_cast<uint8_t>(bus) || voice.stop_at_end)
 			continue;
@@ -280,6 +300,7 @@ void AudioEngine::handle(const asb::RuntimeAudio& event) {
 	++_events;
 	if (!_active)
 		return;
+	spdlog::debug("audio: event kind={} cue={} frame={} target={}", event.kind, event.cue, event.frame, event.target);
 	const int fade = std::max(0, event.fade);
 	if (event.kind == "bgm") {
 		play(Bus::Bgm, AudioBanks::Group::Bgm, static_cast<uint32_t>(std::max(0, event.cue)), fade);
@@ -400,6 +421,23 @@ void AudioEngine::mix(float* out, int frames) {
 }
 
 void AudioEngine::tick(long frame) {
+	_frame = frame;
+	if (_active && !_pending_voices.empty()) {
+		std::vector<uint32_t> due;
+		{
+			std::lock_guard lock(_mutex);
+			for (auto it = _pending_voices.begin(); it != _pending_voices.end();) {
+				if (it->frame <= frame) {
+					due.push_back(it->cue);
+					it = _pending_voices.erase(it);
+				} else {
+					++it;
+				}
+			}
+		}
+		for (uint32_t cue : due)
+			play_voice(cue);
+	}
 	if (!_offline || frame <= _last_frame)
 		return;
 	const uint64_t target =
@@ -435,9 +473,10 @@ void AudioEngine::write_wav(const float* samples, size_t frames) {
 void AudioEngine::stop_all() {
 	std::lock_guard lock(_mutex);
 	_voices.clear();
+	_pending_voices.clear();
 }
 
-void AudioEngine::play_voice(uint32_t cue) {
+void AudioEngine::play_voice(uint32_t cue, long at_frame) {
 	if (!_active || !_banks || cue == 0)
 		return;
 	{
@@ -445,6 +484,14 @@ void AudioEngine::play_voice(uint32_t cue) {
 		for (const auto& voice : _voices) {
 			if (voice.bus == static_cast<uint8_t>(Bus::Voice) && voice.cue == cue && !voice.stop_at_end)
 				return;
+		}
+		for (const auto& pending : _pending_voices) {
+			if (pending.cue == cue)
+				return;
+		}
+		if (at_frame > _frame) {
+			_pending_voices.push_back({at_frame, cue});
+			return;
 		}
 	}
 	play(Bus::Voice, AudioBanks::Group::Voice, cue, 0);

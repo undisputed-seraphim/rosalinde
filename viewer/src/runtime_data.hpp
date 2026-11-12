@@ -29,6 +29,7 @@ struct ViewerRuntimeData {
 	std::shared_ptr<viewer::AudioBanks> audio_banks;
 	std::shared_ptr<viewer::VoiceLines> voice_lines;
 	std::function<int(int)> sound_length;
+	std::function<std::string(int)> message_text;
 	asb::MessageTiming message_timing;
 };
 

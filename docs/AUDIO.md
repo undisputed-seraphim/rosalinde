@@ -82,6 +82,29 @@ Messages without a voice use only the text term. `CreateSpriteText` uses the
 second `PERIOD_WAIT_TIME_VOICE_OFF` entry, or the script's explicit
 `_nPeriodWaitTimer` when it is non-negative.
 
+## Message pages
+
+A `Msg`/`MsgAsync` message-id array is a list of pages, not simultaneous
+speakers. The executable pushes one page record per id and pops them in order,
+each with its own text, voice cue, voice wait and text wait. The viewer does the
+same: `viewer/src/runtime_data.cpp` parses `MsgSheet/UcScriptMsgConv.fms` at
+runtime with the `fms` parser in `src/impl`, so each page gets the game's text
+and rendered character count. Page voices are scheduled at the page start
+frame through `AudioEngine::play_voice(cue, at_frame)`; a scheduled voice is
+started by `AudioEngine::tick` when the scene reaches its frame.
+
+The first page falls back to the script's literal text when the message table
+is unavailable. Single-id messages keep the script text.
+
+Voice starts are logged at INFO level:
+
+```text
+audio: voice cue=1019104 frame=673 frames=78504 (1636 ms)
+```
+
+`--headless --audio` simulates the timeline without a playback device, so those
+lines are the easiest way to inspect dialogue timing.
+
 ## Flags
 
 | Flag | Effect |

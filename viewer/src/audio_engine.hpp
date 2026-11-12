@@ -41,7 +41,7 @@ public:
 	void handle(const asb::RuntimeAudio& event);
 	void tick(long frame);
 	void stop_all();
-	void play_voice(uint32_t cue);
+	void play_voice(uint32_t cue, long at_frame = -1);
 
 	std::string state_json() const;
 	std::string summary() const;
@@ -76,6 +76,11 @@ private:
 		uint64_t fade_position = 0;
 	};
 
+	struct PendingVoice {
+		long frame = 0;
+		uint32_t cue = 0;
+	};
+
 	static void sdl_callback(void* userdata, SDL_AudioStream* stream, int additional_amount, int total_amount);
 
 	static constexpr size_t bus_count = 4;
@@ -103,11 +108,13 @@ private:
 	bool _sdl_audio_started = false;
 	size_t _rendered_frames = 0;
 	long _last_frame = 0;
+	long _frame = 0;
 	uint64_t _events = 0;
 	uint32_t _stage_bgm = 0;
 
 	mutable std::mutex _mutex;
 	std::vector<Voice> _voices;
+	std::vector<PendingVoice> _pending_voices;
 	BusState _buses[static_cast<size_t>(Bus::Count)];
 	float _master = 1.0f;
 	std::ofstream _wav_file;

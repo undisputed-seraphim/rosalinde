@@ -81,7 +81,10 @@ public:
 	// Optional sound cue length resolver (frames), used by `GetSoundLength`.
 	void set_sound_length(std::function<int(int)> fn);
 	// Optional message text -> voice callback, returning the cue length in frames.
-	void set_play_voice(std::function<int(int)> fn);
+	// `at_frame` schedules the cue for a later scene frame (message pages).
+	void set_play_voice(std::function<int(int, long)> fn);
+	// Optional message-id -> page text resolver (MsgSheet/UcScriptMsgConv.fms).
+	void set_message_text(std::function<std::string(int)> fn);
 	// Message auto-advance timing (DbReg defaults).
 	void set_message_timing(const MessageTiming& timing);
 
