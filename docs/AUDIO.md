@@ -56,6 +56,32 @@ message ID; the registry records that length instead of the zero elements.
 IDs below `0x10000` are local script message IDs and are shifted by `0x10000`;
 larger IDs are already global text indices.
 
+## Message timing
+
+The viewer parses `DbReg/DbRegDb.drg` and `DbReg/DbReg.drg` at runtime with the
+`dbreg` parser in `src/impl`. The message auto-advance defaults are:
+
+| Key | Default | Use |
+|-----|--------:|-----|
+| `VOICE_WAIT_MIN` | 90 | minimum voice wait, frames |
+| `PERIOD_WAIT_TIME_VOICE_OFF` | 2 | text wait per rendered character, normal message |
+| `PERIOD_WAIT_TIME_VOICE_OFF_MIN` | 30 | minimum text wait, frames |
+| `PERIOD_WAIT_TIME_VOICE_OFF` (second entry) | 7 | text wait per character, sprite/demo text |
+| `PERIOD_WAIT_TIME_VOICE_ON` | 20 | parsed; not used by the normal `Msg` timer |
+| `SELECTMSG_WAIT` | 80 | parsed for selection-message timing |
+
+For a voiced `Msg`, the wait is:
+
+```text
+max(voice_length_frames, VOICE_WAIT_MIN)
++ max(PERIOD_WAIT_TIME_VOICE_OFF * rendered_chars,
+      PERIOD_WAIT_TIME_VOICE_OFF_MIN)
+```
+
+Messages without a voice use only the text term. `CreateSpriteText` uses the
+second `PERIOD_WAIT_TIME_VOICE_OFF` entry, or the script's explicit
+`_nPeriodWaitTimer` when it is non-negative.
+
 ## Flags
 
 | Flag | Effect |

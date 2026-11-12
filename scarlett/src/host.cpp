@@ -402,7 +402,8 @@ struct Host::Impl {
 	const StageTable* stages = nullptr;
 	const DropTables* drops = nullptr;
 	std::function<int(int)> sound_length;
-	std::function<void(int)> play_voice;
+	std::function<int(int)> play_voice;
+	MessageTiming message_timing;
 };
 
 Host::Host()
@@ -781,7 +782,9 @@ void Host::set_drop_tables(const DropTables& drops) { _impl->drops = &drops; }
 
 void Host::set_sound_length(std::function<int(int)> fn) { _impl->sound_length = std::move(fn); }
 
-void Host::set_play_voice(std::function<void(int)> fn) { _impl->play_voice = std::move(fn); }
+void Host::set_play_voice(std::function<int(int)> fn) { _impl->play_voice = std::move(fn); }
+
+void Host::set_message_timing(const MessageTiming& timing) { _impl->message_timing = timing; }
 
 struct RuntimeSession::Impl {
 	asIScriptEngine* engine = nullptr;
@@ -827,6 +830,7 @@ RuntimeSession::RuntimeSession(Host& host, std::string source, SaveState* save)
 		_impl->reg.set_sound_length(h->sound_length);
 	if (h->play_voice)
 		_impl->reg.set_play_voice(h->play_voice);
+	_impl->reg.set_message_timing(h->message_timing);
 	_impl->reg.set_save_state(save);
 }
 

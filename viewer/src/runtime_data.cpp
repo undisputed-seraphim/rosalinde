@@ -8,11 +8,85 @@
 #include <scarlett/host.hpp>
 
 #include <criware/cpk.hpp>
+#include <impl/dbreg.hpp>
 
+#include <spdlog/spdlog.h>
+
+#include <bit>
+#include <cmath>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
+#include <vector>
+
+namespace {
+
+bool read_cpk_entry(const cpk::archive& archive, const char* name, std::vector<char>& out) {
+	const auto entry = archive.find("DbReg", name);
+	if (entry == archive.end())
+		return false;
+	try {
+		archive.extract(*entry, out);
+	} catch (const std::exception&) {
+		return false;
+	}
+	return true;
+}
+
+std::optional<asb::MessageTiming> load_message_timing(const cpk::archive& archive) {
+	std::vector<char> catalog_bytes;
+	std::vector<char> value_bytes;
+	if (!read_cpk_entry(archive, "DbRegDb.drg", catalog_bytes) ||
+		!read_cpk_entry(archive, "DbReg.drg", value_bytes))
+		return std::nullopt;
+
+	const auto as_bytes = [](const std::vector<char>& bytes) {
+		return std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size());
+	};
+	const auto catalog = dbreg::parse(as_bytes(catalog_bytes));
+	const auto values = dbreg::parse(as_bytes(value_bytes));
+	if (!catalog || !values || catalog->type != dbreg::kind::catalog || values->type != dbreg::kind::values)
+		return std::nullopt;
+
+	asb::MessageTiming timing;
+	int voice_off_seen = 0;
+	for (size_t i = 0; i < catalog->keys.size(); ++i) {
+		const auto key = catalog->keys[i].key_view();
+		int value = 0;
+		if (i < values->values.size())
+			value = static_cast<int>(std::lround(std::bit_cast<float>(values->values[i])));
+		else
+			value = static_cast<int>(std::lround(catalog->keys[i].default_value));
+
+		if (key == "VOICE_WAIT_MIN")
+			timing.voice_wait_min = value;
+		else if (key == "PERIOD_WAIT_TIME_VOICE_OFF_MIN")
+			timing.voice_off_min = value;
+		else if (key == "PERIOD_WAIT_TIME_VOICE_OFF") {
+			if (voice_off_seen++ == 0)
+				timing.voice_off_per_char = value;
+			else
+				timing.sprite_per_char = value;
+		} else if (key == "PERIOD_WAIT_TIME_VOICE_ON")
+			timing.voice_on_extra = value;
+		else if (key == "SELECTMSG_WAIT")
+			timing.select_wait = value;
+	}
+
+	spdlog::debug(
+		"dbreg: message timing voice_min={} off={}/char off_min={} on={} sprite={}/char select={}",
+		timing.voice_wait_min,
+		timing.voice_off_per_char,
+		timing.voice_off_min,
+		timing.voice_on_extra,
+		timing.sprite_per_char,
+		timing.select_wait);
+	return timing;
+}
+
+} // namespace
 
 ViewerRuntimeData
 load_viewer_runtime_data(const cpk::archive& archive, const std::string& chara_table, const std::string& data_dir) {
@@ -68,6 +142,9 @@ load_viewer_runtime_data(const cpk::archive& archive, const std::string& chara_t
 	data.sound_length = [banks = data.audio_banks](int cue) {
 		return cue > 0 ? banks->cue_length_frames(static_cast<uint32_t>(cue)) : 0;
 	};
+	if (const auto timing = load_message_timing(archive))
+		data.message_timing = *timing;
+
 	data.voice_lines = std::make_shared<viewer::VoiceLines>();
 	std::filesystem::path voice_path = base / "voice_line_table.tsv";
 	if (!std::filesystem::exists(voice_path) && base.filename() == "generated")
@@ -87,4 +164,5 @@ void configure_host(asb::Host& host, const ViewerRuntimeData& data) {
 	host.set_drop_tables(data.drops);
 	if (data.sound_length)
 		host.set_sound_length(data.sound_length);
+	host.set_message_timing(data.message_timing);
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <scarlett/asb.hpp>
+#include <scarlett/text_timing.hpp>
 
 #include <functional>
 #include <memory>
@@ -28,6 +29,7 @@ struct ViewerRuntimeData {
 	std::shared_ptr<viewer::AudioBanks> audio_banks;
 	std::shared_ptr<viewer::VoiceLines> voice_lines;
 	std::function<int(int)> sound_length;
+	asb::MessageTiming message_timing;
 };
 
 ViewerRuntimeData

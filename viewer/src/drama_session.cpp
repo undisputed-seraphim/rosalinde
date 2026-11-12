@@ -53,11 +53,16 @@ DramaSession::DramaSession(
 		options.master_volume = config.audio_volume;
 		_audio = std::make_unique<viewer::AudioEngine>(_runtime.audio_banks, std::move(options));
 	}
-	_host.set_play_voice([this](int text_id) {
-		if (!_audio || !_runtime.voice_lines)
-			return;
-		if (const auto cue = _runtime.voice_lines->cue_for_text(static_cast<uint32_t>(text_id)))
+	_host.set_play_voice([this](int text_id) -> int {
+		if (!_runtime.voice_lines)
+			return 0;
+		const auto cue = _runtime.voice_lines->cue_for_text(static_cast<uint32_t>(text_id));
+		if (!cue)
+			return 0;
+		const int frames = _runtime.audio_banks ? _runtime.audio_banks->cue_length_frames(*cue) : 0;
+		if (_audio)
 			_audio->play_voice(*cue);
+		return frames;
 	});
 
 	_host.set_call_log({});
