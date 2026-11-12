@@ -86,6 +86,7 @@ public:
 	void set_stage_table(const StageTable& t) { _stages = &t; }
 	void set_drop_tables(const DropTables& d) { _drops = &d; }
 	void set_sound_length(std::function<int(int)> fn) { _sound_length = std::move(fn); }
+	void set_play_voice(std::function<void(int)> fn) { _play_voice = std::move(fn); }
 
 	// Persistent progression shared across sessions. When unset the registry
 	// keeps its own local save.
@@ -332,6 +333,7 @@ private:
 	const StageTable* _stages = nullptr;
 	const DropTables* _drops = nullptr;
 	std::function<int(int)> _sound_length;
+	std::function<void(int)> _play_voice;
 	Timeline _timeline;
 	std::unordered_map<std::string, int> _by_name;
 	bool _dirty = false;

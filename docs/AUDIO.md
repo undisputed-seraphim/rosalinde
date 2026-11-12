@@ -30,6 +30,32 @@ that carry several waveforms are mixed as one sound.
 frames. ACB `LoopFlag == 2` marks a cue as looping; loop points come from
 `WaveformExtensionDataTable`.
 
+## Dialogue voices
+
+`Msg`/`MsgAsync`/`SelectMsg` receive a message-ID array. `Registry` forwards
+those IDs through the host's `set_play_voice` callback. The viewer resolves each
+ID through `viewer/data/voice_line_table.tsv`, which maps
+`UcScriptMsgConv.fms` text indices to `voice_jp.acb` cue IDs, then plays the cue
+on the voice bus. Cues that are already active are not restarted. Narration
+created with `CreateSpriteText` is driven by the script's own `PlaySE` calls, so
+the viewer does not duplicate it.
+
+The table is stored raw, one row per binary entry. `VoiceLines` sorts it by text
+index and uses `std::lower_bound`, so the first entry for a duplicated index
+wins just like the game's binary search. The file is extracted from the game
+executable:
+
+```bash
+python3 tools/extract_voice_lines.py \
+  --elf ~/zwei/unicorn_overlord/main2.elf \
+  --out viewer/data/voice_line_table.tsv
+```
+
+Script `$fact(int)` calls produce a zero-filled array whose **length** is the
+message ID; the registry records that length instead of the zero elements.
+IDs below `0x10000` are local script message IDs and are shifted by `0x10000`;
+larger IDs are already global text indices.
+
 ## Flags
 
 | Flag | Effect |

@@ -3,6 +3,7 @@
 #include "asset_loader.hpp"
 #include "runtime_data.hpp"
 #include "tables.hpp"
+#include "voice_lines.hpp"
 
 #include <criware/cpk.hpp>
 #include <scarlett/animation.hpp>
@@ -43,6 +44,22 @@ DramaSession::DramaSession(
 	const std::string data_dir = config.data_dir.empty() ? viewer_data_dir() : config.data_dir;
 	_runtime = load_viewer_runtime_data(_loader.cpk(), config.chara_table, data_dir);
 	configure_host(_host, _runtime);
+
+	if (config.audio || !config.audio_wav.empty()) {
+		viewer::AudioEngine::Options options;
+		options.realtime = config.audio && !config.headless && config.audio_wav.empty();
+		options.offline = config.headless || !config.audio_wav.empty();
+		options.wav_path = config.audio_wav;
+		options.master_volume = config.audio_volume;
+		_audio = std::make_unique<viewer::AudioEngine>(_runtime.audio_banks, std::move(options));
+	}
+	_host.set_play_voice([this](int text_id) {
+		if (!_audio || !_runtime.voice_lines)
+			return;
+		if (const auto cue = _runtime.voice_lines->cue_for_text(static_cast<uint32_t>(text_id)))
+			_audio->play_voice(*cue);
+	});
+
 	_host.set_call_log({});
 	_host.set_track_frames([this](const std::string& mbs, int index) { return _mbs.get(mbs).duration(index); });
 	_host.set_track_info([this](const std::string& mbs, int index) {
@@ -90,14 +107,6 @@ DramaSession::DramaSession(
 	if (!_session->start(fn, prelude))
 		throw std::runtime_error("could not start " + config.script + ": " + _session->error());
 
-	if (config.audio || !config.audio_wav.empty()) {
-		viewer::AudioEngine::Options options;
-		options.realtime = config.audio && !config.headless && config.audio_wav.empty();
-		options.offline = config.headless || !config.audio_wav.empty();
-		options.wav_path = config.audio_wav;
-		options.master_volume = config.audio_volume;
-		_audio = std::make_unique<viewer::AudioEngine>(_runtime.audio_banks, std::move(options));
-	}
 	consume_audio();
 	if (_audio)
 		_audio->tick(_session->frame());

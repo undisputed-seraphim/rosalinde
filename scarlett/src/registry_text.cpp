@@ -59,11 +59,29 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 		entry.speaker = std::move(speaker);
 		entry.text = std::move(text);
 		if (ids_arg >= 0) {
-			// The Msg ID array is engine-internal (voice ids); the large ones are
-			// uninitialised in our model, so only record compact arrays.
-			if (auto* array = static_cast<CScriptArray*>(gen->GetArgObject(ids_arg)))
-				if (array->GetSize() <= 64)
-					entry.ids = args.ints(ids_arg);
+			if (auto* array = static_cast<CScriptArray*>(gen->GetArgObject(ids_arg))) {
+				const asUINT count = array->GetSize();
+				const asUINT probe = std::min<asUINT>(count, 64);
+				bool all_zero = true;
+				for (asUINT i = 0; i < probe; ++i) {
+					const int value = *static_cast<const int*>(array->At(i));
+					if (value != 0) {
+						all_zero = false;
+						break;
+					}
+				}
+				if (count > 0 && all_zero) {
+					// The game's `$fact(int)` message helper builds a zero-filled
+					// array whose length is the local message id.
+					const int id = static_cast<int>(count);
+					entry.ids.push_back(id < 0x10000 ? id + 0x10000 : id);
+				} else if (!all_zero) {
+					for (asUINT i = 0; i < probe; ++i) {
+						int value = *static_cast<const int*>(array->At(i));
+						entry.ids.push_back(value >= 0 && value < 0x10000 ? value + 0x10000 : value);
+					}
+				}
+			}
 		}
 		if (balloon_arg >= 0) {
 			if (BalloonParam* balloon = balloon_of(balloon_arg)) {
@@ -93,6 +111,14 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 		}
 		_timeline.texts.push_back(std::move(entry));
 		return _timeline.texts.back();
+	};
+
+	auto play_voice_ids = [this](const RuntimeText& entry) {
+		if (!_play_voice)
+			return;
+		for (int id : entry.ids)
+			if (id >= 0)
+				_play_voice(id);
 	};
 
 	// Msg/Dialog/Select block until the message has been read; park the script
@@ -161,22 +187,26 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 
 	if (name == "Msg" || name == "MsgScreen") {
 		const bool screen = name == "MsgScreen";
-		emit(screen ? RuntimeText::Kind::Screen : RuntimeText::Kind::Msg, args.str(0), args.str(1), 2, 3, 4);
+		RuntimeText& entry =
+			emit(screen ? RuntimeText::Kind::Screen : RuntimeText::Kind::Msg, args.str(0), args.str(1), 2, 3, 4);
+		play_voice_ids(entry);
 		block_text();
 		return DispatchResult::Handled;
 	}
 	if (name == "MsgAsync" || name == "MsgScreenAsync") {
-		emit(
+		RuntimeText& entry = emit(
 			name == "MsgScreenAsync" ? RuntimeText::Kind::Screen : RuntimeText::Kind::Msg,
 			args.str(0),
 			args.str(1),
 			2,
 			3,
 			4);
+		play_voice_ids(entry);
 		return DispatchResult::Handled;
 	}
 	if (name == "SelectMsg" || name == "SelectMsgScreen") {
-		emit(RuntimeText::Kind::Select, args.str(0), args.str(1), 2, 3, 4);
+		RuntimeText& entry = emit(RuntimeText::Kind::Select, args.str(0), args.str(1), 2, 3, 4);
+		play_voice_ids(entry);
 		_select_result = 0; // deterministic default: first option
 		block_text();
 		return DispatchResult::Handled;

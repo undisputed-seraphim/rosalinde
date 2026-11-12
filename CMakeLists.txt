@@ -109,6 +109,7 @@ endif()
 
 install(DIRECTORY "${ROSALINDE_DATA_BUILD_DIR}/" DESTINATION "${CMAKE_INSTALL_DATADIR}/rosalinde" FILES_MATCHING PATTERN "*.tsv" PATTERN "country_regions.tsv" EXCLUDE)
 install(FILES "${CMAKE_SOURCE_DIR}/viewer/data/country_regions.tsv" DESTINATION "${CMAKE_INSTALL_DATADIR}/rosalinde")
+install(FILES "${CMAKE_SOURCE_DIR}/viewer/data/voice_line_table.tsv" DESTINATION "${CMAKE_INSTALL_DATADIR}/rosalinde")
 
 install(TARGETS asbrun RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 if(BUILD_VIEWER)

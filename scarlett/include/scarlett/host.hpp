@@ -79,6 +79,8 @@ public:
 
 	// Optional sound cue length resolver (frames), used by `GetSoundLength`.
 	void set_sound_length(std::function<int(int)> fn);
+	// Optional message text -> voice callback, used by `Msg`/`MsgAsync`.
+	void set_play_voice(std::function<void(int)> fn);
 
 	// Run a function under a virtual clock: `Wait(n)` parks the script for n
 	// frames, the scene-relevant natives populate a runtime scene, and a

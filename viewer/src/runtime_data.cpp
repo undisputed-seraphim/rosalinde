@@ -1,6 +1,7 @@
 #include "runtime_data.hpp"
 
 #include "audio_banks.hpp"
+#include "voice_lines.hpp"
 
 #include <data_path.hpp>
 
@@ -67,6 +68,12 @@ load_viewer_runtime_data(const cpk::archive& archive, const std::string& chara_t
 	data.sound_length = [banks = data.audio_banks](int cue) {
 		return cue > 0 ? banks->cue_length_frames(static_cast<uint32_t>(cue)) : 0;
 	};
+	data.voice_lines = std::make_shared<viewer::VoiceLines>();
+	std::filesystem::path voice_path = base / "voice_line_table.tsv";
+	if (!std::filesystem::exists(voice_path) && base.filename() == "generated")
+		voice_path = base.parent_path() / "voice_line_table.tsv";
+	if (!data.voice_lines->load(voice_path))
+		data.voice_lines.reset();
 	return data;
 }
 

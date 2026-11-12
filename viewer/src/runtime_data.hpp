@@ -8,7 +8,8 @@
 
 namespace viewer {
 class AudioBanks;
-}
+class VoiceLines;
+} // namespace viewer
 
 namespace cpk {
 class archive;
@@ -25,6 +26,7 @@ struct ViewerRuntimeData {
 	asb::StageTable stages;
 	asb::DropTables drops;
 	std::shared_ptr<viewer::AudioBanks> audio_banks;
+	std::shared_ptr<viewer::VoiceLines> voice_lines;
 	std::function<int(int)> sound_length;
 };
 

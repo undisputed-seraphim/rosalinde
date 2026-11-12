@@ -298,9 +298,9 @@ void AudioEngine::handle(const asb::RuntimeAudio& event) {
 	} else if (event.kind == "se") {
 		const uint32_t cue = static_cast<uint32_t>(std::max(0, event.cue));
 		if (!play(Bus::Se, AudioBanks::Group::Se, cue, 0))
-			play(Bus::Voice, AudioBanks::Group::Voice, cue, 0);
+			play_voice(cue);
 	} else if (event.kind == "se_chara") {
-		play(Bus::Voice, AudioBanks::Group::Voice, static_cast<uint32_t>(std::max(0, event.cue)), 0);
+		play_voice(static_cast<uint32_t>(std::max(0, event.cue)));
 	} else if (event.kind == "stop_se") {
 		const uint32_t cue = static_cast<uint32_t>(std::max(0, event.cue));
 		const int stop_fade = event.fade < 0 ? 0 : event.fade;
@@ -435,6 +435,19 @@ void AudioEngine::write_wav(const float* samples, size_t frames) {
 void AudioEngine::stop_all() {
 	std::lock_guard lock(_mutex);
 	_voices.clear();
+}
+
+void AudioEngine::play_voice(uint32_t cue) {
+	if (!_active || !_banks || cue == 0)
+		return;
+	{
+		std::lock_guard lock(_mutex);
+		for (const auto& voice : _voices) {
+			if (voice.bus == static_cast<uint8_t>(Bus::Voice) && voice.cue == cue && !voice.stop_at_end)
+				return;
+		}
+	}
+	play(Bus::Voice, AudioBanks::Group::Voice, cue, 0);
 }
 
 std::string AudioEngine::state_json() const {

@@ -41,6 +41,7 @@ public:
 	void handle(const asb::RuntimeAudio& event);
 	void tick(long frame);
 	void stop_all();
+	void play_voice(uint32_t cue);
 
 	std::string state_json() const;
 	std::string summary() const;
