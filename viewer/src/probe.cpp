@@ -1,5 +1,6 @@
 #include "probe.hpp"
 
+#include "audio_engine.hpp"
 #include "mbs_catalog.hpp"
 
 #include <scarlett/trace.hpp>
@@ -339,6 +340,7 @@ std::string scene_state_json(const asb::SceneState& scene, const SceneReportCont
 			   }) +
 		   ",\"opening_resources\":" +
 		   array_json(scene.opening_resources, [](const std::string& s) { return quote(s); }) +
+		   ",\"audio_engine\":" + (context.audio ? context.audio->state_json() : std::string("null")) +
 		   ",\"save\":" + save_json(context.save) + "}";
 }
 
@@ -393,6 +395,8 @@ std::string scene_state_text(const asb::SceneState& scene, const SceneReportCont
 			<< " party=" << context.save->party.size() << " quests=" << context.save->quests.size()
 			<< " items=" << context.save->items.size() << " clock=" << context.save->clock_hour << ':'
 			<< context.save->clock_minute << ':' << context.save->clock_second << '\n';
+	if (context.audio)
+		out << context.audio->summary() << '\n';
 	out << "channels: fades=" << scene.fades.size() << " texts=" << scene.texts.size()
 		<< " shakes=" << scene.shakes.size() << " bokashi=" << scene.bokashi.size()
 		<< " variations=" << scene.variations.size() << " effects=" << scene.effects.size()

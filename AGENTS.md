@@ -86,6 +86,8 @@ SDL_VIDEODRIVER=offscreen MESA_LOADER_DRIVER_OVERRIDE=radeonsi \
 - `--scene-frame N` advances deterministically before capture.
 - `--screenshot PATH` writes one PNG/PPM and exits.
 - `--capture-frames 0,60,420,480 --capture-dir DIR` reuses the asset cache for a batch.
+- `--audio` / `--no-audio` toggles script audio (interactive default: on); `--audio-wav FILE`
+  renders the scene audio timeline, and `--audio-volume V` sets the master gain.
 - `--trace FILE --trace-categories vm,stage,camera,asset,sprite,draw` writes NDJSON. `vm/call`
   events carry the full call text, caller, handled status, and return value. `draw/runs`
   events carry per-run `s8`/`s6`/`s7`, offset, flags, and done/hidden state.
@@ -306,7 +308,7 @@ python3 visiontest/opening_diff.py --reference opening_cinematic.mp4
 `docs/` holds the format and RE references. Start with `scarlett/README.md` for
 `.asb`, `docs/SECTIONS.md` (MBS/FTX), and `docs/EXE.md` (engine tables/registration). API audits are
 `docs/API_AUDIT.md`, `docs/DEFERRED_APIS.md`, `docs/API_NATIVES.tsv`, and
-`docs/API_SCRIPTS.tsv`. Combat/stage planning is `docs/COMBAT.md`. CLI references are
+`docs/API_SCRIPTS.tsv`. Combat/stage planning is `docs/COMBAT.md`. Audio playback is `docs/AUDIO.md`. CLI references are
 `tools/README.md` and `tools/ASBRUN_README.md`.
 
 The following are untracked by the user: `docs/API_AUDIT.md`, `docs/API_NATIVES.tsv`,

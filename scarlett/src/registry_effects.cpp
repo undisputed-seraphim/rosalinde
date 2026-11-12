@@ -339,8 +339,7 @@ DispatchResult Registry::dispatch_effects(std::string_view name, NativeArgs& arg
 	}
 	if (name == "GetSoundLength") {
 		// Real cue length (frames) from the ACB cue/waveform tables when the host
-		// supplies a resolver; 0 is the timing fallback. Actual audio playback is
-		// still TODO (we only need the length for Wait(GetSoundLength(cue)+60)).
+		// supplies a resolver; 0 is the timing fallback.
 		const int cue = I(0);
 		const int len = _sound_length ? _sound_length(cue) : 0;
 		spdlog::debug("sound: GetSoundLength({})={}", cue, len);

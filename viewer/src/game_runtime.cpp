@@ -84,3 +84,5 @@ const std::string& GameRuntime::entry_name() const {
 		throw std::runtime_error("GameRuntime::entry_name before start");
 	return _drama_session->entry_name();
 }
+
+viewer::AudioEngine* GameRuntime::audio() const { return _drama_session ? _drama_session->audio() : nullptr; }

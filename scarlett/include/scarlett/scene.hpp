@@ -234,7 +234,8 @@ struct RuntimePointLight {
 	int index = 0;
 };
 
-// Record-only audio event (BGM/SE/voice/ambience/volume). No playback.
+// Script audio event (BGM/SE/voice/ambience/volume). The viewer audio engine
+// consumes these in order.
 struct RuntimeAudio {
 	long frame = 0;
 	std::string kind;

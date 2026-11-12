@@ -1,0 +1,54 @@
+# Viewer audio
+
+The viewer plays script-driven audio from the CPK `Sound/` banks:
+
+- `bgm.acb` + `bgm.awb` — background music.
+- `se.acb` + `se.awb` — sound effects.
+- `voice_jp.acb`, `voice_btl_jp.acb`, `voice_add_jp.acb` — character and battle
+  voices with their streaming AWBs.
+
+`viewer/src/audio_banks.cpp` loads each ACB lazily, binds external AWB headers by
+`StreamAwbHash` port, and decodes HCA or Nintendo Opus waveforms through
+`criware`. Decoded cues are cached as interleaved stereo float at 48 kHz. Cues
+that carry several waveforms are mixed as one sound.
+
+## Script events
+
+`asb::RuntimeAudio` is produced by the native shim and consumed by
+`DramaSession::advance()`:
+
+| Event | Bus |
+|-------|-----|
+| `bgm`, `bgm_time`, `bgm_default`, `battle_bgm`, `stage_bgm` | BGM |
+| `se`, `action_cue` | SE (falls back to the voice bank for voice cue IDs) |
+| `se_chara` | Voice |
+| `stop_bgm` | BGM |
+| `stop_se` | SE and Voice |
+| `bgm_volume`, `se_volume`, `amb_volume`, `amb_fade`, `thunder` | bus volume |
+
+`PlayBGM` fades and `StopBGM`/`StopSE` fades are interpreted in 60 Hz scene
+frames. ACB `LoopFlag == 2` marks a cue as looping; loop points come from
+`WaveformExtensionDataTable`.
+
+## Flags
+
+| Flag | Effect |
+|------|--------|
+| `--audio` | Enable audio. Interactive playback is on by default; screenshot/capture runs leave it off. |
+| `--no-audio` | Disable audio. |
+| `--audio-volume V` | Master volume in `0..1`. |
+| `--audio-wav FILE` | Render the scene audio timeline to a 48 kHz stereo PCM16 WAV. |
+
+`--headless` does not open a playback device. It still simulates the audio
+timeline when `--audio` or `--audio-wav` is present, so fades, cue selection, and
+missing assets can be inspected without hardware.
+
+`GetSoundLength` resolves a cue through the loaded banks and converts its
+sample count to 60 Hz frames. There is no synthetic cue-ID offset.
+
+## Diagnostics
+
+`--state`, `--state-json`, `--probe`, and `--record` include an `audio_engine`
+block with the active engine mode, live voice count, current BGM cue, event
+count, rendered sample frames, cache size, and WAV path. The text state also
+contains an `audio:` line.

@@ -137,6 +137,29 @@ TEST_CASE("acb resolves cue chains") {
 	CHECK(voice.stream_awb_name(0) == "voice_jp");
 }
 
+TEST_CASE("acb cue lengths and loop flags") {
+	if (cpk_path().empty())
+		SKIP("UNICORN_CPK is not set");
+	cpk::archive cpk{cpk_path()};
+
+	auto bgm = load_acb(cpk, "Sound/bgm.acb");
+	for (uint32_t cue_id : {1u, 2u}) {
+		const auto* cue = bgm.find_cue(cue_id);
+		REQUIRE(cue != nullptr);
+		REQUIRE_FALSE(cue->waveform_indices.empty());
+		const auto* waveform = bgm.waveform_at(cue->waveform_indices.front());
+		REQUIRE(waveform != nullptr);
+		CHECK(cue->length == waveform->num_samples);
+	}
+
+	const auto* one_shot = bgm.find_cue(1);
+	const auto* looped = bgm.find_cue(2);
+	REQUIRE(one_shot != nullptr);
+	REQUIRE(looped != nullptr);
+	CHECK_FALSE(one_shot->loop);
+	CHECK(looped->loop);
+}
+
 TEST_CASE("afs2 external header and sizes") {
 	if (cpk_path().empty())
 		SKIP("UNICORN_CPK is not set");

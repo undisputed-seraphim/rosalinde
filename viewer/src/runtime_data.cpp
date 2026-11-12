@@ -1,51 +1,17 @@
 #include "runtime_data.hpp"
 
+#include "audio_banks.hpp"
+
 #include <data_path.hpp>
 
 #include <scarlett/host.hpp>
 
-#include <criware/acb.hpp>
 #include <criware/cpk.hpp>
 
 #include <filesystem>
+#include <memory>
 #include <stdexcept>
-#include <span>
-#include <unordered_map>
 #include <utility>
-#include <vector>
-
-namespace {
-
-std::function<int(int)> load_sound_lengths(const cpk::archive& archive) {
-	std::unordered_map<int, int> lengths;
-	for (const char* name : {"bgm.acb", "se.acb", "voice_jp.acb", "voice_btl_jp.acb", "voice_add_jp.acb"}) {
-		auto entry = archive.find("Sound", name);
-		if (entry == archive.end())
-			continue;
-		std::vector<char> buffer;
-		archive.extract(*entry, buffer);
-		auto acb = criware::ACB::parse(
-			std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(buffer.data()), buffer.size()));
-		for (const auto& cue : acb.cues()) {
-			const auto* waveform = acb.find_waveform(cue.waveform_id);
-			if (!waveform || waveform->sampling_rate == 0)
-				continue;
-			lengths.emplace(
-				static_cast<int>(cue.cue_id),
-				static_cast<int>(
-					static_cast<double>(waveform->num_samples) / static_cast<double>(waveform->sampling_rate) * 60.0));
-		}
-	}
-	return [lengths = std::move(lengths)](int cue) {
-		auto it = lengths.find(cue);
-		if (it != lengths.end())
-			return it->second;
-		it = lengths.find(cue + 0x1ca68);
-		return it != lengths.end() ? it->second : 0;
-	};
-}
-
-} // namespace
 
 ViewerRuntimeData
 load_viewer_runtime_data(const cpk::archive& archive, const std::string& chara_table, const std::string& data_dir) {
@@ -56,7 +22,14 @@ load_viewer_runtime_data(const cpk::archive& archive, const std::string& chara_t
 	const std::filesystem::path base = data_dir.empty() ? rosalinde_data_dir() : data_dir;
 	if (!std::filesystem::exists(base))
 		throw std::runtime_error("runtime data directory not found: " + base.string());
-	for (const char* name : {"charaset.tsv", "classes.tsv", "stages.tsv", "facility_pos.tsv", "drop_tables.tsv", "uc_enums.tsv", "battlebgs.tsv"}) {
+	for (const char* name :
+		 {"charaset.tsv",
+		  "classes.tsv",
+		  "stages.tsv",
+		  "facility_pos.tsv",
+		  "drop_tables.tsv",
+		  "uc_enums.tsv",
+		  "battlebgs.tsv"}) {
 		if (!std::filesystem::exists(base / name))
 			throw std::runtime_error("runtime data is incomplete: " + (base / name).string());
 	}
@@ -90,7 +63,10 @@ load_viewer_runtime_data(const cpk::archive& archive, const std::string& chara_t
 	if (std::filesystem::exists(drops) && std::filesystem::exists(enums))
 		data.drops = asb::load_drop_tables(drops.string(), enums.string());
 
-	data.sound_length = load_sound_lengths(archive);
+	data.audio_banks = std::make_shared<viewer::AudioBanks>(archive);
+	data.sound_length = [banks = data.audio_banks](int cue) {
+		return cue > 0 ? banks->cue_length_frames(static_cast<uint32_t>(cue)) : 0;
+	};
 	return data;
 }
 

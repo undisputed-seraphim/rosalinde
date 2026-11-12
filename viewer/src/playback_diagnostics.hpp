@@ -47,7 +47,10 @@ public:
 	bool probe_written(long frame) const { return _probe.written(frame); }
 	bool begin_probe(long frame) { return _probe.begin(frame); }
 	ProbeWriter* probe() { return &_probe; }
-	void finish_probe(const asb::SceneState& scene, const SceneRenderer& renderer);
+	void finish_probe(
+		const asb::SceneState& scene,
+		const SceneRenderer& renderer,
+		const SceneReportContext& context = {});
 	bool probes_done() const { return _probe.done(); }
 
 private:

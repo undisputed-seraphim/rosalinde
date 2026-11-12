@@ -12,6 +12,7 @@
 
 #include <span>
 #include <stdexcept>
+#include <utility>
 
 DramaSession::DramaSession(
 	const AssetLoader& loader,
@@ -88,10 +89,30 @@ DramaSession::DramaSession(
 	_session->set_scene_mode(mode);
 	if (!_session->start(fn, prelude))
 		throw std::runtime_error("could not start " + config.script + ": " + _session->error());
+
+	if (config.audio || !config.audio_wav.empty()) {
+		viewer::AudioEngine::Options options;
+		options.realtime = config.audio && !config.headless && config.audio_wav.empty();
+		options.offline = config.headless || !config.audio_wav.empty();
+		options.wav_path = config.audio_wav;
+		options.master_volume = config.audio_volume;
+		_audio = std::make_unique<viewer::AudioEngine>(_runtime.audio_banks, std::move(options));
+	}
+	consume_audio();
+	if (_audio)
+		_audio->tick(_session->frame());
 	log_archive_events();
 }
 
 DramaSession::~DramaSession() = default;
+
+void DramaSession::consume_audio() {
+	if (!_audio || !_session)
+		return;
+	const auto& events = _session->scene().audio;
+	for (; _seen_audio < events.size(); ++_seen_audio)
+		_audio->handle(events[_seen_audio]);
+}
 
 void DramaSession::set_max_frames(long frames) {
 	if (_session)
@@ -101,6 +122,9 @@ void DramaSession::set_max_frames(long frames) {
 asb::RuntimeSession::StepResult DramaSession::advance() {
 	const auto result = _session->advance();
 	log_archive_events();
+	consume_audio();
+	if (_audio)
+		_audio->tick(_session->frame());
 	return result;
 }
 

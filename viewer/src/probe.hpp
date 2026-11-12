@@ -36,9 +36,14 @@ private:
 
 class MbsCatalog;
 
+namespace viewer {
+class AudioEngine;
+}
+
 struct SceneReportContext {
 	const MbsCatalog* mbs = nullptr;
 	const asb::SaveState* save = nullptr;
+	const viewer::AudioEngine* audio = nullptr;
 };
 
 std::string scene_state_json(const asb::SceneState& scene, const SceneReportContext& context = {});

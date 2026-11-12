@@ -40,6 +40,7 @@ public:
 	const asb::Module& module() const;
 	const std::string& entry_name() const;
 	const MbsCatalog& mbs_catalog() const { return _mbs; }
+	viewer::AudioEngine* audio() const;
 	asb::SaveState& save() { return _save; }
 	const asb::SaveState& save() const { return _save; }
 	asb::SceneMode mode() const { return _mode; }

@@ -203,9 +203,12 @@ long PlaybackDiagnostics::probe_target() {
 	return _cfg.probe_frames[_probe_index];
 }
 
-void PlaybackDiagnostics::finish_probe(const asb::SceneState& scene, const SceneRenderer& renderer) {
+void PlaybackDiagnostics::finish_probe(
+	const asb::SceneState& scene,
+	const SceneRenderer& renderer,
+	const SceneReportContext& context) {
 	const std::string json = "{\"frame\":" + std::to_string(scene.frame) + ",\"scene\":" +
-							 scene_state_json(scene) + ",\"renderer\":" + renderer.state_json(scene) + "}";
+							 scene_state_json(scene, context) + ",\"renderer\":" + renderer.state_json(scene) + "}";
 	_probe.write_state(scene.frame, json);
 	_probe.write_summary(scene.frame, renderer.summary(scene));
 	_probe.end();

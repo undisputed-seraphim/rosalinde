@@ -42,5 +42,8 @@ struct ViewerConfig {
 	bool keep_stage = false;
 	std::string probe_dir;
 	std::vector<long> probe_frames;
+	bool audio = false;
+	float audio_volume = 1.0f;
+	std::string audio_wav;
 	std::array<float, 4> clear_color = {0.45f, 0.55f, 0.60f, 1.0f};
 };

@@ -140,8 +140,10 @@ void ScenePlayback::render() {
 	const long frame = static_cast<long>(scene.frame);
 	const bool probe_now = _diagnostics->begin_probe(frame);
 	_view->render(scene, probe_now ? _diagnostics->probe() : nullptr);
-	if (probe_now)
-		_diagnostics->finish_probe(scene, _view->renderer());
+	if (probe_now) {
+		const SceneReportContext report{&_runtime->mbs_catalog(), &_runtime->save(), _runtime->audio()};
+		_diagnostics->finish_probe(scene, _view->renderer(), report);
+	}
 }
 
 void ScenePlayback::capture() {

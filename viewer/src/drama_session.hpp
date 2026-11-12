@@ -4,6 +4,8 @@
 #include "runtime_data.hpp"
 #include "viewer_config.hpp"
 
+#include "audio_engine.hpp"
+
 #include <scarlett/host.hpp>
 #include <scarlett/runtime.hpp>
 #include <scarlett/save.hpp>
@@ -39,9 +41,11 @@ public:
 	const asb::Module& module() const { return *_module; }
 	const std::string& entry_name() const { return _entry_name; }
 	const MbsCatalog& mbs_catalog() const { return _mbs; }
+	viewer::AudioEngine* audio() const { return _audio.get(); }
 
 private:
 	void log_archive_events();
+	void consume_audio();
 
 	const AssetLoader& _loader;
 	const MbsCatalog& _mbs;
@@ -50,5 +54,7 @@ private:
 	std::shared_ptr<asb::Module> _module;
 	std::string _entry_name;
 	std::unique_ptr<asb::RuntimeSession> _session;
+	std::unique_ptr<viewer::AudioEngine> _audio;
 	size_t _seen_ui = 0;
+	size_t _seen_audio = 0;
 };

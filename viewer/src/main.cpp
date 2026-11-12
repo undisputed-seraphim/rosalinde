@@ -82,6 +82,8 @@ int main(int argc, char* argv[]) try {
 	std::string probe_frames_text;
 	std::string trace_frames_text;
 	std::string mode_text;
+	bool audio_requested = false;
+	bool no_audio = false;
 	::boost::program_options::options_description desc;
 	desc.add_options()("help,h", "Print this help message")(
 		"cpk", ::boost::program_options::value<std::filesystem::path>(&config.cpk)->required(), "Path to Unicorn.cpk")(
@@ -183,7 +185,17 @@ int main(int argc, char* argv[]) try {
 		"Write state/summary probe files (draw requires rendering)")(
 		"probe-frames",
 		::boost::program_options::value<std::string>(&probe_frames_text),
-		"Comma-separated frames for --probe (default: --capture-frames or --scene-frame)");
+		"Comma-separated frames for --probe (default: --capture-frames or --scene-frame)")(
+		"audio",
+		::boost::program_options::bool_switch(&audio_requested),
+		"Enable script audio playback (interactive default: on)")(
+		"no-audio", ::boost::program_options::bool_switch(&no_audio), "Disable script audio playback")(
+		"audio-volume",
+		::boost::program_options::value<float>(&config.audio_volume)->default_value(config.audio_volume),
+		"Master audio volume (0..1)")(
+		"audio-wav",
+		::boost::program_options::value<std::string>(&config.audio_wav),
+		"Render the scene audio timeline to a WAV file");
 	::boost::program_options::variables_map vm;
 	::boost::program_options::store(::boost::program_options::parse_command_line(argc, argv, desc), vm);
 	try {
@@ -216,6 +228,18 @@ int main(int argc, char* argv[]) try {
 			spdlog::error("--capture-dir is required with --capture-frames");
 			return 1;
 		}
+	}
+	if (no_audio)
+		config.audio = false;
+	else if (audio_requested)
+		config.audio = true;
+	else
+		config.audio = !config.headless && config.screenshot.empty() && config.capture_frames.empty();
+	if (!config.audio_wav.empty())
+		config.audio = true;
+	if (config.audio_volume < 0.0f || config.audio_volume > 1.0f) {
+		spdlog::error("--audio-volume must be between 0 and 1");
+		return 1;
 	}
 	if (!clear_color_text.empty() && !parse_color(clear_color_text, config.clear_color)) {
 		spdlog::error("invalid --clear-color: {}", clear_color_text);

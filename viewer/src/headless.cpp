@@ -53,7 +53,7 @@ int run_headless(const ViewerConfig& config) {
 		return 1;
 	}
 	runtime.set_max_frames(config.max_frames);
-	const SceneReportContext report{&runtime.mbs_catalog(), &runtime.save()};
+	const SceneReportContext report{&runtime.mbs_catalog(), &runtime.save(), runtime.audio()};
 
 	long target = -1;
 	if (config.run_to >= 0)
