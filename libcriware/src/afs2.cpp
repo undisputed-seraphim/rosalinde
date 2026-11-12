@@ -29,8 +29,9 @@ namespace criware {
 //   0x10+N*S  N*S offset array (same stride S, same count N)
 //                   Each offset: S-byte LE integer, masked to S bytes
 //
-// File data for entry i starts at entries[i].offset (absolute in stream).
-// Size = next entry offset - this entry offset (or archive_end - this for last).
+// File data for entry i starts at entries[i].aligned (offset rounded up to
+// the archive alignment). Size = next offset - this aligned offset (or
+// archive end - this aligned offset for the last entry).
 // ============================================================================
 
 namespace {
@@ -58,7 +59,7 @@ static uint64_t round_up(uint64_t value, uint64_t alignment) {
 
 } // anonymous namespace
 
-AFS2 AFS2::parse(std::span<const uint8_t> data, uint64_t base_offset) {
+AFS2 AFS2::parse(std::span<const uint8_t> data, uint64_t base_offset, uint64_t archive_size) {
 	AFS2 afs2;
 
 	if (data.size() < 16)
@@ -87,6 +88,10 @@ AFS2 AFS2::parse(std::span<const uint8_t> data, uint64_t base_offset) {
 	if (entry_stride < 2 || entry_stride > 8)
 		return afs2;
 
+	const uint64_t table_size = 0x10 + static_cast<uint64_t>(file_count) * entry_stride * 2;
+	if (data.size() < table_size)
+		return afs2;
+
 	// Build offset mask for offset_field_size bytes
 	uint64_t offset_mask = 0;
 	for (uint32_t i = 0; i < offset_field_size && i < 8; ++i)
@@ -113,13 +118,14 @@ AFS2 AFS2::parse(std::span<const uint8_t> data, uint64_t base_offset) {
 		afs2._entries[i].aligned = round_up(afs2._entries[i].offset, afs2._alignment);
 	}
 
-	// --- compute sizes (next.offset - this.offset) ---
+	// --- compute sizes (next.offset - this.aligned) ---
+	const uint64_t stream_end = archive_size != 0 ? archive_size : static_cast<uint64_t>(data.size()) + base_offset;
 	for (int32_t i = 0; i < file_count - 1; ++i) {
-		afs2._entries[i].size = afs2._entries[i + 1].offset - afs2._entries[i].offset;
+		const uint64_t next = afs2._entries[i + 1].offset;
+		afs2._entries[i].size = next > afs2._entries[i].aligned ? next - afs2._entries[i].aligned : 0;
 	}
-	// Last entry: data goes to end of archive
-	afs2._entries[static_cast<size_t>(file_count) - 1].size =
-		static_cast<uint64_t>(data.size()) + base_offset - afs2._entries[static_cast<size_t>(file_count) - 1].offset;
+	auto& last = afs2._entries[static_cast<size_t>(file_count) - 1];
+	last.size = stream_end > last.aligned ? stream_end - last.aligned : 0;
 
 	return afs2;
 }

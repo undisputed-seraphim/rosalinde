@@ -1,6 +1,10 @@
+include(${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/opus.cmake)
+
 file(GLOB_RECURSE criware_src "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-add_library(criware STATIC ${criware_src})
+file(GLOB_RECURSE criware_c_src "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
+add_library(criware STATIC ${criware_src} ${criware_c_src})
 target_include_directories(criware PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_link_libraries(criware PUBLIC opus)
 
 include(CTest)
 

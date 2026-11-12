@@ -371,3 +371,32 @@ void cpk::archive::extract(std::string_view dir, std::string_view name, std::spa
 	}
 	extract(*it, out);
 }
+
+void cpk::archive::extract_range(const entry& item, uint64_t offset, uint64_t size, std::vector<uint8_t>& out) const {
+	if (offset > item.extract_size || size > item.extract_size - offset) {
+		throw std::runtime_error("CPK range is outside the entry");
+	}
+	out.resize(static_cast<size_t>(size));
+	if (size == 0)
+		return;
+
+	if (item.extract_size != item.file_size) {
+		std::vector<char> whole;
+		extract(item, whole);
+		std::memcpy(out.data(), whole.data() + static_cast<size_t>(offset), static_cast<size_t>(size));
+		return;
+	}
+
+	std::ifstream ifs(_path, std::ios::binary);
+	if (!ifs) {
+		throw std::runtime_error("Failed to open " + _path.string());
+	}
+	ifs.seekg(static_cast<std::streamoff>(item.offset + offset), std::ios::beg);
+	if (!ifs) {
+		throw std::runtime_error("Failed to seek in " + _path.string());
+	}
+	ifs.read(reinterpret_cast<char*>(out.data()), static_cast<std::streamsize>(size));
+	if (!ifs) {
+		throw std::runtime_error("Failed to read " + _path.string());
+	}
+}

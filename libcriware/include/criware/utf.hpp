@@ -33,12 +33,21 @@ template <fixed_string Name, typename T>
 struct column_def {
 	static constexpr auto name = Name;
 	using type = T;
+	static constexpr bool optional = false;
+};
+
+template <fixed_string Name, typename T>
+struct optional_column_def {
+	static constexpr auto name = Name;
+	using type = T;
+	static constexpr bool optional = true;
 };
 
 template <typename... Cols>
 struct column_list {
 	static constexpr size_t count = sizeof...(Cols);
 	static constexpr auto names = std::array<std::string_view, count>{static_cast<std::string_view>(Cols::name)...};
+	static constexpr auto optional_flags = std::array<bool, count>{Cols::optional...};
 	template <size_t I>
 	using column_type = typename std::tuple_element_t<I, std::tuple<Cols...>>::type;
 	template <template <typename> class Wrapper>
@@ -59,6 +68,11 @@ constexpr auto make(Cols...) -> column_list<Cols...> {
 
 template <fixed_string N, typename T>
 constexpr auto col() -> column_def<N, T> {
+	return {};
+}
+
+template <fixed_string N, typename T>
+constexpr auto optional_col() -> optional_column_def<N, T> {
 	return {};
 }
 
@@ -253,6 +267,38 @@ private:
 	size_t _rows;
 };
 
+template <class T>
+class optional_column_view {
+public:
+	optional_column_view(const column_storage<T>* column, size_t rows) noexcept
+		: _column(column)
+		, _rows(rows) {}
+
+	size_t size() const noexcept { return _rows; }
+	bool empty() const noexcept { return _rows == 0; }
+	bool has_row_data() const noexcept { return _column->has_row_data; }
+	bool defaulted() const noexcept { return !_column->has_row_data && _column->default_value.has_value(); }
+	bool present() const noexcept { return _column->present; }
+
+	std::optional<T> operator[](size_t i) const {
+		if (_column->has_row_data)
+			return _column->values[i];
+		if (_column->default_value)
+			return *_column->default_value;
+		return std::nullopt;
+	}
+
+	std::optional<T> at(size_t i) const {
+		if (i >= _rows)
+			throw std::out_of_range("UTF column index out of range");
+		return (*this)[i];
+	}
+
+private:
+	const column_storage<T>* _column;
+	size_t _rows;
+};
+
 template <class Schema>
 class table;
 
@@ -319,7 +365,10 @@ public:
 	template <size_t I>
 	auto column_at() const {
 		using T = typename Schema::template column_type<I>;
-		return column_view<T>(&std::get<I>(_columns), _rows);
+		if constexpr (Schema::optional_flags[I])
+			return optional_column_view<T>(&std::get<I>(_columns), _rows);
+		else
+			return column_view<T>(&std::get<I>(_columns), _rows);
 	}
 
 	template <schema::fixed_string Name>
@@ -348,10 +397,18 @@ private:
 		using T = typename Schema::template column_type<I>;
 		auto& column = std::get<I>(_columns);
 		const auto* desc = _raw.find(Schema::names[I]);
-		if (!desc)
-			throw parse_error("UTF table is missing column");
-		if (!schema_compatible<T>(desc->type_))
-			throw parse_error("UTF column has an incompatible type");
+		if (!desc) {
+			if constexpr (Schema::optional_flags[I])
+				return;
+			else
+				throw parse_error("UTF table is missing column");
+		}
+		if (!schema_compatible<T>(desc->type_)) {
+			if constexpr (Schema::optional_flags[I])
+				return;
+			else
+				throw parse_error("UTF column has an incompatible type");
+		}
 
 		if (desc->has_default) {
 			column.default_value = read_value<T>(_raw, *desc, desc->default_ptr);
@@ -364,8 +421,12 @@ private:
 			column.has_row_data = true;
 			column.present = true;
 		}
-		if (!column.present)
-			throw parse_error("UTF column has no row data or default");
+		if (!column.present) {
+			if constexpr (Schema::optional_flags[I])
+				return;
+			else
+				throw parse_error("UTF column has no row data or default");
+		}
 	}
 };
 

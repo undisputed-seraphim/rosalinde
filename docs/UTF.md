@@ -181,7 +181,13 @@ The `UTF` class stores the parsed result as `std::map<std::string, field>` where
 each `field` is a `std::vector<std::variant<10 types>>`.
 
 The higher-level `table<Schema>` (in utf.hpp) wraps this: it parses a raw `UTF`,
-then `populate()` copies column values into a typed `std::tuple<std::vector<T>...>`.
+then `load_one()` copies column values into a typed `std::tuple<std::vector<T>...>`.
+
+Schemas use `schema::col<Name, T>()` for required columns and
+`schema::optional_col<Name, T>()` for columns that may be absent or invalid.
+`get<Name>(row)` returns `T` for required columns and `std::optional<T>` for
+optional ones. Optional columns make it possible to describe ACB tables whose
+column set depends on the ACB version or authoring features.
 
 ### Known issues
 

@@ -22,7 +22,7 @@ public:
 	AFS2& operator=(const AFS2&) = default;
 	AFS2& operator=(AFS2&&) = default;
 
-	static AFS2 parse(std::span<const uint8_t> data, uint64_t base_offset = 0);
+	static AFS2 parse(std::span<const uint8_t> data, uint64_t base_offset = 0, uint64_t archive_size = 0);
 
 	const Entry* find(uint16_t id) const;
 	const std::vector<Entry>& entries() const { return _entries; }

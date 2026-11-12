@@ -62,6 +62,7 @@ public:
 	void extract(const entry& item, std::span<char> out) const;
 	void extract(std::string_view dir, std::string_view name, std::vector<char>& out) const;
 	void extract(std::string_view dir, std::string_view name, std::span<char> out) const;
+	void extract_range(const entry& item, uint64_t offset, uint64_t size, std::vector<uint8_t>& out) const;
 	void extract_to_file(const entry& item, const std::filesystem::path& path) const;
 
 private:
