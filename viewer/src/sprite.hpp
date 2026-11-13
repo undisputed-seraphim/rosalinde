@@ -67,7 +67,7 @@ struct SpriteData {
 		// One-shot (intro) length of the main sequence, in 60 Hz scene frames.
 		// DrActionWait/DrChangeAnimation use this, not the whole loop.
 		long action_frames = 0;
-		bool one_shot = false;
+		bool one_shot = false; // transition-mode startup/background heuristic; character playback uses per-run once
 		int next_track = -1;
 		uint8_t transition_mode = 0;
 	};

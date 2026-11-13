@@ -160,7 +160,10 @@ void SpritePlaybackState::update(const SpriteData& data, float dt_seconds) {
 				advanced = true;
 				const auto& prev_s8 = current_s8;
 				prev_offsets[i] = offsets[i];
-				if (track.one_shot && offsets[i] + 1 >= run.s8_count) {
+				// Transition-mode one-shot is a startup/background heuristic. For
+				// characters, trust the run itself: positive s8_intro_ticks with a
+				// JUMP loops (walk cycles), negative intro is a one-pass stop clip.
+				if (track.one_shot && !character && offsets[i] + 1 >= run.s8_count) {
 					done[i] = 1;
 					offsets[i] = run.s8_count - 1;
 				} else if (prev_s8.flags & mbs::v77::s8flag::JUMP) {

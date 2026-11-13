@@ -37,6 +37,7 @@ struct SpriteRunState {
 struct SpritePlaybackState {
 	uint32_t track_idx = 0;
 	std::string label; // owning scene entity, for debug logs
+	bool character = false;
 	float accum = 0.0f;
 	std::vector<uint32_t> ticks;
 	std::vector<uint32_t> offsets;

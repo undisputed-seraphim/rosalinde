@@ -162,7 +162,7 @@ TEST_CASE("vector call arguments survive scene extraction") {
 	CHECK(move->floats.back() == 3.0);
 }
 
-TEST_CASE("animation controller follows a one-shot continuation") {
+TEST_CASE("animation controller applies a motion continuation at motion end") {
 	asb::RuntimeEntity entity;
 	entity.name = "test";
 	entity.track = "A";
@@ -183,9 +183,12 @@ TEST_CASE("animation controller follows a one-shot continuation") {
 
 	const uint64_t token = controller.begin_motion(entity, "A", 0, 0);
 	REQUIRE(token != 0);
+	// A move-owned clip must not end at its own duration; the movement sets the
+	// end and calls finish_motion, which applies the continuation.
 	CHECK(controller.advance(entity, 9) == false);
+	CHECK(controller.advance(entity, 10) == false);
 	CHECK(entity.track == "A");
-	CHECK(controller.advance(entity, 10) == true);
+	controller.finish_motion(entity, token, "", -1, 10);
 	CHECK(entity.track == "B");
 	CHECK(entity.track_index == 1);
 }

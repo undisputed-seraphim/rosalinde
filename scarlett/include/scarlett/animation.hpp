@@ -34,7 +34,8 @@ public:
 		auto& state = _states[entity.name];
 		state.motion_token = 0;
 		state.action_active = false;
-		state.motion_end = 0;
+		state.motion_continuation = -1;
+		state.motion_continuation_name.clear();
 		entity.action_active = false;
 		entity.action_end_frame = -1;
 	}
@@ -46,7 +47,8 @@ public:
 		auto& state = _states[entity.name];
 		state.motion_token = 0;
 		state.action_active = false;
-		state.motion_end = 0;
+		state.motion_continuation = -1;
+		state.motion_continuation_name.clear();
 		entity.action_active = false;
 		entity.action_end_frame = -1;
 	}
@@ -80,8 +82,8 @@ public:
 		// 152-frame loop).
 		const long action = info.action_frames > 0 ? info.action_frames : info.duration_frames;
 		state.action_end = frame + std::max(1L, action);
-		state.action_continuation = info.one_shot ? info.continuation_track : -1;
-		state.action_continuation_name = info.one_shot ? info.continuation_name : std::string();
+		state.action_continuation = info.continuation_track;
+		state.action_continuation_name = info.continuation_name;
 		entity.action_active = true;
 		entity.action_end_frame = state.action_end;
 	}
@@ -115,9 +117,10 @@ public:
 		const uint64_t token = _next_token++;
 		state.motion_token = token;
 		const TrackInfo info = info_for(entity, track_index);
-		state.motion_end = info.one_shot ? frame + std::max(1L, info.duration_frames) : 0;
-		state.motion_continuation = info.one_shot ? info.continuation_track : -1;
-		state.motion_continuation_name = info.one_shot ? info.continuation_name : std::string();
+		// The move's f1 owns the transition; finish_motion applies this. Ending
+		// the motion at the clip's own duration cuts walk cycles short.
+		state.motion_continuation = info.continuation_track;
+		state.motion_continuation_name = info.continuation_name;
 		return token;
 	}
 
@@ -143,7 +146,6 @@ public:
 				frame);
 		else if (!it->second.idle_track.empty())
 			apply(entity, it->second.idle_track, it->second.idle_index, frame);
-		it->second.motion_end = 0;
 		it->second.motion_continuation = -1;
 	}
 
@@ -178,17 +180,6 @@ public:
 			state.action_continuation = -1;
 			changed = true;
 		}
-		if (state.motion_end > 0 && frame >= state.motion_end) {
-			if (state.motion_continuation >= 0)
-				apply(
-					entity,
-					state.motion_continuation_name,
-					state.motion_continuation,
-					frame);
-			state.motion_end = 0;
-			state.motion_continuation = -1;
-			changed = true;
-		}
 		return changed;
 	}
 
@@ -197,7 +188,6 @@ public:
 private:
 	struct State {
 		uint64_t motion_token = 0;
-		long motion_end = 0;
 		int motion_continuation = -1;
 		std::string motion_continuation_name;
 		bool action_active = false;
