@@ -6,6 +6,10 @@
 #include <cstdlib>
 #include <string_view>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace {
 
 spdlog::level::level_enum configured_level() {
@@ -37,6 +41,15 @@ spdlog::level::level_enum configured_level() {
 void viewer::log::init() {
 	if (spdlog::get("viewer"))
 		return;
+#ifdef _WIN32
+	// Windows consoles interpret raw bytes with their output code page; the
+	// LANG/LC_ALL environment does not change it. Force UTF-8 so UTF-8 log
+	// messages and direct stderr writes are not garbled. spdlog's stderr sink
+	// additionally writes wide characters when built with
+	// SPDLOG_UTF8_TO_WCHAR_CONSOLE (see thirdparty/spdlog.cmake).
+	SetConsoleOutputCP(CP_UTF8);
+	SetConsoleCP(CP_UTF8);
+#endif
 	auto logger = spdlog::stderr_color_mt("viewer");
 	spdlog::set_default_logger(std::move(logger));
 	spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");

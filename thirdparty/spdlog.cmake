@@ -13,3 +13,7 @@ set(SPDLOG_BUILD_BENCH OFF CACHE BOOL "" FORCE)
 set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(spdlog)
+
+if(WIN32)
+	target_compile_definitions(spdlog PUBLIC SPDLOG_UTF8_TO_WCHAR_CONSOLE SPDLOG_WCHAR_TO_UTF8_SUPPORT)
+endif()
