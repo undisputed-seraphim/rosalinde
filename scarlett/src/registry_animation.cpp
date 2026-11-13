@@ -3,6 +3,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+
 namespace asb {
 
 DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& args) {
@@ -49,8 +51,13 @@ DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& a
 		// action wait and never consults the clip length. The action is the
 		// one-shot intro of the sequence (the rest loops), so the wait is
 		// bounded by that intro: D_SIT_A3 is 51 ticks, not its 303-tick loop.
+		// A DrMove*Async with an animation also queues an action: scripts call
+		// DrActionWait right after the move to wait for the motion to finish.
 		if (RuntimeEntity* entity = entity_arg(args)) {
-			const long remaining = _animations.action_remaining(*entity, frame);
+			long remaining = _animations.action_remaining(*entity, frame);
+			if (auto it = _moves.find(entity->name);
+				it != _moves.end() && it->second.animation_token != 0)
+				remaining = std::max(remaining, std::max(0L, it->second.f1 - frame));
 			if (remaining > 0) {
 				pending_wait = remaining;
 				spdlog::debug("wait: action {} end={} remaining={}", entity->name, entity->action_end_frame, remaining);

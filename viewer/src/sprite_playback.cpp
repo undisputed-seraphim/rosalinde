@@ -49,6 +49,7 @@ void SpritePlayback::reset(
 				continue;
 			instances.emplace_back(&asset->data, i, attribute_mask);
 			instances.back().playback.hold_finished = hold_finished;
+			instances.back().playback.label = state.name;
 			instances.back().background = true;
 			instances.back().character = character;
 			instances.back().mone = stateful_mone(static_cast<int>(i));
@@ -63,6 +64,7 @@ void SpritePlayback::reset(
 		track_index = track;
 		instances.emplace_back(&asset->data, static_cast<uint32_t>(track), attribute_mask);
 		instances.back().playback.hold_finished = hold_finished;
+		instances.back().playback.label = state.name;
 		instances.back().character = character;
 		instances.back().mone = stateful_mone(track);
 		instances.back().current_sequence = state.sequence_index;

@@ -114,7 +114,11 @@ void SpritePlaybackState::play(const SpriteData& data, uint32_t track_id, const 
 			ticks[i] = data.v77.s8[run.s8_start + offsets[i]].s8_duration_ticks;
 	}
 	frame_counter++;
-	spdlog::debug("anim: play track {} \"{}\"", track_id, track.name);
+	spdlog::debug(
+		"anim: {} play track {} \"{}\"",
+		label.empty() ? std::string("<unknown>") : label,
+		track_id,
+		track.name);
 }
 
 void SpritePlaybackState::play(const SpriteData& data, const std::string& name, const SpritePlaybackOptions& options) {

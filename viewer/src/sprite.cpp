@@ -271,8 +271,11 @@ void SpriteInstance::for_each_layer(
 	base.s7_transform_id = s8.s7_transform_id;
 	base.s6_keyframe_interpolation = s8.s6_keyframe_interpolation;
 	base.s7_transform_interpolation = s8.s7_transform_interpolation;
+	// Draw only frames flagged ACTIVE (0x20) for non-character sprites. Dash and
+	// knockback tracks store their transitional poses as full keyframes without
+	// ACTIVE (HIDDEN/NODRAW are separate gates), so character tracks draw them.
 	const bool current = mone && sa_idx == current_sequence;
-	if (!current && !(s8.flags & mbs::v77::s8flag::ACTIVE)) {
+	if (!current && !character && !(s8.flags & mbs::v77::s8flag::ACTIVE)) {
 		base.skip = "inactive";
 		visit(base);
 		return;

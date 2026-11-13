@@ -36,6 +36,7 @@ struct SpriteRunState {
 // geometry and vertices stay in SpriteInstance/renderer code.
 struct SpritePlaybackState {
 	uint32_t track_idx = 0;
+	std::string label; // owning scene entity, for debug logs
 	float accum = 0.0f;
 	std::vector<uint32_t> ticks;
 	std::vector<uint32_t> offsets;

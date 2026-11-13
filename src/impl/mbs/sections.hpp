@@ -207,14 +207,15 @@ struct v77 {
 
 	// Frame flags. ACTIVE, HIDDEN, and NODRAW are independent gates; HIDDEN is a
 	// hard update/draw suppress, while NODRAW only suppresses the generic render
-	// object. JUMP targets are absolute sequence-relative offsets.
+	// object. Character dash/knockback transitions keep full keyframes without
+	// ACTIVE. JUMP targets are absolute sequence-relative offsets.
 	enum s8flag : uint32_t {
 		// clang-format off
 		FLIPX    = 0x01,   // horizontal mirror
 		FLIPY    = 0x02,   // vertical mirror
 		JUMP     = 0x04,   // next offset = s8_loop_target (absolute)
 		HOLD     = 0x08,   // no frame advance; hold current frame
-		ACTIVE   = 0x20,   // frame is renderable
+		ACTIVE   = 0x20,   // stable/active phase frame (see viewer gate)
 		HIDDEN   = 0x40,   // skip update and draw
 		EVENT    = 0x80,   // invokes the TrackInstance +0xa0 payload callback
 		NODRAW   = 0x400,  // update continues, but no generic render object
