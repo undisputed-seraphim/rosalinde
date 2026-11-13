@@ -1,5 +1,6 @@
 #include "sprite_playback_state.hpp"
 
+#include "mbs_timing.hpp"
 #include "sprite.hpp"
 
 #include <glm/gtx/euler_angles.hpp>
@@ -131,10 +132,8 @@ void SpritePlaybackState::play(const SpriteData& data, const std::string& name, 
 }
 
 void SpritePlaybackState::update(const SpriteData& data, float dt_seconds) {
-	// MBS animation sequences advance at 120 frames/s (script Wait/time units are
-	// 60 Hz). Confirmed against the opening reference: a 556-frame logo sequence
-	// ends at 4.6 s, and the title's flash phase lands at 14 s.
-	constexpr float kTicksPerSecond = 120.0f;
+	// Script time is 60 Hz; section-8 ticks advance at the shared MBS rate.
+	constexpr float kTicksPerSecond = static_cast<float>(mbs::animation_ticks_per_second);
 	constexpr float kTransitionDuration = 0.15f;
 	accum += dt_seconds * kTicksPerSecond;
 

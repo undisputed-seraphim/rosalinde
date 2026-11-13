@@ -1,5 +1,7 @@
 #include "sprite.hpp"
 
+#include "mbs_timing.hpp"
+
 #include <criware/byte_reader.hpp>
 #include <impl/mbs/detail.hpp>
 
@@ -146,7 +148,7 @@ std::vector<SpriteData::Track> analyze_tracks(const mbs::v77& v77) {
 			for (uint32_t i = 0; i < run.loop_start && run.s8_start + i < v77.s8.size(); ++i)
 				intro_ticks += v77.s8[run.s8_start + i].s8_duration_ticks;
 		}
-		track.action_frames = intro_ticks > 0 ? (intro_ticks + 1) / 2 : track_duration_frames(v77, track);
+		track.action_frames = intro_ticks > 0 ? mbs::frames_from_ticks(intro_ticks) : track_duration_frames(v77, track);
 	}
 	return tracks;
 }
@@ -159,7 +161,7 @@ long track_duration_frames(const mbs::v77& sections, const SpriteData::Track& tr
 			run_ticks += sections.s8[run.s8_start + i].s8_duration_ticks;
 		ticks = std::max(ticks, run_ticks);
 	}
-	return ticks <= 0 ? 0 : (ticks + 1) / 2;
+	return mbs::frames_from_ticks(ticks);
 }
 
 long track_duration_frames(const SpriteData& data, int track) {
