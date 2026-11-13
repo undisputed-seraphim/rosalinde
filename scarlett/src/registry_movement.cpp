@@ -9,10 +9,14 @@ namespace asb {
 
 namespace {
 
+// DrMove* speeds are world units per character update tick, and the character
+// state machine runs at the 60 Hz scene-frame rate (FUN_0016f774 adds speed to
+// position once per update). The binary's jump state (FUN_00170240) uses the
+// same units; only its parabola formula differs.
 int motion_duration_frames(float distance, float speed) {
 	if (distance <= 1e-3f || speed <= 1e-3f)
 		return 0;
-	return std::max(1, static_cast<int>(std::ceil(distance / speed / 2.0f)));
+	return std::max(1, static_cast<int>(std::ceil(distance / speed)));
 }
 
 int vector_components(asIScriptGeneric* gen, int index) {
@@ -198,9 +202,16 @@ DispatchResult Registry::dispatch_movement(std::string_view name, NativeArgs& ar
 				move.to[k] = entity->pos[k];
 			}
 			move.to[0] += entity->dir_x * move_distance;
-			const int duration = speed > 1e-3f ? static_cast<int>(std::ceil(std::abs(move_distance) / speed)) : 30;
+			// FUN_00170240 advances a parabola: progress += speed per update and
+			// completes when height - (progress - sqrt(height))^2 goes negative,
+			// i.e. after 2*sqrt(height)/speed updates. The horizontal impulse only
+			// scales the per-update step; it does not set the duration.
+			const int duration =
+				speed > 1e-3f
+					? std::max(1, static_cast<int>(std::ceil(2.0f * std::sqrt(std::abs(height)) / speed)))
+					: 30;
 			move.f0 = frame;
-			move.f1 = frame + std::max(1, duration);
+			move.f1 = frame + duration;
 			move.arc = std::abs(height);
 			_moves[entity->name] = move;
 			mark_dirty();
