@@ -232,10 +232,11 @@ std::string return_value_text(asIScriptGeneric* gen, int type_id) {
 }
 
 void set_default_return(asIScriptGeneric* gen, asIScriptFunction* fn) {
-	const int type_id = fn->GetReturnTypeId();
+	asDWORD flags = 0;
+	const int type_id = fn->GetReturnTypeId(&flags);
 	if (type_id == asTYPEID_VOID)
 		return;
-	if (type_id & asTYPEID_OBJHANDLE) {
+	if ((flags & asTM_INOUTREF) || (type_id & asTYPEID_OBJHANDLE)) {
 		gen->SetReturnAddress(nullptr);
 		return;
 	}
@@ -354,11 +355,16 @@ void GenericStub(asIScriptGeneric* gen) {
 	if (!handled) {
 		set_default_return(gen, fn);
 
-		// Value types are returned into caller-allocated storage; if we leave it
-		// untouched the VM later destroys/copies uninitialised memory (e.g. a bogus
-		// `string`). Default-construct a string and zero anything else.
-		const int rt = fn->GetReturnTypeId();
-		if (rt & asTYPEID_MASK_OBJECT) {
+		// Value types returned by value are built in caller-allocated storage; if
+		// we leave it untouched the VM later destroys/copies uninitialised memory
+		// (e.g. a bogus `string`). Default-construct a string and zero anything
+		// else. Reference and handle returns only get an 8-byte slot in the
+		// generic frame, so the object size must never be written there.
+		asDWORD flags = 0;
+		const int rt = fn->GetReturnTypeId(&flags);
+		const bool by_value =
+			(rt & asTYPEID_MASK_OBJECT) && !(flags & asTM_INOUTREF) && !(rt & asTYPEID_OBJHANDLE);
+		if (by_value) {
 			asITypeInfo* ti = gen->GetEngine()->GetTypeInfoById(rt);
 			void* loc = gen->GetAddressOfReturnLocation();
 			if (loc && ti) {
