@@ -1,21 +1,26 @@
 #include "engine/Engine.hpp"
 
 #include <SDL3/SDL.h>
+#include <spdlog/spdlog.h>
+
+#include <algorithm>
 
 namespace uvw {
 
-Engine::Engine(const char* title, unsigned width, unsigned height)
-	: _window(title, width, height) {}
+Engine::Engine(const char* title, unsigned width, unsigned height, bool vsync)
+	: _window(title, width, height, vsync) {}
 
 void Engine::run(std::function<std::unique_ptr<BaseGame>()> factory) {
 	auto game = factory();
-	uint64_t last = SDL_GetTicks();
+	const uint64_t freq = SDL_GetPerformanceFrequency();
+	uint64_t last = SDL_GetPerformanceCounter();
+	uint64_t stats_start = last;
+	uint64_t stats_frames = 0;
 	for (bool stop = false; !stop;) {
-		uint64_t now = SDL_GetTicks();
-		float dt = (now - last) / 1000.0f;
+		const uint64_t now = SDL_GetPerformanceCounter();
+		const double elapsed = static_cast<double>(now - last) / static_cast<double>(freq);
 		last = now;
-		if (dt > 0.25f)
-			dt = 0.25f;
+		const float dt = static_cast<float>(std::min(elapsed, 0.25));
 
 		stop = game->handle_inputs();
 		game->update(dt);
@@ -26,6 +31,17 @@ void Engine::run(std::function<std::unique_ptr<BaseGame>()> factory) {
 			_window.swapbuffer();
 		} else {
 			SDL_Delay(10);
+		}
+
+		++stats_frames;
+		const double stats_elapsed = static_cast<double>(now - stats_start) / static_cast<double>(freq);
+		if (stats_elapsed >= 1.0) {
+			spdlog::debug(
+				"engine: {:.1f} fps, {:.2f} ms/frame",
+				static_cast<double>(stats_frames) / stats_elapsed,
+				stats_elapsed * 1000.0 / static_cast<double>(stats_frames));
+			stats_start = now;
+			stats_frames = 0;
 		}
 	}
 }

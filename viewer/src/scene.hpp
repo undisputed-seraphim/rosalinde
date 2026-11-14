@@ -20,6 +20,8 @@ private:
 	ViewerConfig _config;
 	AssetLoader _loader;
 	DebugUI _ui;
+	float _fps = 0.0f;
+	float _frame_ms = 0.0f;
 
 	std::unique_ptr<ScenePlayback> _playback;
 };

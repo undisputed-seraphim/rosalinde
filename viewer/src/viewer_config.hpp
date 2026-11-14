@@ -25,6 +25,8 @@ struct ViewerConfig {
 	std::string state;		  // headless: write a scene state snapshot (text)
 	std::string state_json;	  // headless: write the full scene state JSON
 	float scene_fps = 60.0f;  // playback frame step rate
+	bool vsync = true;		  // interactive: synchronise buffer swaps with the display
+	bool show_stats = false;  // interactive: show the FPS/frame-time overlay
 	std::string trace;		  // optional NDJSON event trace
 	std::string trace_categories;
 	std::vector<long> trace_frames;

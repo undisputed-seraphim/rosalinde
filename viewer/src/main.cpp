@@ -84,6 +84,8 @@ int main(int argc, char* argv[]) try {
 	std::string mode_text;
 	bool audio_requested = false;
 	bool no_audio = false;
+	bool vsync_requested = false;
+	bool no_vsync = false;
 	::boost::program_options::options_description desc;
 	desc.add_options()("help,h", "Print this help message")(
 		"cpk", ::boost::program_options::value<std::filesystem::path>(&config.cpk)->required(), "Path to Unicorn.cpk")(
@@ -108,6 +110,13 @@ int main(int argc, char* argv[]) try {
 		"scene-fps",
 		::boost::program_options::value<float>(&config.scene_fps)->default_value(config.scene_fps),
 		"Playback frame step rate (60 matches the script clock)")(
+		"vsync",
+		::boost::program_options::bool_switch(&vsync_requested),
+		"Synchronise buffer swaps with the display (default: on)")(
+		"no-vsync", ::boost::program_options::bool_switch(&no_vsync), "Disable vsync for uncapped presentation")(
+		"stats",
+		::boost::program_options::bool_switch(&config.show_stats),
+		"Show the FPS/frame-time overlay (toggle with F1)")(
 		"headless",
 		::boost::program_options::bool_switch(&config.headless),
 		"Run the scene without a window or GL context")(
@@ -235,6 +244,10 @@ int main(int argc, char* argv[]) try {
 		config.audio = true;
 	else
 		config.audio = !config.headless && config.screenshot.empty() && config.capture_frames.empty();
+	if (no_vsync)
+		config.vsync = false;
+	else if (vsync_requested)
+		config.vsync = true;
 	if (!config.audio_wav.empty())
 		config.audio = true;
 	if (config.audio_volume < 0.0f || config.audio_volume > 1.0f) {
@@ -338,7 +351,8 @@ int main(int argc, char* argv[]) try {
 		}
 	}
 
-	uvw::Engine engine("Rosalinde", view_w, view_h);
+	uvw::Engine engine("Rosalinde", view_w, view_h, config.vsync);
+	config.vsync = engine.swap_interval() > 0;
 	engine.set_clear_color(config.clear_color);
 	engine.run([&] {
 		viewer::trace::stamp("creating Scene");

@@ -18,9 +18,10 @@ public:
 
 class Engine final {
 public:
-	Engine(const char* title, unsigned width = 1920, unsigned height = 1080);
+	Engine(const char* title, unsigned width = 1920, unsigned height = 1080, bool vsync = true);
 
 	void set_clear_color(const std::array<float, 4>& color) noexcept { _window.set_clear_color(color); }
+	int swap_interval() const noexcept { return _window.swap_interval(); }
 	void run(std::function<std::unique_ptr<BaseGame>()> factory);
 
 private:

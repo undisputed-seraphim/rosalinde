@@ -2,6 +2,7 @@
 
 #include <array>
 #include <glad/glad.h>
+#include <spdlog/spdlog.h>
 #include <stdexcept>
 
 namespace uvw {
@@ -17,7 +18,7 @@ static std::unique_ptr<char, void (*)(char*)> Init_SDL(int flags) {
 	});
 }
 
-Window::Window(const char* name, int width, int height)
+Window::Window(const char* name, int width, int height, bool vsync)
 	: _sdl(Init_SDL(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
 	, _window(
 		  SDL_CreateWindow(name, width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_HIGH_PIXEL_DENSITY),
@@ -31,7 +32,6 @@ Window::Window(const char* name, int width, int height)
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-	SDL_GL_SetSwapInterval(1);
 	_gl.reset(SDL_GL_CreateContext(_window.get()));
 	SDL_GL_MakeCurrent(_window.get(), _gl.get());
 	SDL_ShowWindow(_window.get());
@@ -47,6 +47,14 @@ Window::Window(const char* name, int width, int height)
 	if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
 		throw std::runtime_error("Failed to initialize GLAD");
 	}
+	const int requested_interval = vsync ? 1 : 0;
+	if (!SDL_GL_SetSwapInterval(requested_interval))
+		spdlog::warn("GL: SDL_GL_SetSwapInterval({}) failed: {}", requested_interval, SDL_GetError());
+	if (!SDL_GL_GetSwapInterval(&_swap_interval)) {
+		spdlog::warn("GL: SDL_GL_GetSwapInterval failed: {}", SDL_GetError());
+		_swap_interval = requested_interval;
+	}
+	spdlog::info("GL: swap interval {} ({})", _swap_interval, _swap_interval > 0 ? "vsync on" : "vsync off");
 }
 
 Window::~Window() noexcept {}

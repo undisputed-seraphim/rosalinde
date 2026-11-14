@@ -6,6 +6,7 @@
 #include <glxx/error.hpp>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl3.h>
+#include <cstdlib>
 #include <iostream>
 #include <spdlog/spdlog.h>
 #include <stdexcept>
@@ -28,6 +29,9 @@ Scene::Scene(ViewerConfig config)
 
 	ImGui::GetIO().IniFilename = nullptr;
 	_playback = std::make_unique<ScenePlayback>(_loader, _config);
+	_ui.set_stats_visible(_config.show_stats);
+	if (const char* stats = std::getenv("VIEWER_STATS"))
+		_ui.set_stats_visible(std::atoi(stats) != 0);
 	viewer::trace::stamp("Scene ctor: ScenePlayback ready");
 }
 
@@ -39,6 +43,8 @@ bool Scene::handle_inputs() {
 			return true;
 		if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE)
 			_playback->request_quit();
+		if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_F1)
+			_ui.toggle_stats();
 	}
 	if (_playback && _playback->should_quit())
 		return true;
@@ -59,9 +65,20 @@ void Scene::render() {
 	}
 	_ui.begin_frame();
 	_playback->render();
+	_ui.draw_stats(_fps, _frame_ms, _config.vsync);
 	_ui.end_frame();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	_playback->capture();
 }
 
-void Scene::update(float dt) { _playback->update(dt); }
+void Scene::update(float dt) {
+	_playback->update(dt);
+	if (dt < 0.0001f)
+		return;
+	const float frame_ms = dt * 1000.0f;
+	if (_frame_ms <= 0.0f)
+		_frame_ms = frame_ms;
+	else
+		_frame_ms += (frame_ms - _frame_ms) * 0.1f;
+	_fps = 1000.0f / _frame_ms;
+}
