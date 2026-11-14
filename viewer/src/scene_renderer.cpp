@@ -46,6 +46,26 @@ bool name_contains(const asb::RuntimeEntity& e, std::string_view text) {
 	return false;
 }
 
+// UcDrChara::update (0xcd680) builds its draw sort key with FUN_000f28d4:
+// sort_id_offset + linked_base - 100 * (int)z. The linked base is zero for a
+// standalone character; only attached parts inherit their parent's key.
+int chara_sort_key(const asb::RuntimeEntity& e) {
+	const bool world_chara =
+		e.space == asb::RuntimeEntity::Space::World && (e.kind == "DrCreateChara" || e.kind == "DrCreateNpc");
+	if (!world_chara)
+		return e.sort_id_offset;
+	return e.sort_id_offset - 100 * static_cast<int>(e.pos[2]);
+}
+
+// The stage and its layers are the backmost draw group. The engine gives them
+// a separate window from the drama actors; the viewer keeps that separation
+// explicit so a negative character sort key cannot move actors behind it.
+int render_class(bool stage, bool background, bool replaces_stage, bool prerender) {
+	if (stage || background || replaces_stage || prerender)
+		return 0;
+	return 1;
+}
+
 enum class WeatherTrack {
 	none,
 	rain,
@@ -456,10 +476,12 @@ std::vector<const SceneRenderer::RenderItem*> SceneRenderer::ordered_items() con
 			h *= 1099511628211ull;
 		};
 		mix(reinterpret_cast<uintptr_t>(item));
+		mix(static_cast<uint32_t>(
+			render_class(item->stage, item->background, item->replaces_stage, e.prerender_force)));
 		mix(static_cast<uint32_t>(e.prerender_force));
 		mix(static_cast<uint32_t>(e.window_id_offset));
 		mix(static_cast<uint32_t>(e.dlprio));
-		mix(static_cast<uint32_t>(e.sort_id_offset));
+		mix(static_cast<uint32_t>(chara_sort_key(e)));
 		mix(static_cast<uint32_t>(e.order));
 		hash ^= h;
 	}
@@ -469,14 +491,20 @@ std::vector<const SceneRenderer::RenderItem*> SceneRenderer::ordered_items() con
 	std::stable_sort(items.begin(), items.end(), [](const RenderItem* a, const RenderItem* b) {
 		const auto& ea = a->state;
 		const auto& eb = b->state;
+		const int class_a = render_class(a->stage, a->background, a->replaces_stage, ea.prerender_force);
+		const int class_b = render_class(b->stage, b->background, b->replaces_stage, eb.prerender_force);
+		if (class_a != class_b)
+			return class_a < class_b;
 		if (ea.prerender_force != eb.prerender_force)
 			return ea.prerender_force > eb.prerender_force;
 		if (ea.window_id_offset != eb.window_id_offset)
 			return ea.window_id_offset < eb.window_id_offset;
 		if (ea.dlprio != eb.dlprio)
 			return ea.dlprio < eb.dlprio;
-		if (ea.sort_id_offset != eb.sort_id_offset)
-			return ea.sort_id_offset < eb.sort_id_offset;
+		const int sort_a = chara_sort_key(ea);
+		const int sort_b = chara_sort_key(eb);
+		if (sort_a != sort_b)
+			return sort_a < sort_b;
 		return ea.order < eb.order;
 	});
 	_ordered_cache = items;
