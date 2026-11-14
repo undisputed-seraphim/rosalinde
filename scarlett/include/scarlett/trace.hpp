@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdio>
+#include <format>
 #include <functional>
 #include <string>
 #include <string_view>
@@ -65,27 +66,17 @@ inline std::string quote(std::string_view value) {
 	return out;
 }
 
-inline std::string number(double value) {
-	char buf[64];
-	std::snprintf(buf, sizeof(buf), "%.7g", value);
-	return buf;
-}
+inline std::string number(double value) { return std::format("{:.7g}", value); }
 
-inline std::string integer(long long value) {
-	char buf[32];
-	std::snprintf(buf, sizeof(buf), "%lld", value);
-	return buf;
-}
+inline std::string integer(long long value) { return std::format("{}", value); }
 
 inline std::string boolean(bool value) { return value ? "true" : "false"; }
 
-inline std::string vec2(const float* v) { return "[" + number(v[0]) + "," + number(v[1]) + "]"; }
+inline std::string vec2(const float* v) { return std::format("[{:.7g},{:.7g}]", v[0], v[1]); }
 
-inline std::string vec3(const float* v) { return "[" + number(v[0]) + "," + number(v[1]) + "," + number(v[2]) + "]"; }
+inline std::string vec3(const float* v) { return std::format("[{:.7g},{:.7g},{:.7g}]", v[0], v[1], v[2]); }
 
-inline std::string vec4(const float* v) {
-	return "[" + number(v[0]) + "," + number(v[1]) + "," + number(v[2]) + "," + number(v[3]) + "]";
-}
+inline std::string vec4(const float* v) { return std::format("[{:.7g},{:.7g},{:.7g},{:.7g}]", v[0], v[1], v[2], v[3]); }
 
 } // namespace trace
 } // namespace asb

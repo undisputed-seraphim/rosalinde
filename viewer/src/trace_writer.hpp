@@ -12,6 +12,7 @@ class TraceWriter {
 public:
 	bool open(const std::string& path, std::string_view categories);
 	void set_filter(std::vector<long> frames, std::vector<std::string> objects, int limit);
+	bool active() const noexcept { return _out != nullptr; }
 	bool enabled(std::string_view kind) const;
 	void write(const asb::TraceEvent& event);
 	void write_native_call(const asb::NativeCall& call);

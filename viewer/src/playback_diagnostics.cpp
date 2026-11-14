@@ -62,6 +62,8 @@ void PlaybackDiagnostics::write_record_line(const std::string& line) {
 }
 
 asb::TraceCallback PlaybackDiagnostics::trace_callback() {
+	if (!_trace.active())
+		return {};
 	return [this](const asb::TraceEvent& event) {
 		if (event.kind == "vm" && event.event == "call")
 			return;
@@ -82,10 +84,7 @@ void PlaybackDiagnostics::observe_native(const asb::NativeCall& call) {
 		spdlog::debug("call: {}", call.call);
 }
 
-void PlaybackDiagnostics::write_calls(
-	const asb::Module& module,
-	std::string_view entry,
-	std::string_view function) {
+void PlaybackDiagnostics::write_calls(const asb::Module& module, std::string_view entry, std::string_view function) {
 	if (_cfg.calls.empty() && _cfg.calls_json.empty())
 		return;
 	auto emit = [](const std::string& path, const std::string& text) {
@@ -120,11 +119,11 @@ void PlaybackDiagnostics::write_record(const asb::SceneState& scene, const Scene
 	asb::fade_at(scene.fades, scene.frame, fade);
 	std::ostringstream out;
 	out << "{\"frame\":" << frame << ",\"camera\":{\"pos\":" << asb::trace::vec3(scene.camera.pos)
-		<< ",\"zoom\":" << asb::trace::number(scene.camera.zoom) << "},\"fade\":[" << asb::trace::number(fade[0])
-		<< "," << asb::trace::number(fade[1]) << "," << asb::trace::number(fade[2]) << ","
-		<< asb::trace::number(fade[3]) << "],\"stage\":{\"type\":" << scene.stage.stage_type
-		<< ",\"weather\":" << scene.stage.weather_type << ",\"coa\":" << scene.stage.coa_preset
-		<< ",\"flag\":" << scene.stage.flag_color << "},\"renderer\":" << renderer.timeline_json(scene) << "}\n";
+		<< ",\"zoom\":" << asb::trace::number(scene.camera.zoom) << "},\"fade\":[" << asb::trace::number(fade[0]) << ","
+		<< asb::trace::number(fade[1]) << "," << asb::trace::number(fade[2]) << "," << asb::trace::number(fade[3])
+		<< "],\"stage\":{\"type\":" << scene.stage.stage_type << ",\"weather\":" << scene.stage.weather_type
+		<< ",\"coa\":" << scene.stage.coa_preset << ",\"flag\":" << scene.stage.flag_color
+		<< "},\"renderer\":" << renderer.timeline_json(scene) << "}\n";
 	write_record_line(out.str());
 }
 
@@ -134,13 +133,12 @@ void PlaybackDiagnostics::write_scene_record(
 	const SceneReportContext& context) {
 	if (!_record_out && !_record_gz)
 		return;
-	write_record_line(
-		"{\"frame\":" + std::to_string(frame) + ",\"scene\":" + scene_state_json(scene, context) + "}\n");
+	write_record_line("{\"frame\":" + std::to_string(frame) + ",\"scene\":" + scene_state_json(scene, context) + "}\n");
 }
 
 void PlaybackDiagnostics::write_scene_probe(const asb::SceneState& scene, const SceneReportContext& context) {
-	const std::string json = "{\"frame\":" + std::to_string(scene.frame) + ",\"scene\":" +
-							 scene_state_json(scene, context) + ",\"renderer\":null}";
+	const std::string json = "{\"frame\":" + std::to_string(scene.frame) +
+							 ",\"scene\":" + scene_state_json(scene, context) + ",\"renderer\":null}";
 	_probe.write_scene(scene.frame, json, scene_state_text(scene, context));
 }
 
@@ -207,8 +205,9 @@ void PlaybackDiagnostics::finish_probe(
 	const asb::SceneState& scene,
 	const SceneRenderer& renderer,
 	const SceneReportContext& context) {
-	const std::string json = "{\"frame\":" + std::to_string(scene.frame) + ",\"scene\":" +
-							 scene_state_json(scene, context) + ",\"renderer\":" + renderer.state_json(scene) + "}";
+	const std::string json = "{\"frame\":" + std::to_string(scene.frame) +
+							 ",\"scene\":" + scene_state_json(scene, context) +
+							 ",\"renderer\":" + renderer.state_json(scene) + "}";
 	_probe.write_state(scene.frame, json);
 	_probe.write_summary(scene.frame, renderer.summary(scene));
 	_probe.end();

@@ -10,6 +10,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
+#include <iterator>
 #include <limits>
 #include <sstream>
 #include <string_view>
@@ -85,8 +87,10 @@ std::string color_json(const uint32_t color[4]) {
 }
 
 std::string runs_json(const SpriteInstance& instance) {
-	std::string out = "[";
 	const auto states = instance.run_states();
+	std::string out;
+	out.reserve(2 + states.size() * 96);
+	out += '[';
 	for (size_t i = 0; i < states.size(); ++i) {
 		if (i)
 			out += ',';
@@ -95,12 +99,20 @@ std::string runs_json(const SpriteInstance& instance) {
 		if (instance.data && instance.playback.track_idx < instance.data->tracks.size() &&
 			i < instance.data->tracks[instance.playback.track_idx].runs.size())
 			track_slot = instance.data->tracks[instance.playback.track_idx].runs[i].sa_track_slot;
-		out += "{\"run\":" + std::to_string(i) + ",\"track_id\":" + std::to_string(track_slot) +
-			   ",\"offset\":" + std::to_string(state.offset) + ",\"s8\":" + std::to_string(state.s8) +
-			   ",\"s6\":" + std::to_string(state.s6) + ",\"s7\":" + std::to_string(state.s7) +
-			   ",\"flags\":" + std::to_string(state.flags) + ",\"frames\":" + std::to_string(state.frames) +
-			   ",\"done\":" + asb::trace::boolean(state.done) + ",\"hidden\":" + asb::trace::boolean(state.hidden) +
-			   "}";
+		std::format_to(
+			std::back_inserter(out),
+			"{{\"run\":{},\"track_id\":{},\"offset\":{},\"s8\":{},\"s6\":{},\"s7\":{},\"flags\":{},\"frames\":{},"
+			"\"done\":{},\"hidden\":{}}}",
+			i,
+			track_slot,
+			state.offset,
+			state.s8,
+			state.s6,
+			state.s7,
+			state.flags,
+			state.frames,
+			state.done,
+			state.hidden);
 	}
 	out += ']';
 	return out;
@@ -759,6 +771,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 
 	if (_trace) {
 		std::string objects;
+		objects.reserve(order.size() * 256);
 		for (const RenderItem* object : order) {
 			const auto& e = object->state;
 			glm::vec4 bounds{
@@ -773,26 +786,40 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				bounds.z = std::max(bounds.z, b.z);
 				bounds.w = std::max(bounds.w, b.w);
 			}
-			std::string track_name;
+			std::string_view track_name;
 			if (object->playback.asset && object->playback.track_index >= 0 &&
 				static_cast<size_t>(object->playback.track_index) < object->playback.asset->data.tracks.size())
 				track_name = object->playback.asset->data.tracks[object->playback.track_index].name;
-			objects += (objects.empty() ? "" : ",");
-			objects += "{\"name\":\"" + asb::trace::quote(e.name) + "\",\"order\":" + asb::trace::integer(e.order) +
-					   ",\"instances\":" + asb::trace::integer(static_cast<long>(object->playback.instances.size())) +
-					   ",\"track\":" + asb::trace::integer(object->playback.track_index) + ",\"track_name\":\"" +
-					   asb::trace::quote(track_name) + "\"" +
-					   ",\"prerender_force\":" + asb::trace::boolean(e.prerender_force) +
-					   ",\"window_id_offset\":" + asb::trace::integer(e.window_id_offset) +
-					   ",\"dlprio\":" + asb::trace::integer(e.dlprio) +
-					   ",\"sort_id_offset\":" + asb::trace::integer(e.sort_id_offset) + ",\"space\":\"" +
-					   (e.space == asb::RuntimeEntity::Space::Ui ? "ui" : "world") + "\"" +
-					   ",\"pos\":" + asb::trace::vec2(e.pos) + ",\"scale\":" + asb::trace::number(e.scale) +
-					   ",\"alpha\":" + asb::trace::integer(e.alpha) +
-					   ",\"background\":" + asb::trace::boolean(object->background) + ",\"reason\":\"" +
-					   filter_reason(e, object->stage) + "\"" + ",\"bounds\":" + asb::trace::vec4(&bounds.x) + "}";
+			if (!objects.empty())
+				objects += ',';
+			std::format_to(
+				std::back_inserter(objects),
+				"{{\"name\":\"{}\",\"order\":{},\"instances\":{},\"track\":{},\"track_name\":\"{}\","
+				"\"prerender_force\":{},\"window_id_offset\":{},\"dlprio\":{},\"sort_id_offset\":{},"
+				"\"space\":\"{}\",\"pos\":[{:.7g},{:.7g}],\"scale\":{:.7g},\"alpha\":{},\"background\":{},"
+				"\"reason\":\"{}\",\"bounds\":[{:.7g},{:.7g},{:.7g},{:.7g}]}}",
+				asb::trace::quote(e.name),
+				e.order,
+				object->playback.instances.size(),
+				object->playback.track_index,
+				asb::trace::quote(track_name),
+				e.prerender_force,
+				e.window_id_offset,
+				e.dlprio,
+				e.sort_id_offset,
+				e.space == asb::RuntimeEntity::Space::Ui ? "ui" : "world",
+				e.pos[0],
+				e.pos[1],
+				e.scale,
+				e.alpha,
+				object->background,
+				filter_reason(e, object->stage),
+				bounds.x,
+				bounds.y,
+				bounds.z,
+				bounds.w);
 		}
-		_trace({_frame, "draw", "list", "\"objects\":[" + objects + "]"});
+		_trace({_frame, "draw", "list", std::format("\"objects\":[{}]", objects)});
 	}
 	for (const RenderItem* object : order) {
 		const auto& e = object->state;
@@ -815,9 +842,12 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 					{_frame,
 					 "draw",
 					 "runs",
-					 "\"object\":\"" + asb::trace::quote(e.name) + "\",\"instance\":" + std::to_string(i) +
-						 ",\"track\":" + std::to_string(instance.playback.track_idx) +
-						 ",\"runs\":" + runs_json(instance)});
+					 std::format(
+						 "\"object\":\"{}\",\"instance\":{},\"track\":{},\"runs\":{}",
+						 asb::trace::quote(e.name),
+						 i,
+						 instance.playback.track_idx,
+						 runs_json(instance))});
 			if (_probe) {
 				probe_instance(*object, object->stage, i);
 				probe_layers(*object, i, object->stage, object->has_tint ? &object->tint : nullptr);
