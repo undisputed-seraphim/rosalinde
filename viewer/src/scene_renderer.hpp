@@ -100,6 +100,9 @@ private:
 	RenderItem _stage;
 	std::vector<StageLayer> _stage_layer_specs;
 	std::vector<RenderItem> _stage_layer_items;
+	mutable std::vector<const RenderItem*> _ordered_cache;
+	mutable uint64_t _ordered_hash = 0;
+	uint64_t _object_generation = 0;
 	std::vector<WeatherRegion> _weather_regions;
 	WeatherRenderer _weather;
 	float _weather_amount = 0.0f;

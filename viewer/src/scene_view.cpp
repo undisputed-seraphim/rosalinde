@@ -59,8 +59,9 @@ void SceneView::sync(const asb::SceneState& scene) {
 		if (field.kind == "weather_fade")
 			weather_request = static_cast<float>(field.i0) / 255.0f;
 	}
-	if (const char* forced = std::getenv("VIEWER_WEATHER"))
-		weather_request = static_cast<float>(std::atof(forced));
+	static const char* const forced_weather = std::getenv("VIEWER_WEATHER");
+	if (forced_weather)
+		weather_request = static_cast<float>(std::atof(forced_weather));
 	_renderer.set_weather_request(weather_request);
 	sync_stage(scene);
 	_renderer.sync(scene);
@@ -111,9 +112,9 @@ void SceneView::sync_stage(const asb::SceneState& scene) {
 			{scene.frame,
 			 "stage",
 			 "asset",
-			 "\"type\":" + asb::trace::integer(type) + ",\"mbs\":\"" + asb::trace::quote(stage.mbs) +
-				 "\",\"ftx\":\"" + asb::trace::quote(stage.ftx) + "\",\"layers\":" +
-				 std::to_string(stage.layers.size()) + ",\"mpd\":" + std::to_string(stage.mpd_layers.size())});
+			 "\"type\":" + asb::trace::integer(type) + ",\"mbs\":\"" + asb::trace::quote(stage.mbs) + "\",\"ftx\":\"" +
+				 asb::trace::quote(stage.ftx) + "\",\"layers\":" + std::to_string(stage.layers.size()) +
+				 ",\"mpd\":" + std::to_string(stage.mpd_layers.size())});
 }
 
 void SceneView::apply_camera(const asb::SceneState& scene) {
@@ -121,8 +122,9 @@ void SceneView::apply_camera(const asb::SceneState& scene) {
 	const float zoom = cam.has_zoom && cam.zoom > 0.0f ? cam.zoom : 1.0f;
 	if (cam.has_pos) {
 		float offset_y = 0.0f;
-		if (const char* value = std::getenv("VIEWER_CAM_Y"))
-			offset_y = static_cast<float>(std::atof(value));
+		static const char* const cam_y = std::getenv("VIEWER_CAM_Y");
+		if (cam_y)
+			offset_y = static_cast<float>(std::atof(cam_y));
 		// The script camera position is a world-space rect centre (see
 		// FUN_0016e88c / cam_update_view_rect). Camera::lookAt() applies the zoom
 		// to the world point but not to the eye, so the eye must be given in

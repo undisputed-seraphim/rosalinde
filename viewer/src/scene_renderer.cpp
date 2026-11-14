@@ -132,12 +132,14 @@ std::string SceneRenderer::filter_reason(const asb::RuntimeEntity& e, bool stage
 	for (const auto& text : _hide)
 		if (name_contains(e, text))
 			return "hide";
-	if (const char* text = std::getenv("VIEWER_HIDE"); text && name_contains(e, text))
+	static const char* const hide_env = std::getenv("VIEWER_HIDE");
+	if (hide_env && name_contains(e, hide_env))
 		return "viewer_hide";
 	return {};
 }
 
 void SceneRenderer::reset_stage() {
+	++_object_generation;
 	_stage_layer_specs.clear();
 	_stage_layer_items.clear();
 	_weather_regions.clear();
@@ -225,8 +227,8 @@ void SceneRenderer::update_tints(RenderItem& object) {
 	object.has_tint = packed >= 0 && object.playback.asset != nullptr;
 	if (!object.has_tint)
 		return;
-	object.tint = glm::vec4{
-		((packed >> 16) & 0xFF) / 255.0f, ((packed >> 8) & 0xFF) / 255.0f, (packed & 0xFF) / 255.0f, 1.0f};
+	object.tint =
+		glm::vec4{((packed >> 16) & 0xFF) / 255.0f, ((packed >> 8) & 0xFF) / 255.0f, (packed & 0xFF) / 255.0f, 1.0f};
 }
 
 void SceneRenderer::sync(const asb::SceneState& scene) {
@@ -249,6 +251,7 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 				continue;
 			}
 			_objects.erase(it);
+			++_object_generation;
 		}
 
 		auto asset = _library.get(e.mbs, e.ftx);
@@ -257,13 +260,16 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 		RenderItem object;
 		rebuild(object, view, std::move(asset));
 		_objects.emplace(e.name, std::move(object));
+		++_object_generation;
 	}
 
 	for (auto it = _objects.begin(); it != _objects.end();) {
-		if (!seen.contains(it->first))
+		if (!seen.contains(it->first)) {
 			it = _objects.erase(it);
-		else
+			++_object_generation;
+		} else {
 			++it;
+		}
 	}
 
 	if (!_stage_mbs.empty() && !_stage_ftx.empty() && (!_stage.playback.asset || _stage.state.mbs != _stage_mbs)) {
@@ -279,6 +285,7 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			e.order = -100000;
 			e.alpha = 255;
 			rebuild(_stage, e, std::move(asset));
+			++_object_generation;
 		}
 	}
 
@@ -336,6 +343,7 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			rebuild(object, e, std::move(asset));
 			_stage_layer_items.push_back(std::move(object));
 		}
+		++_object_generation;
 		spdlog::debug(
 			"weather: stage amount={} request={} fog={} regions={}",
 			_weather_amount,
@@ -402,6 +410,26 @@ std::vector<const SceneRenderer::RenderItem*> SceneRenderer::ordered_items() con
 			items.push_back(&object);
 	if (_stage.has_renderable())
 		items.push_back(&_stage);
+
+	uint64_t hash = 1469598103934665603ull ^ _object_generation;
+	for (const RenderItem* item : items) {
+		const auto& e = item->state;
+		uint64_t h = 1469598103934665603ull;
+		auto mix = [&](uint64_t value) {
+			h ^= value;
+			h *= 1099511628211ull;
+		};
+		mix(reinterpret_cast<uintptr_t>(item));
+		mix(static_cast<uint32_t>(e.prerender_force));
+		mix(static_cast<uint32_t>(e.window_id_offset));
+		mix(static_cast<uint32_t>(e.dlprio));
+		mix(static_cast<uint32_t>(e.sort_id_offset));
+		mix(static_cast<uint32_t>(e.order));
+		hash ^= h;
+	}
+	if (hash == _ordered_hash && _ordered_cache.size() == items.size())
+		return _ordered_cache;
+
 	std::stable_sort(items.begin(), items.end(), [](const RenderItem* a, const RenderItem* b) {
 		const auto& ea = a->state;
 		const auto& eb = b->state;
@@ -415,6 +443,8 @@ std::vector<const SceneRenderer::RenderItem*> SceneRenderer::ordered_items() con
 			return ea.sort_id_offset < eb.sort_id_offset;
 		return ea.order < eb.order;
 	});
+	_ordered_cache = items;
+	_ordered_hash = hash;
 	return items;
 }
 
@@ -523,78 +553,74 @@ void SceneRenderer::probe_instance(const RenderItem& object, bool stage, size_t 
 				   << "}\n";
 }
 
-void SceneRenderer::probe_layers(
-	const RenderItem& object,
-	size_t index,
-	bool stage,
-	const glm::vec4* tint) {
+void SceneRenderer::probe_layers(const RenderItem& object, size_t index, bool stage, const glm::vec4* tint) {
 	if (!_probe || index >= object.playback.instances.size())
 		return;
 	const auto& instance = object.playback.instances[index];
 	if (!instance.data || instance.playback.track_idx >= instance.data->tracks.size())
 		return;
 	for (uint32_t run = 0; run < instance.sa_count(); ++run) {
-		instance.visit_layers(
-			run, tint, true, object.state.layer_mask, [&](const LayerVisit& layer) {
-				std::string uv = "[";
-				std::string uv_norm = "[";
-				for (int k = 0; k < 4; ++k) {
-					if (k) {
-						uv += ',';
-						uv_norm += ',';
-					}
-					uv += vec2_json(layer.uv[k]);
-					if (layer.tex_width && layer.tex_height) {
-						uv_norm += "[" + number(layer.uv[k].x / layer.tex_width) + "," +
-								   number(layer.uv[k].y / layer.tex_height) + "]";
-					} else {
-						uv_norm += "[0,0]";
-					}
+		instance.visit_layers(run, tint, true, object.state.layer_mask, [&](const LayerVisit& layer) {
+			std::string uv = "[";
+			std::string uv_norm = "[";
+			for (int k = 0; k < 4; ++k) {
+				if (k) {
+					uv += ',';
+					uv_norm += ',';
 				}
-				uv += ']';
-				uv_norm += ']';
-
-				std::string xy = "[";
-				for (int k = 0; k < 4; ++k) {
-					if (k)
-						xy += ',';
-					xy += vec2_json(layer.xy[k]);
+				uv += vec2_json(layer.uv[k]);
+				if (layer.tex_width && layer.tex_height) {
+					uv_norm += "[" + number(layer.uv[k].x / layer.tex_width) + "," +
+							   number(layer.uv[k].y / layer.tex_height) + "]";
+				} else {
+					uv_norm += "[0,0]";
 				}
-				xy += ']';
+			}
+			uv += ']';
+			uv_norm += ']';
 
-				_probe->draw()
-					<< "{\"frame\":" << _frame
-					<< ",\"kind\":\"draw\",\"event\":\"layer\",\"object\":" << quote(object.state.name)
-					<< ",\"stage\":" << asb::trace::boolean(stage) << ",\"instance\":" << index
-					<< ",\"run\":" << layer.run << ",\"layer\":" << layer.layer
-					<< ",\"track\":" << instance.playback.track_idx << ",\"track_id\":" << layer.sa_track_slot
-					<< ",\"offset\":" << layer.offset << ",\"done\":" << asb::trace::boolean(layer.done)
-					<< ",\"hidden\":" << asb::trace::boolean(layer.hidden) << ",\"s8\":" << layer.s8_frame_start
-					<< ",\"s8_flags\":" << layer.s8_flags << ",\"s8_frames\":" << layer.s8_frames
-					<< ",\"s6\":" << layer.s6_keyframe_id << ",\"s7\":" << layer.s7_transform_id
-					<< ",\"s6_interp\":" << static_cast<unsigned>(layer.s6_keyframe_interpolation)
-					<< ",\"s6_next\":" << layer.s6_next_keyframe_id
-					<< ",\"s6_alpha\":" << number(layer.s6_alpha)
-					<< ",\"s7_interp\":" << static_cast<unsigned>(layer.s7_transform_interpolation)
-					<< ",\"s4\":" << layer.s4_layer_start << ",\"s4_source_tile_id\":" << layer.s4_source_tile_id
-					<< ",\"s4_flags\":" << static_cast<unsigned>(layer.s4_flags) << ",\"s1\":" << layer.s1_uv_id
-					<< ",\"s2\":" << layer.s2_vertex_id << ",\"s0\":" << layer.s0_color_row_id
-					<< ",\"color_id\":" << static_cast<unsigned>(layer.color_id)
-					<< ",\"alt_color\":" << color_json(layer.alt_color) << ",\"tex\":" << layer.tex_id
-					<< ",\"tex_w\":" << layer.tex_width << ",\"tex_h\":" << layer.tex_height
-					<< ",\"blend\":" << static_cast<unsigned>(layer.blend) << ",\"attributes\":" << layer.attributes
-					<< ",\"notex\":" << asb::trace::boolean(layer.notex)
-					<< ",\"flip_v\":" << asb::trace::boolean(layer.flip_v)
-					<< ",\"drawn\":" << asb::trace::boolean(layer.drawn) << ",\"skip\":" << quote(layer.skip)
-					<< ",\"depth\":" << number(layer.depth) << ",\"transition_t\":" << number(layer.transition_t)
-					<< ",\"s6_bounds\":" << vec4_json(layer.s6_bounds) << ",\"s7_move\":" << vec3_json(layer.s7_move)
-					<< ",\"s7_rotate\":" << vec3_json(layer.s7_rotate) << ",\"s7_scale\":" << vec2_json(layer.s7_scale)
-					<< ",\"s7_fog\":" << layer.s7_fog << ",\"s1_center\":" << vec2_json(layer.s1_center)
-					<< ",\"s1_topleft\":" << vec2_json(layer.s1_topleft) << ",\"uv\":" << uv
-					<< ",\"uv_norm\":" << uv_norm << ",\"xy\":" << xy
-					<< ",\"raw_color\":" << color_json(layer.raw_color) << ",\"color\":" << color_json(layer.color)
-					<< "}\n";
-			});
+			std::string xy = "[";
+			for (int k = 0; k < 4; ++k) {
+				if (k)
+					xy += ',';
+				xy += vec2_json(layer.xy[k]);
+			}
+			xy += ']';
+
+			_probe->draw() << "{\"frame\":" << _frame
+						   << ",\"kind\":\"draw\",\"event\":\"layer\",\"object\":" << quote(object.state.name)
+						   << ",\"stage\":" << asb::trace::boolean(stage) << ",\"instance\":" << index
+						   << ",\"run\":" << layer.run << ",\"layer\":" << layer.layer
+						   << ",\"track\":" << instance.playback.track_idx << ",\"track_id\":" << layer.sa_track_slot
+						   << ",\"offset\":" << layer.offset << ",\"done\":" << asb::trace::boolean(layer.done)
+						   << ",\"hidden\":" << asb::trace::boolean(layer.hidden) << ",\"s8\":" << layer.s8_frame_start
+						   << ",\"s8_flags\":" << layer.s8_flags << ",\"s8_frames\":" << layer.s8_frames
+						   << ",\"s6\":" << layer.s6_keyframe_id << ",\"s7\":" << layer.s7_transform_id
+						   << ",\"s6_interp\":" << static_cast<unsigned>(layer.s6_keyframe_interpolation)
+						   << ",\"s6_next\":" << layer.s6_next_keyframe_id << ",\"s6_alpha\":" << number(layer.s6_alpha)
+						   << ",\"s7_interp\":" << static_cast<unsigned>(layer.s7_transform_interpolation)
+						   << ",\"s4\":" << layer.s4_layer_start << ",\"s4_source_tile_id\":" << layer.s4_source_tile_id
+						   << ",\"s4_flags\":" << static_cast<unsigned>(layer.s4_flags) << ",\"s1\":" << layer.s1_uv_id
+						   << ",\"s2\":" << layer.s2_vertex_id << ",\"s0\":" << layer.s0_color_row_id
+						   << ",\"color_id\":" << static_cast<unsigned>(layer.color_id)
+						   << ",\"alt_color\":" << color_json(layer.alt_color) << ",\"tex\":" << layer.tex_id
+						   << ",\"tex_w\":" << layer.tex_width << ",\"tex_h\":" << layer.tex_height
+						   << ",\"blend\":" << static_cast<unsigned>(layer.blend)
+						   << ",\"attributes\":" << layer.attributes
+						   << ",\"notex\":" << asb::trace::boolean(layer.notex)
+						   << ",\"flip_v\":" << asb::trace::boolean(layer.flip_v)
+						   << ",\"drawn\":" << asb::trace::boolean(layer.drawn) << ",\"skip\":" << quote(layer.skip)
+						   << ",\"depth\":" << number(layer.depth) << ",\"transition_t\":" << number(layer.transition_t)
+						   << ",\"s6_bounds\":" << vec4_json(layer.s6_bounds)
+						   << ",\"s7_move\":" << vec3_json(layer.s7_move)
+						   << ",\"s7_rotate\":" << vec3_json(layer.s7_rotate)
+						   << ",\"s7_scale\":" << vec2_json(layer.s7_scale) << ",\"s7_fog\":" << layer.s7_fog
+						   << ",\"s1_center\":" << vec2_json(layer.s1_center)
+						   << ",\"s1_topleft\":" << vec2_json(layer.s1_topleft) << ",\"uv\":" << uv
+						   << ",\"uv_norm\":" << uv_norm << ",\"xy\":" << xy
+						   << ",\"raw_color\":" << color_json(layer.raw_color)
+						   << ",\"color\":" << color_json(layer.color) << "}\n";
+		});
 	}
 }
 
@@ -811,7 +837,8 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 }
 
 void SceneRenderer::render_weather(const glm::mat4& projection, const Camera& camera) {
-	if (std::getenv("VIEWER_NO_WEATHER"))
+	static const bool no_weather = std::getenv("VIEWER_NO_WEATHER") != nullptr;
+	if (no_weather)
 		return;
 	const float amount = _weather_amount * _weather_request;
 	if (amount <= 0.01f || _weather_regions.empty())

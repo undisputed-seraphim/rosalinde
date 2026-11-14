@@ -187,9 +187,7 @@ std::vector<SpriteData::Track> analyze_tracks(const mbs::v77& v77) {
 				const uint32_t next = offset + 1 < sa.s8_frame_count ? offset + 1 : offset;
 				const uint32_t next2 = offset + 2 < sa.s8_frame_count ? offset + 2 : next;
 				run.frames[offset] = {
-					sa.s8_frame_start + previous,
-					sa.s8_frame_start + next,
-					sa.s8_frame_start + next2};
+					sa.s8_frame_start + previous, sa.s8_frame_start + next, sa.s8_frame_start + next2};
 			}
 			track.runs.push_back(std::move(run));
 		}
@@ -805,8 +803,7 @@ void SpriteInstance::build_vertices_all_blends(
 					const uint32_t r = (c >> 0) & 0xFF, g = (c >> 8) & 0xFF, b = (c >> 16) & 0xFF;
 					achromatic = achromatic && (r == g && g == b);
 				}
-				const bool covers_screen =
-					minx <= -959.0f && maxx >= 959.0f && miny <= -539.0f && maxy >= 539.0f;
+				const bool covers_screen = minx <= -959.0f && maxx >= 959.0f && miny <= -539.0f && maxy >= 539.0f;
 				if (!achromatic || !covers_screen)
 					continue;
 			}
