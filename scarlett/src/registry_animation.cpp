@@ -9,13 +9,21 @@ namespace asb {
 
 DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& args) {
 	if (name == "DrAnimation" || name == "DrAnimationAsync") {
+		// DrAnimation (0x31b600) queues the action and then parks on wait type
+		// 0x5b until the character's action state is 0x81 (finished); its
+		// predicate is 0x31b970. DrAnimationAsync (0x31b850) only queues and
+		// returns. Scripts therefore rely on DrAnimation itself to cover the
+		// one-shot intro, without a following DrAnimationWait.
+		const bool wait_for_action = name == "DrAnimation";
+		long remaining = 0;
+		std::string action;
 		if (RuntimeEntity* entity = entity_arg(args)) {
-			const std::string animation = args.str(1);
-			if (!animation.empty()) {
+			action = args.str(1);
+			if (!action.empty()) {
 				int animation_index = -1;
 				if (_resolve_track)
-					animation_index = _resolve_track(entity->mbs, animation);
-				_animations.play_action(*entity, animation, animation_index, frame);
+					animation_index = _resolve_track(entity->mbs, action);
+				_animations.play_action(*entity, action, animation_index, frame);
 				spdlog::debug(
 					"anim: {} action {} index={} start={} end={}",
 					entity->name,
@@ -24,7 +32,20 @@ DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& a
 					frame,
 					entity->action_end_frame);
 			}
+			if (wait_for_action)
+				remaining = _animations.action_remaining(*entity, frame);
 			mark_dirty();
+			if (remaining > 0) {
+				pending_wait = remaining;
+				spdlog::debug(
+					"wait: DrAnimation {} action={} end={} remaining={}",
+					entity->name,
+					action,
+					entity->action_end_frame,
+					remaining);
+				if (asIScriptContext* context = asGetActiveContext())
+					context->Suspend();
+			}
 		}
 		return DispatchResult::Handled;
 	}
@@ -55,8 +76,7 @@ DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& a
 		// DrActionWait right after the move to wait for the motion to finish.
 		if (RuntimeEntity* entity = entity_arg(args)) {
 			long remaining = _animations.action_remaining(*entity, frame);
-			if (auto it = _moves.find(entity->name);
-				it != _moves.end() && it->second.animation_token != 0)
+			if (auto it = _moves.find(entity->name); it != _moves.end() && it->second.animation_token != 0)
 				remaining = std::max(remaining, std::max(0L, it->second.f1 - frame));
 			if (remaining > 0) {
 				pending_wait = remaining;
