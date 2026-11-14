@@ -194,6 +194,15 @@ struct LayerVisit {
 
 using LayerVisitor = std::function<void(const LayerVisit&)>;
 
+struct SpriteRunGeometry {
+	const CachedKeyframe* keyframe = nullptr;
+	const SpritePose* pose = nullptr;
+	LayerVisit base;
+	glm::mat4 transform{1.0f};
+	float zrate = 1.0f;
+	bool visible[4] = {false, false, false, false};
+};
+
 struct SpriteInstance {
 	SpriteInstance() = default;
 	SpriteInstance(const SpriteData* data, uint32_t track, uint32_t attributes)
@@ -224,13 +233,17 @@ struct SpriteInstance {
 	void next_track();
 	void prev_track();
 
-	void build_vertices_all_blends(
-		uint32_t sa_idx,
-		std::array<std::vector<SpriteVertex>, 4>& verts,
-		std::array<std::vector<uint32_t>, 4>& indices,
-		const glm::vec4* tint = nullptr,
-		bool apply_fog = false,
-		uint32_t layer_mask = 0xFFFFFFFFu) const;
+	bool prepare_run_geometry(uint32_t sa_idx, const glm::mat4& model, uint32_t layer_mask, SpriteRunGeometry& geometry)
+		const;
+	void append_run(
+		int blend,
+		const SpriteRunGeometry& geometry,
+		const glm::vec4* tint,
+		bool apply_fog,
+		float alpha,
+		uint32_t layer_mask,
+		std::vector<SpriteVertex>& verts,
+		std::vector<uint32_t>& indices) const;
 
 	void visit_layers(
 		uint32_t sa_idx,

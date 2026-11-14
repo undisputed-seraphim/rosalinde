@@ -264,6 +264,13 @@ uint32_t scale_color(uint32_t c, const glm::vec4& m) {
 	return (a << 24) | (b << 16) | (g << 8) | r;
 }
 
+uint32_t scale_alpha(uint32_t c, float alpha) {
+	if (alpha >= 1.0f)
+		return c;
+	const uint32_t a = static_cast<uint32_t>(static_cast<float>((c >> 24) & 0xFF) * alpha);
+	return (c & 0x00FFFFFFu) | (a << 24);
+}
+
 // The engine's section-6 interpolation passes previous/current/next/next2
 // keyframes and an alpha to the draw element. Linear uses current -> next;
 // cubic uses the same Catmull-Rom weights as s7_interp_cubic. The alpha is
@@ -719,128 +726,153 @@ void SpriteInstance::visit_layers(
 	for_each_layer(sa_idx, tint, apply_fog, -1, layer_mask, [&](const LayerVisit& layer) { visitor(layer); });
 }
 
-void SpriteInstance::build_vertices_all_blends(
+bool SpriteInstance::prepare_run_geometry(
 	uint32_t sa_idx,
-	std::array<std::vector<SpriteVertex>, 4>& verts,
-	std::array<std::vector<uint32_t>, 4>& indices,
-	const glm::vec4* tint,
-	bool apply_fog,
-	uint32_t layer_mask) const {
-	for (auto& v : verts)
-		v.clear();
-	for (auto& i : indices)
-		i.clear();
-
+	const glm::mat4& model,
+	uint32_t layer_mask,
+	SpriteRunGeometry& geometry) const {
 	LayerVisit base;
-	const CachedKeyframe* ck = nullptr;
+	const CachedKeyframe* keyframe = nullptr;
 	const SpritePose* pose = nullptr;
-	if (!prepare_run(sa_idx, base, ck, pose))
-		return;
+	if (!prepare_run(sa_idx, base, keyframe, pose))
+		return false;
 
 	uint32_t visible = 0;
-	for (const auto& layer : ck->layers) {
+	for (const auto& layer : keyframe->layers) {
 		if ((layer.s4_flags & mbs::v77::s4flag::SKIP) == 0 && (layer.attributes & attribute_mask) == 0 &&
 			(layer.attributes & ~layer_mask) == 0)
 			visible++;
 	}
-	const float zrate = 1.0f / (visible + 1.0f);
-	float depths[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-	const int source_filter = options.source_filter;
 
-	for (size_t blend = 0; blend < 4; ++blend) {
-		auto& vb = verts[blend];
-		auto& ib = indices[blend];
-		uint32_t base_index = 0;
-		for (uint32_t index : ck->draw_layers[blend]) {
-			const auto& layer = ck->layers[index];
-			if (source_filter >= 0 && layer.s4_source_tile_id != static_cast<uint32_t>(source_filter))
-				continue;
-			if (layer.blend == 1 && layer.s4_flags == mbs::v77::s4flag::ENABLED) {
-				const bool paired = index < ck->mask_companion.size() && ck->mask_companion[index] != 0;
-				if (!background || paired)
-					continue;
+	geometry.keyframe = keyframe;
+	geometry.pose = pose;
+	geometry.base = base;
+	geometry.transform = model * transform_for_sa(sa_idx);
+	geometry.zrate = 1.0f / (visible + 1.0f);
+	for (int blend = 0; blend < 4; ++blend) {
+		bool any = false;
+		for (uint32_t index : keyframe->draw_layers[blend]) {
+			const auto& layer = keyframe->layers[index];
+			if ((layer.attributes & attribute_mask) == 0 && (layer.attributes & ~layer_mask) == 0) {
+				any = true;
+				break;
 			}
-			if ((layer.attributes & attribute_mask) != 0)
-				continue;
-			if ((layer.attributes & ~layer_mask) != 0)
-				continue;
-
-			glm::vec2 xy[4];
-			glm::vec2 uv[4];
-			uint32_t color[4];
-			if (pose) {
-				const auto& pose_layer = pose->layers[index];
-				for (int k = 0; k < 4; ++k) {
-					xy[k] = pose_layer.xy[k];
-					uv[k] = pose_layer.uv[k];
-					color[k] = pose_layer.color[k];
-				}
-			} else {
-				for (int k = 0; k < 4; ++k) {
-					xy[k] = layer.xy[k];
-					uv[k] = layer.uv[k];
-					color[k] = layer.color[k];
-				}
-			}
-
-			if (layer.color_id >= 1 && layer.color_id <= 3 && (color_mask & (1u << layer.color_id)) != 0) {
-				static constexpr uint32_t preset_for_color[4] = {0, 1, 3, 0};
-				const uint32_t rgb = color_palette[preset_for_color[layer.color_id]] & 0x00FFFFFFu;
-				for (int k = 0; k < 4; ++k)
-					color[k] = (color[k] & 0xFF000000u) | rgb;
-			}
-
-			if (layer.notex) {
-				float minx = xy[0].x, maxx = xy[0].x;
-				float miny = xy[0].y, maxy = xy[0].y;
-				bool achromatic = true;
-				for (int k = 0; k < 4; ++k) {
-					minx = std::min(minx, xy[k].x);
-					maxx = std::max(maxx, xy[k].x);
-					miny = std::min(miny, xy[k].y);
-					maxy = std::max(maxy, xy[k].y);
-					const uint32_t c = color[k];
-					const uint32_t r = (c >> 0) & 0xFF, g = (c >> 8) & 0xFF, b = (c >> 16) & 0xFF;
-					achromatic = achromatic && (r == g && g == b);
-				}
-				const bool covers_screen = minx <= -959.0f && maxx >= 959.0f && miny <= -539.0f && maxy >= 539.0f;
-				if (!achromatic || !covers_screen)
-					continue;
-			}
-
-			if (flip_v) {
-				if (!layer.notex && layer.tex_id < data->textures.size()) {
-					const float height = static_cast<float>(data->textures[layer.tex_id].height);
-					for (int k = 0; k < 4; ++k)
-						uv[k].y = height - uv[k].y;
-				}
-			}
-
-			if (tint) {
-				for (int k = 0; k < 4; ++k)
-					color[k] = scale_color(color[k], *tint);
-			}
-			if (apply_fog) {
-				const uint32_t fog = base.s7_fog;
-				const glm::vec4 f{
-					((fog >> 16) & 0xFF) / 255.0f,
-					((fog >> 8) & 0xFF) / 255.0f,
-					(fog & 0xFF) / 255.0f,
-					((fog >> 24) & 0xFF) / 255.0f};
-				for (int k = 0; k < 4; ++k)
-					color[k] = scale_color(color[k], f);
-			}
-
-			const float depth = depths[blend];
-			depths[blend] -= zrate;
-			const uint32_t at = base_index;
-			vb.push_back({static_cast<int16_t>(layer.tex_id), uv[0], {xy[0], depth}, color[0]});
-			vb.push_back({static_cast<int16_t>(layer.tex_id), uv[1], {xy[1], depth}, color[1]});
-			vb.push_back({static_cast<int16_t>(layer.tex_id), uv[2], {xy[2], depth}, color[2]});
-			vb.push_back({static_cast<int16_t>(layer.tex_id), uv[3], {xy[3], depth}, color[3]});
-			ib.insert(ib.end(), {at, at + 1, at + 3, at + 1, at + 2, at + 3});
-			base_index += 4;
 		}
+		geometry.visible[blend] = any;
+	}
+	return true;
+}
+
+void SpriteInstance::append_run(
+	int blend,
+	const SpriteRunGeometry& geometry,
+	const glm::vec4* tint,
+	bool apply_fog,
+	float alpha,
+	uint32_t layer_mask,
+	std::vector<SpriteVertex>& verts,
+	std::vector<uint32_t>& indices) const {
+	const auto& ck = *geometry.keyframe;
+	const SpritePose* pose = geometry.pose;
+	const int source_filter = options.source_filter;
+	float depth = 1.0f;
+
+	for (uint32_t index : ck.draw_layers[blend]) {
+		const auto& layer = ck.layers[index];
+		if (source_filter >= 0 && layer.s4_source_tile_id != static_cast<uint32_t>(source_filter))
+			continue;
+		if (layer.blend == 1 && layer.s4_flags == mbs::v77::s4flag::ENABLED) {
+			const bool paired = index < ck.mask_companion.size() && ck.mask_companion[index] != 0;
+			if (!background || paired)
+				continue;
+		}
+		if ((layer.attributes & attribute_mask) != 0)
+			continue;
+		if ((layer.attributes & ~layer_mask) != 0)
+			continue;
+
+		glm::vec2 xy[4];
+		glm::vec2 uv[4];
+		uint32_t color[4];
+		if (pose) {
+			const auto& pose_layer = pose->layers[index];
+			for (int k = 0; k < 4; ++k) {
+				xy[k] = pose_layer.xy[k];
+				uv[k] = pose_layer.uv[k];
+				color[k] = pose_layer.color[k];
+			}
+		} else {
+			for (int k = 0; k < 4; ++k) {
+				xy[k] = layer.xy[k];
+				uv[k] = layer.uv[k];
+				color[k] = layer.color[k];
+			}
+		}
+
+		if (layer.color_id >= 1 && layer.color_id <= 3 && (color_mask & (1u << layer.color_id)) != 0) {
+			static constexpr uint32_t preset_for_color[4] = {0, 1, 3, 0};
+			const uint32_t rgb = color_palette[preset_for_color[layer.color_id]] & 0x00FFFFFFu;
+			for (int k = 0; k < 4; ++k)
+				color[k] = (color[k] & 0xFF000000u) | rgb;
+		}
+
+		if (layer.notex) {
+			float minx = xy[0].x, maxx = xy[0].x;
+			float miny = xy[0].y, maxy = xy[0].y;
+			bool achromatic = true;
+			for (int k = 0; k < 4; ++k) {
+				minx = std::min(minx, xy[k].x);
+				maxx = std::max(maxx, xy[k].x);
+				miny = std::min(miny, xy[k].y);
+				maxy = std::max(maxy, xy[k].y);
+				const uint32_t c = color[k];
+				const uint32_t r = (c >> 0) & 0xFF, g = (c >> 8) & 0xFF, b = (c >> 16) & 0xFF;
+				achromatic = achromatic && (r == g && g == b);
+			}
+			const bool covers_screen = minx <= -959.0f && maxx >= 959.0f && miny <= -539.0f && maxy >= 539.0f;
+			if (!achromatic || !covers_screen)
+				continue;
+		}
+
+		if (flip_v) {
+			if (!layer.notex && layer.tex_id < data->textures.size()) {
+				const float height = static_cast<float>(data->textures[layer.tex_id].height);
+				for (int k = 0; k < 4; ++k)
+					uv[k].y = height - uv[k].y;
+			}
+		}
+
+		if (tint) {
+			for (int k = 0; k < 4; ++k)
+				color[k] = scale_color(color[k], *tint);
+		}
+		if (apply_fog) {
+			const uint32_t fog = geometry.base.s7_fog;
+			const glm::vec4 f{
+				((fog >> 16) & 0xFF) / 255.0f,
+				((fog >> 8) & 0xFF) / 255.0f,
+				(fog & 0xFF) / 255.0f,
+				((fog >> 24) & 0xFF) / 255.0f};
+			for (int k = 0; k < 4; ++k)
+				color[k] = scale_color(color[k], f);
+		}
+		if (alpha < 1.0f) {
+			for (int k = 0; k < 4; ++k)
+				color[k] = scale_alpha(color[k], alpha);
+		}
+
+		const uint32_t at = static_cast<uint32_t>(verts.size());
+		const glm::vec4 p0 = geometry.transform * glm::vec4{xy[0].x, xy[0].y, depth, 1.0f};
+		const glm::vec4 p1 = geometry.transform * glm::vec4{xy[1].x, xy[1].y, depth, 1.0f};
+		const glm::vec4 p2 = geometry.transform * glm::vec4{xy[2].x, xy[2].y, depth, 1.0f};
+		const glm::vec4 p3 = geometry.transform * glm::vec4{xy[3].x, xy[3].y, depth, 1.0f};
+		const int16_t texid = static_cast<int16_t>(layer.tex_id);
+		verts.push_back({texid, uv[0], {p0.x, p0.y, p0.z}, color[0]});
+		verts.push_back({texid, uv[1], {p1.x, p1.y, p1.z}, color[1]});
+		verts.push_back({texid, uv[2], {p2.x, p2.y, p2.z}, color[2]});
+		verts.push_back({texid, uv[3], {p3.x, p3.y, p3.z}, color[3]});
+		indices.insert(indices.end(), {at, at + 1, at + 3, at + 1, at + 2, at + 3});
+		depth -= geometry.zrate;
 	}
 }
 

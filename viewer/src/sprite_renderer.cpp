@@ -6,16 +6,14 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
-#include <cstring>
 #include <filesystem>
 #include <glm/ext.hpp>
-#include <numeric>
+#include <glm/gtc/type_ptr.hpp>
 #include <span>
 #include <string>
 #include <utility>
 
-namespace {
-void set_blend_mode(uint8_t b) {
+void set_sprite_blend_mode(uint8_t b) {
 	glBlendEquation(GL_FUNC_ADD);
 	switch (b) {
 	case 1: // additive
@@ -32,7 +30,6 @@ void set_blend_mode(uint8_t b) {
 		break;
 	}
 }
-} // namespace
 
 SpriteRenderer::SpriteRenderer() {
 	glGenVertexArrays(1, &_vao);
@@ -58,9 +55,7 @@ SpriteRenderer::SpriteRenderer(SpriteRenderer&& other) noexcept
 	, _vao(std::exchange(other._vao, 0))
 	, _deswizzler(std::move(other._deswizzler))
 	, _vbo(std::move(other._vbo))
-	, _ebo(std::move(other._ebo))
-	, _verts(std::move(other._verts))
-	, _indices(std::move(other._indices)) {}
+	, _ebo(std::move(other._ebo)) {}
 
 SpriteRenderer& SpriteRenderer::operator=(SpriteRenderer&& other) noexcept {
 	if (this != &other) {
@@ -73,8 +68,6 @@ SpriteRenderer& SpriteRenderer::operator=(SpriteRenderer&& other) noexcept {
 		_deswizzler = std::move(other._deswizzler);
 		_vbo = std::move(other._vbo);
 		_ebo = std::move(other._ebo);
-		_verts = std::move(other._verts);
-		_indices = std::move(other._indices);
 	}
 	return *this;
 }
@@ -152,67 +145,6 @@ void SpriteRenderer::upload_textures(std::span<const FTX::Entry> textures, std::
 	}
 }
 
-void SpriteRenderer::draw(
-	const SpriteInstance& inst,
-	const glm::mat4& projection,
-	const Camera& cam,
-	const glm::vec2& offset,
-	const glm::vec4* tint,
-	bool apply_fog,
-	float scale,
-	float alpha,
-	bool flip_x,
-	float rotation,
-	uint32_t layer_mask,
-	float scale_y) {
-	const auto& shader = GetKeyframeShader().Use();
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D_ARRAY, _texture_array);
-	glBindVertexArray(_vao);
-	shader.SetUniform("u_tex", 0);
-
-	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(offset, 0.0f));
-	if (rotation != 0.0f)
-		model = glm::rotate(model, rotation, glm::vec3(0.0f, 0.0f, 1.0f));
-	const float sy = scale_y > 0.0f ? scale_y : scale;
-	model = glm::scale(model, glm::vec3(flip_x ? -scale : scale, sy, 1.0f));
-	shader.SetUniform("u_alpha", alpha);
-	const glm::mat4 view_offset = cam.lookAt() * model;
-	uint32_t n = inst.sa_count();
-	std::vector<uint32_t> run_order;
-	static const char* const run_order_env = std::getenv("VIEWER_RUN_ORDER");
-	if (const char* order = run_order_env) {
-		run_order.resize(n);
-		std::iota(run_order.begin(), run_order.end(), 0u);
-		if (std::strcmp(order, "reverse") == 0) {
-			std::reverse(run_order.begin(), run_order.end());
-		} else if (
-			std::strcmp(order, "track") == 0 && inst.data && inst.playback.track_idx < inst.data->tracks.size()) {
-			const auto& runs = inst.data->tracks[inst.playback.track_idx].runs;
-			std::stable_sort(run_order.begin(), run_order.end(), [&](uint32_t a, uint32_t b) {
-				return a < runs.size() && b < runs.size() && runs[a].sa_track_slot < runs[b].sa_track_slot;
-			});
-		}
-	}
-	auto run_at = [&](uint32_t at) { return run_order.empty() ? at : run_order[at]; };
-	for (uint32_t at = 0; at < n; ++at) {
-		const uint32_t i = run_at(at);
-		auto s7m = inst.transform_for_sa(i);
-		shader.SetUniform("u_mvp", projection * view_offset * s7m);
-
-		inst.build_vertices_all_blends(i, _verts, _indices, tint, apply_fog, layer_mask);
-		for (uint8_t b = 0; b < 4; ++b) {
-			if (_verts[b].empty())
-				continue;
-			set_blend_mode(b);
-			_vbo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_verts[b]));
-			_ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_indices[b]));
-			_ebo.drawElements(gl::Mode::TRIANGLES);
-		}
-	}
-}
-
 void SpriteRenderer::draw_raw(
 	std::span<const SpriteVertex> verts,
 	std::span<const uint32_t> indices,
@@ -220,15 +152,18 @@ void SpriteRenderer::draw_raw(
 	float alpha) {
 	if (verts.empty() || indices.empty() || _texture_array == 0)
 		return;
-	const auto& shader = GetKeyframeShader().Use();
+	GetKeyframeShader().Use();
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D_ARRAY, _texture_array);
 	glBindVertexArray(_vao);
-	shader.SetUniform("u_tex", 0);
-	shader.SetUniform("u_alpha", alpha);
-	shader.SetUniform("u_mvp", mvp);
-	set_blend_mode(0);
-	_vbo.bind().setData(gl::buffer::Usage::STATIC_DRAW, verts);
-	_ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, indices);
-	_ebo.drawElements(gl::Mode::TRIANGLES);
+	const auto& uniforms = GetKeyframeUniforms();
+	glUniform1i(uniforms.tex, 0);
+	glUniform1f(uniforms.alpha, alpha);
+	glUniformMatrix4fv(uniforms.mvp, 1, GL_FALSE, glm::value_ptr(mvp));
+	set_sprite_blend_mode(0);
+	const gl::ArrayBuffer<SpriteVertex>& vbo = _vbo;
+	const gl::uiElementBuffer& ebo = _ebo;
+	vbo.bind().setData(gl::buffer::Usage::STREAM_DRAW, verts);
+	ebo.bind().setData(gl::buffer::Usage::STREAM_DRAW, indices);
+	ebo.drawElements(gl::Mode::TRIANGLES, indices.size());
 }

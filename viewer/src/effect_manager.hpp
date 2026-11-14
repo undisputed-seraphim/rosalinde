@@ -3,6 +3,7 @@
 #include "asset_library.hpp"
 #include "camera.hpp"
 #include "sprite_asset.hpp"
+#include "sprite_batch.hpp"
 
 #include <scarlett/scene.hpp>
 
@@ -20,7 +21,8 @@ class EffectManager {
 public:
 	using EntityPos = std::function<glm::vec2(const std::string&)>;
 
-	explicit EffectManager(AssetLibrary& library) : _library(library) {}
+	explicit EffectManager(AssetLibrary& library)
+		: _library(library) {}
 
 	void reset();
 	void update(long frame, const std::vector<asb::RuntimeEffect>& events, const EntityPos& entity_pos);
@@ -58,5 +60,6 @@ private:
 
 	AssetLibrary& _library;
 	std::unordered_map<std::string, Effect> _effects;
+	SpriteBatch _sprites;
 	size_t _next = 0;
 };

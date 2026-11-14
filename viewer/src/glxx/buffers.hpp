@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <glad/glad.h>
 #include <span>
@@ -162,22 +163,31 @@ public:
 		return *this;
 	}
 
+	template <buffer::Type BufT = BufferType, std::enable_if_t<BufT == buffer::Type::ELEMENT_ARRAY_BUFFER, bool> = true>
+	static constexpr GLenum element_type() noexcept {
+		if constexpr (std::is_same_v<value_type, std::uint8_t>) {
+			return GL_UNSIGNED_BYTE;
+		} else if constexpr (std::is_same_v<value_type, std::uint16_t>) {
+			return GL_UNSIGNED_SHORT;
+		} else if constexpr (std::is_same_v<value_type, std::uint32_t>) {
+			return GL_UNSIGNED_INT;
+		} else {
+			static_assert(sizeof(value_type) == 0, "drawElements can only be used with uchar, ushort, or uint.");
+			return 0;
+		}
+	}
+
 	// Only for Element Array Buffers
 	template <buffer::Type BufT = BufferType, std::enable_if_t<BufT == buffer::Type::ELEMENT_ARRAY_BUFFER, bool> = true>
 	const basic_buffer& drawElements(Mode m = Mode::TRIANGLES) const noexcept {
-		constexpr GLenum type = []() {
-			if constexpr (std::is_same_v<value_type, std::uint8_t>) {
-				return GL_UNSIGNED_BYTE;
-			} else if constexpr (std::is_same_v<value_type, std::uint16_t>) {
-				return GL_UNSIGNED_SHORT;
-			} else if constexpr (std::is_same_v<value_type, std::uint32_t>) {
-				return GL_UNSIGNED_INT;
-			} else {
-				static_assert(false, "drawElements can only be used with uchar, ushort, or uint.");
-			}
-		}();
 		const uint64_t count = gl_size() / sizeof(value_type);
-		glDrawElements(m, count, type, 0);
+		glDrawElements(m, static_cast<GLsizei>(count), element_type(), 0);
+		return *this;
+	}
+
+	template <buffer::Type BufT = BufferType, std::enable_if_t<BufT == buffer::Type::ELEMENT_ARRAY_BUFFER, bool> = true>
+	const basic_buffer& drawElements(Mode m, std::size_t count) const noexcept {
+		glDrawElements(m, static_cast<GLsizei>(count), element_type(), 0);
 		return *this;
 	}
 

@@ -5,7 +5,6 @@
 #include "glxx/buffers.hpp"
 #include "sprite.hpp"
 
-#include <array>
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <memory>
@@ -29,19 +28,6 @@ public:
 		std::span<const uint32_t> indices,
 		const glm::mat4& mvp,
 		float alpha = 1.0f);
-	void draw(
-		const SpriteInstance& inst,
-		const glm::mat4& projection,
-		const Camera& cam,
-		const glm::vec2& offset = {},
-		const glm::vec4* tint = nullptr,
-		bool apply_fog = false,
-		float scale = 1.0f,
-		float alpha = 1.0f,
-		bool flip_x = false,
-		float rotation = 0.0f,
-		uint32_t layer_mask = 0xFFFFFFFFu,
-		float scale_y = 0.0f);
 
 private:
 	GLuint _texture_array = 0;
@@ -49,7 +35,6 @@ private:
 	std::unique_ptr<Deswizzler> _deswizzler;
 	gl::ArrayBuffer<SpriteVertex> _vbo;
 	gl::uiElementBuffer _ebo;
-
-	std::array<std::vector<SpriteVertex>, 4> _verts;
-	std::array<std::vector<uint32_t>, 4> _indices;
 };
+
+void set_sprite_blend_mode(uint8_t blend);

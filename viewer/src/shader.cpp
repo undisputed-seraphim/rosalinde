@@ -46,6 +46,17 @@ const Shader& GetKeyframeShader() {
 	return shader;
 }
 
+const KeyframeUniforms& GetKeyframeUniforms() {
+	static const KeyframeUniforms uniforms = [] {
+		const Shader& shader = GetKeyframeShader();
+		return KeyframeUniforms{
+			shader.GetUniformLocation("u_mvp"),
+			shader.GetUniformLocation("u_alpha"),
+			shader.GetUniformLocation("u_tex")};
+	}();
+	return uniforms;
+}
+
 // clang-format off
 constexpr std::string_view weather_vert_src = "#version 450\n"
 "layout(location = 0) in highp vec2 a_ndc;\n"

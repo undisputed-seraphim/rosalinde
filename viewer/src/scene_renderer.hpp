@@ -4,6 +4,7 @@
 #include "camera.hpp"
 #include "mpd_asset.hpp"
 #include "sprite_asset.hpp"
+#include "sprite_batch.hpp"
 #include "sprite_playback.hpp"
 #include "stage_asset.hpp"
 #include "weather_renderer.hpp"
@@ -104,6 +105,7 @@ private:
 	mutable uint64_t _ordered_hash = 0;
 	uint64_t _object_generation = 0;
 	std::vector<WeatherRegion> _weather_regions;
+	SpriteBatch _sprites;
 	WeatherRenderer _weather;
 	float _weather_amount = 0.0f;
 	float _weather_fog = 0.0f;

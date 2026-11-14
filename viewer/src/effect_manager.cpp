@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <glm/ext.hpp>
 
 namespace {
 
@@ -143,7 +144,16 @@ void EffectManager::draw(const glm::mat4& projection, const Camera& cam, const g
 	for (auto& [name, ef] : _effects) {
 		if (!ef.asset || ef.alpha <= 0.0f)
 			continue;
-		ef.asset->renderer.draw(
-			ef.instance, projection, cam, ef.pos + shake, nullptr, false, ef.scale, ef.alpha, ef.dir_x < 0.0f, ef.rot);
+		const GLuint texture = ef.asset->renderer.texture_array();
+		if (!_sprites.matches(texture, projection, cam)) {
+			_sprites.flush();
+			_sprites.begin(texture, projection, cam);
+		}
+		glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(ef.pos + shake, 0.0f));
+		if (ef.rot != 0.0f)
+			model = glm::rotate(model, ef.rot, glm::vec3(0.0f, 0.0f, 1.0f));
+		model = glm::scale(model, glm::vec3(ef.dir_x < 0.0f ? -ef.scale : ef.scale, ef.scale, 1.0f));
+		_sprites.append_instance(ef.instance, model, nullptr, false, ef.alpha, 0xFFFFFFFFu);
 	}
+	_sprites.flush();
 }

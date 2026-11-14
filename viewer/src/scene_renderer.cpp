@@ -834,6 +834,34 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 		if (!reason.empty())
 			continue;
 		const bool flip = (e.dir_x < 0.0f) != e.reverse_x;
+		const Camera& object_camera = e.space == asb::RuntimeEntity::Space::Ui ? ui_camera : camera;
+		static const glm::mat4 screen_projection = glm::ortho(0.0f, 1920.0f, 1080.0f, 0.0f);
+		const bool screen_chara = e.kind == "DrUiCreateChara";
+		const glm::mat4& object_projection = screen_chara ? screen_projection : projection;
+		// UI-space stage replacements are drawn with the fixed design camera, so
+		// compensate with the field zoom here. World-space stages already get it
+		// from Camera::lookAt(); applying it again double-zooms the background.
+		const float camera_scale =
+			object->replaces_stage && e.space == asb::RuntimeEntity::Space::Ui && camera.zoom() > 0.0f ? camera.zoom()
+																									   : 1.0f;
+		float object_scale = (e.scale > 0.0f ? e.scale : 1.0f) * camera_scale;
+		const bool world_chara = !screen_chara && object->playback.asset->is_character;
+		if (world_chara)
+			pos.y += character_foot_offset(*object) * object_scale;
+		// TODO(ui): DrUiCreateChara positions and MBS bounds are in 1920x1080
+		// screen space, but the engine's authored scale is larger than the
+		// screen projection. 0.6 is calibrated against the opening montage;
+		// recover the engine UI scale factor instead of keeping this constant.
+		if (screen_chara)
+			object_scale *= 0.6f;
+		const float sy = e.scale_y > 0.0f ? e.scale_y * camera_scale : object_scale;
+		const glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(pos, 0.0f)) *
+								glm::scale(glm::mat4(1.0f), glm::vec3(flip ? -object_scale : object_scale, sy, 1.0f));
+		const GLuint texture = object->playback.asset->renderer.texture_array();
+		if (!_sprites.matches(texture, object_projection, object_camera)) {
+			_sprites.flush();
+			_sprites.begin(texture, object_projection, object_camera);
+		}
 
 		for (size_t i = 0; i < object->playback.instances.size(); ++i) {
 			auto& instance = object->playback.instances[i];
@@ -852,42 +880,13 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				probe_instance(*object, object->stage, i);
 				probe_layers(*object, i, object->stage, object->has_tint ? &object->tint : nullptr);
 			}
-			const Camera& object_camera = e.space == asb::RuntimeEntity::Space::Ui ? ui_camera : camera;
-			static const glm::mat4 screen_projection = glm::ortho(0.0f, 1920.0f, 1080.0f, 0.0f);
-			const bool screen_chara = e.kind == "DrUiCreateChara";
-			const glm::mat4& object_projection = screen_chara ? screen_projection : projection;
-			// UI-space stage replacements are drawn with the fixed design camera, so
-			// compensate with the field zoom here. World-space stages already get it
-			// from Camera::lookAt(); applying it again double-zooms the background.
-			const float camera_scale =
-				object->replaces_stage && e.space == asb::RuntimeEntity::Space::Ui && camera.zoom() > 0.0f
-					? camera.zoom()
-					: 1.0f;
-			float object_scale = (e.scale > 0.0f ? e.scale : 1.0f) * camera_scale;
-			const bool world_chara = !screen_chara && object->playback.asset->is_character;
-			if (world_chara)
-				pos.y += character_foot_offset(*object) * object_scale;
-			// TODO(ui): DrUiCreateChara positions and MBS bounds are in 1920x1080
-			// screen space, but the engine's authored scale is larger than the
-			// screen projection. 0.6 is calibrated against the opening montage;
-			// recover the engine UI scale factor instead of keeping this constant.
-			if (screen_chara)
-				object_scale *= 0.6f;
-			object->playback.asset->renderer.draw(
-				instance,
-				object_projection,
-				object_camera,
-				pos,
-				object->has_tint ? &object->tint : nullptr,
-				true,
-				object_scale,
-				alpha,
-				flip,
-				0.0f,
-				e.layer_mask,
-				e.scale_y > 0.0f ? e.scale_y * camera_scale : 0.0f);
+			_sprites.append_instance(
+				instance, model, object->has_tint ? &object->tint : nullptr, true, alpha, e.layer_mask);
 		}
 	}
+	_sprites.flush();
+	spdlog::trace("sprite: {} batches", _sprites.draws());
+	_sprites.reset_draws();
 }
 
 void SceneRenderer::render_weather(const glm::mat4& projection, const Camera& camera) {
