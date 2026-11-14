@@ -577,6 +577,8 @@ void SceneRenderer::probe_layers(
 					<< ",\"s8_flags\":" << layer.s8_flags << ",\"s8_frames\":" << layer.s8_frames
 					<< ",\"s6\":" << layer.s6_keyframe_id << ",\"s7\":" << layer.s7_transform_id
 					<< ",\"s6_interp\":" << static_cast<unsigned>(layer.s6_keyframe_interpolation)
+					<< ",\"s6_next\":" << layer.s6_next_keyframe_id
+					<< ",\"s6_alpha\":" << number(layer.s6_alpha)
 					<< ",\"s7_interp\":" << static_cast<unsigned>(layer.s7_transform_interpolation)
 					<< ",\"s4\":" << layer.s4_layer_start << ",\"s4_source_tile_id\":" << layer.s4_source_tile_id
 					<< ",\"s4_flags\":" << static_cast<unsigned>(layer.s4_flags) << ",\"s1\":" << layer.s1_uv_id

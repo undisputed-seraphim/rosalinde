@@ -213,6 +213,58 @@ uint32_t scale_color(uint32_t c, const glm::vec4& m) {
 	return (a << 24) | (b << 16) | (g << 8) | r;
 }
 
+// The engine's section-6 interpolation passes previous/current/next/next2
+// keyframes and an alpha to the draw element. Linear uses current -> next;
+// cubic uses the same Catmull-Rom weights as s7_interp_cubic. The alpha is
+// quantised by interpolation_rate, so a 30-tick frame with rate 6 updates in
+// five sub-steps rather than every tick.
+struct MorphWeights {
+	float previous = 0.0f;
+	float current = 1.0f;
+	float next = 0.0f;
+	float next2 = 0.0f;
+
+	static MorphWeights make(uint8_t mode, float alpha) {
+		MorphWeights w;
+		const float a = std::clamp(alpha, 0.0f, 1.0f);
+		const float a2 = a * a;
+		const float a3 = a2 * a;
+		if (mode == 2) {
+			w.previous = -0.5f * a3 + a2 - 0.5f * a;
+			w.current = 1.5f * a3 - 2.5f * a2 + 1.0f;
+			w.next = -1.5f * a3 + 2.0f * a2 + 0.5f * a;
+			w.next2 = 0.5f * a3 - 0.5f * a2;
+		} else {
+			w.current = 1.0f - a;
+			w.next = a;
+		}
+		return w;
+	}
+
+	glm::vec2 apply(const glm::vec2& p0, const glm::vec2& p1, const glm::vec2& p2, const glm::vec2& p3) const {
+		return previous * p0 + current * p1 + next * p2 + next2 * p3;
+	}
+
+	glm::vec4 apply(const glm::vec4& p0, const glm::vec4& p1, const glm::vec4& p2, const glm::vec4& p3) const {
+		return previous * p0 + current * p1 + next * p2 + next2 * p3;
+	}
+};
+
+glm::vec4 color_to_vec(uint32_t c) {
+	return {
+		static_cast<float>(c & 0xFF),
+		static_cast<float>((c >> 8) & 0xFF),
+		static_cast<float>((c >> 16) & 0xFF),
+		static_cast<float>((c >> 24) & 0xFF)};
+}
+
+uint32_t vec_to_color(const glm::vec4& c) {
+	auto channel = [](float v) {
+		return static_cast<uint32_t>(std::clamp(std::lround(v), 0L, 255L));
+	};
+	return channel(c.x) | (channel(c.y) << 8) | (channel(c.z) << 16) | (channel(c.w) << 24);
+}
+
 } // namespace
 
 template <typename F>
@@ -305,6 +357,51 @@ void SpriteInstance::for_each_layer(
 	base.s7_rotate = s7.rotate;
 	base.s7_scale = s7.scale;
 	base.s7_fog = s7.fog;
+
+	const CachedKeyframe* previous_ck = &ck;
+	const CachedKeyframe* next_ck = &ck;
+	const CachedKeyframe* next2_ck = &ck;
+	base.s6_next_keyframe_id = s8.s6_keyframe_id;
+	MorphWeights morph;
+	bool morphing = false;
+	if (s8.s6_keyframe_interpolation != 0 && run.s8_count > 0) {
+		const uint32_t current_offset = std::min<uint32_t>(base.offset, run.s8_count - 1);
+		const uint32_t previous_offset = current_offset > 0 ? current_offset - 1 : current_offset;
+		const uint32_t next_offset = current_offset + 1 < run.s8_count ? current_offset + 1 : current_offset;
+		const uint32_t next2_offset = current_offset + 2 < run.s8_count ? current_offset + 2 : next_offset;
+		const auto& previous_s8 = data->v77.s8[run.s8_start + previous_offset];
+		const auto& next_s8 = data->v77.s8[run.s8_start + next_offset];
+		const auto& next2_s8 = data->v77.s8[run.s8_start + next2_offset];
+		if (previous_s8.s6_keyframe_id < data->keyframes.size() &&
+			next_s8.s6_keyframe_id < data->keyframes.size() &&
+			next2_s8.s6_keyframe_id < data->keyframes.size()) {
+			previous_ck = &data->keyframes[previous_s8.s6_keyframe_id];
+			next_ck = &data->keyframes[next_s8.s6_keyframe_id];
+			next2_ck = &data->keyframes[next2_s8.s6_keyframe_id];
+			base.s6_next_keyframe_id = next_s8.s6_keyframe_id;
+			const size_t layer_count = ck.layers.size();
+			if (previous_ck->layers.size() == layer_count && next_ck->layers.size() == layer_count &&
+				next2_ck->layers.size() == layer_count) {
+				const uint32_t duration = s8.s8_duration_ticks;
+				const uint32_t remaining = sa_idx < playback.ticks.size() ? playback.ticks[sa_idx] : duration;
+				const uint32_t elapsed = duration > remaining ? duration - remaining : 0;
+				float alpha = 0.0f;
+				if (duration > 0) {
+					const uint8_t rate = s8.interpolation_rate;
+					alpha = rate <= 1
+						? static_cast<float>(elapsed) / static_cast<float>(duration)
+						: static_cast<float>((elapsed / rate) * rate) / static_cast<float>(duration);
+					alpha = std::clamp(alpha, 0.0f, 1.0f);
+				}
+				morph = MorphWeights::make(s8.s6_keyframe_interpolation, alpha);
+				base.s6_alpha = alpha;
+				morphing = true;
+			}
+		}
+	}
+	if (morphing)
+		base.s6_bounds = morph.apply(previous_ck->bounds, ck.bounds, next_ck->bounds, next2_ck->bounds);
+
 	if (ck.layers.empty()) {
 		base.skip = "empty_keyframe";
 		visit(base);
@@ -341,6 +438,55 @@ void SpriteInstance::for_each_layer(
 		v.attributes = layer.attributes;
 		v.blend = layer.blend;
 		v.notex = layer.notex;
+
+		glm::vec2 xy[4];
+		glm::vec2 uv[4];
+		glm::vec2 s1_center = layer.s1_center;
+		glm::vec2 s1_topleft = layer.s1_topleft;
+		uint32_t color[4];
+		for (int k = 0; k < 4; ++k) {
+			xy[k] = layer.xy[k];
+			uv[k] = layer.uv[k];
+			color[k] = layer.color[k];
+		}
+		if (morphing) {
+			const auto& previous_layer = previous_ck->layers[i];
+			const auto& next_layer = next_ck->layers[i];
+			const auto& next2_layer = next2_ck->layers[i];
+			const bool paired =
+				previous_layer.s4_source_tile_id == layer.s4_source_tile_id &&
+				next_layer.s4_source_tile_id == layer.s4_source_tile_id &&
+				next2_layer.s4_source_tile_id == layer.s4_source_tile_id &&
+				previous_layer.s1_uv_id == layer.s1_uv_id && next_layer.s1_uv_id == layer.s1_uv_id &&
+				next2_layer.s1_uv_id == layer.s1_uv_id && previous_layer.attributes == layer.attributes &&
+				next_layer.attributes == layer.attributes && next2_layer.attributes == layer.attributes &&
+				previous_layer.blend == layer.blend && next_layer.blend == layer.blend &&
+				next2_layer.blend == layer.blend && previous_layer.notex == layer.notex &&
+				next_layer.notex == layer.notex && next2_layer.notex == layer.notex &&
+				previous_layer.color_id == layer.color_id && next_layer.color_id == layer.color_id &&
+				next2_layer.color_id == layer.color_id;
+			if (paired) {
+				const bool morph_uv = !layer.notex && layer.tex_id == previous_layer.tex_id &&
+									  layer.tex_id == next_layer.tex_id && layer.tex_id == next2_layer.tex_id;
+				for (int k = 0; k < 4; ++k) {
+					xy[k] = morph.apply(previous_layer.xy[k], layer.xy[k], next_layer.xy[k], next2_layer.xy[k]);
+					color[k] = vec_to_color(morph.apply(
+						color_to_vec(previous_layer.color[k]),
+						color_to_vec(layer.color[k]),
+						color_to_vec(next_layer.color[k]),
+						color_to_vec(next2_layer.color[k])));
+					if (morph_uv)
+						uv[k] = morph.apply(previous_layer.uv[k], layer.uv[k], next_layer.uv[k], next2_layer.uv[k]);
+				}
+				if (morph_uv) {
+					s1_center = morph.apply(
+						previous_layer.s1_center, layer.s1_center, next_layer.s1_center, next2_layer.s1_center);
+					s1_topleft = morph.apply(
+						previous_layer.s1_topleft, layer.s1_topleft, next_layer.s1_topleft, next2_layer.s1_topleft);
+				}
+			}
+		}
+
 		// A flags=1/blend=1 layer is a mask companion only when the same
 		// keyframe carries its flags=1/blend=0 source. Standalone blend=1
 		// layers (opening fire, glow, and effect passes) are real draws.
@@ -366,15 +512,15 @@ void SpriteInstance::for_each_layer(
 			v.tex_width = data->textures[layer.tex_id].width;
 			v.tex_height = data->textures[layer.tex_id].height;
 		}
-		v.s1_center = layer.s1_center;
-		v.s1_topleft = layer.s1_topleft;
+		v.s1_center = s1_center;
+		v.s1_topleft = s1_topleft;
 		for (int k = 0; k < 4; ++k) {
-			v.uv[k] = layer.uv[k];
+			v.uv[k] = uv[k];
 			if (flip_v && v.tex_height)
 				v.uv[k].y = v.tex_height - v.uv[k].y;
-			v.xy[k] = layer.xy[k];
-			v.raw_color[k] = layer.color[k];
-			v.color[k] = layer.color[k];
+			v.xy[k] = xy[k];
+			v.raw_color[k] = color[k];
+			v.color[k] = color[k];
 		}
 
 		if ((layer.s4_flags & mbs::v77::s4flag::SKIP) != 0) {
@@ -405,15 +551,15 @@ void SpriteInstance::for_each_layer(
 		// are masks / letterbox / palette sources consumed elsewhere, and
 		// drawing them as flat fills would paint garbage over the scene.
 		if (layer.notex) {
-			float minx = layer.xy[0].x, maxx = layer.xy[0].x;
-			float miny = layer.xy[0].y, maxy = layer.xy[0].y;
+			float minx = v.xy[0].x, maxx = v.xy[0].x;
+			float miny = v.xy[0].y, maxy = v.xy[0].y;
 			bool achromatic = true;
 			for (int k = 0; k < 4; ++k) {
-				minx = std::min(minx, layer.xy[k].x);
-				maxx = std::max(maxx, layer.xy[k].x);
-				miny = std::min(miny, layer.xy[k].y);
-				maxy = std::max(maxy, layer.xy[k].y);
-				const uint32_t c = layer.color[k];
+				minx = std::min(minx, v.xy[k].x);
+				maxx = std::max(maxx, v.xy[k].x);
+				miny = std::min(miny, v.xy[k].y);
+				maxy = std::max(maxy, v.xy[k].y);
+				const uint32_t c = color[k];
 				const uint32_t r = (c >> 0) & 0xFF, g = (c >> 8) & 0xFF, b = (c >> 16) & 0xFF;
 				achromatic = achromatic && (r == g && g == b);
 			}

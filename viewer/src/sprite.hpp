@@ -108,12 +108,14 @@ struct LayerVisit {
 	uint8_t color_id = 0;
 	uint32_t alt_color[4] = {};
 	uint32_t s6_keyframe_id = 0;
+	uint32_t s6_next_keyframe_id = 0;
 	uint32_t s7_transform_id = 0;
 	uint32_t s8_frame_start = 0;
 	uint32_t s8_flags = 0;
 	uint16_t s8_frames = 0;
 	uint8_t s6_keyframe_interpolation = 0;
 	uint8_t s7_transform_interpolation = 0;
+	float s6_alpha = 0.0f;
 	uint16_t sa_track_slot = 0;
 	uint32_t offset = 0;
 	bool done = false;

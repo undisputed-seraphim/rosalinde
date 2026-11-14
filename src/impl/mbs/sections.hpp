@@ -121,10 +121,10 @@ struct section_8 {
 	uint16_t s8_duration_ticks;			// duration in animation ticks
 	uint32_t flags;						// frame flags; see s8flag
 	uint16_t s8_loop_target;			// absolute sequence-relative jump target; 0 restarts at the first played frame
-	uint8_t s5s3_hitbox_interpolation;	// 0=linear, 1=light, 2=cubic
-	uint8_t interpolation_rate;			// interpolation frequency/rate
-	uint8_t s7_transform_interpolation; // 0/1=linear, 2=cubic
-	uint8_t s6_keyframe_interpolation;	// 0/1=linear, 2=cubic
+	uint8_t s5s3_hitbox_interpolation;	// 0 = current only, 1 = current/next, 2 = prev/current/next/next2
+	uint8_t interpolation_rate;			// 1 = continuous alpha; otherwise advance in `rate`-tick steps
+	uint8_t s7_transform_interpolation; // 0 = none, 1 = linear current->next, 2 = cubic prev..next2
+	uint8_t s6_keyframe_interpolation;	// 0 = none, 1 = linear, 2 = cubic; morphs s4/s2 quads and s0 colours
 	uint8_t s8_render_value;			// render-object +0x1e4; visual meaning OPEN
 	uint8_t s8_draw_offset;				// signed draw/sort offset, not a turn count
 	uint32_t s8_event_arg;				// 0x80 callback payload word 0
