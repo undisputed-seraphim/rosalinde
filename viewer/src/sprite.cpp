@@ -112,6 +112,27 @@ void SpriteData::preprocess() {
 			}
 			ck.layers.push_back(layer);
 		}
+
+		ck.mask_companion.assign(ck.layers.size(), 0);
+		for (size_t i = 0; i < ck.layers.size(); ++i) {
+			const auto& layer = ck.layers[i];
+			if ((layer.s4_flags & mbs::v77::s4flag::SKIP) == 0 && layer.blend < 4)
+				ck.draw_layers[layer.blend].push_back(static_cast<uint32_t>(i));
+			if (layer.blend != 1 || layer.s4_flags != mbs::v77::s4flag::ENABLED)
+				continue;
+			for (size_t j = 0; j < ck.layers.size(); ++j) {
+				if (j == i)
+					continue;
+				const auto& other = ck.layers[j];
+				if (other.blend != 0 || other.s4_flags != mbs::v77::s4flag::ENABLED)
+					continue;
+				if (other.s4_source_tile_id == layer.s4_source_tile_id && other.s1_uv_id == layer.s1_uv_id &&
+					other.s2_vertex_id == layer.s2_vertex_id) {
+					ck.mask_companion[i] = 1;
+					break;
+				}
+			}
+		}
 	}
 
 	tracks = analyze_tracks(v77);
@@ -152,13 +173,25 @@ std::vector<SpriteData::Track> analyze_tracks(const mbs::v77& v77) {
 			}
 			// s8_intro_ticks < 0 == single-pass ("transitional"/background); play
 			// through once and hold the final frame instead of looping.
-			track.runs.push_back(
-				{sa.s8_frame_start,
-				 sa.s8_frame_count,
-				 sa.s8_start_offset,
-				 loop_start,
-				 sa.s8_intro_ticks < 0,
-				 sa.sa_track_slot});
+			SpriteData::FrameRun run{
+				sa.s8_frame_start,
+				sa.s8_frame_count,
+				sa.s8_start_offset,
+				loop_start,
+				sa.s8_intro_ticks < 0,
+				sa.sa_track_slot,
+				{}};
+			run.frames.resize(sa.s8_frame_count);
+			for (uint32_t offset = 0; offset < sa.s8_frame_count; ++offset) {
+				const uint32_t previous = offset > 0 ? offset - 1 : offset;
+				const uint32_t next = offset + 1 < sa.s8_frame_count ? offset + 1 : offset;
+				const uint32_t next2 = offset + 2 < sa.s8_frame_count ? offset + 2 : next;
+				run.frames[offset] = {
+					sa.s8_frame_start + previous,
+					sa.s8_frame_start + next,
+					sa.s8_frame_start + next2};
+			}
+			track.runs.push_back(std::move(run));
 		}
 		// The action length is the one-shot intro of the main sequence; the rest
 		// of the sequence loops and is what the idle/follow-up clip replaces.
@@ -373,32 +406,28 @@ const SpritePose& SpriteData::pose(
 	return it->second;
 }
 
-template <typename F>
-void SpriteInstance::for_each_layer(
+bool SpriteInstance::prepare_run(
 	uint32_t sa_idx,
-	const std::map<uint32_t, glm::vec4>* tints,
-	bool apply_fog,
-	int blend_filter,
-	uint32_t layer_mask,
-	F&& visit) const {
+	LayerVisit& base,
+	const CachedKeyframe*& ck_out,
+	const SpritePose*& pose_out) const {
+	ck_out = nullptr;
+	pose_out = nullptr;
 	if (!data || playback.track_idx >= data->tracks.size())
-		return;
+		return false;
 
 	const auto& track = data->tracks[playback.track_idx];
-	LayerVisit base;
+	base = LayerVisit{};
 	base.run = sa_idx;
 	base.transition_t = playback.transition_t;
 	if (!mone && !character && track.runs.size() > 1 && track.sa_main_sequence < playback.done.size() &&
 		playback.done[track.sa_main_sequence]) {
 		base.skip = "main_done";
-		visit(base);
-		return;
+		return false;
 	}
-
 	if (sa_idx >= track.runs.size()) {
 		base.skip = "run";
-		visit(base);
-		return;
+		return false;
 	}
 
 	const auto& run = track.runs[sa_idx];
@@ -406,22 +435,18 @@ void SpriteInstance::for_each_layer(
 	base.offset = sa_idx < playback.offsets.size() ? playback.offsets[sa_idx] : 0;
 	base.done = sa_idx < playback.done.size() && playback.done[sa_idx] != 0;
 	base.hidden = sa_idx < playback.hide.size() && playback.hide[sa_idx] != 0;
-
 	if (run.s8_count == 0 || base.offset >= run.s8_count) {
 		base.skip = "empty_run";
-		visit(base);
-		return;
+		return false;
 	}
 	if (base.hidden) {
 		base.skip = "hidden";
-		visit(base);
-		return;
+		return false;
 	}
 	const uint32_t s8_index = run.s8_start + base.offset;
 	if (s8_index >= data->v77.s8.size()) {
 		base.skip = "s8";
-		visit(base);
-		return;
+		return false;
 	}
 	const auto& s8 = data->v77.s8[s8_index];
 	base.s8_frame_start = s8_index;
@@ -437,23 +462,19 @@ void SpriteInstance::for_each_layer(
 	const bool current = mone && sa_idx == current_sequence;
 	if (!current && !character && !(s8.flags & mbs::v77::s8flag::ACTIVE)) {
 		base.skip = "inactive";
-		visit(base);
-		return;
+		return false;
 	}
 	if (s8.flags & mbs::v77::s8flag::HIDDEN) {
 		base.skip = "s8_hidden";
-		visit(base);
-		return;
+		return false;
 	}
 	if (s8.flags & mbs::v77::s8flag::NODRAW) {
 		base.skip = "nodraw";
-		visit(base);
-		return;
+		return false;
 	}
 	if (s8.s6_keyframe_id >= data->keyframes.size() || s8.s7_transform_id >= data->v77.s7.size()) {
 		base.skip = "ids";
-		visit(base);
-		return;
+		return false;
 	}
 
 	const auto& ck = data->keyframes[s8.s6_keyframe_id];
@@ -463,6 +484,10 @@ void SpriteInstance::for_each_layer(
 	base.s7_rotate = s7.rotate;
 	base.s7_scale = s7.scale;
 	base.s7_fog = s7.fog;
+	if (ck.layers.empty()) {
+		base.skip = "empty_keyframe";
+		return false;
+	}
 
 	const CachedKeyframe* previous_ck = &ck;
 	const CachedKeyframe* next_ck = &ck;
@@ -470,14 +495,11 @@ void SpriteInstance::for_each_layer(
 	base.s6_next_keyframe_id = s8.s6_keyframe_id;
 	bool morphing = false;
 	PoseKey pose_key;
-	if (s8.s6_keyframe_interpolation != 0 && run.s8_count > 0) {
-		const uint32_t current_offset = std::min<uint32_t>(base.offset, run.s8_count - 1);
-		const uint32_t previous_offset = current_offset > 0 ? current_offset - 1 : current_offset;
-		const uint32_t next_offset = current_offset + 1 < run.s8_count ? current_offset + 1 : current_offset;
-		const uint32_t next2_offset = current_offset + 2 < run.s8_count ? current_offset + 2 : next_offset;
-		const auto& previous_s8 = data->v77.s8[run.s8_start + previous_offset];
-		const auto& next_s8 = data->v77.s8[run.s8_start + next_offset];
-		const auto& next2_s8 = data->v77.s8[run.s8_start + next2_offset];
+	if (s8.s6_keyframe_interpolation != 0 && !run.frames.empty()) {
+		const auto& frame = run.frames[std::min<uint32_t>(base.offset, run.frames.size() - 1)];
+		const auto& previous_s8 = data->v77.s8[frame.previous];
+		const auto& next_s8 = data->v77.s8[frame.next];
+		const auto& next2_s8 = data->v77.s8[frame.next2];
 		if (previous_s8.s6_keyframe_id < data->keyframes.size() && next_s8.s6_keyframe_id < data->keyframes.size() &&
 			next2_s8.s6_keyframe_id < data->keyframes.size()) {
 			previous_ck = &data->keyframes[previous_s8.s6_keyframe_id];
@@ -497,10 +519,10 @@ void SpriteInstance::for_each_layer(
 										: static_cast<float>((elapsed / rate) * rate) / static_cast<float>(duration);
 					base.s6_alpha = std::clamp(base.s6_alpha, 0.0f, 1.0f);
 				}
-				pose_key.previous = run.s8_start + previous_offset;
+				pose_key.previous = frame.previous;
 				pose_key.current = s8_index;
-				pose_key.next = run.s8_start + next_offset;
-				pose_key.next2 = run.s8_start + next2_offset;
+				pose_key.next = frame.next;
+				pose_key.next2 = frame.next2;
 				pose_key.step = s8.interpolation_rate > 1 ? elapsed / s8.interpolation_rate : elapsed;
 				pose_key.mode = s8.s6_keyframe_interpolation;
 				morphing = true;
@@ -514,15 +536,29 @@ void SpriteInstance::for_each_layer(
 			pose_key, *previous_ck, ck, *next_ck, *next2_ck, s8.s6_keyframe_interpolation, base.s6_alpha, true);
 		base.s6_bounds = pose->bounds;
 	}
+	ck_out = &ck;
+	pose_out = pose;
+	return true;
+}
 
-	if (ck.layers.empty()) {
-		base.skip = "empty_keyframe";
+template <typename F>
+void SpriteInstance::for_each_layer(
+	uint32_t sa_idx,
+	const glm::vec4* tint,
+	bool apply_fog,
+	int blend_filter,
+	uint32_t layer_mask,
+	F&& visit) const {
+	LayerVisit base;
+	const CachedKeyframe* ck = nullptr;
+	const SpritePose* pose = nullptr;
+	if (!prepare_run(sa_idx, base, ck, pose)) {
 		visit(base);
 		return;
 	}
 
 	uint32_t visible = 0;
-	for (const auto& layer : ck.layers) {
+	for (const auto& layer : ck->layers) {
 		if ((layer.s4_flags & mbs::v77::s4flag::SKIP) == 0 && (layer.attributes & attribute_mask) == 0 &&
 			(layer.attributes & ~layer_mask) == 0)
 			visible++;
@@ -532,8 +568,8 @@ void SpriteInstance::for_each_layer(
 
 	const int source_filter = options.source_filter;
 
-	for (size_t i = 0; i < ck.layers.size(); ++i) {
-		const auto& layer = ck.layers[i];
+	for (size_t i = 0; i < ck->layers.size(); ++i) {
+		const auto& layer = ck->layers[i];
 		if (source_filter >= 0 && layer.s4_source_tile_id != static_cast<uint32_t>(source_filter))
 			continue;
 		LayerVisit v = base;
@@ -578,16 +614,7 @@ void SpriteInstance::for_each_layer(
 		// keyframe carries its flags=1/blend=0 source. Standalone blend=1
 		// layers (opening fire, glow, and effect passes) are real draws.
 		if (layer.blend == 1 && layer.s4_flags == mbs::v77::s4flag::ENABLED) {
-			bool paired = false;
-			for (const auto& other : ck.layers) {
-				if (&other == &layer || other.blend != 0 || other.s4_flags != mbs::v77::s4flag::ENABLED)
-					continue;
-				if (other.s4_source_tile_id == layer.s4_source_tile_id && other.s1_uv_id == layer.s1_uv_id &&
-					other.s2_vertex_id == layer.s2_vertex_id) {
-					paired = true;
-					break;
-				}
-			}
+			const bool paired = i < ck->mask_companion.size() && ck->mask_companion[i] != 0;
 			if (!background || paired) {
 				v.skip = "unflagged_mask";
 				visit(v);
@@ -663,15 +690,12 @@ void SpriteInstance::for_each_layer(
 			continue;
 		}
 
-		if (tints) {
-			auto it = tints->find(layer.attributes);
-			if (it != tints->end()) {
-				for (int k = 0; k < 4; ++k)
-					v.color[k] = scale_color(v.color[k], it->second);
-			}
+		if (tint) {
+			for (int k = 0; k < 4; ++k)
+				v.color[k] = scale_color(v.color[k], *tint);
 		}
 		if (apply_fog) {
-			const uint32_t fog = s7.fog;
+			const uint32_t fog = base.s7_fog;
 			const glm::vec4 f{
 				((fog >> 16) & 0xFF) / 255.0f,
 				((fog >> 8) & 0xFF) / 255.0f,
@@ -690,18 +714,18 @@ void SpriteInstance::for_each_layer(
 
 void SpriteInstance::visit_layers(
 	uint32_t sa_idx,
-	const std::map<uint32_t, glm::vec4>* tints,
+	const glm::vec4* tint,
 	bool apply_fog,
 	uint32_t layer_mask,
 	const LayerVisitor& visitor) const {
-	for_each_layer(sa_idx, tints, apply_fog, -1, layer_mask, [&](const LayerVisit& layer) { visitor(layer); });
+	for_each_layer(sa_idx, tint, apply_fog, -1, layer_mask, [&](const LayerVisit& layer) { visitor(layer); });
 }
 
 void SpriteInstance::build_vertices_all_blends(
 	uint32_t sa_idx,
 	std::array<std::vector<SpriteVertex>, 4>& verts,
 	std::array<std::vector<uint32_t>, 4>& indices,
-	const std::map<uint32_t, glm::vec4>* tints,
+	const glm::vec4* tint,
 	bool apply_fog,
 	uint32_t layer_mask) const {
 	for (auto& v : verts)
@@ -709,24 +733,118 @@ void SpriteInstance::build_vertices_all_blends(
 	for (auto& i : indices)
 		i.clear();
 
-	std::array<uint32_t, 4> base{};
-	for_each_layer(sa_idx, tints, apply_fog, -1, layer_mask, [&](const LayerVisit& layer) {
-		if (!layer.drawn)
-			return;
+	LayerVisit base;
+	const CachedKeyframe* ck = nullptr;
+	const SpritePose* pose = nullptr;
+	if (!prepare_run(sa_idx, base, ck, pose))
+		return;
 
-		const size_t blend = std::min<size_t>(layer.blend, 3);
+	uint32_t visible = 0;
+	for (const auto& layer : ck->layers) {
+		if ((layer.s4_flags & mbs::v77::s4flag::SKIP) == 0 && (layer.attributes & attribute_mask) == 0 &&
+			(layer.attributes & ~layer_mask) == 0)
+			visible++;
+	}
+	const float zrate = 1.0f / (visible + 1.0f);
+	float depths[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+	const int source_filter = options.source_filter;
+
+	for (size_t blend = 0; blend < 4; ++blend) {
 		auto& vb = verts[blend];
 		auto& ib = indices[blend];
-		const uint32_t at = base[blend];
+		uint32_t base_index = 0;
+		for (uint32_t index : ck->draw_layers[blend]) {
+			const auto& layer = ck->layers[index];
+			if (source_filter >= 0 && layer.s4_source_tile_id != static_cast<uint32_t>(source_filter))
+				continue;
+			if (layer.blend == 1 && layer.s4_flags == mbs::v77::s4flag::ENABLED) {
+				const bool paired = index < ck->mask_companion.size() && ck->mask_companion[index] != 0;
+				if (!background || paired)
+					continue;
+			}
+			if ((layer.attributes & attribute_mask) != 0)
+				continue;
+			if ((layer.attributes & ~layer_mask) != 0)
+				continue;
 
-		vb.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[0], {layer.xy[0], layer.depth}, layer.color[0]});
-		vb.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[1], {layer.xy[1], layer.depth}, layer.color[1]});
-		vb.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[2], {layer.xy[2], layer.depth}, layer.color[2]});
-		vb.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[3], {layer.xy[3], layer.depth}, layer.color[3]});
+			glm::vec2 xy[4];
+			glm::vec2 uv[4];
+			uint32_t color[4];
+			if (pose) {
+				const auto& pose_layer = pose->layers[index];
+				for (int k = 0; k < 4; ++k) {
+					xy[k] = pose_layer.xy[k];
+					uv[k] = pose_layer.uv[k];
+					color[k] = pose_layer.color[k];
+				}
+			} else {
+				for (int k = 0; k < 4; ++k) {
+					xy[k] = layer.xy[k];
+					uv[k] = layer.uv[k];
+					color[k] = layer.color[k];
+				}
+			}
 
-		ib.insert(ib.end(), {at, at + 1, at + 3, at + 1, at + 2, at + 3});
-		base[blend] += 4;
-	});
+			if (layer.color_id >= 1 && layer.color_id <= 3 && (color_mask & (1u << layer.color_id)) != 0) {
+				static constexpr uint32_t preset_for_color[4] = {0, 1, 3, 0};
+				const uint32_t rgb = color_palette[preset_for_color[layer.color_id]] & 0x00FFFFFFu;
+				for (int k = 0; k < 4; ++k)
+					color[k] = (color[k] & 0xFF000000u) | rgb;
+			}
+
+			if (layer.notex) {
+				float minx = xy[0].x, maxx = xy[0].x;
+				float miny = xy[0].y, maxy = xy[0].y;
+				bool achromatic = true;
+				for (int k = 0; k < 4; ++k) {
+					minx = std::min(minx, xy[k].x);
+					maxx = std::max(maxx, xy[k].x);
+					miny = std::min(miny, xy[k].y);
+					maxy = std::max(maxy, xy[k].y);
+					const uint32_t c = color[k];
+					const uint32_t r = (c >> 0) & 0xFF, g = (c >> 8) & 0xFF, b = (c >> 16) & 0xFF;
+					achromatic = achromatic && (r == g && g == b);
+				}
+				const bool covers_screen =
+					minx <= -959.0f && maxx >= 959.0f && miny <= -539.0f && maxy >= 539.0f;
+				if (!achromatic || !covers_screen)
+					continue;
+			}
+
+			if (flip_v) {
+				if (!layer.notex && layer.tex_id < data->textures.size()) {
+					const float height = static_cast<float>(data->textures[layer.tex_id].height);
+					for (int k = 0; k < 4; ++k)
+						uv[k].y = height - uv[k].y;
+				}
+			}
+
+			if (tint) {
+				for (int k = 0; k < 4; ++k)
+					color[k] = scale_color(color[k], *tint);
+			}
+			if (apply_fog) {
+				const uint32_t fog = base.s7_fog;
+				const glm::vec4 f{
+					((fog >> 16) & 0xFF) / 255.0f,
+					((fog >> 8) & 0xFF) / 255.0f,
+					(fog & 0xFF) / 255.0f,
+					((fog >> 24) & 0xFF) / 255.0f};
+				for (int k = 0; k < 4; ++k)
+					color[k] = scale_color(color[k], f);
+			}
+
+			const float depth = depths[blend];
+			depths[blend] -= zrate;
+			const uint32_t at = base_index;
+			vb.push_back({static_cast<int16_t>(layer.tex_id), uv[0], {xy[0], depth}, color[0]});
+			vb.push_back({static_cast<int16_t>(layer.tex_id), uv[1], {xy[1], depth}, color[1]});
+			vb.push_back({static_cast<int16_t>(layer.tex_id), uv[2], {xy[2], depth}, color[2]});
+			vb.push_back({static_cast<int16_t>(layer.tex_id), uv[3], {xy[3], depth}, color[3]});
+			ib.insert(ib.end(), {at, at + 1, at + 3, at + 1, at + 2, at + 3});
+			base_index += 4;
+		}
+	}
 }
 
 glm::mat4 SpriteInstance::transform_for_sa(uint32_t sa_idx, bool* out_flipx, bool* out_flipy) const {

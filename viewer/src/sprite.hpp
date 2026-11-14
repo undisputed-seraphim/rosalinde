@@ -9,7 +9,6 @@
 #include <array>
 #include <cstdint>
 #include <functional>
-#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -45,6 +44,8 @@ struct CachedKeyframe {
 		bool notex = false;
 	};
 	std::vector<Layer> layers;
+	std::array<std::vector<uint32_t>, 4> draw_layers;
+	std::vector<uint8_t> mask_companion;
 	glm::vec4 bounds;
 };
 
@@ -81,6 +82,11 @@ struct SpriteData {
 	std::vector<FTX::Entry> textures;
 	mbs::v77 v77;
 
+	struct FrameInfo {
+		uint32_t previous;
+		uint32_t next;
+		uint32_t next2;
+	};
 	struct FrameRun {
 		uint32_t s8_start;
 		uint32_t s8_count;
@@ -88,6 +94,7 @@ struct SpriteData {
 		uint32_t loop_start;
 		bool once; // s8_intro_ticks < 0: play through once, then hold the last frame
 		uint16_t sa_track_slot;
+		std::vector<FrameInfo> frames;
 	};
 	struct Track {
 		std::string name;
@@ -221,13 +228,13 @@ struct SpriteInstance {
 		uint32_t sa_idx,
 		std::array<std::vector<SpriteVertex>, 4>& verts,
 		std::array<std::vector<uint32_t>, 4>& indices,
-		const std::map<uint32_t, glm::vec4>* tints = nullptr,
+		const glm::vec4* tint = nullptr,
 		bool apply_fog = false,
 		uint32_t layer_mask = 0xFFFFFFFFu) const;
 
 	void visit_layers(
 		uint32_t sa_idx,
-		const std::map<uint32_t, glm::vec4>* tints,
+		const glm::vec4* tint,
 		bool apply_fog,
 		uint32_t layer_mask,
 		const LayerVisitor& visitor) const;
@@ -241,10 +248,12 @@ struct SpriteInstance {
 	glm::vec4 render_bounds() const;
 
 private:
+	bool prepare_run(uint32_t sa_idx, LayerVisit& base, const CachedKeyframe*& ck, const SpritePose*& pose) const;
+
 	template <typename F>
 	void for_each_layer(
 		uint32_t sa_idx,
-		const std::map<uint32_t, glm::vec4>* tints,
+		const glm::vec4* tint,
 		bool apply_fog,
 		int blend_filter,
 		uint32_t layer_mask,

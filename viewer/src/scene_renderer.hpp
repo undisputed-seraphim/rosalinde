@@ -67,7 +67,8 @@ private:
 		asb::RuntimeEntity state;
 		SpritePlayback playback;
 		std::vector<StageMesh> meshes;
-		std::map<uint32_t, glm::vec4> tints;
+		glm::vec4 tint{};
+		bool has_tint = false;
 		int tint_key = -2;
 		bool background = false;
 		bool stage = false;
@@ -88,7 +89,7 @@ private:
 	std::string object_json(const RenderItem& item, bool stage, std::string_view reason) const;
 	void probe_object(const RenderItem& item, bool stage, std::string_view reason);
 	void probe_instance(const RenderItem& item, bool stage, size_t index);
-	void probe_layers(const RenderItem& item, size_t index, bool stage, const std::map<uint32_t, glm::vec4>& tints);
+	void probe_layers(const RenderItem& item, size_t index, bool stage, const glm::vec4* tint);
 	std::vector<const RenderItem*> ordered_items() const;
 	std::vector<const RenderItem*> draw_items() const;
 

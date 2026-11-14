@@ -10,14 +10,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
-#include <map>
 #include <sstream>
 #include <string_view>
 
 namespace {
 
 bool flip_v_for(const asb::RuntimeEntity& e) {
-	const char* match = std::getenv("VIEWER_FLIP_V");
+	static const char* const match = std::getenv("VIEWER_FLIP_V");
 	if (!match || !*match)
 		return false;
 	const std::string_view value(match);
@@ -223,14 +222,11 @@ void SceneRenderer::update_tints(RenderItem& object) {
 	if (packed == object.tint_key)
 		return;
 	object.tint_key = packed;
-	object.tints.clear();
-	if (packed < 0 || !object.playback.asset)
+	object.has_tint = packed >= 0 && object.playback.asset != nullptr;
+	if (!object.has_tint)
 		return;
-	const glm::vec4 tint{
+	object.tint = glm::vec4{
 		((packed >> 16) & 0xFF) / 255.0f, ((packed >> 8) & 0xFF) / 255.0f, (packed & 0xFF) / 255.0f, 1.0f};
-	object.tints[0] = tint;
-	for (const auto& s4 : object.playback.asset->data.v77.s4)
-		object.tints[s4.attributes] = tint;
 }
 
 void SceneRenderer::sync(const asb::SceneState& scene) {
@@ -531,7 +527,7 @@ void SceneRenderer::probe_layers(
 	const RenderItem& object,
 	size_t index,
 	bool stage,
-	const std::map<uint32_t, glm::vec4>& tints) {
+	const glm::vec4* tint) {
 	if (!_probe || index >= object.playback.instances.size())
 		return;
 	const auto& instance = object.playback.instances[index];
@@ -539,7 +535,7 @@ void SceneRenderer::probe_layers(
 		return;
 	for (uint32_t run = 0; run < instance.sa_count(); ++run) {
 		instance.visit_layers(
-			run, tints.empty() ? nullptr : &tints, true, object.state.layer_mask, [&](const LayerVisit& layer) {
+			run, tint, true, object.state.layer_mask, [&](const LayerVisit& layer) {
 				std::string uv = "[";
 				std::string uv_norm = "[";
 				for (int k = 0; k < 4; ++k) {
@@ -774,7 +770,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 						 ",\"runs\":" + runs_json(instance)});
 			if (_probe) {
 				probe_instance(*object, object->stage, i);
-				probe_layers(*object, i, object->stage, object->tints);
+				probe_layers(*object, i, object->stage, object->has_tint ? &object->tint : nullptr);
 			}
 			const Camera& object_camera = e.space == asb::RuntimeEntity::Space::Ui ? ui_camera : camera;
 			static const glm::mat4 screen_projection = glm::ortho(0.0f, 1920.0f, 1080.0f, 0.0f);
@@ -802,7 +798,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				object_projection,
 				object_camera,
 				pos,
-				object->tints.empty() ? nullptr : &object->tints,
+				object->has_tint ? &object->tint : nullptr,
 				true,
 				object_scale,
 				alpha,

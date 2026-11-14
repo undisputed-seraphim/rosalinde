@@ -157,7 +157,7 @@ void SpriteRenderer::draw(
 	const glm::mat4& projection,
 	const Camera& cam,
 	const glm::vec2& offset,
-	const std::map<uint32_t, glm::vec4>* tints,
+	const glm::vec4* tint,
 	bool apply_fog,
 	float scale,
 	float alpha,
@@ -181,7 +181,8 @@ void SpriteRenderer::draw(
 	const glm::mat4 view_offset = cam.lookAt() * model;
 	uint32_t n = inst.sa_count();
 	std::vector<uint32_t> run_order;
-	if (const char* order = std::getenv("VIEWER_RUN_ORDER")) {
+	static const char* const run_order_env = std::getenv("VIEWER_RUN_ORDER");
+	if (const char* order = run_order_env) {
 		run_order.resize(n);
 		std::iota(run_order.begin(), run_order.end(), 0u);
 		if (std::strcmp(order, "reverse") == 0) {
@@ -200,7 +201,7 @@ void SpriteRenderer::draw(
 		auto s7m = inst.transform_for_sa(i);
 		shader.SetUniform("u_mvp", projection * view_offset * s7m);
 
-		inst.build_vertices_all_blends(i, _verts, _indices, tints, apply_fog, layer_mask);
+		inst.build_vertices_all_blends(i, _verts, _indices, tint, apply_fog, layer_mask);
 		for (uint8_t b = 0; b < 4; ++b) {
 			if (_verts[b].empty())
 				continue;
