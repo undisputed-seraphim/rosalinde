@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -41,6 +42,23 @@ bool name_contains(const asb::RuntimeEntity& e, std::string_view text) {
 		if (alias.find(text) != std::string::npos)
 			return true;
 	return false;
+}
+
+enum class WeatherTrack {
+	none,
+	rain,
+	snow,
+};
+
+WeatherTrack weather_track(std::string_view name) {
+	std::string lower(name);
+	std::transform(
+		lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+	if (lower.rfind("rain", 0) == 0)
+		return WeatherTrack::rain;
+	if (lower.rfind("snow", 0) == 0)
+		return WeatherTrack::snow;
+	return WeatherTrack::none;
 }
 
 std::string quote(std::string_view value) { return "\"" + asb::trace::quote(value) + "\""; }
@@ -301,24 +319,30 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 				spec.track_index >= 0 && static_cast<size_t>(spec.track_index) < asset->data.tracks.size()
 					? &asset->data.tracks[static_cast<size_t>(spec.track_index)]
 					: nullptr;
-			if (track && (track->name.find("RAIN_FOG") != std::string::npos ||
-						  track->name.find("SNOW_FOG") != std::string::npos)) {
-				WeatherRegion region;
-				region.spec = spec;
-				region.bounds = track->bounds;
-				region.rain = track->name.find("RAIN") != std::string::npos;
-				spdlog::trace(
-					"weather: layer={} track={} name={} rain={} bounds=({},{},{},{})",
-					i,
-					spec.track_index,
-					track->name,
-					region.rain,
-					track->bounds.x,
-					track->bounds.y,
-					track->bounds.z,
-					track->bounds.w);
-				_weather_regions.push_back(std::move(region));
-				continue;
+			// The engine's rain/snow passes are procedural: the BBS lists the
+			// BGEffect rain/snow tracks as geometry for the screen-weather pass,
+			// not as sprites. Only RAIN_FOG/SNOW_FOG are masks; rain01_*/rain_02
+			// are emitter geometry for the same pass.
+			if (track) {
+				const WeatherTrack weather = weather_track(track->name);
+				if (weather != WeatherTrack::none) {
+					WeatherRegion region;
+					region.spec = spec;
+					region.bounds = track->bounds;
+					region.rain = weather == WeatherTrack::rain;
+					spdlog::trace(
+						"weather: layer={} track={} name={} rain={} bounds=({},{},{},{})",
+						i,
+						spec.track_index,
+						track->name,
+						region.rain,
+						track->bounds.x,
+						track->bounds.y,
+						track->bounds.z,
+						track->bounds.w);
+					_weather_regions.push_back(std::move(region));
+					continue;
+				}
 			}
 			asb::RuntimeEntity e;
 			e.name = "__stage__:" + std::to_string(i);
