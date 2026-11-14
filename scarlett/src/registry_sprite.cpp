@@ -137,6 +137,11 @@ DispatchResult Registry::dispatch_sprite(std::string_view name, NativeArgs& args
 	// Stage/weather/flag configuration. No id->effect mapping is known, so the
 	// visual is left to the engine; record the ids for offline inspection.
 	if (name == "DrCreateStage") {
+		const size_t before = _timeline.entities.size();
+		drop_world_charas();
+		const size_t dropped = before - _timeline.entities.size();
+		if (dropped > 0)
+			spdlog::debug("stage: frame={} cleared {} world chara(s)", frame, dropped);
 		StageConfig stage;
 		stage.frame = frame;
 		stage.stage_type = I(0);

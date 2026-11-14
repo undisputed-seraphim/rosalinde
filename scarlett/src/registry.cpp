@@ -373,6 +373,47 @@ void Registry::create_chara(const std::string& kind, const std::vector<std::stri
 	mark_dirty();
 }
 
+// DrCreateStage rebuilds the drama world actor list. The engine clears the
+// UcDrChara list (drama_stage_create: 0x175480 walks the vector at +0x240) and
+// then scripts recreate only the characters for the new cut. UI characters are
+// owned by a different manager (DrUiCreateChara -> 0x1757b0) and survive.
+void Registry::drop_world_charas() {
+	auto& entities = _timeline.entities;
+	size_t kept = 0;
+	for (size_t i = 0; i < entities.size(); ++i) {
+		RuntimeEntity& e = entities[i];
+		const bool world_chara =
+			e.space == RuntimeEntity::Space::World && (e.kind == "DrCreateChara" || e.kind == "DrCreateNpc");
+		if (world_chara) {
+			_animations.remove(e.name);
+			_moves.erase(e.name);
+			_unit_dir.erase(e.name);
+			for (const auto& alias_name : e.aliases) {
+				_moves.erase(alias_name);
+				_unit_dir.erase(alias_name);
+			}
+			continue;
+		}
+		if (kept != i)
+			entities[kept] = std::move(e);
+		++kept;
+	}
+	if (kept == entities.size())
+		return;
+	entities.resize(kept);
+	for (size_t i = 0; i < entities.size(); ++i)
+		entities[i].order = static_cast<int>(i);
+	_by_name.clear();
+	for (size_t i = 0; i < entities.size(); ++i) {
+		if (!entities[i].name.empty())
+			_by_name[entities[i].name] = static_cast<int>(i);
+		for (const auto& alias_name : entities[i].aliases)
+			if (!alias_name.empty())
+				_by_name[alias_name] = static_cast<int>(i);
+	}
+	mark_dirty();
+}
+
 bool Registry::construct_value(asIScriptGeneric* gen) {
 	asIScriptFunction* fn = gen->GetFunction();
 	if (!fn)

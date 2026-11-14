@@ -1,3 +1,5 @@
+#include "registry.hpp"
+
 #include <scarlett/animation.hpp>
 #include <scarlett/asb.hpp>
 #include <scarlett/host.hpp>
@@ -314,6 +316,48 @@ TEST_CASE("async animation actions defer their idle track") {
 	entity = session.scene().find_entity("高貴プリーステス");
 	REQUIRE(entity);
 	CHECK(entity->track == "D_IDLE_A");
+}
+
+TEST_CASE("a new drama stage drops world characters but keeps UI objects") {
+	asb::Registry registry;
+	registry.reset("test", "scene00");
+	auto& scene = registry.state();
+
+	asb::RuntimeEntity chara;
+	chara.name = "アレイン";
+	chara.kind = "DrCreateChara";
+	chara.space = asb::RuntimeEntity::Space::World;
+	chara.started = true;
+	chara.aliases = {"アレイン", "主人公"};
+
+	asb::RuntimeEntity npc;
+	npc.name = "モブ";
+	npc.kind = "DrCreateNpc";
+	npc.space = asb::RuntimeEntity::Space::World;
+	npc.started = true;
+
+	asb::RuntimeEntity ui_chara;
+	ui_chara.name = "UIキャラ";
+	ui_chara.kind = "DrUiCreateChara";
+	ui_chara.space = asb::RuntimeEntity::Space::Ui;
+	ui_chara.started = true;
+
+	asb::RuntimeEntity world_sprite;
+	world_sprite.name = "world_sprite";
+	world_sprite.kind = "CreateSpriteMoneWorld";
+	world_sprite.space = asb::RuntimeEntity::Space::World;
+	world_sprite.started = true;
+
+	scene.entities = {chara, npc, ui_chara, world_sprite};
+
+	registry.drop_world_charas();
+
+	CHECK(scene.find_entity("アレイン") == nullptr);
+	CHECK(scene.find_entity("主人公") == nullptr);
+	CHECK(scene.find_entity("モブ") == nullptr);
+	CHECK(scene.find_entity("UIキャラ") != nullptr);
+	CHECK(scene.find_entity("world_sprite") != nullptr);
+	CHECK(scene.entities.size() == 2);
 }
 
 TEST_CASE("drama scripts pick their void MAIN entry") {

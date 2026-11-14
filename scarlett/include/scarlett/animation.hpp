@@ -30,6 +30,8 @@ public:
 		_next_token = 1;
 	}
 
+	void remove(const std::string& name) { _states.erase(name); }
+
 	void set_track_info(TrackInfoProvider provider) { _track_info = std::move(provider); }
 
 	void play(RuntimeEntity& entity, std::string track, int track_index, long frame) {

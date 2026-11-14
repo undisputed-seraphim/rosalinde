@@ -111,6 +111,10 @@ public:
 
 	void reset(std::string source, std::string function);
 
+	// DrCreateStage rebuilds the drama world actor list; the engine drops the
+	// UcDrChara vector. UI characters belong to a different manager and persist.
+	void drop_world_charas();
+
 	// Model a native call. Returns true if recognised (and thus not handled by
 	// the fallback stub). `gen` is the AngelScript generic call context.
 	bool dispatch(asIScriptGeneric* gen);
