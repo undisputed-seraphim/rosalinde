@@ -179,13 +179,17 @@ const SpriteData::Track* SpriteData::find_track(const std::string& name) const {
 }
 
 void SpriteInstance::play(uint32_t track_id) {
-	if (data)
+	if (data) {
+		poses.clear();
 		playback.play(*data, track_id, options);
+	}
 }
 
 void SpriteInstance::play(const std::string& name) {
-	if (data)
+	if (data) {
+		poses.clear();
 		playback.play(*data, name, options);
+	}
 }
 
 void SpriteInstance::advance(float dt_seconds) {
@@ -194,13 +198,17 @@ void SpriteInstance::advance(float dt_seconds) {
 }
 
 void SpriteInstance::next_track() {
-	if (data)
+	if (data) {
+		poses.clear();
 		playback.next_track(*data, options);
+	}
 }
 
 void SpriteInstance::prev_track() {
-	if (data)
+	if (data) {
+		poses.clear();
 		playback.prev_track(*data, options);
+	}
 }
 
 namespace {
@@ -223,6 +231,10 @@ struct MorphWeights {
 	float current = 1.0f;
 	float next = 0.0f;
 	float next2 = 0.0f;
+	int32_t fp_previous = 0;
+	int32_t fp_current = 4096;
+	int32_t fp_next = 0;
+	int32_t fp_next2 = 0;
 
 	static MorphWeights make(uint8_t mode, float alpha) {
 		MorphWeights w;
@@ -238,6 +250,11 @@ struct MorphWeights {
 			w.current = 1.0f - a;
 			w.next = a;
 		}
+		auto to_fp = [](float v) { return static_cast<int32_t>(std::lround(v * 4096.0f)); };
+		w.fp_previous = to_fp(w.previous);
+		w.fp_current = to_fp(w.current);
+		w.fp_next = to_fp(w.next);
+		w.fp_next2 = to_fp(w.next2);
 		return w;
 	}
 
@@ -250,19 +267,19 @@ struct MorphWeights {
 	}
 };
 
-glm::vec4 color_to_vec(uint32_t c) {
-	return {
-		static_cast<float>(c & 0xFF),
-		static_cast<float>((c >> 8) & 0xFF),
-		static_cast<float>((c >> 16) & 0xFF),
-		static_cast<float>((c >> 24) & 0xFF)};
-}
-
-uint32_t vec_to_color(const glm::vec4& c) {
-	auto channel = [](float v) {
-		return static_cast<uint32_t>(std::clamp(std::lround(v), 0L, 255L));
+// Integer channel blend for the cached pose. The float weights are converted
+// once per pose; the per-vertex path avoids lroundf.
+uint32_t morph_color(uint32_t c0, uint32_t c1, uint32_t c2, uint32_t c3, const MorphWeights& w) {
+	auto channel = [&](int shift) {
+		const int32_t sum =
+			static_cast<int32_t>((c0 >> shift) & 0xFF) * w.fp_previous +
+			static_cast<int32_t>((c1 >> shift) & 0xFF) * w.fp_current +
+			static_cast<int32_t>((c2 >> shift) & 0xFF) * w.fp_next +
+			static_cast<int32_t>((c3 >> shift) & 0xFF) * w.fp_next2;
+		const int32_t v = (sum + (sum >= 0 ? 2048 : -2048)) / 4096;
+		return static_cast<uint32_t>(std::clamp(v, 0, 255));
 	};
-	return channel(c.x) | (channel(c.y) << 8) | (channel(c.z) << 16) | (channel(c.w) << 24);
+	return channel(0) | (channel(8) << 8) | (channel(16) << 16) | (channel(24) << 24);
 }
 
 } // namespace
@@ -362,8 +379,8 @@ void SpriteInstance::for_each_layer(
 	const CachedKeyframe* next_ck = &ck;
 	const CachedKeyframe* next2_ck = &ck;
 	base.s6_next_keyframe_id = s8.s6_keyframe_id;
-	MorphWeights morph;
 	bool morphing = false;
+	PoseKey pose_key;
 	if (s8.s6_keyframe_interpolation != 0 && run.s8_count > 0) {
 		const uint32_t current_offset = std::min<uint32_t>(base.offset, run.s8_count - 1);
 		const uint32_t previous_offset = current_offset > 0 ? current_offset - 1 : current_offset;
@@ -385,22 +402,89 @@ void SpriteInstance::for_each_layer(
 				const uint32_t duration = s8.s8_duration_ticks;
 				const uint32_t remaining = sa_idx < playback.ticks.size() ? playback.ticks[sa_idx] : duration;
 				const uint32_t elapsed = duration > remaining ? duration - remaining : 0;
-				float alpha = 0.0f;
 				if (duration > 0) {
 					const uint8_t rate = s8.interpolation_rate;
-					alpha = rate <= 1
+					base.s6_alpha = rate <= 1
 						? static_cast<float>(elapsed) / static_cast<float>(duration)
 						: static_cast<float>((elapsed / rate) * rate) / static_cast<float>(duration);
-					alpha = std::clamp(alpha, 0.0f, 1.0f);
+					base.s6_alpha = std::clamp(base.s6_alpha, 0.0f, 1.0f);
 				}
-				morph = MorphWeights::make(s8.s6_keyframe_interpolation, alpha);
-				base.s6_alpha = alpha;
+				pose_key.previous = run.s8_start + previous_offset;
+				pose_key.current = s8_index;
+				pose_key.next = run.s8_start + next_offset;
+				pose_key.next2 = run.s8_start + next2_offset;
+				pose_key.step = s8.interpolation_rate > 1 ? elapsed / s8.interpolation_rate : elapsed;
+				pose_key.mode = s8.s6_keyframe_interpolation;
 				morphing = true;
 			}
 		}
 	}
-	if (morphing)
-		base.s6_bounds = morph.apply(previous_ck->bounds, ck.bounds, next_ck->bounds, next2_ck->bounds);
+
+	const SpritePose* pose = nullptr;
+	if (morphing) {
+		if (poses.size() < track.runs.size())
+			poses.resize(track.runs.size());
+		SpritePose& cached = poses[sa_idx];
+		if (!(cached.key == pose_key) || cached.layers.size() != ck.layers.size()) {
+			cached.key = pose_key;
+			const MorphWeights morph = MorphWeights::make(s8.s6_keyframe_interpolation, base.s6_alpha);
+			cached.bounds = morph.apply(previous_ck->bounds, ck.bounds, next_ck->bounds, next2_ck->bounds);
+			cached.layers.resize(ck.layers.size());
+			for (size_t i = 0; i < ck.layers.size(); ++i) {
+				const auto& layer = ck.layers[i];
+				const auto& previous_layer = previous_ck->layers[i];
+				const auto& next_layer = next_ck->layers[i];
+				const auto& next2_layer = next2_ck->layers[i];
+				auto& out = cached.layers[i];
+				for (int k = 0; k < 4; ++k) {
+					out.xy[k] = layer.xy[k];
+					out.uv[k] = layer.uv[k];
+					out.color[k] = layer.color[k];
+				}
+				out.s1_center = layer.s1_center;
+				out.s1_topleft = layer.s1_topleft;
+				const bool paired =
+					previous_layer.s4_source_tile_id == layer.s4_source_tile_id &&
+					next_layer.s4_source_tile_id == layer.s4_source_tile_id &&
+					next2_layer.s4_source_tile_id == layer.s4_source_tile_id &&
+					previous_layer.s1_uv_id == layer.s1_uv_id && next_layer.s1_uv_id == layer.s1_uv_id &&
+					next2_layer.s1_uv_id == layer.s1_uv_id && previous_layer.attributes == layer.attributes &&
+					next_layer.attributes == layer.attributes && next2_layer.attributes == layer.attributes &&
+					previous_layer.blend == layer.blend && next_layer.blend == layer.blend &&
+					next2_layer.blend == layer.blend && previous_layer.notex == layer.notex &&
+					next_layer.notex == layer.notex && next2_layer.notex == layer.notex &&
+					previous_layer.color_id == layer.color_id && next_layer.color_id == layer.color_id &&
+					next2_layer.color_id == layer.color_id;
+				if (paired) {
+					const bool morph_uv = !layer.notex && layer.tex_id == previous_layer.tex_id &&
+										  layer.tex_id == next_layer.tex_id && layer.tex_id == next2_layer.tex_id;
+					for (int k = 0; k < 4; ++k) {
+						out.xy[k] = morph.apply(previous_layer.xy[k], layer.xy[k], next_layer.xy[k], next2_layer.xy[k]);
+						out.color[k] = morph_color(
+							previous_layer.color[k],
+							layer.color[k],
+							next_layer.color[k],
+							next2_layer.color[k],
+							morph);
+						if (morph_uv)
+							out.uv[k] =
+								morph.apply(previous_layer.uv[k], layer.uv[k], next_layer.uv[k], next2_layer.uv[k]);
+					}
+					if (morph_uv) {
+						out.s1_center = morph.apply(
+							previous_layer.s1_center, layer.s1_center, next_layer.s1_center, next2_layer.s1_center);
+						out.s1_topleft = morph.apply(
+							previous_layer.s1_topleft,
+							layer.s1_topleft,
+							next_layer.s1_topleft,
+							next2_layer.s1_topleft);
+					}
+				}
+			}
+		}
+		pose = &cached;
+		base.s6_bounds = cached.bounds;
+	}
 
 	if (ck.layers.empty()) {
 		base.skip = "empty_keyframe";
@@ -444,46 +528,20 @@ void SpriteInstance::for_each_layer(
 		glm::vec2 s1_center = layer.s1_center;
 		glm::vec2 s1_topleft = layer.s1_topleft;
 		uint32_t color[4];
-		for (int k = 0; k < 4; ++k) {
-			xy[k] = layer.xy[k];
-			uv[k] = layer.uv[k];
-			color[k] = layer.color[k];
-		}
-		if (morphing) {
-			const auto& previous_layer = previous_ck->layers[i];
-			const auto& next_layer = next_ck->layers[i];
-			const auto& next2_layer = next2_ck->layers[i];
-			const bool paired =
-				previous_layer.s4_source_tile_id == layer.s4_source_tile_id &&
-				next_layer.s4_source_tile_id == layer.s4_source_tile_id &&
-				next2_layer.s4_source_tile_id == layer.s4_source_tile_id &&
-				previous_layer.s1_uv_id == layer.s1_uv_id && next_layer.s1_uv_id == layer.s1_uv_id &&
-				next2_layer.s1_uv_id == layer.s1_uv_id && previous_layer.attributes == layer.attributes &&
-				next_layer.attributes == layer.attributes && next2_layer.attributes == layer.attributes &&
-				previous_layer.blend == layer.blend && next_layer.blend == layer.blend &&
-				next2_layer.blend == layer.blend && previous_layer.notex == layer.notex &&
-				next_layer.notex == layer.notex && next2_layer.notex == layer.notex &&
-				previous_layer.color_id == layer.color_id && next_layer.color_id == layer.color_id &&
-				next2_layer.color_id == layer.color_id;
-			if (paired) {
-				const bool morph_uv = !layer.notex && layer.tex_id == previous_layer.tex_id &&
-									  layer.tex_id == next_layer.tex_id && layer.tex_id == next2_layer.tex_id;
-				for (int k = 0; k < 4; ++k) {
-					xy[k] = morph.apply(previous_layer.xy[k], layer.xy[k], next_layer.xy[k], next2_layer.xy[k]);
-					color[k] = vec_to_color(morph.apply(
-						color_to_vec(previous_layer.color[k]),
-						color_to_vec(layer.color[k]),
-						color_to_vec(next_layer.color[k]),
-						color_to_vec(next2_layer.color[k])));
-					if (morph_uv)
-						uv[k] = morph.apply(previous_layer.uv[k], layer.uv[k], next_layer.uv[k], next2_layer.uv[k]);
-				}
-				if (morph_uv) {
-					s1_center = morph.apply(
-						previous_layer.s1_center, layer.s1_center, next_layer.s1_center, next2_layer.s1_center);
-					s1_topleft = morph.apply(
-						previous_layer.s1_topleft, layer.s1_topleft, next_layer.s1_topleft, next2_layer.s1_topleft);
-				}
+		if (pose) {
+			const auto& pose_layer = pose->layers[i];
+			for (int k = 0; k < 4; ++k) {
+				xy[k] = pose_layer.xy[k];
+				uv[k] = pose_layer.uv[k];
+				color[k] = pose_layer.color[k];
+			}
+			s1_center = pose_layer.s1_center;
+			s1_topleft = pose_layer.s1_topleft;
+		} else {
+			for (int k = 0; k < 4; ++k) {
+				xy[k] = layer.xy[k];
+				uv[k] = layer.uv[k];
+				color[k] = layer.color[k];
 			}
 		}
 
@@ -610,29 +668,35 @@ void SpriteInstance::visit_layers(
 	for_each_layer(sa_idx, tints, apply_fog, -1, layer_mask, [&](const LayerVisit& layer) { visitor(layer); });
 }
 
-void SpriteInstance::build_vertices(
+void SpriteInstance::build_vertices_all_blends(
 	uint32_t sa_idx,
-	std::vector<SpriteVertex>& verts,
-	std::vector<uint32_t>& indices,
+	std::array<std::vector<SpriteVertex>, 4>& verts,
+	std::array<std::vector<uint32_t>, 4>& indices,
 	const std::map<uint32_t, glm::vec4>* tints,
 	bool apply_fog,
-	int blend_filter,
 	uint32_t layer_mask) const {
-	verts.clear();
-	indices.clear();
+	for (auto& v : verts)
+		v.clear();
+	for (auto& i : indices)
+		i.clear();
 
-	uint32_t base = 0;
-	for_each_layer(sa_idx, tints, apply_fog, blend_filter, layer_mask, [&](const LayerVisit& layer) {
+	std::array<uint32_t, 4> base{};
+	for_each_layer(sa_idx, tints, apply_fog, -1, layer_mask, [&](const LayerVisit& layer) {
 		if (!layer.drawn)
 			return;
 
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[0], {layer.xy[0], layer.depth}, layer.color[0]});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[1], {layer.xy[1], layer.depth}, layer.color[1]});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[2], {layer.xy[2], layer.depth}, layer.color[2]});
-		verts.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[3], {layer.xy[3], layer.depth}, layer.color[3]});
+		const size_t blend = std::min<size_t>(layer.blend, 3);
+		auto& vb = verts[blend];
+		auto& ib = indices[blend];
+		const uint32_t at = base[blend];
 
-		indices.insert(indices.end(), {base, base + 1, base + 3, base + 1, base + 2, base + 3});
-		base += 4;
+		vb.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[0], {layer.xy[0], layer.depth}, layer.color[0]});
+		vb.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[1], {layer.xy[1], layer.depth}, layer.color[1]});
+		vb.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[2], {layer.xy[2], layer.depth}, layer.color[2]});
+		vb.push_back({static_cast<int16_t>(layer.tex_id), layer.uv[3], {layer.xy[3], layer.depth}, layer.color[3]});
+
+		ib.insert(ib.end(), {at, at + 1, at + 3, at + 1, at + 2, at + 3});
+		base[blend] += 4;
 	});
 }
 

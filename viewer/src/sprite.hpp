@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <impl/mbs/sections.hpp>
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -44,6 +45,33 @@ struct CachedKeyframe {
 	};
 	std::vector<Layer> layers;
 	glm::vec4 bounds;
+};
+
+struct SpritePoseLayer {
+	glm::vec2 xy[4];
+	glm::vec2 uv[4];
+	glm::vec2 s1_center{};
+	glm::vec2 s1_topleft{};
+	uint32_t color[4];
+};
+
+// A resolved section-6 pose. The key is the four contributing section-8
+// frames plus the quantised alpha step; the pose is independent of the
+// instance, track policy, and object transform.
+struct PoseKey {
+	uint32_t previous = UINT32_MAX;
+	uint32_t current = UINT32_MAX;
+	uint32_t next = UINT32_MAX;
+	uint32_t next2 = UINT32_MAX;
+	uint32_t step = UINT32_MAX;
+	uint8_t mode = 0;
+	bool operator==(const PoseKey&) const = default;
+};
+
+struct SpritePose {
+	PoseKey key;
+	glm::vec4 bounds{};
+	std::vector<SpritePoseLayer> layers;
 };
 
 struct SpriteData {
@@ -167,6 +195,7 @@ struct SpriteInstance {
 	bool flip_v = false;
 
 	SpritePlaybackState playback;
+	mutable std::vector<SpritePose> poses;
 
 	using RunState = SpriteRunState;
 
@@ -176,13 +205,12 @@ struct SpriteInstance {
 	void next_track();
 	void prev_track();
 
-	void build_vertices(
+	void build_vertices_all_blends(
 		uint32_t sa_idx,
-		std::vector<SpriteVertex>& verts,
-		std::vector<uint32_t>& indices,
+		std::array<std::vector<SpriteVertex>, 4>& verts,
+		std::array<std::vector<uint32_t>, 4>& indices,
 		const std::map<uint32_t, glm::vec4>* tints = nullptr,
 		bool apply_fog = false,
-		int blend_filter = -1,
 		uint32_t layer_mask = 0xFFFFFFFFu) const;
 
 	void visit_layers(

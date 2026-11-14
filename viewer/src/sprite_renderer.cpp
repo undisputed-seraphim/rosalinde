@@ -200,14 +200,13 @@ void SpriteRenderer::draw(
 		auto s7m = inst.transform_for_sa(i);
 		shader.SetUniform("u_mvp", projection * view_offset * s7m);
 
+		inst.build_vertices_all_blends(i, _verts, _indices, tints, apply_fog, layer_mask);
 		for (uint8_t b = 0; b < 4; ++b) {
-			set_blend_mode(b);
-			inst.build_vertices(i, _verts, _indices, tints, apply_fog, b, layer_mask);
-			if (_verts.empty())
+			if (_verts[b].empty())
 				continue;
-
-			_vbo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_verts));
-			_ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_indices));
+			set_blend_mode(b);
+			_vbo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_verts[b]));
+			_ebo.bind().setData(gl::buffer::Usage::STATIC_DRAW, std::span(_indices[b]));
 			_ebo.drawElements(gl::Mode::TRIANGLES);
 		}
 	}

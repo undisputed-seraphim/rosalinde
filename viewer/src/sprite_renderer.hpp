@@ -5,6 +5,7 @@
 #include "glxx/buffers.hpp"
 #include "sprite.hpp"
 
+#include <array>
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <map>
@@ -50,6 +51,6 @@ private:
 	gl::ArrayBuffer<SpriteVertex> _vbo;
 	gl::uiElementBuffer _ebo;
 
-	std::vector<SpriteVertex> _verts;
-	std::vector<uint32_t> _indices;
+	std::array<std::vector<SpriteVertex>, 4> _verts;
+	std::array<std::vector<uint32_t>, 4> _indices;
 };
