@@ -122,7 +122,7 @@ DispatchResult Registry::dispatch_movement(std::string_view name, NativeArgs& ar
 		}
 		return DispatchResult::Handled;
 	}
-	if (name == "FollowDir" || name == "DrTurnAsync") {
+	if (name == "FollowDir") {
 		if (RuntimeEntity* entity = entity_arg(args)) {
 			const auto target = _by_name.find(args.str(1));
 			if (target != _by_name.end()) {
@@ -130,6 +130,11 @@ DispatchResult Registry::dispatch_movement(std::string_view name, NativeArgs& ar
 				mark_dirty();
 			}
 		}
+		return DispatchResult::Handled;
+	}
+	if (name == "DrTurnAsync") {
+		if (RuntimeEntity* entity = entity_arg(args))
+			begin_turn(*entity, args.str(1), frame, false);
 		return DispatchResult::Handled;
 	}
 	if (name == "DrMoveAbsByTimeAsync") {

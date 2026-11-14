@@ -6,8 +6,40 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <utility>
 
 namespace asb {
+
+// DrTurn/DrTurnAsync queue the turn clip into UcDrChara slot 4 (0x31be50 /
+// 0x31c044) and enter state 0x84. The state update (0x17014c) negates the
+// facing float when the clip finishes and returns to state 0x81 / idle slot 3.
+void Registry::begin_turn(RuntimeEntity& entity, const std::string& track, long frame, bool wait) {
+	int track_index = -1;
+	if (!track.empty() && _resolve_track)
+		track_index = _resolve_track(entity.mbs, track);
+	const long duration = (track_index >= 0 && _track_frames) ? _track_frames(entity.mbs, track_index) : 0;
+	Turn turn;
+	turn.idle_track = entity.idle_track;
+	turn.idle_index = entity.idle_track_index;
+	turn.turn_index = track_index;
+	if (!track.empty())
+		_animations.play_transient(entity, track, track_index, frame);
+	spdlog::debug(
+		"turn: {} {} index={} frames={} wait={} dir={}", entity.name, track, track_index, duration, wait, entity.dir_x);
+	if (duration > 0) {
+		turn.end = frame + duration;
+		_turns[entity.name] = std::move(turn);
+		if (wait) {
+			pending_wait = duration;
+			if (asIScriptContext* context = asGetActiveContext())
+				context->Suspend();
+		}
+	} else {
+		_turns.erase(entity.name);
+		entity.dir_x = -entity.dir_x;
+	}
+	mark_dirty();
+}
 
 DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& args) {
 	if (name == "DrAnimation" || name == "DrAnimationAsync") {
@@ -86,16 +118,8 @@ DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& a
 		return DispatchResult::Handled;
 	}
 	if (name == "DrTurn") {
-		if (RuntimeEntity* entity = entity_arg(args)) {
-			set_animation(*entity, args.str(1));
-			mark_dirty();
-			const long duration = _track_frames ? _track_frames(entity->mbs, entity->track_index) : 0;
-			if (duration > 0) {
-				pending_wait = duration;
-				if (asIScriptContext* context = asGetActiveContext())
-					context->Suspend();
-			}
-		}
+		if (RuntimeEntity* entity = entity_arg(args))
+			begin_turn(*entity, args.str(1), frame, true);
 		return DispatchResult::Handled;
 	}
 	if (name == "SetSpriteMoneAnimation" || name == "SetSpriteMoneAnimationPaused") {

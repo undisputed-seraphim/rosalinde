@@ -58,6 +58,7 @@ void Registry::reset(std::string source, std::string function) {
 	_by_name.clear();
 	_unit_dir.clear();
 	_moves.clear();
+	_turns.clear();
 	_animations.reset();
 	_db_params.clear();
 	_help.clear();
@@ -387,9 +388,11 @@ void Registry::drop_world_charas() {
 		if (world_chara) {
 			_animations.remove(e.name);
 			_moves.erase(e.name);
+			_turns.erase(e.name);
 			_unit_dir.erase(e.name);
 			for (const auto& alias_name : e.aliases) {
 				_moves.erase(alias_name);
+				_turns.erase(alias_name);
 				_unit_dir.erase(alias_name);
 			}
 			continue;
@@ -806,6 +809,31 @@ void Registry::advance() {
 			it = _moves.erase(it);
 		} else
 			++it;
+	}
+	for (auto it = _turns.begin(); it != _turns.end();) {
+		RuntimeEntity* found = nullptr;
+		for (auto& candidate : _timeline.entities)
+			if (candidate.name == it->first) {
+				found = &candidate;
+				break;
+			}
+		if (!found) {
+			it = _turns.erase(it);
+			continue;
+		}
+		if (frame < it->second.end) {
+			++it;
+			continue;
+		}
+		RuntimeEntity& entity = *found;
+		entity.dir_x = -entity.dir_x;
+		// A later animation (usually DrTurnAsync followed by a move) owns the
+		// entity now; only restore the old idle when the turn clip is still up.
+		if (entity.track_index == it->second.turn_index && !it->second.idle_track.empty())
+			_animations.play_idle(entity, it->second.idle_track, it->second.idle_index, frame);
+		spdlog::debug("turn: {} done dir={}", entity.name, entity.dir_x);
+		mark_dirty();
+		it = _turns.erase(it);
 	}
 	for (auto& entity : _timeline.entities) {
 		if (_animations.advance(entity, frame))

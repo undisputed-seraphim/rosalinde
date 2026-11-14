@@ -360,6 +360,44 @@ TEST_CASE("a new drama stage drops world characters but keeps UI objects") {
 	CHECK(scene.entities.size() == 2);
 }
 
+TEST_CASE("a turn flips facing when the clip ends and keeps the idle") {
+	asb::Registry registry;
+	registry.reset("test", "scene00");
+	registry.set_resolve_track([](const std::string&, const std::string& name) {
+		return name == "D_TURN_B" ? 103 : (name == "D_IDLE_B" ? 83 : -1);
+	});
+	registry.set_track_frames([](const std::string&, int index) { return index == 103 ? 36L : 0L; });
+
+	asb::RuntimeEntity entity;
+	entity.name = "クロエ";
+	entity.mbs = "Chara/Soldier_F.mbs";
+	entity.track = "D_IDLE_B";
+	entity.track_index = 83;
+	entity.idle_track = "D_IDLE_B";
+	entity.idle_track_index = 83;
+	entity.dir_x = -1.0f;
+	entity.started = true;
+	registry.state().entities.push_back(entity);
+	asb::RuntimeEntity& live = registry.state().entities.front();
+
+	registry.begin_turn(live, "D_TURN_B", 0, false);
+	CHECK(live.track == "D_TURN_B");
+	CHECK(live.track_index == 103);
+	CHECK(live.idle_track == "D_IDLE_B");
+	CHECK(live.dir_x == -1.0f);
+
+	registry.set_frame(35);
+	registry.advance();
+	CHECK(live.track == "D_TURN_B");
+	CHECK(live.dir_x == -1.0f);
+
+	registry.set_frame(36);
+	registry.advance();
+	CHECK(live.dir_x == 1.0f);
+	CHECK(live.track == "D_IDLE_B");
+	CHECK(live.track_index == 83);
+}
+
 TEST_CASE("drama scripts pick their void MAIN entry") {
 	const std::filesystem::path cpk = find_cpk();
 	if (cpk.empty()) {

@@ -58,6 +58,17 @@ public:
 		state.motion_continuation_name.clear();
 	}
 
+	// Show a clip without selecting it as the idle/follow-up track (engine turn
+	// slot 4: the previous idle must survive the turn). State 0x84 also replaces
+	// any queued action, so the action slot is cleared.
+	void play_transient(RuntimeEntity& entity, std::string track, int track_index, long frame) {
+		auto& state = _states[entity.name];
+		clear_action(state);
+		entity.action_active = false;
+		entity.action_end_frame = -1;
+		apply(entity, std::move(track), track_index, frame);
+	}
+
 	void play_idle(RuntimeEntity& entity, const std::string& track, int track_index, long frame) {
 		auto& state = _states[entity.name];
 		state.idle_track = track;

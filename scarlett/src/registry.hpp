@@ -115,6 +115,10 @@ public:
 	// UcDrChara vector. UI characters belong to a different manager and persist.
 	void drop_world_charas();
 
+	// DrTurn/DrTurnAsync: play the turn clip transiently, then flip facing and
+	// restore the idle when the clip ends.
+	void begin_turn(RuntimeEntity& entity, const std::string& track, long frame, bool wait);
+
 	// Model a native call. Returns true if recognised (and thus not handled by
 	// the fallback stub). `gen` is the AngelScript generic call context.
 	bool dispatch(asIScriptGeneric* gen);
@@ -223,8 +227,17 @@ private:
 		std::string followup_track;
 		int followup_track_index = -1;
 	};
+	// DrTurn/DrTurnAsync: UcDrChara state 0x84 plays the turn clip from slot 4,
+	// flips dir_x when it finishes, then returns to the previous idle (slot 3).
+	struct Turn {
+		long end = 0;
+		std::string idle_track;
+		int idle_index = -1;
+		int turn_index = -1;
+	};
 	AnimationController _animations;
 	std::unordered_map<std::string, Move> _moves;
+	std::unordered_map<std::string, Turn> _turns;
 	std::unordered_map<std::string, int> _db_params; // DbSet/GetDebugParam + LocalParam
 	std::unordered_set<std::string> _help;			 // AddToHelpList
 
