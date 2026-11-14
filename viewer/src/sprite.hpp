@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -74,6 +75,8 @@ struct SpritePose {
 	std::vector<SpritePoseLayer> layers;
 };
 
+struct PoseCache;
+
 struct SpriteData {
 	std::vector<FTX::Entry> textures;
 	mbs::v77 v77;
@@ -108,9 +111,19 @@ struct SpriteData {
 	static SpriteData build(mbs::v77 sections, std::vector<FTX::Entry> textures);
 
 	const Track* find_track(const std::string& name) const;
+	const SpritePose& pose(
+		const PoseKey& key,
+		const CachedKeyframe& previous,
+		const CachedKeyframe& current,
+		const CachedKeyframe& next,
+		const CachedKeyframe& next2,
+		uint8_t mode,
+		float alpha,
+		bool morphing) const;
 
 private:
 	void preprocess();
+	mutable std::shared_ptr<PoseCache> pose_cache;
 };
 
 // Parse the FMBS header and versioned sections without building keyframes.
@@ -195,7 +208,6 @@ struct SpriteInstance {
 	bool flip_v = false;
 
 	SpritePlaybackState playback;
-	mutable std::vector<SpritePose> poses;
 
 	using RunState = SpriteRunState;
 

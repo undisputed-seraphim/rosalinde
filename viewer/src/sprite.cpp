@@ -10,12 +10,32 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <deque>
 #include <span>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace mbs {
 glm::mat4 s7_matrix(const section_7& s7, bool flipx, bool flipy);
 }
+
+struct PoseKeyHash {
+	size_t operator()(const PoseKey& key) const noexcept {
+		uint64_t h = key.previous;
+		h = h * 1099511628211ull ^ key.current;
+		h = h * 1099511628211ull ^ key.next;
+		h = h * 1099511628211ull ^ key.next2;
+		h = h * 1099511628211ull ^ key.step;
+		h = h * 1099511628211ull ^ key.mode;
+		return static_cast<size_t>(h);
+	}
+};
+
+struct PoseCache {
+	std::unordered_map<PoseKey, SpritePose, PoseKeyHash> entries;
+	std::deque<PoseKey> order;
+	size_t capacity = 512;
+};
 
 mbs::v77 parse_mbs_sections(std::span<const uint8_t> data) {
 	mbs::v77 sections;
@@ -179,17 +199,13 @@ const SpriteData::Track* SpriteData::find_track(const std::string& name) const {
 }
 
 void SpriteInstance::play(uint32_t track_id) {
-	if (data) {
-		poses.clear();
+	if (data)
 		playback.play(*data, track_id, options);
-	}
 }
 
 void SpriteInstance::play(const std::string& name) {
-	if (data) {
-		poses.clear();
+	if (data)
 		playback.play(*data, name, options);
-	}
 }
 
 void SpriteInstance::advance(float dt_seconds) {
@@ -198,17 +214,13 @@ void SpriteInstance::advance(float dt_seconds) {
 }
 
 void SpriteInstance::next_track() {
-	if (data) {
-		poses.clear();
+	if (data)
 		playback.next_track(*data, options);
-	}
 }
 
 void SpriteInstance::prev_track() {
-	if (data) {
-		poses.clear();
+	if (data)
 		playback.prev_track(*data, options);
-	}
 }
 
 namespace {
@@ -271,11 +283,10 @@ struct MorphWeights {
 // once per pose; the per-vertex path avoids lroundf.
 uint32_t morph_color(uint32_t c0, uint32_t c1, uint32_t c2, uint32_t c3, const MorphWeights& w) {
 	auto channel = [&](int shift) {
-		const int32_t sum =
-			static_cast<int32_t>((c0 >> shift) & 0xFF) * w.fp_previous +
-			static_cast<int32_t>((c1 >> shift) & 0xFF) * w.fp_current +
-			static_cast<int32_t>((c2 >> shift) & 0xFF) * w.fp_next +
-			static_cast<int32_t>((c3 >> shift) & 0xFF) * w.fp_next2;
+		const int32_t sum = static_cast<int32_t>((c0 >> shift) & 0xFF) * w.fp_previous +
+							static_cast<int32_t>((c1 >> shift) & 0xFF) * w.fp_current +
+							static_cast<int32_t>((c2 >> shift) & 0xFF) * w.fp_next +
+							static_cast<int32_t>((c3 >> shift) & 0xFF) * w.fp_next2;
 		const int32_t v = (sum + (sum >= 0 ? 2048 : -2048)) / 4096;
 		return static_cast<uint32_t>(std::clamp(v, 0, 255));
 	};
@@ -283,6 +294,84 @@ uint32_t morph_color(uint32_t c0, uint32_t c1, uint32_t c2, uint32_t c3, const M
 }
 
 } // namespace
+
+const SpritePose& SpriteData::pose(
+	const PoseKey& key,
+	const CachedKeyframe& previous,
+	const CachedKeyframe& current,
+	const CachedKeyframe& next,
+	const CachedKeyframe& next2,
+	uint8_t mode,
+	float alpha,
+	bool morphing) const {
+	if (!pose_cache)
+		pose_cache = std::make_shared<PoseCache>();
+	auto& cache = *pose_cache;
+	if (const auto found = cache.entries.find(key); found != cache.entries.end())
+		return found->second;
+
+	const bool can_morph = morphing && previous.layers.size() == current.layers.size() &&
+						   next.layers.size() == current.layers.size() && next2.layers.size() == current.layers.size();
+	SpritePose pose;
+	pose.key = key;
+	const MorphWeights morph = MorphWeights::make(mode, alpha);
+	pose.bounds = can_morph ? morph.apply(previous.bounds, current.bounds, next.bounds, next2.bounds) : current.bounds;
+	pose.layers.resize(current.layers.size());
+	for (size_t i = 0; i < current.layers.size(); ++i) {
+		const auto& layer = current.layers[i];
+		auto& out = pose.layers[i];
+		for (int k = 0; k < 4; ++k) {
+			out.xy[k] = layer.xy[k];
+			out.uv[k] = layer.uv[k];
+			out.color[k] = layer.color[k];
+		}
+		out.s1_center = layer.s1_center;
+		out.s1_topleft = layer.s1_topleft;
+		if (!can_morph)
+			continue;
+
+		const auto& previous_layer = previous.layers[i];
+		const auto& next_layer = next.layers[i];
+		const auto& next2_layer = next2.layers[i];
+		const bool paired = previous_layer.s4_source_tile_id == layer.s4_source_tile_id &&
+							next_layer.s4_source_tile_id == layer.s4_source_tile_id &&
+							next2_layer.s4_source_tile_id == layer.s4_source_tile_id &&
+							previous_layer.s1_uv_id == layer.s1_uv_id && next_layer.s1_uv_id == layer.s1_uv_id &&
+							next2_layer.s1_uv_id == layer.s1_uv_id && previous_layer.attributes == layer.attributes &&
+							next_layer.attributes == layer.attributes && next2_layer.attributes == layer.attributes &&
+							previous_layer.blend == layer.blend && next_layer.blend == layer.blend &&
+							next2_layer.blend == layer.blend && previous_layer.notex == layer.notex &&
+							next_layer.notex == layer.notex && next2_layer.notex == layer.notex &&
+							previous_layer.color_id == layer.color_id && next_layer.color_id == layer.color_id &&
+							next2_layer.color_id == layer.color_id;
+		if (!paired)
+			continue;
+
+		const bool morph_uv = !layer.notex && layer.tex_id == previous_layer.tex_id &&
+							  layer.tex_id == next_layer.tex_id && layer.tex_id == next2_layer.tex_id;
+		for (int k = 0; k < 4; ++k) {
+			out.xy[k] = morph.apply(previous_layer.xy[k], layer.xy[k], next_layer.xy[k], next2_layer.xy[k]);
+			out.color[k] =
+				morph_color(previous_layer.color[k], layer.color[k], next_layer.color[k], next2_layer.color[k], morph);
+			if (morph_uv)
+				out.uv[k] = morph.apply(previous_layer.uv[k], layer.uv[k], next_layer.uv[k], next2_layer.uv[k]);
+		}
+		if (morph_uv) {
+			out.s1_center =
+				morph.apply(previous_layer.s1_center, layer.s1_center, next_layer.s1_center, next2_layer.s1_center);
+			out.s1_topleft =
+				morph.apply(previous_layer.s1_topleft, layer.s1_topleft, next_layer.s1_topleft, next2_layer.s1_topleft);
+		}
+	}
+
+	const auto it = cache.entries.emplace(key, std::move(pose)).first;
+	cache.order.push_back(key);
+	if (cache.order.size() > cache.capacity) {
+		cache.entries.erase(cache.order.front());
+		cache.order.pop_front();
+	}
+	return it->second;
+}
 
 template <typename F>
 void SpriteInstance::for_each_layer(
@@ -389,8 +478,7 @@ void SpriteInstance::for_each_layer(
 		const auto& previous_s8 = data->v77.s8[run.s8_start + previous_offset];
 		const auto& next_s8 = data->v77.s8[run.s8_start + next_offset];
 		const auto& next2_s8 = data->v77.s8[run.s8_start + next2_offset];
-		if (previous_s8.s6_keyframe_id < data->keyframes.size() &&
-			next_s8.s6_keyframe_id < data->keyframes.size() &&
+		if (previous_s8.s6_keyframe_id < data->keyframes.size() && next_s8.s6_keyframe_id < data->keyframes.size() &&
 			next2_s8.s6_keyframe_id < data->keyframes.size()) {
 			previous_ck = &data->keyframes[previous_s8.s6_keyframe_id];
 			next_ck = &data->keyframes[next_s8.s6_keyframe_id];
@@ -405,8 +493,8 @@ void SpriteInstance::for_each_layer(
 				if (duration > 0) {
 					const uint8_t rate = s8.interpolation_rate;
 					base.s6_alpha = rate <= 1
-						? static_cast<float>(elapsed) / static_cast<float>(duration)
-						: static_cast<float>((elapsed / rate) * rate) / static_cast<float>(duration);
+										? static_cast<float>(elapsed) / static_cast<float>(duration)
+										: static_cast<float>((elapsed / rate) * rate) / static_cast<float>(duration);
 					base.s6_alpha = std::clamp(base.s6_alpha, 0.0f, 1.0f);
 				}
 				pose_key.previous = run.s8_start + previous_offset;
@@ -422,68 +510,9 @@ void SpriteInstance::for_each_layer(
 
 	const SpritePose* pose = nullptr;
 	if (morphing) {
-		if (poses.size() < track.runs.size())
-			poses.resize(track.runs.size());
-		SpritePose& cached = poses[sa_idx];
-		if (!(cached.key == pose_key) || cached.layers.size() != ck.layers.size()) {
-			cached.key = pose_key;
-			const MorphWeights morph = MorphWeights::make(s8.s6_keyframe_interpolation, base.s6_alpha);
-			cached.bounds = morph.apply(previous_ck->bounds, ck.bounds, next_ck->bounds, next2_ck->bounds);
-			cached.layers.resize(ck.layers.size());
-			for (size_t i = 0; i < ck.layers.size(); ++i) {
-				const auto& layer = ck.layers[i];
-				const auto& previous_layer = previous_ck->layers[i];
-				const auto& next_layer = next_ck->layers[i];
-				const auto& next2_layer = next2_ck->layers[i];
-				auto& out = cached.layers[i];
-				for (int k = 0; k < 4; ++k) {
-					out.xy[k] = layer.xy[k];
-					out.uv[k] = layer.uv[k];
-					out.color[k] = layer.color[k];
-				}
-				out.s1_center = layer.s1_center;
-				out.s1_topleft = layer.s1_topleft;
-				const bool paired =
-					previous_layer.s4_source_tile_id == layer.s4_source_tile_id &&
-					next_layer.s4_source_tile_id == layer.s4_source_tile_id &&
-					next2_layer.s4_source_tile_id == layer.s4_source_tile_id &&
-					previous_layer.s1_uv_id == layer.s1_uv_id && next_layer.s1_uv_id == layer.s1_uv_id &&
-					next2_layer.s1_uv_id == layer.s1_uv_id && previous_layer.attributes == layer.attributes &&
-					next_layer.attributes == layer.attributes && next2_layer.attributes == layer.attributes &&
-					previous_layer.blend == layer.blend && next_layer.blend == layer.blend &&
-					next2_layer.blend == layer.blend && previous_layer.notex == layer.notex &&
-					next_layer.notex == layer.notex && next2_layer.notex == layer.notex &&
-					previous_layer.color_id == layer.color_id && next_layer.color_id == layer.color_id &&
-					next2_layer.color_id == layer.color_id;
-				if (paired) {
-					const bool morph_uv = !layer.notex && layer.tex_id == previous_layer.tex_id &&
-										  layer.tex_id == next_layer.tex_id && layer.tex_id == next2_layer.tex_id;
-					for (int k = 0; k < 4; ++k) {
-						out.xy[k] = morph.apply(previous_layer.xy[k], layer.xy[k], next_layer.xy[k], next2_layer.xy[k]);
-						out.color[k] = morph_color(
-							previous_layer.color[k],
-							layer.color[k],
-							next_layer.color[k],
-							next2_layer.color[k],
-							morph);
-						if (morph_uv)
-							out.uv[k] =
-								morph.apply(previous_layer.uv[k], layer.uv[k], next_layer.uv[k], next2_layer.uv[k]);
-					}
-					if (morph_uv) {
-						out.s1_center = morph.apply(
-							previous_layer.s1_center, layer.s1_center, next_layer.s1_center, next2_layer.s1_center);
-						out.s1_topleft = morph.apply(
-							previous_layer.s1_topleft,
-							layer.s1_topleft,
-							next_layer.s1_topleft,
-							next2_layer.s1_topleft);
-					}
-				}
-			}
-		}
-		pose = &cached;
-		base.s6_bounds = cached.bounds;
+		pose = &data->pose(
+			pose_key, *previous_ck, ck, *next_ck, *next2_ck, s8.s6_keyframe_interpolation, base.s6_alpha, true);
+		base.s6_bounds = pose->bounds;
 	}
 
 	if (ck.layers.empty()) {
