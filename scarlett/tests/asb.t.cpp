@@ -193,6 +193,69 @@ TEST_CASE("animation controller applies a motion continuation at motion end") {
 	CHECK(entity.track_index == 1);
 }
 
+TEST_CASE("animation controller plays queued actions in order") {
+	asb::RuntimeEntity entity;
+	entity.name = "test";
+	entity.track = "IDLE";
+	entity.track_index = 9;
+	entity.started = true;
+
+	asb::AnimationController controller;
+	controller.set_track_info([](const std::string&, int) {
+		asb::TrackInfo info;
+		info.duration_frames = 10;
+		info.action_frames = 10;
+		return info;
+	});
+
+	controller.queue_actions(entity, {"A", "B", {}}, {0, 1, -1}, 0);
+	CHECK(entity.track == "A");
+	CHECK(entity.track_index == 0);
+	CHECK(entity.action_active);
+	CHECK(controller.action_remaining(entity, 0) == 20);
+	CHECK(controller.advance(entity, 9) == false);
+	CHECK(entity.track == "A");
+	CHECK(controller.advance(entity, 10) == true);
+	CHECK(entity.track == "B");
+	CHECK(entity.track_index == 1);
+	CHECK(entity.action_active);
+	CHECK(controller.action_remaining(entity, 10) == 10);
+	CHECK(controller.advance(entity, 19) == false);
+	CHECK(controller.advance(entity, 20) == true);
+	CHECK_FALSE(entity.action_active);
+	CHECK(entity.track == "B");
+}
+
+TEST_CASE("animation queue applies the deferred idle after the last action") {
+	asb::RuntimeEntity entity;
+	entity.name = "test";
+	entity.track = "IDLE";
+	entity.track_index = 9;
+	entity.started = true;
+
+	asb::AnimationController controller;
+	controller.set_track_info([](const std::string&, int) {
+		asb::TrackInfo info;
+		info.duration_frames = 10;
+		info.action_frames = 10;
+		return info;
+	});
+
+	controller.queue_actions(entity, {"A", "B", "C"}, {0, 1, 2}, 0);
+	controller.set_idle(entity, "IDLE", 9, 0);
+	CHECK(entity.track == "A");
+	CHECK(controller.action_remaining(entity, 0) == 30);
+	CHECK(controller.advance(entity, 10) == true);
+	CHECK(entity.track == "B");
+	CHECK(controller.advance(entity, 20) == true);
+	CHECK(entity.track == "C");
+	CHECK(controller.advance(entity, 29) == false);
+	CHECK(controller.advance(entity, 30) == true);
+	CHECK(entity.track == "IDLE");
+	CHECK(entity.track_index == 9);
+	CHECK_FALSE(entity.action_active);
+}
+
 TEST_CASE("async animation actions defer their idle track") {
 	const std::filesystem::path cpk = find_cpk();
 	if (cpk.empty()) {

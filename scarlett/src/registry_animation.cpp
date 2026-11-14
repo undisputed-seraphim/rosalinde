@@ -4,6 +4,8 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <array>
+#include <cstddef>
 
 namespace asb {
 
@@ -16,22 +18,18 @@ DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& a
 		// one-shot intro, without a following DrAnimationWait.
 		const bool wait_for_action = name == "DrAnimation";
 		long remaining = 0;
-		std::string action;
+		std::array<std::string, 3> tracks{args.str(1), args.str(2), args.str(3)};
+		std::array<int, 3> indices{-1, -1, -1};
 		if (RuntimeEntity* entity = entity_arg(args)) {
-			action = args.str(1);
-			if (!action.empty()) {
-				int animation_index = -1;
+			for (size_t i = 0; i < tracks.size(); ++i) {
+				if (tracks[i].empty())
+					continue;
 				if (_resolve_track)
-					animation_index = _resolve_track(entity->mbs, action);
-				_animations.play_action(*entity, action, animation_index, frame);
+					indices[i] = _resolve_track(entity->mbs, tracks[i]);
 				spdlog::debug(
-					"anim: {} action {} index={} start={} end={}",
-					entity->name,
-					entity->track,
-					entity->track_index,
-					frame,
-					entity->action_end_frame);
+					"anim: {} action {} index={} slot={} frame={}", entity->name, tracks[i], indices[i], i, frame);
 			}
+			_animations.queue_actions(*entity, tracks, indices, frame);
 			if (wait_for_action)
 				remaining = _animations.action_remaining(*entity, frame);
 			mark_dirty();
@@ -40,7 +38,7 @@ DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& a
 				spdlog::debug(
 					"wait: DrAnimation {} action={} end={} remaining={}",
 					entity->name,
-					action,
+					tracks[0],
 					entity->action_end_frame,
 					remaining);
 				if (asIScriptContext* context = asGetActiveContext())
