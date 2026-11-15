@@ -222,6 +222,16 @@ void SpritePlaybackState::advance(const SpriteData& data, float dt_seconds) {
 	update(data, dt_seconds);
 }
 
+bool SpritePlaybackState::finished() const {
+	if (done.empty())
+		return false;
+	for (uint8_t value : done) {
+		if (!value)
+			return false;
+	}
+	return true;
+}
+
 void SpritePlaybackState::next_track(const SpriteData& data, const SpritePlaybackOptions& options) {
 	if (data.tracks.empty())
 		return;

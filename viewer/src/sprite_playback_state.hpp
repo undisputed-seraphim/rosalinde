@@ -60,6 +60,9 @@ struct SpritePlaybackState {
 	void next_track(const SpriteData& data, const SpritePlaybackOptions& options);
 	void prev_track(const SpriteData& data, const SpritePlaybackOptions& options);
 
+	// True when every run has reached its end. Looping runs never finish.
+	bool finished() const;
+
 	uint32_t sa_count(const SpriteData& data) const;
 	uint32_t frame_counter_value() const { return frame_counter; }
 	std::vector<SpriteRunState> run_states(const SpriteData& data) const;

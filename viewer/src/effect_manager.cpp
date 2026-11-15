@@ -42,6 +42,7 @@ void EffectManager::apply(const asb::RuntimeEffect& e, long frame, const EntityP
 		ef.name = e.name.empty() ? "effect#" + std::to_string(_next++) : e.name;
 		ef.asset = std::move(asset);
 		ef.instance.data = &ef.asset->data;
+		ef.instance.playback.label = ef.name;
 		ef.instance.play(static_cast<uint32_t>(track));
 		ef.base_pos = {e.pos[0], e.pos[1]};
 		ef.pos = ef.base_pos;
@@ -142,7 +143,10 @@ void EffectManager::advance(float dt) {
 
 void EffectManager::draw(const glm::mat4& projection, const Camera& cam, const glm::vec2& shake) {
 	for (auto& [name, ef] : _effects) {
-		if (!ef.asset || ef.alpha <= 0.0f)
+		// DrCreateEffect's _bAutoDelete only controls whether the named object is
+		// removed; a one-shot effect stops drawing as soon as its animation ends
+		// (the scene scripts never call DrDeleteEffect after the hit flash).
+		if (!ef.asset || ef.alpha <= 0.0f || ef.instance.playback.finished())
 			continue;
 		const GLuint texture = ef.asset->renderer.texture_array();
 		if (!_sprites.matches(texture, projection, cam)) {
