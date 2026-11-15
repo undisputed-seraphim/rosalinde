@@ -27,8 +27,7 @@ long text_char_count(std::string_view text) {
 		const unsigned char c = static_cast<unsigned char>(text[i]);
 		if (c == '@') {
 			++i;
-			while (i < text.size() &&
-				   (std::isalnum(static_cast<unsigned char>(text[i])) || text[i] == '_'))
+			while (i < text.size() && (std::isalnum(static_cast<unsigned char>(text[i])) || text[i] == '_'))
 				++i;
 			if (i < text.size() && text[i] == '(') {
 				int depth = 1;
@@ -81,14 +80,13 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 		return std::max<long>(_message_timing.voice_off_min, chars * _message_timing.voice_off_per_char);
 	};
 
-	auto emit =
-		[&](RuntimeText::Kind kind,
-			std::string speaker,
-			std::string text,
-			std::vector<int> ids,
-			int balloon_arg,
-			int pos_arg,
-			long at_frame) -> RuntimeText& {
+	auto emit = [&](RuntimeText::Kind kind,
+					std::string speaker,
+					std::string text,
+					std::vector<int> ids,
+					int balloon_arg,
+					int pos_arg,
+					long at_frame) -> RuntimeText& {
 		RuntimeText entry;
 		entry.frame = at_frame;
 		entry.kind = kind;
@@ -161,11 +159,19 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 		return std::max<long>(0, _play_voice(id, at_frame));
 	};
 
-	auto page_end = [&](RuntimeText& entry, long voice_frames) {
-		if (voice_frames <= 0)
+	auto apply_pending_face = [&](RuntimeText& entry) {
+		if (_pending_face_track.empty())
 			return;
-		const long text_frames = std::max(1L, entry.end - entry.frame);
-		entry.end = entry.frame + std::max<long>(_message_timing.voice_wait_min, voice_frames) + text_frames;
+		entry.face_track = _pending_face_track;
+	};
+
+	auto page_end = [&](RuntimeText& entry, long voice_frames) {
+		if (voice_frames > 0) {
+			entry.voice_end = entry.frame + voice_frames;
+			const long text_frames = std::max(1L, entry.end - entry.frame);
+			entry.end = entry.frame + std::max<long>(_message_timing.voice_wait_min, voice_frames) + text_frames;
+		}
+		apply_pending_face(entry);
 	};
 
 	auto message_page_text = [this](int id) -> std::string {
@@ -176,36 +182,34 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 
 	// A message-id array holds one page per id. The game pops the pages in
 	// order, so each page gets its own voice, voice wait and text wait.
-	auto emit_message = [&](RuntimeText::Kind kind,
-							std::string speaker,
-							std::string text,
-							int ids_arg,
-							int balloon_arg,
-							int pos_arg) {
-		std::vector<int> ids = parse_ids(ids_arg);
-		if (ids.size() <= 1 || !_message_text) {
-			RuntimeText& entry =
-				emit(kind, std::move(speaker), std::move(text), std::move(ids), balloon_arg, pos_arg, frame);
-			page_end(entry, play_voice_id(entry.ids.empty() ? -1 : entry.ids.front(), frame));
-			return;
-		}
-
-		long page_start = frame;
-		for (size_t i = 0; i < ids.size(); ++i) {
-			const int id = ids[i];
-			std::string page = message_page_text(id);
-			if (page.empty()) {
-				if (i == 0)
-					page = text;
-				else
-					spdlog::debug("text: no page text for message id {}", id);
+	auto emit_message =
+		[&](RuntimeText::Kind kind, std::string speaker, std::string text, int ids_arg, int balloon_arg, int pos_arg) {
+			std::vector<int> ids = parse_ids(ids_arg);
+			if (ids.size() <= 1 || !_message_text) {
+				RuntimeText& entry =
+					emit(kind, std::move(speaker), std::move(text), std::move(ids), balloon_arg, pos_arg, frame);
+				page_end(entry, play_voice_id(entry.ids.empty() ? -1 : entry.ids.front(), frame));
+				_pending_face_track.clear();
+				return;
 			}
-			RuntimeText& entry =
-				emit(kind, speaker, std::move(page), std::vector<int>{id}, balloon_arg, pos_arg, page_start);
-			page_end(entry, play_voice_id(id, page_start));
-			page_start = entry.end;
-		}
-	};
+
+			long page_start = frame;
+			for (size_t i = 0; i < ids.size(); ++i) {
+				const int id = ids[i];
+				std::string page = message_page_text(id);
+				if (page.empty()) {
+					if (i == 0)
+						page = text;
+					else
+						spdlog::debug("text: no page text for message id {}", id);
+				}
+				RuntimeText& entry =
+					emit(kind, speaker, std::move(page), std::vector<int>{id}, balloon_arg, pos_arg, page_start);
+				page_end(entry, play_voice_id(id, page_start));
+				page_start = entry.end;
+			}
+			_pending_face_track.clear();
+		};
 
 	// Msg/Dialog/Select block until the message has been read; park the script
 	// for the estimated display time and let the scheduler resume it.
@@ -220,6 +224,13 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 			context->Suspend();
 		return true;
 	};
+
+	if (name == "SetMsgFaceAnimation") {
+		_pending_face_track = args.str(1);
+		return DispatchResult::Handled;
+	}
+	if (name == "SetMsgFaceLayerMask")
+		return DispatchResult::Handled;
 
 	if (object_name == "UcMsgBalloonParam") {
 		if (name == "SetDispType")
@@ -273,8 +284,7 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 
 	if (name == "Msg" || name == "MsgScreen") {
 		const bool screen = name == "MsgScreen";
-		emit_message(
-			screen ? RuntimeText::Kind::Screen : RuntimeText::Kind::Msg, args.str(0), args.str(1), 2, 3, 4);
+		emit_message(screen ? RuntimeText::Kind::Screen : RuntimeText::Kind::Msg, args.str(0), args.str(1), 2, 3, 4);
 		block_text();
 		return DispatchResult::Handled;
 	}
@@ -300,13 +310,14 @@ DispatchResult Registry::dispatch_text(std::string_view name, NativeArgs& args) 
 		return DispatchResult::Handled;
 	}
 	if (name == "Dialog" || name == "YNDialog") {
-		emit(name == "YNDialog" ? RuntimeText::Kind::YesNo : RuntimeText::Kind::Dialog,
-			 {},
-			 args.str(0),
-			 {},
-			 -1,
-			 -1,
-			 frame);
+		emit(
+			name == "YNDialog" ? RuntimeText::Kind::YesNo : RuntimeText::Kind::Dialog,
+			{},
+			args.str(0),
+			{},
+			-1,
+			-1,
+			frame);
 		if (name == "YNDialog")
 			_select_result = 0;
 		block_text();

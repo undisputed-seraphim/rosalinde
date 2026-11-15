@@ -57,6 +57,23 @@ int chara_sort_key(const asb::RuntimeEntity& e) {
 	return e.sort_id_offset - 100 * static_cast<int>(e.pos[2]);
 }
 
+// UcDrChara keeps a layer-suppression mask at chara+0x334 (the embedded
+// TrackInstance's +0x294). chara_apply_model_mask seeds it with
+// `chara_model.mask | 0xfe000000`, which hides every expression layer
+// (attributes 1<<25..1<<31), and DrSetLayerMask reveals those bits one index
+// at a time. chara_set_lipsync_variant_mask (0x43674, called from the chara draw
+// pass with DrSetLipSync's chara flag) then swaps bit 16 / bit 17: bit 16 marks
+// the talking mouth quads, bit 17 the silent ones. layer_mask stores allowed
+// bits, so the lip pair is inverted here.
+uint32_t layer_mask_for(const asb::RuntimeEntity& e) {
+	const bool character = e.kind == "DrUiCreateChara" || e.kind == "DrCreateChara" || e.kind == "DrCreateNpc";
+	if (!character)
+		return e.layer_mask | 0xfe000000u; // expression layers are a chara-only mask concept
+	uint32_t allowed = e.layer_mask & ~0x30000u;
+	allowed |= (e.speaking || e.lipsync) ? 0x10000u : 0x20000u;
+	return allowed;
+}
+
 // The stage and its layers are the backmost draw group. The engine gives them
 // a separate window from the drama actors; the viewer keeps that separation
 // explicit so a negative character sort key cannot move actors behind it.
@@ -624,7 +641,7 @@ void SceneRenderer::probe_layers(const RenderItem& object, size_t index, bool st
 	if (!instance.data || instance.playback.track_idx >= instance.data->tracks.size())
 		return;
 	for (uint32_t run = 0; run < instance.sa_count(); ++run) {
-		instance.visit_layers(run, tint, true, object.state.layer_mask, [&](const LayerVisit& layer) {
+		instance.visit_layers(run, tint, true, layer_mask_for(object.state), [&](const LayerVisit& layer) {
 			std::string uv = "[";
 			std::string uv_norm = "[";
 			for (int k = 0; k < 4; ++k) {
@@ -909,7 +926,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				probe_layers(*object, i, object->stage, object->has_tint ? &object->tint : nullptr);
 			}
 			_sprites.append_instance(
-				instance, model, object->has_tint ? &object->tint : nullptr, true, alpha, e.layer_mask);
+				instance, model, object->has_tint ? &object->tint : nullptr, true, alpha, layer_mask_for(e));
 		}
 	}
 	_sprites.flush();

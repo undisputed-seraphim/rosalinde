@@ -327,8 +327,10 @@ DispatchResult Registry::dispatch_sprite(std::string_view name, NativeArgs& args
 	}
 
 	if (name == "DrSetLayerMask") {
-		// The bit -> MBS/OTBM part mapping is render-side (deferred).
-		const unsigned mask = parse_hex(S(1));
+		// The string is a hexadecimal *bit index*, not a mask: 19..1F select
+		// the expression layers whose s4 attributes are 1<<25 .. 1<<31.
+		const unsigned index = parse_hex(S(1));
+		const unsigned mask = index < 32 ? (1u << index) : 0u;
 		// Verified from DrLib::DrFacial/DrClearFacial bytecode: the flag is
 		// `!show` — true clears (hides) the masked layers, false shows them.
 		if (RuntimeEntity* entity = ent(0)) {

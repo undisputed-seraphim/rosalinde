@@ -118,7 +118,7 @@ std::string entity_json(const asb::RuntimeEntity& e, const SceneReportContext& c
 		",\"layer\":" + std::to_string(e.layer) + ",\"visible\":" + asb::trace::boolean(e.visible) +
 		",\"reverse\":" + asb::trace::boolean(e.reverse) + ",\"layer_mask\":" + std::to_string(e.layer_mask) +
 		",\"breath_off\":" + asb::trace::boolean(e.breath_off) + ",\"lipsync\":" + asb::trace::boolean(e.lipsync) +
-		",\"shadow_off\":" + asb::trace::boolean(e.shadow_off) +
+		",\"speaking\":" + asb::trace::boolean(e.speaking) + ",\"shadow_off\":" + asb::trace::boolean(e.shadow_off) +
 		",\"sort_id_offset\":" + std::to_string(e.sort_id_offset) + ",\"dlprio\":" + std::to_string(e.dlprio) +
 		",\"window_id_offset\":" + std::to_string(e.window_id_offset) +
 		",\"prerender_force\":" + asb::trace::boolean(e.prerender_force) + ",\"color\":[" + std::to_string(e.color[0]) +
@@ -220,8 +220,8 @@ std::string scene_state_json(const asb::SceneState& scene, const SceneReportCont
 						  number(t.pos[0]) + "," + number(t.pos[1]) + "]" +
 						  ",\"disp_type\":" + std::to_string(t.disp_type) +
 						  ",\"disp_name\":" + std::to_string(t.disp_name) +
-						  ",\"face_dir_x\":" + std::to_string(t.face_dir_x) + ",\"flags\":" + std::to_string(t.flags) +
-						  ",\"result\":" + std::to_string(t.result) + "}";
+						  ",\"face_dir_x\":" + std::to_string(t.face_dir_x) + ",\"face_track\":" + quote(t.face_track) +
+						  ",\"flags\":" + std::to_string(t.flags) + ",\"result\":" + std::to_string(t.result) + "}";
 			   }) +
 		   ",\"shakes\":" +
 		   array_json(

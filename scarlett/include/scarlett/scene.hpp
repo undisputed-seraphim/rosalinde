@@ -73,35 +73,40 @@ struct RuntimeEntity {
 	float pos[3] = {0.0f, 0.0f, 0.0f};
 	float scale = 1.0f;
 	float scale_y = 0.0f; // BBS object Y scale; 0 = uniform with `scale`
-	float dir_x = 1.0f;	 // facing: -1 mirrored, +1 default
-	int alpha = 255;	 // 0-255, from DrUiSetColorA (0 = not yet faded in)
-	long fade_start = 0; // alpha tween start (scene frame)
+	float dir_x = 1.0f;	  // facing: -1 mirrored, +1 default
+	int alpha = 255;	  // 0-255, from DrUiSetColorA (0 = not yet faded in)
+	long fade_start = 0;  // alpha tween start (scene frame)
 	int fade_duration = 0;
 	int fade_from = 255;
 	int fade_to = 0;
 	int layer = -1;
 	bool visible = true;
-	bool reverse = false;			   // SetSpriteMoneReverse: play the selected track backward
-	unsigned layer_mask = 0xFFFFFFFFu; // DrSetLayerMask: visible layer bits
-	bool breath_off = false;		   // DrSetBreathOff
-	bool lipsync = false;			   // DrSetLipSync
-	bool shadow_off = false;		   // DrSetShadowOff
-	int sort_id_offset = 0;			   // DrSetSortIDOffset
-	int dlprio = 0;					   // DrSetDLPrio
-	int window_id_offset = 0;		   // DrSetWindowIDOffset
-	bool prerender_force = false;	   // DrSetPrerenderOnForce
-	bool pre_render_all = false;	   // SetSpriteMonePreRenderAll(_bPreRender)
-	int color[4] = {-1, -1, -1, -1};   // DrSetCharaColor (common/hair/main/sub)
-	int state = 0;					   // FlSetState / FlAddState
-	int state_icon = 0;				   // FlSetStateIcon / FlClearStateIcon
-	float height = 0.0f;			   // FlSetHeight
-	int emote = 0;					   // FlEmote
-	bool search_flag = false;		   // FlSetSearchFlag
-	bool paused = false;			   // FlPauseSymbol / FlUnpauseSymbol (freezes animation)
-	bool anim_paused = false;		   // SetSpriteMoneAnimationPaused
-	bool ai_paused = false;			   // FlSetMoveAiPermissionInDemo (no AI yet)
-	bool auto_dir_off = false;		   // FlSetAutoDirOff
-	bool reverse_x = false;			   // FlSetReverseX (mirrors X)
+	bool reverse = false; // SetSpriteMoneReverse: play the selected track backward
+	// Allowed layer attribute bits (complement of UcDrChara's chara+0x334
+	// suppression mask). Expressions (1<<25..1<<31) stay hidden until
+	// DrSetLayerMask reveals them; the lip-sync bit 16/17 pair is applied per
+	// frame from the voice window.
+	unsigned layer_mask = ~0xfe000000u;
+	bool breath_off = false;		 // DrSetBreathOff
+	bool lipsync = false;			 // DrSetLipSync
+	bool speaking = false;			 // derived: this character's voice is playing
+	bool shadow_off = false;		 // DrSetShadowOff
+	int sort_id_offset = 0;			 // DrSetSortIDOffset
+	int dlprio = 0;					 // DrSetDLPrio
+	int window_id_offset = 0;		 // DrSetWindowIDOffset
+	bool prerender_force = false;	 // DrSetPrerenderOnForce
+	bool pre_render_all = false;	 // SetSpriteMonePreRenderAll(_bPreRender)
+	int color[4] = {-1, -1, -1, -1}; // DrSetCharaColor (common/hair/main/sub)
+	int state = 0;					 // FlSetState / FlAddState
+	int state_icon = 0;				 // FlSetStateIcon / FlClearStateIcon
+	float height = 0.0f;			 // FlSetHeight
+	int emote = 0;					 // FlEmote
+	bool search_flag = false;		 // FlSetSearchFlag
+	bool paused = false;			 // FlPauseSymbol / FlUnpauseSymbol (freezes animation)
+	bool anim_paused = false;		 // SetSpriteMoneAnimationPaused
+	bool ai_paused = false;			 // FlSetMoveAiPermissionInDemo (no AI yet)
+	bool auto_dir_off = false;		 // FlSetAutoDirOff
+	bool reverse_x = false;			 // FlSetReverseX (mirrors X)
 	int order = 0;
 	Space space = Space::World;
 	std::string parent; // SetSpriteToAnchor target (empty = none); pos is relative
@@ -153,7 +158,8 @@ struct RuntimeText {
 	enum class Kind { Msg, Screen, Dialog, Select, YesNo, Message, Sprite };
 
 	long frame = 0;
-	long end = 0; // frame the message is dismissed (0 = immediate)
+	long end = 0;		// frame the message is dismissed (0 = immediate)
+	long voice_end = 0; // frame the voice finishes (0 = no voice / silent text)
 	Kind kind = Kind::Msg;
 	std::string speaker;
 	std::string text;
@@ -162,6 +168,7 @@ struct RuntimeText {
 	int disp_type = -1; // UcMsgBalloonParam
 	int disp_name = -1;
 	int face_dir_x = 0;
+	std::string face_track; // SetMsgFaceAnimation: message-window portrait track (FACE_*)
 	unsigned flags = 0;
 	int result = -1; // chosen index for Select/YesNo
 };

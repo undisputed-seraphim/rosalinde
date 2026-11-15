@@ -259,6 +259,7 @@ private:
 		float base_line = 0.0f;
 		bool force_instant = false;
 	};
+	std::string _pending_face_track; // SetMsgFaceAnimation for the next message
 	std::unordered_map<const void*, BalloonParam> _balloons;
 	std::unordered_map<const void*, SpriteTextParam> _sprite_texts;
 	// Factories for the engine's opaque reference types return handles, so the

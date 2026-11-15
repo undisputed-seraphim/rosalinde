@@ -62,6 +62,7 @@ void Registry::reset(std::string source, std::string function) {
 	_animations.reset();
 	_db_params.clear();
 	_help.clear();
+	_pending_face_track.clear();
 	_balloons.clear();
 	_sprite_texts.clear();
 	_balloon_owner.clear();
@@ -787,6 +788,30 @@ void Registry::advance_camera() {
 
 void Registry::advance() {
 	_timeline.frame = frame;
+	// Voice windows drive lip sync. DrSetLipSync remains a script override; this
+	// only marks who is actually speaking so the face track can advance.
+	bool speaking_changed = false;
+	for (auto& entity : _timeline.entities)
+		if (entity.speaking) {
+			entity.speaking = false;
+			speaking_changed = true;
+		}
+	for (const auto& text : _timeline.texts) {
+		if (text.speaker.empty() || text.voice_end <= text.frame)
+			continue;
+		if (frame < text.frame || frame >= text.voice_end)
+			continue;
+		auto it = _by_name.find(text.speaker);
+		if (it == _by_name.end())
+			continue;
+		RuntimeEntity& entity = _timeline.entities[it->second];
+		if (!entity.speaking) {
+			entity.speaking = true;
+			speaking_changed = true;
+		}
+	}
+	if (speaking_changed)
+		mark_dirty();
 	for (auto it = _moves.begin(); it != _moves.end();) {
 		auto bi = _by_name.find(it->first);
 		if (bi == _by_name.end()) {
