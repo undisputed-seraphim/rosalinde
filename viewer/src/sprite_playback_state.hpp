@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sprite_profile.hpp"
+
 #include <impl/mbs/sections.hpp>
 
 #include <glm/glm.hpp>
@@ -37,7 +39,7 @@ struct SpriteRunState {
 struct SpritePlaybackState {
 	uint32_t track_idx = 0;
 	std::string label; // owning scene entity, for debug logs
-	bool character = false;
+	SpriteProfile profile;
 	float accum = 0.0f;
 	std::vector<uint32_t> ticks;
 	std::vector<uint32_t> offsets;
@@ -47,7 +49,6 @@ struct SpritePlaybackState {
 	std::vector<uint8_t> hide; // per-run: a finished run that should stop drawing
 	uint32_t frame_counter = 0;
 	bool paused = false;
-	bool hold_finished = false;
 
 	std::vector<mbs::section_7> transition_src_s7;
 	float transition_t = 1.0f;

@@ -6,13 +6,8 @@
 
 #include <vector>
 
-enum class TrackPolicy {
-	ScriptTrack,
-	AllEnabledTracks,
-};
-
 // Owns the instances for one sprite asset. Characters and backgrounds share
-// this path; only the track policy differs.
+// this path; the SpriteProfile decides track selection and advance rules.
 class SpritePlayback {
 public:
 	SpriteAssetPtr asset;
@@ -21,13 +16,7 @@ public:
 	long applied_start_frame = -1;
 	float rate = 1.0f;
 
-	void reset(
-		SpriteAssetPtr asset,
-		TrackPolicy policy,
-		const asb::RuntimeEntity& state,
-		bool flip_v,
-		bool hold_finished,
-		bool character = false);
+	void reset(SpriteAssetPtr asset, const SpriteProfile& profile, const asb::RuntimeEntity& state, bool flip_v);
 	void apply(const asb::RuntimeEntity& state);
 	void apply_track_order(const std::vector<uint32_t>& order);
 	void advance(float dt);
@@ -35,7 +24,7 @@ public:
 	bool empty() const { return instances.empty(); }
 
 private:
-	TrackPolicy _policy = TrackPolicy::ScriptTrack;
+	SpriteProfile _profile;
 
 	static int choose_track(const SpriteData& data, const asb::RuntimeEntity& state);
 	static bool track_usable(const SpriteData& data, int index);

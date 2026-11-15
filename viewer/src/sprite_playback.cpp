@@ -26,15 +26,13 @@ int SpritePlayback::choose_track(const SpriteData& data, const asb::RuntimeEntit
 
 void SpritePlayback::reset(
 	SpriteAssetPtr next_asset,
-	TrackPolicy policy,
+	const SpriteProfile& profile,
 	const asb::RuntimeEntity& state,
-	bool flip_v,
-	bool hold_finished,
-	bool character) {
+	bool flip_v) {
 	asset = std::move(next_asset);
 	instances.clear();
 	track_index = -1;
-	_policy = policy;
+	_profile = profile;
 	if (!asset)
 		return;
 
@@ -44,42 +42,36 @@ void SpritePlayback::reset(
 		return mone_kind && track >= 0 && static_cast<size_t>(track) < asset->data.tracks.size() &&
 			   asset->data.tracks[track].sa_main_sequence > 0;
 	};
-	if (policy == TrackPolicy::AllEnabledTracks) {
+	auto add_instance = [&](uint32_t track) {
+		instances.emplace_back(&asset->data, track, attribute_mask);
+		SpriteInstance& instance = instances.back();
+		instance.profile = profile;
+		instance.playback.profile = profile;
+		instance.playback.label = state.name;
+		instance.mone = stateful_mone(static_cast<int>(track));
+		instance.current_sequence = state.sequence_index;
+		instance.flip_v = flip_v;
+		instance.play(track);
+	};
+	if (profile.all_tracks) {
 		for (uint32_t i : select_background_tracks(asset->data.v77)) {
 			if (!track_usable(asset->data, static_cast<int>(i)))
 				continue;
-			instances.emplace_back(&asset->data, i, attribute_mask);
-			instances.back().playback.hold_finished = hold_finished;
-			instances.back().playback.label = state.name;
-			instances.back().playback.character = character;
-			instances.back().background = true;
-			instances.back().character = character;
-			instances.back().mone = stateful_mone(static_cast<int>(i));
-			instances.back().current_sequence = state.sequence_index;
-			instances.back().flip_v = flip_v;
-			instances.back().play(i);
+			add_instance(i);
 		}
 	} else {
 		const int track = choose_track(asset->data, state);
 		if (track < 0)
 			return;
 		track_index = track;
-		instances.emplace_back(&asset->data, static_cast<uint32_t>(track), attribute_mask);
-		instances.back().playback.hold_finished = hold_finished;
-		instances.back().playback.label = state.name;
-		instances.back().playback.character = character;
-		instances.back().character = character;
-		instances.back().mone = stateful_mone(track);
-		instances.back().current_sequence = state.sequence_index;
-		instances.back().flip_v = flip_v;
-		instances.back().play(static_cast<uint32_t>(track));
+		add_instance(static_cast<uint32_t>(track));
 	}
 	applied_start_frame = state.animation_start_frame;
 	apply(state);
 }
 
 void SpritePlayback::apply(const asb::RuntimeEntity& state) {
-	if (_policy == TrackPolicy::ScriptTrack && asset && !instances.empty()) {
+	if (!_profile.all_tracks && asset && !instances.empty()) {
 		const int track = choose_track(asset->data, state);
 		// Re-selecting the same track is meaningful: DrUiSetAnimation /
 		// DrAnimation can restart the current animation from its first frame.
@@ -97,7 +89,7 @@ void SpritePlayback::apply(const asb::RuntimeEntity& state) {
 			instance.color_palette[i] = state.appearance.palette[i];
 		if (instance.current_sequence != state.sequence_index) {
 			instance.current_sequence = state.sequence_index;
-			if (_policy == TrackPolicy::ScriptTrack)
+			if (!_profile.all_tracks)
 				instance.play(instance.playback.track_idx);
 		}
 	}

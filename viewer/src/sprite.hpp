@@ -218,9 +218,8 @@ struct SpriteInstance {
 	SpritePlaybackOptions options = sprite_playback_options();
 
 	uint32_t current_sequence = 0; // Mone: current sequence drawn even when inactive
-	bool background = false;
-	bool character = false;
-	bool mone = false;
+	SpriteProfile profile;
+	bool mone = false; // per track: a CreateSpriteMone track with a main sequence
 	bool flip_v = false;
 
 	SpritePlaybackState playback;

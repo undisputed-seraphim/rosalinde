@@ -238,18 +238,16 @@ void SceneRenderer::set_stage(const StageComposition& composition) {
 
 void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, SpriteAssetPtr asset) {
 	object.state = e;
-	object.background = asset && asset->kind == SpriteKind::Background;
+	const SpriteKind kind = asset ? sprite_kind_for(e, *asset) : sprite_entity_kind(e);
+	object.background = kind == SpriteKind::Background;
 	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0;
 	object.tint_key = -2;
-	const TrackPolicy policy =
-		object.background && !object.stage_layer ? TrackPolicy::AllEnabledTracks : TrackPolicy::ScriptTrack;
-	const bool character = is_character_kind(sprite_entity_kind(e));
-	const bool stateful_mone = asset && sprite_entity_kind(e) == SpriteKind::Mone && !asset->data.tracks.empty() &&
+	const bool stateful_mone = asset && kind == SpriteKind::Mone && !asset->data.tracks.empty() &&
 							   (e.track_index >= 0 && static_cast<size_t>(e.track_index) < asset->data.tracks.size()
 									? asset->data.tracks[e.track_index].sa_main_sequence > 0
 									: asset->data.tracks.front().sa_main_sequence > 0);
-	const bool hold_finished = object.background || character || object.stage_layer || stateful_mone;
-	object.playback.reset(std::move(asset), policy, e, flip_v_for(e), hold_finished, character);
+	const SpriteProfile profile = sprite_profile(kind, object.stage_layer, stateful_mone);
+	object.playback.reset(std::move(asset), profile, e, flip_v_for(e));
 	object.playback.apply_track_order(object.track_order);
 	object.replaces_stage = object.replaces_stage && object.playback.asset && !object.playback.instances.empty();
 	update_tints(object);
@@ -588,7 +586,7 @@ std::string SceneRenderer::object_json(const RenderItem& object, bool stage, std
 			   ",\"track_name\":" + quote(instance_track) +
 			   ",\"attribute_mask\":" + std::to_string(instance.attribute_mask) +
 			   ",\"frame_counter\":" + std::to_string(instance.frame_counter()) +
-			   ",\"hold_finished\":" + asb::trace::boolean(instance.playback.hold_finished) +
+			   ",\"hold_finished\":" + asb::trace::boolean(instance.playback.profile.hold_finished) +
 			   ",\"bounds\":" + vec4_json(instance.render_bounds()) + ",\"runs\":" + runs_json(instance) + "}";
 	}
 	out += "]";

@@ -116,10 +116,7 @@ void SpritePlaybackState::play(const SpriteData& data, uint32_t track_id, const 
 	}
 	frame_counter++;
 	spdlog::debug(
-		"anim: {} play track {} \"{}\"",
-		label.empty() ? std::string("<unknown>") : label,
-		track_id,
-		track.name);
+		"anim: {} play track {} \"{}\"", label.empty() ? std::string("<unknown>") : label, track_id, track.name);
 }
 
 void SpritePlaybackState::play(const SpriteData& data, const std::string& name, const SpritePlaybackOptions& options) {
@@ -162,7 +159,7 @@ void SpritePlaybackState::update(const SpriteData& data, float dt_seconds) {
 				// Transition-mode one-shot is a startup/background heuristic. For
 				// characters, trust the run itself: positive s8_intro_ticks with a
 				// JUMP loops (walk cycles), negative intro is a one-pass stop clip.
-				if (track.one_shot && !character && offsets[i] + 1 >= run.s8_count) {
+				if (track.one_shot && profile.one_shot_ends && offsets[i] + 1 >= run.s8_count) {
 					done[i] = 1;
 					offsets[i] = run.s8_count - 1;
 				} else if (prev_s8.flags & mbs::v77::s8flag::JUMP) {
@@ -190,7 +187,7 @@ void SpritePlaybackState::update(const SpriteData& data, float dt_seconds) {
 					const auto& end = data.v77.s8[run.s8_start + offsets[i]];
 					const uint32_t fog = data.v77.s7[end.s7_transform_id].fog;
 					const bool visible_end = (end.flags & mbs::v77::s8flag::ACTIVE) && ((fog >> 24) != 0);
-					const bool one_tick_last = run.once && !hold_finished && end.s8_duration_ticks <= 1 &&
+					const bool one_tick_last = run.once && !profile.hold_finished && end.s8_duration_ticks <= 1 &&
 											   (end.flags & mbs::v77::s8flag::LAST);
 					if (one_tick_last && track.runs.size() > 1 && last_visible_offsets[i] != UINT32_MAX &&
 						can_hold(data, track, i, last_visible_offsets[i])) {
@@ -207,7 +204,7 @@ void SpritePlaybackState::update(const SpriteData& data, float dt_seconds) {
 							hide[i] = 1;
 						}
 					} else {
-						hide[i] = (hold_finished || visible_end) ? 0 : 1;
+						hide[i] = (profile.hold_finished || visible_end) ? 0 : 1;
 					}
 				}
 				ticks[i] = data.v77.s8[run.s8_start + offsets[i]].s8_duration_ticks;

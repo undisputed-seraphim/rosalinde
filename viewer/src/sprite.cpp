@@ -425,7 +425,7 @@ bool SpriteInstance::prepare_run(
 	base = LayerVisit{};
 	base.run = sa_idx;
 	base.transition_t = playback.transition_t;
-	if (!mone && !character && track.runs.size() > 1 && track.sa_main_sequence < playback.done.size() &&
+	if (!mone && profile.gate_main_sequence && track.runs.size() > 1 && track.sa_main_sequence < playback.done.size() &&
 		playback.done[track.sa_main_sequence]) {
 		base.skip = "main_done";
 		return false;
@@ -465,7 +465,7 @@ bool SpriteInstance::prepare_run(
 	// knockback tracks store their transitional poses as full keyframes without
 	// ACTIVE (HIDDEN/NODRAW are separate gates), so character tracks draw them.
 	const bool current = mone && sa_idx == current_sequence;
-	if (!current && !character && !(s8.flags & mbs::v77::s8flag::ACTIVE)) {
+	if (!current && !profile.draw_inactive_frames && !(s8.flags & mbs::v77::s8flag::ACTIVE)) {
 		base.skip = "inactive";
 		return false;
 	}
@@ -620,7 +620,7 @@ void SpriteInstance::for_each_layer(
 		// layers (opening fire, glow, and effect passes) are real draws.
 		if (layer.blend == 1 && layer.s4_flags == mbs::v77::s4flag::ENABLED) {
 			const bool paired = i < ck->mask_companion.size() && ck->mask_companion[i] != 0;
-			if (!background || paired) {
+			if (!profile.draws_standalone_blend1 || paired) {
 				v.skip = "unflagged_mask";
 				visit(v);
 				continue;
@@ -783,7 +783,7 @@ void SpriteInstance::append_run(
 			continue;
 		if (layer.blend == 1 && layer.s4_flags == mbs::v77::s4flag::ENABLED) {
 			const bool paired = index < ck.mask_companion.size() && ck.mask_companion[index] != 0;
-			if (!background || paired)
+			if (!profile.draws_standalone_blend1 || paired)
 				continue;
 		}
 		if ((layer.attributes & attribute_mask) != 0)
