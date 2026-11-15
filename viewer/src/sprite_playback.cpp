@@ -1,6 +1,7 @@
 #include "sprite_playback.hpp"
 
 #include "background_tracks.hpp"
+#include "sprite_kind.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -38,7 +39,7 @@ void SpritePlayback::reset(
 		return;
 
 	const uint32_t attribute_mask = state.appearance.mask;
-	const bool mone_kind = state.kind.rfind("CreateSpriteMone", 0) == 0;
+	const bool mone_kind = sprite_kind_for(state, *asset) == SpriteKind::Mone;
 	auto stateful_mone = [&](int track) {
 		return mone_kind && track >= 0 && static_cast<size_t>(track) < asset->data.tracks.size() &&
 			   asset->data.tracks[track].sa_main_sequence > 0;

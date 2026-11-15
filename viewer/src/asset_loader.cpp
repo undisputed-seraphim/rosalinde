@@ -90,8 +90,12 @@ SpriteAssetPtr AssetLoader::make_asset(
 	auto asset = std::make_shared<SpriteAsset>();
 	asset->mbs = mbs;
 	asset->ftx = ftx;
-	asset->is_character = mbs.rfind("Chara", 0) == 0;
-	asset->is_background = mbs.rfind("BattleBG/", 0) == 0 || mbs.rfind("FieldBG/", 0) == 0;
+	if (mbs.rfind("Chara", 0) == 0)
+		asset->kind = SpriteKind::Character;
+	else if (mbs.rfind("BattleBG/", 0) == 0 || mbs.rfind("FieldBG/", 0) == 0)
+		asset->kind = SpriteKind::Background;
+	else
+		asset->kind = SpriteKind::Generic;
 	{
 		viewer::trace::Scoped sc("make mbs parse " + class_name);
 		asset->data = SpriteData::build(std::move(sections), std::move(p.ftx));

@@ -1,6 +1,7 @@
 #include "scene_renderer.hpp"
 #include "probe.hpp"
 #include "scene_util.hpp"
+#include "sprite_kind.hpp"
 
 #include <glm/ext.hpp>
 #include <spdlog/spdlog.h>
@@ -51,7 +52,7 @@ bool name_contains(const asb::RuntimeEntity& e, std::string_view text) {
 // standalone character; only attached parts inherit their parent's key.
 int chara_sort_key(const asb::RuntimeEntity& e) {
 	const bool world_chara =
-		e.space == asb::RuntimeEntity::Space::World && (e.kind == "DrCreateChara" || e.kind == "DrCreateNpc");
+		e.space == asb::RuntimeEntity::Space::World && sprite_entity_kind(e) == SpriteKind::Character;
 	if (!world_chara)
 		return e.sort_id_offset;
 	return e.sort_id_offset - 100 * static_cast<int>(e.pos[2]);
@@ -66,8 +67,7 @@ int chara_sort_key(const asb::RuntimeEntity& e) {
 // the talking mouth quads, bit 17 the silent ones. layer_mask stores allowed
 // bits, so the lip pair is inverted here.
 uint32_t layer_mask_for(const asb::RuntimeEntity& e) {
-	const bool character = e.kind == "DrUiCreateChara" || e.kind == "DrCreateChara" || e.kind == "DrCreateNpc";
-	if (!character)
+	if (!is_character_kind(sprite_entity_kind(e)))
 		return e.layer_mask | 0xfe000000u; // expression layers are a chara-only mask concept
 	uint32_t allowed = e.layer_mask & ~0x30000u;
 	allowed |= (e.speaking || e.lipsync) ? 0x10000u : 0x20000u;
@@ -238,13 +238,13 @@ void SceneRenderer::set_stage(const StageComposition& composition) {
 
 void SceneRenderer::rebuild(RenderItem& object, const asb::RuntimeEntity& e, SpriteAssetPtr asset) {
 	object.state = e;
-	object.background = asset && asset->is_background;
+	object.background = asset && asset->kind == SpriteKind::Background;
 	object.replaces_stage = object.background && e.started && e.visible && e.alpha > 0;
 	object.tint_key = -2;
 	const TrackPolicy policy =
 		object.background && !object.stage_layer ? TrackPolicy::AllEnabledTracks : TrackPolicy::ScriptTrack;
-	const bool character = e.kind == "DrUiCreateChara" || e.kind == "DrCreateChara" || e.kind == "DrCreateNpc";
-	const bool stateful_mone = asset && e.kind.rfind("CreateSpriteMone", 0) == 0 && !asset->data.tracks.empty() &&
+	const bool character = is_character_kind(sprite_entity_kind(e));
+	const bool stateful_mone = asset && sprite_entity_kind(e) == SpriteKind::Mone && !asset->data.tracks.empty() &&
 							   (e.track_index >= 0 && static_cast<size_t>(e.track_index) < asset->data.tracks.size()
 									? asset->data.tracks[e.track_index].sa_main_sequence > 0
 									: asset->data.tracks.front().sa_main_sequence > 0);
@@ -881,7 +881,8 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 		const bool flip = (e.dir_x < 0.0f) != e.reverse_x;
 		const Camera& object_camera = e.space == asb::RuntimeEntity::Space::Ui ? ui_camera : camera;
 		static const glm::mat4 screen_projection = glm::ortho(0.0f, 1920.0f, 1080.0f, 0.0f);
-		const bool screen_chara = e.kind == "DrUiCreateChara";
+		const SpriteKind kind = sprite_kind_for(e, *object->playback.asset);
+		const bool screen_chara = kind == SpriteKind::UiCharacter;
 		const glm::mat4& object_projection = screen_chara ? screen_projection : projection;
 		// UI-space stage replacements are drawn with the fixed design camera, so
 		// compensate with the field zoom here. World-space stages already get it
@@ -890,7 +891,7 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 			object->replaces_stage && e.space == asb::RuntimeEntity::Space::Ui && camera.zoom() > 0.0f ? camera.zoom()
 																									   : 1.0f;
 		float object_scale = (e.scale > 0.0f ? e.scale : 1.0f) * camera_scale;
-		const bool world_chara = !screen_chara && object->playback.asset->is_character;
+		const bool world_chara = kind == SpriteKind::Character;
 		if (world_chara)
 			pos.y += character_foot_offset(*object) * object_scale;
 		// TODO(ui): DrUiCreateChara positions and MBS bounds are in 1920x1080
