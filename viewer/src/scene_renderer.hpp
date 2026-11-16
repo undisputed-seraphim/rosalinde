@@ -75,7 +75,9 @@ private:
 		bool stage = false;
 		bool stage_layer = false;
 		bool additive = false;
+		bool weather_particle = false;
 		bool replaces_stage = false;
+		int base_alpha = 255;
 		std::vector<uint32_t> track_order;
 
 		bool has_renderable() const { return playback.asset != nullptr || !meshes.empty(); }

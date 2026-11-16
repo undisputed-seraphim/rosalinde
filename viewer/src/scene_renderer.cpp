@@ -89,15 +89,32 @@ enum class WeatherTrack {
 	snow,
 };
 
-WeatherTrack weather_track(std::string_view name) {
+bool weather_prefix(std::string_view lower, std::string_view prefix) {
+	if (lower.rfind(prefix, 0) != 0 || lower.size() <= prefix.size())
+		return false;
+	const char next = lower[prefix.size()];
+	return std::isdigit(static_cast<unsigned char>(next)) != 0 || next == '_';
+}
+
+// RAIN_FOG/SNOW_FOG are the only tracks that act as screen-space weather masks.
+// The rain01_*/rain_02 tracks are animated splash sprites and must stay visible
+// geometry; clear-weather effects such as Rainbow_01 are not particles.
+WeatherTrack weather_mask_track(std::string_view name) {
 	std::string lower(name);
 	std::transform(
 		lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-	if (lower.rfind("rain", 0) == 0)
+	if (lower.rfind("rain_fog", 0) == 0)
 		return WeatherTrack::rain;
-	if (lower.rfind("snow", 0) == 0)
+	if (lower.rfind("snow_fog", 0) == 0)
 		return WeatherTrack::snow;
 	return WeatherTrack::none;
+}
+
+bool weather_particle_track(std::string_view name) {
+	std::string lower(name);
+	std::transform(
+		lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+	return weather_prefix(lower, "rain") || weather_prefix(lower, "snow");
 }
 
 std::string quote(std::string_view value) { return "\"" + asb::trace::quote(value) + "\""; }
@@ -366,17 +383,14 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 				spec.track_index >= 0 && static_cast<size_t>(spec.track_index) < asset->data.tracks.size()
 					? &asset->data.tracks[static_cast<size_t>(spec.track_index)]
 					: nullptr;
-			// The engine's rain/snow passes are procedural: the BBS lists the
-			// BGEffect rain/snow tracks as geometry for the screen-weather pass,
-			// not as sprites. Only RAIN_FOG/SNOW_FOG are masks; rain01_*/rain_02
-			// are emitter geometry for the same pass.
+			bool weather_particle = false;
 			if (track) {
-				const WeatherTrack weather = weather_track(track->name);
-				if (weather != WeatherTrack::none) {
+				const WeatherTrack mask = weather_mask_track(track->name);
+				if (mask != WeatherTrack::none) {
 					WeatherRegion region;
 					region.spec = spec;
 					region.bounds = track->bounds;
-					region.rain = weather == WeatherTrack::rain;
+					region.rain = mask == WeatherTrack::rain;
 					spdlog::trace(
 						"weather: layer={} track={} name={} rain={} bounds=({},{},{},{})",
 						i,
@@ -390,7 +404,13 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 					_weather_regions.push_back(std::move(region));
 					continue;
 				}
+				weather_particle = weather_particle_track(track->name);
 			}
+			// The rain/snow particle tracks are the visible splash geometry; they
+			// belong to the weather system, so a dry preset never instantiates them
+			// and the live FlWeatherFade scale fades them with the screen pass.
+			if (weather_particle && _weather_amount <= 0.01f)
+				continue;
 			asb::RuntimeEntity e;
 			e.name = "__stage__:" + std::to_string(i);
 			e.kind = "StageLayer";
@@ -412,6 +432,8 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			object.stage = true;
 			object.stage_layer = true;
 			object.additive = spec.additive;
+			object.weather_particle = weather_particle;
+			object.base_alpha = spec.alpha;
 			rebuild(object, e, std::move(asset));
 			_stage_layer_items.push_back(std::move(object));
 		}
@@ -422,6 +444,15 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			_weather_request,
 			_weather_fog,
 			_weather_regions.size());
+	}
+
+	const float weather_scale = _weather_amount > 0.01f ? _weather_request : 0.0f;
+	for (auto& object : _stage_layer_items) {
+		if (!object.weather_particle)
+			continue;
+		const int alpha =
+			std::clamp(static_cast<int>(std::lround(static_cast<double>(object.base_alpha) * weather_scale)), 0, 255);
+		object.state.alpha = alpha;
 	}
 
 	for (auto& layer : _stage.meshes) {
