@@ -38,3 +38,8 @@ private:
 };
 
 void set_sprite_blend_mode(uint8_t blend);
+
+// Upload GradientMap/GradientMap00.ftx once (GL thread). Layers whose vertex
+// `gradient` field is >= 0 sample this LUT instead of taking a flat tint.
+void upload_gradient_map(std::span<const FTX::Entry> textures);
+GLuint gradient_map_texture();

@@ -13,6 +13,38 @@
 #include <string>
 #include <utility>
 
+namespace {
+GLuint g_gradient_map = 0;
+} // namespace
+
+void upload_gradient_map(std::span<const FTX::Entry> textures) {
+	if (textures.empty())
+		return;
+	const auto& t = textures.front();
+	const size_t need = static_cast<size_t>(t.compressed_size) + t.uncompressed_size;
+	if (t.width == 0 || t.height == 0 || t.rgba.size() < need) {
+		spdlog::warn("gradient map: malformed texture ({}x{})", t.width, t.height);
+		return;
+	}
+	if (g_gradient_map)
+		glDeleteTextures(1, &g_gradient_map);
+	glGenTextures(1, &g_gradient_map);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, g_gradient_map);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, t.width, t.height, 1);
+	const auto* raw = reinterpret_cast<const uint8_t*>(t.rgba.data());
+	const std::span<const uint8_t> payload(raw + t.compressed_size, t.uncompressed_size);
+	Deswizzler deswizzler;
+	deswizzler.upload_slice(g_gradient_map, 0, t.width, t.height, t.comp, payload);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+	spdlog::info("gradient map: {}x{}", t.width, t.height);
+}
+
+GLuint gradient_map_texture() { return g_gradient_map; }
+
 void set_sprite_blend_mode(uint8_t b) {
 	glBlendEquation(GL_FUNC_ADD);
 	switch (b) {
@@ -46,6 +78,8 @@ SpriteRenderer::SpriteRenderer() {
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, xyz));
 	glEnableVertexAttribArray(3);
 	glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, color));
+	glEnableVertexAttribArray(4);
+	glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, gradient));
 
 	glBindVertexArray(0);
 }
@@ -158,6 +192,12 @@ void SpriteRenderer::draw_raw(
 	glBindVertexArray(_vao);
 	const auto& uniforms = GetKeyframeUniforms();
 	glUniform1i(uniforms.tex, 0);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, g_gradient_map);
+	glUniform1i(uniforms.gradient, 1);
+	glUniform1f(uniforms.grad_enable, g_gradient_map != 0 ? 1.0f : 0.0f);
+	glUniform1f(uniforms.grad_index, 1.0f);
+	glActiveTexture(GL_TEXTURE0);
 	glUniform1f(uniforms.alpha, alpha);
 	glUniformMatrix4fv(uniforms.mvp, 1, GL_FALSE, glm::value_ptr(mvp));
 	set_sprite_blend_mode(0);

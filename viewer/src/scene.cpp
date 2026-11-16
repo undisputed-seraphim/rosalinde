@@ -1,12 +1,14 @@
 #include "scene.hpp"
+#include "sprite_renderer.hpp"
 #include "trace.hpp"
 
 #include <SDL3/SDL.h>
+#include <cstdlib>
 #include <glad/glad.h>
 #include <glxx/error.hpp>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl3.h>
-#include <cstdlib>
+#include <impl/ftx.hpp>
 #include <iostream>
 #include <spdlog/spdlog.h>
 #include <stdexcept>
@@ -28,6 +30,14 @@ Scene::Scene(ViewerConfig config)
 		throw std::runtime_error("--script is required");
 
 	ImGui::GetIO().IniFilename = nullptr;
+	if (auto hit = _loader.resolve("GradientMap/GradientMap00.ftx")) {
+		std::vector<char> buffer;
+		_loader.cpk().extract(hit->dir, hit->path, buffer);
+		auto entries = FTX::parse(std::span<char>(buffer));
+		upload_gradient_map(entries);
+	} else {
+		spdlog::warn("gradient map: GradientMap/GradientMap00.ftx not found");
+	}
 	_playback = std::make_unique<ScenePlayback>(_loader, _config);
 	_ui.set_stats_visible(_config.show_stats);
 	if (const char* stats = std::getenv("VIEWER_STATS"))

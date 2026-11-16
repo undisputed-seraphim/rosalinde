@@ -26,6 +26,8 @@ SpriteBatch::SpriteBatch() {
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, xyz));
 	glEnableVertexAttribArray(3);
 	glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, color));
+	glEnableVertexAttribArray(4);
+	glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)offsetof(SpriteVertex, gradient));
 
 	glBindVertexArray(0);
 }
@@ -121,6 +123,13 @@ void SpriteBatch::flush() {
 	const auto& uniforms = GetKeyframeUniforms();
 	glUniform1i(uniforms.tex, 0);
 	glUniform1f(uniforms.alpha, 1.0f);
+	const GLuint gradient = gradient_map_texture();
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D_ARRAY, gradient);
+	glUniform1i(uniforms.gradient, 1);
+	glUniform1f(uniforms.grad_enable, gradient != 0 ? 1.0f : 0.0f);
+	glUniform1f(uniforms.grad_index, 1.0f);
+	glActiveTexture(GL_TEXTURE0);
 	glUniformMatrix4fv(uniforms.mvp, 1, GL_FALSE, glm::value_ptr(_mvp));
 
 	set_sprite_blend_mode(_blend);

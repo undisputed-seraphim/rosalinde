@@ -12,6 +12,7 @@ struct CharaAppearance {
 	uint32_t mask = 0;				// suppressed s4 attribute bits from chara_model.mask
 	uint32_t preset = 0;			// chara_color_table row
 	uint32_t palette[4] = {};		// preset colour0..colour3
+	uint8_t parts[8] = {};			// preset per-part appearance/asset bytes
 	uint32_t color_mask = 0;		// enabled s4.color_id bits
 };
 

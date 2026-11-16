@@ -671,6 +671,7 @@ void SpriteInstance::for_each_layer(
 			v.raw_color[k] = color[k];
 			v.color[k] = color[k];
 		}
+		v.gradient = gradient_for(layer.color_id);
 
 		if ((layer.s4_flags & mbs::v77::s4flag::SKIP) != 0) {
 			v.skip = "skip";
@@ -793,6 +794,14 @@ bool SpriteInstance::prepare_run_geometry(
 	return true;
 }
 
+// The gradient-map LUT is indexed by a per-part (Index, Value) pair in the
+// 0x58-byte character colour block. chara_color_block_init zeroes the pairs and
+// chara_color_block_apply_preset never writes them, so the shader's mix is a
+// no-op for an uncustomised character. The per-unit writer
+// (SetCharaGradientMap*, keyed by the CharaDef name) has not been located; the
+// path stays wired but inactive through the shader's -1 sentinel.
+float SpriteInstance::gradient_for(uint8_t /*color_id*/) const { return -1.0f; }
+
 void SpriteInstance::append_run(
 	int blend,
 	const SpriteRunGeometry& geometry,
@@ -821,6 +830,7 @@ void SpriteInstance::append_run(
 		if ((layer.attributes & ~layer_mask) != 0)
 			continue;
 
+		const float gradient = gradient_for(layer.color_id);
 		glm::vec2 xy[4];
 		glm::vec2 uv[4];
 		uint32_t color[4];
@@ -897,10 +907,10 @@ void SpriteInstance::append_run(
 		const glm::vec4 p2 = geometry.transform * glm::vec4{xy[2].x, xy[2].y, depth, 1.0f};
 		const glm::vec4 p3 = geometry.transform * glm::vec4{xy[3].x, xy[3].y, depth, 1.0f};
 		const int16_t texid = static_cast<int16_t>(layer.tex_id);
-		verts.push_back({texid, uv[0], {p0.x, p0.y, p0.z}, color[0]});
-		verts.push_back({texid, uv[1], {p1.x, p1.y, p1.z}, color[1]});
-		verts.push_back({texid, uv[2], {p2.x, p2.y, p2.z}, color[2]});
-		verts.push_back({texid, uv[3], {p3.x, p3.y, p3.z}, color[3]});
+		verts.push_back({texid, uv[0], {p0.x, p0.y, p0.z}, color[0], gradient});
+		verts.push_back({texid, uv[1], {p1.x, p1.y, p1.z}, color[1], gradient});
+		verts.push_back({texid, uv[2], {p2.x, p2.y, p2.z}, color[2], gradient});
+		verts.push_back({texid, uv[3], {p3.x, p3.y, p3.z}, color[3], gradient});
 		indices.insert(indices.end(), {at, at + 1, at + 3, at + 1, at + 2, at + 3});
 		depth -= geometry.zrate;
 	}

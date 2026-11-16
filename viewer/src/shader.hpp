@@ -5,6 +5,9 @@ struct KeyframeUniforms {
 	int mvp = -1;
 	int alpha = -1;
 	int tex = -1;
+	int gradient = -1;
+	int grad_enable = -1;
+	int grad_index = -1;
 };
 
 const Shader& GetKeyframeShader();
