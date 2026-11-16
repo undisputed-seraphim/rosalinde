@@ -26,7 +26,8 @@ public:
 		const glm::vec4* tint,
 		bool apply_fog,
 		float alpha,
-		uint32_t layer_mask);
+		uint32_t layer_mask,
+		bool additive = false);
 	void flush();
 	uint64_t draws() const { return _draws; }
 	void reset_draws() { _draws = 0; }

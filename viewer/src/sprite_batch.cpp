@@ -66,7 +66,8 @@ void SpriteBatch::append_instance(
 	const glm::vec4* tint,
 	bool apply_fog,
 	float alpha,
-	uint32_t layer_mask) {
+	uint32_t layer_mask,
+	bool additive) {
 	if (!instance.data)
 		return;
 	const uint32_t count = instance.sa_count();
@@ -80,7 +81,7 @@ void SpriteBatch::append_instance(
 		for (uint8_t blend = 0; blend < 4; ++blend) {
 			if (!geometry.visible[blend])
 				continue;
-			begin_blend(blend);
+			begin_blend(additive && (geometry.keyframe->flags & 0x04) ? 1 : blend);
 			instance.append_run(blend, geometry, tint, apply_fog, alpha, layer_mask, _verts, _indices);
 		}
 	};

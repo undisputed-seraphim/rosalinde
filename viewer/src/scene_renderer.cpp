@@ -411,6 +411,7 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			RenderItem object;
 			object.stage = true;
 			object.stage_layer = true;
+			object.additive = spec.additive;
 			rebuild(object, e, std::move(asset));
 			_stage_layer_items.push_back(std::move(object));
 		}
@@ -925,7 +926,13 @@ void SceneRenderer::render(const glm::mat4& projection, const Camera& camera) {
 				probe_layers(*object, i, object->stage, object->has_tint ? &object->tint : nullptr);
 			}
 			_sprites.append_instance(
-				instance, model, object->has_tint ? &object->tint : nullptr, true, alpha, layer_mask_for(e));
+				instance,
+				model,
+				object->has_tint ? &object->tint : nullptr,
+				true,
+				alpha,
+				layer_mask_for(e),
+				object->additive);
 		}
 	}
 	_sprites.flush();

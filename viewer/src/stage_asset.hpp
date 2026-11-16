@@ -21,6 +21,7 @@ struct StageLayer {
 	float scale_y = 0.0f; // BBS Y scale; 0 = uniform with `scale`
 	int alpha = 255;
 	int order = 0;
+	bool additive = false; // BBS material selects additive blending for effect keyframes
 };
 
 struct StageComposition {

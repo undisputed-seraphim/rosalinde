@@ -23,6 +23,7 @@ struct SpriteVertex {
 #pragma pack(pop)
 
 struct CachedKeyframe {
+	uint8_t flags = 0; // section_6 keyframe flags; bit 0x04 marks an additive stage effect keyframe
 	struct Layer {
 		uint16_t tex_id;
 		uint16_t _pad;

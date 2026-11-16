@@ -74,6 +74,7 @@ void SpriteData::preprocess() {
 	for (uint32_t s6_keyframe_id = 0; s6_keyframe_id < v77.s6.size(); ++s6_keyframe_id) {
 		const auto& s6 = v77.s6[s6_keyframe_id];
 		auto& ck = keyframes[s6_keyframe_id];
+		ck.flags = s6.flags;
 		ck.bounds = {s6.left, s6.top, s6.right, s6.bottom};
 
 		ck.layers.reserve(s6.s4_layer_count);

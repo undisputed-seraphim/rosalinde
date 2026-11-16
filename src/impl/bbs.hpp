@@ -131,7 +131,7 @@ struct object {
 	float scale_y;
 	int32_t color_key;
 	uint32_t color;
-	uint32_t unknown_30;
+	uint32_t material; // index into the material table; bit 0 of the record's last word selects additive stage effects
 	uint32_t unknown_34;
 	float alpha;
 	uint32_t unknown_3c;

@@ -74,6 +74,7 @@ private:
 		bool background = false;
 		bool stage = false;
 		bool stage_layer = false;
+		bool additive = false;
 		bool replaces_stage = false;
 		std::vector<uint32_t> track_order;
 
