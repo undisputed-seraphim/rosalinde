@@ -50,10 +50,15 @@ bool name_contains(const asb::RuntimeEntity& e, std::string_view text) {
 // UcDrChara::update (0xcd680) builds its draw sort key with FUN_000f28d4:
 // sort_id_offset + linked_base - 100 * (int)z. The linked base is zero for a
 // standalone character; only attached parts inherit their parent's key.
+//
+// DrCreateNpc characters are created into a separate stage window:
+// chara_create_npc (0x1762b0) sets chara+0x19c8 to the stage window base + 0xee,
+// and the stage draw setup (0x1b7f0) special-cases windows 0xee..0x109/0x130.
+// They keep the actor creation order (the final `order` tie-break) instead of
+// the player-character depth key.
 int chara_sort_key(const asb::RuntimeEntity& e) {
-	const bool world_chara =
-		e.space == asb::RuntimeEntity::Space::World && sprite_entity_kind(e) == SpriteKind::Character;
-	if (!world_chara)
+	const bool depth_sorted = e.space == asb::RuntimeEntity::Space::World && e.kind == "DrCreateChara";
+	if (!depth_sorted)
 		return e.sort_id_offset;
 	return e.sort_id_offset - 100 * static_cast<int>(e.pos[2]);
 }
