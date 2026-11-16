@@ -398,6 +398,78 @@ TEST_CASE("a turn flips facing when the clip ends and keeps the idle") {
 	CHECK(live.track_index == 83);
 }
 
+TEST_CASE("DrActionWait waits out a pending async turn") {
+	asb::Registry registry;
+	registry.reset("test", "scene00");
+	registry.set_resolve_track([](const std::string&, const std::string& name) {
+		return name == "D_TURN_B" ? 103 : (name == "D_IDLE_B" ? 83 : -1);
+	});
+	registry.set_track_frames([](const std::string&, int index) { return index == 103 ? 36L : 0L; });
+
+	asb::RuntimeEntity entity;
+	entity.name = "エルフ";
+	entity.mbs = "Chara/ElfArcher_F.mbs";
+	entity.track = "D_IDLE_B";
+	entity.track_index = 83;
+	entity.idle_track = "D_IDLE_B";
+	entity.idle_track_index = 83;
+	entity.dir_x = 1.0f;
+	entity.started = true;
+	registry.state().entities.push_back(entity);
+	asb::RuntimeEntity& live = registry.state().entities.front();
+
+	registry.begin_turn(live, "D_TURN_B", 100, false);
+	CHECK(registry.action_wait_remaining(live, 100) == 36);
+	CHECK(registry.action_wait_remaining(live, 120) == 16);
+
+	registry.set_frame(136);
+	registry.advance();
+	CHECK(live.dir_x == -1.0f);
+	CHECK(registry.action_wait_remaining(live, 136) == 0);
+}
+
+TEST_CASE("a turn stops at the track's commit point, not its looping half") {
+	asb::Registry registry;
+	registry.reset("test", "scene00");
+	registry.set_resolve_track([](const std::string&, const std::string& name) {
+		return name == "D_TURN" ? 98 : (name == "D_IDLE_B" ? 83 : -1);
+	});
+	registry.set_track_frames([](const std::string&, int index) { return index == 98 ? 111L : 0L; });
+	registry.set_track_info([](const std::string&, int index) {
+		asb::TrackInfo info;
+		if (index == 98) {
+			info.duration_frames = 111;
+			info.commit_frames = 25;
+		}
+		return info;
+	});
+
+	asb::RuntimeEntity entity;
+	entity.name = "エルフ";
+	entity.mbs = "Chara/ElfArcher_M.mbs";
+	entity.track = "D_IDLE_B";
+	entity.track_index = 83;
+	entity.idle_track = "D_IDLE_B";
+	entity.idle_track_index = 83;
+	entity.dir_x = 1.0f;
+	entity.started = true;
+	registry.state().entities.push_back(entity);
+	asb::RuntimeEntity& live = registry.state().entities.front();
+
+	registry.begin_turn(live, "D_TURN", 0, false);
+	CHECK(registry.action_wait_remaining(live, 0) == 25);
+
+	registry.set_frame(24);
+	registry.advance();
+	CHECK(live.track == "D_TURN");
+	CHECK(live.dir_x == 1.0f);
+
+	registry.set_frame(25);
+	registry.advance();
+	CHECK(live.dir_x == -1.0f);
+	CHECK(live.track == "D_IDLE_B");
+}
+
 TEST_CASE("drama scripts pick their void MAIN entry") {
 	const std::filesystem::path cpk = find_cpk();
 	if (cpk.empty()) {

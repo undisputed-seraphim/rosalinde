@@ -80,6 +80,7 @@ MbsCatalog::Entry& MbsCatalog::ensure(const std::string& mbs) const {
 						track.name,
 						track_duration_frames(*sections, track),
 						track.action_frames,
+						track.commit_frames,
 						static_cast<uint32_t>(track.runs.size()),
 						!track.disabled && !track.runs.empty(),
 						track.one_shot,

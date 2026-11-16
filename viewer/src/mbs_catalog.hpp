@@ -20,6 +20,7 @@ public:
 		std::string name;
 		long duration_frames = 0;
 		long action_frames = 0;
+		long commit_frames = 0;
 		uint32_t runs = 0;
 		bool usable = false;
 		bool one_shot = false;

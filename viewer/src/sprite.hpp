@@ -102,9 +102,15 @@ struct SpriteData {
 		glm::vec4 bounds;
 		uint8_t sa_main_sequence = 0;
 		uint8_t disabled = 0;
-		// One-shot (intro) length of the main sequence, in 60 Hz scene frames.
-		// DrActionWait/DrChangeAnimation use this, not the whole loop.
+		// One-shot length in 60 Hz scene frames: the explicit intro when present,
+		// otherwise the committed GLOBAL window for a looping main sequence,
+		// otherwise the whole sequence. DrActionWait/DrChangeAnimation use this.
 		long action_frames = 0;
+		// Earliest first-GLOBAL (0x2000) frame across the track's runs, in 60 Hz
+		// scene frames. GLOBAL ends the committed/one-shot part of a sequence;
+		// loops such as D_TURN or D_IDLE_Z_TO_B continue past it with a mirrored
+		// or jump-back half. 0 when the track has no GLOBAL frame.
+		long commit_frames = 0;
 		bool one_shot = false; // transition-mode startup/background heuristic; character playback uses per-run once
 		int next_track = -1;
 		uint8_t transition_mode = 0;

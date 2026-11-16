@@ -119,6 +119,10 @@ public:
 	// restore the idle when the clip ends.
 	void begin_turn(RuntimeEntity& entity, const std::string& track, long frame, bool wait);
 
+	// DrActionWait: frames until the character can reach the idle state. A
+	// queued action, an active move, or a pending async turn all count.
+	long action_wait_remaining(const RuntimeEntity& entity, long frame) const;
+
 	// Model a native call. Returns true if recognised (and thus not handled by
 	// the fallback stub). `gen` is the AngelScript generic call context.
 	bool dispatch(asIScriptGeneric* gen);

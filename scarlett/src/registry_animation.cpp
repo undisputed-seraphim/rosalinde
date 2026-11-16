@@ -17,7 +17,14 @@ void Registry::begin_turn(RuntimeEntity& entity, const std::string& track, long 
 	int track_index = -1;
 	if (!track.empty() && _resolve_track)
 		track_index = _resolve_track(entity.mbs, track);
-	const long duration = (track_index >= 0 && _track_frames) ? _track_frames(entity.mbs, track_index) : 0;
+	long duration = (track_index >= 0 && _track_frames) ? _track_frames(entity.mbs, track_index) : 0;
+	// The engine's turn state finishes when any run reaches its first GLOBAL
+	// (0x2000) frame; clips such as D_TURN continue with a mirrored loop after
+	// that point, which the turn must not play. Fall back to the full duration
+	// for clips without a GLOBAL frame.
+	const long commit = track_index >= 0 ? _animations.info_for(entity, track_index).commit_frames : 0;
+	if (commit > 0)
+		duration = commit;
 	Turn turn;
 	turn.idle_track = entity.idle_track;
 	turn.idle_index = entity.idle_track_index;
@@ -39,6 +46,15 @@ void Registry::begin_turn(RuntimeEntity& entity, const std::string& track, long 
 		entity.dir_x = -entity.dir_x;
 	}
 	mark_dirty();
+}
+
+long Registry::action_wait_remaining(const RuntimeEntity& entity, long frame) const {
+	long remaining = _animations.action_remaining(entity, frame);
+	if (auto it = _moves.find(entity.name); it != _moves.end() && it->second.animation_token != 0)
+		remaining = std::max(remaining, std::max(0L, it->second.f1 - frame));
+	if (auto it = _turns.find(entity.name); it != _turns.end())
+		remaining = std::max(remaining, std::max(0L, it->second.end - frame));
+	return remaining;
 }
 
 DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& args) {
@@ -98,16 +114,14 @@ DispatchResult Registry::dispatch_animation(std::string_view name, NativeArgs& a
 		return DispatchResult::Handled;
 	}
 	if (name == "DrActionWait") {
-		// DrActionWait (0x31e550 -> 0x17079c) parks the script on a dedicated
-		// action wait and never consults the clip length. The action is the
-		// one-shot intro of the sequence (the rest loops), so the wait is
-		// bounded by that intro: D_SIT_A3 is 51 ticks, not its 303-tick loop.
-		// A DrMove*Async with an animation also queues an action: scripts call
-		// DrActionWait right after the move to wait for the motion to finish.
+		// DrActionWait (0x31e550) parks the script on the engine's action wait;
+		// its predicate (0x31b970) returns only when the named chara is back in
+		// state 0x81. Queued actions, an active move and a pending DrTurnAsync
+		// (state 0x84) all keep the character out of that state. The action
+		// itself is the one-shot intro of the sequence (the rest loops), so
+		// D_SIT_A3 is 51 ticks, not its 303-tick loop.
 		if (RuntimeEntity* entity = entity_arg(args)) {
-			long remaining = _animations.action_remaining(*entity, frame);
-			if (auto it = _moves.find(entity->name); it != _moves.end() && it->second.animation_token != 0)
-				remaining = std::max(remaining, std::max(0L, it->second.f1 - frame));
+			const long remaining = action_wait_remaining(*entity, frame);
 			if (remaining > 0) {
 				pending_wait = remaining;
 				spdlog::debug("wait: action {} end={} remaining={}", entity->name, entity->action_end_frame, remaining);

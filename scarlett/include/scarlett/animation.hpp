@@ -14,7 +14,8 @@ namespace asb {
 
 struct TrackInfo {
 	long duration_frames = 0; // whole sequence, in 60 Hz scene frames
-	long action_frames = 0;	  // one-shot intro of the main sequence
+	long action_frames = 0;	  // one-shot intro, else committed GLOBAL window
+	long commit_frames = 0;	  // earliest first-GLOBAL frame across the runs
 	bool one_shot = false;
 	int continuation_track = -1;
 	std::string continuation_name;
@@ -200,6 +201,12 @@ public:
 
 	void clear(const RuntimeEntity& entity) { _states.erase(entity.name); }
 
+	TrackInfo info_for(const RuntimeEntity& entity, int track_index) const {
+		if (_track_info && track_index >= 0)
+			return _track_info(entity.mbs, track_index);
+		return {};
+	}
+
 private:
 	struct ActionStep {
 		std::string track;
@@ -235,12 +242,6 @@ private:
 		state.action_end = frame + step.length;
 		entity.action_active = true;
 		entity.action_end_frame = state.action_end;
-	}
-
-	TrackInfo info_for(const RuntimeEntity& entity, int track_index) const {
-		if (_track_info && track_index >= 0)
-			return _track_info(entity.mbs, track_index);
-		return {};
 	}
 
 	static void apply(RuntimeEntity& entity, std::string track, int track_index, long frame) {

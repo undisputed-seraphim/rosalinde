@@ -199,7 +199,36 @@ std::vector<SpriteData::Track> analyze_tracks(const mbs::v77& v77) {
 			for (uint32_t i = 0; i < run.loop_start && run.s8_start + i < v77.s8.size(); ++i)
 				intro_ticks += v77.s8[run.s8_start + i].s8_duration_ticks;
 		}
-		track.action_frames = intro_ticks > 0 ? mbs::frames_from_ticks(intro_ticks) : track_duration_frames(v77, track);
+		// A GLOBAL frame ends the committed (one-shot) part of a sequence. It
+		// may sit in any run of a track (transition clips keep it on a
+		// clothing/weapon part rather than the main body). The track flag is
+		// sticky once any run reaches it, so the earliest first-GLOBAL offset
+		// across runs is the commit. commit_ticks in the raw row records the
+		// same per-run value.
+		long commit_ticks = 0;
+		for (const auto& run : track.runs) {
+			long ticks = 0;
+			for (uint32_t i = run.s8_start_offset; i < run.s8_count && run.s8_start + i < v77.s8.size(); ++i) {
+				ticks += v77.s8[run.s8_start + i].s8_duration_ticks;
+				if (v77.s8[run.s8_start + i].flags & mbs::v77::s8flag::GLOBAL) {
+					commit_ticks = commit_ticks == 0 ? ticks : std::min(commit_ticks, ticks);
+					break;
+				}
+			}
+		}
+		track.commit_frames = mbs::frames_from_ticks(commit_ticks);
+		const long duration_frames = track_duration_frames(v77, track);
+		if (intro_ticks > 0) {
+			track.action_frames = mbs::frames_from_ticks(intro_ticks);
+		} else if (
+			!track.runs.empty() && !track.runs[std::min<size_t>(track.sa_main_sequence, track.runs.size() - 1)].once &&
+			track.commit_frames > 0) {
+			// A looping main sequence with no explicit intro ends its one-shot
+			// part at the GLOBAL/commit frame; the rest is a return-to-neutral loop.
+			track.action_frames = track.commit_frames;
+		} else {
+			track.action_frames = duration_frames;
+		}
 	}
 	return tracks;
 }

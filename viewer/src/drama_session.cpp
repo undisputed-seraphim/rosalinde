@@ -76,6 +76,7 @@ DramaSession::DramaSession(
 		if (const auto* track = parsed.track(index)) {
 			info.duration_frames = track->duration_frames;
 			info.action_frames = track->action_frames;
+			info.commit_frames = track->commit_frames;
 			info.one_shot = track->one_shot;
 			info.continuation_track = track->continuation_track;
 			info.continuation_name = track->continuation_name;

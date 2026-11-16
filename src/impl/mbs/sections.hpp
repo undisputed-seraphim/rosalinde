@@ -156,7 +156,7 @@ struct section_a {
 	uint16_t s8_frame_count; // number of frame rows
 	uint32_t s8_total_ticks; // total tick sum of the sequence
 	int32_t s8_intro_ticks;	 // intro ticks played once before the loop; -1 = single pass
-	int32_t commit_ticks;	 // uninterruptible window in ticks; -1 = none
+	int32_t commit_ticks;	 // ticks from the first played frame through the first GLOBAL frame; -1 = no GLOBAL
 	uint16_t sb_id;			 // section_b row id; 0 = none
 	uint8_t sb_no;			 // 1 when sb_id is set, otherwise 0
 	uint8_t s8_start_offset; // character: skip-first-frame; background: sub-sprite index
@@ -221,7 +221,7 @@ struct v77 {
 		NODRAW   = 0x400,  // update continues, but no generic render object
 		LAST     = 0x800,  // end-of-sequence marker
 		STOP     = 0x1000, // same no-advance path as LAST; purpose OPEN
-		GLOBAL   = 0x2000, // global/track renderer flags; exact pass OPEN
+		GLOBAL   = 0x2000, // committed/one-shot end marker; see section_a::commit_ticks
 		// 0x10, 0x100, 0x200: no known meaning
 		// clang-format on
 	};
