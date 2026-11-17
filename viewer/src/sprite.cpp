@@ -37,6 +37,36 @@ struct PoseCache {
 	size_t capacity = 512;
 };
 
+namespace {
+// color_id selects a CharaSet colour-preset slot. 1 = common cloth and 3 =
+// main garment/armour. The preset rows do not keep the two communal colours in
+// a fixed order: preset 7 puts the coloured slot first (blue/white), while
+// preset 39 puts the white slot first (white/red). The cloth uses the darker of
+// the two slots and the main garment/armour the lighter one, which matches both
+// Dr_OW_C_0_St_Before_0 (Alain) and Dr_OW_C_0_Fl_Main_0 (Scarlett).
+//
+// 2 (hair) keeps the section_0 colour because the FTX atlas already carries the
+// hair tone; tinting it with the preset turns a red-haired character blue.
+// 4 (armour accent) and 5 (skin/hand) are not mapped yet: 4 appears to be a
+// second armour pass, and 5 must keep the section_0 skin colour because the
+// preset colour3 is not a skin tone.
+constexpr bool color_uses_preset(uint8_t color_id) { return color_id == 1 || color_id == 3; }
+
+constexpr uint32_t palette_luma(uint32_t c) {
+	const uint32_t r = c & 0xFF;
+	const uint32_t g = (c >> 8) & 0xFF;
+	const uint32_t b = (c >> 16) & 0xFF;
+	return r * 299 + g * 587 + b * 114;
+}
+
+constexpr uint32_t preset_slot_for_color(uint8_t color_id, const uint32_t (&palette)[4]) {
+	const bool color0_darker = palette_luma(palette[0]) <= palette_luma(palette[1]);
+	if (color_id == 1)
+		return color0_darker ? 0 : 1;
+	return color0_darker ? 1 : 0;
+}
+} // namespace
+
 mbs::v77 parse_mbs_sections(std::span<const uint8_t> data) {
 	mbs::v77 sections;
 	byte_reader r(data);
@@ -688,9 +718,8 @@ void SpriteInstance::for_each_layer(
 			visit(v);
 			continue;
 		}
-		if (layer.color_id >= 1 && layer.color_id <= 3 && (color_mask & (1u << layer.color_id)) != 0) {
-			static constexpr uint32_t preset_for_color[4] = {0, 1, 3, 0};
-			const uint32_t rgb = color_palette[preset_for_color[layer.color_id]] & 0x00FFFFFFu;
+		if (color_uses_preset(layer.color_id) && (color_mask & (1u << layer.color_id)) != 0) {
+			const uint32_t rgb = color_palette[preset_slot_for_color(layer.color_id, color_palette)] & 0x00FFFFFFu;
 			for (int k = 0; k < 4; ++k)
 				v.color[k] = (layer.color[k] & 0xFF000000u) | rgb;
 		}
@@ -849,9 +878,8 @@ void SpriteInstance::append_run(
 			}
 		}
 
-		if (layer.color_id >= 1 && layer.color_id <= 3 && (color_mask & (1u << layer.color_id)) != 0) {
-			static constexpr uint32_t preset_for_color[4] = {0, 1, 3, 0};
-			const uint32_t rgb = color_palette[preset_for_color[layer.color_id]] & 0x00FFFFFFu;
+		if (color_uses_preset(layer.color_id) && (color_mask & (1u << layer.color_id)) != 0) {
+			const uint32_t rgb = color_palette[preset_slot_for_color(layer.color_id, color_palette)] & 0x00FFFFFFu;
 			for (int k = 0; k < 4; ++k)
 				color[k] = (color[k] & 0xFF000000u) | rgb;
 		}
