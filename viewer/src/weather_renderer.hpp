@@ -1,13 +1,14 @@
 #pragma once
 
+#include "weather.hpp"
+
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 
-// Screen-space weather pass. The engine submits rain/snow as procedural
-// particles clipped by a screen-space mask rect per draw; the viewer draws one
-// instanced particle field over the union of the projected RAIN_FOG/SNOW_FOG
-// regions. The mask is in NDC, so callers pass the bounds directly without
-// touching the GL state machine.
+// Screen-space precipitation fallback. BGEffect.mbs authors fog and splash
+// sprites but not falling streaks, so the viewer generates one instanced
+// particle field for the whole view. The field carries the preset intensity
+// and viewer tuning knobs; only rain is implemented, snow is still unknown.
 class WeatherRenderer {
 public:
 	WeatherRenderer();
@@ -15,7 +16,7 @@ public:
 	WeatherRenderer(const WeatherRenderer&) = delete;
 	WeatherRenderer& operator=(const WeatherRenderer&) = delete;
 
-	void draw(const glm::vec2& ndc_min, const glm::vec2& ndc_max, float amount, float time);
+	void draw(const ScreenField& field, float request, float time);
 
 private:
 	GLuint _vao = 0;

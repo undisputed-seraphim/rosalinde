@@ -7,6 +7,7 @@
 #include "sprite_batch.hpp"
 #include "sprite_playback.hpp"
 #include "stage_asset.hpp"
+#include "weather.hpp"
 #include "weather_renderer.hpp"
 
 #include <scarlett/scene.hpp>
@@ -52,12 +53,6 @@ private:
 		bool attempted = false;
 	};
 
-	struct WeatherRegion {
-		StageLayer spec;
-		glm::vec4 bounds{};
-		bool rain = false;
-	};
-
 	struct RenderItem {
 		RenderItem() = default;
 		RenderItem(const RenderItem&) = delete;
@@ -75,7 +70,6 @@ private:
 		bool stage = false;
 		bool stage_layer = false;
 		bool additive = false;
-		bool weather_particle = false;
 		bool replaces_stage = false;
 		int base_alpha = 255;
 		std::vector<uint32_t> track_order;
@@ -104,15 +98,14 @@ private:
 	RenderItem _stage;
 	std::vector<StageLayer> _stage_layer_specs;
 	std::vector<RenderItem> _stage_layer_items;
+	std::vector<RenderItem> _weather_layer_items;
+	std::vector<ScreenField> _weather_fields;
 	mutable std::vector<const RenderItem*> _ordered_cache;
 	mutable uint64_t _ordered_hash = 0;
 	uint64_t _object_generation = 0;
-	std::vector<WeatherRegion> _weather_regions;
 	SpriteBatch _sprites;
 	WeatherRenderer _weather;
-	int _weather_type = 0;
-	float _weather_amount = 0.0f;
-	float _weather_fog = 0.0f;
+	WeatherPreset _weather_preset;
 	// The engine's fade scale is 1.0 when the stage has no weather fade object.
 	float _weather_request = 1.0f;
 	bool _stage_layers_built = false;

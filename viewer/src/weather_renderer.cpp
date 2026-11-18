@@ -40,19 +40,21 @@ WeatherRenderer::~WeatherRenderer() {
 		glDeleteVertexArrays(1, &_vao);
 }
 
-void WeatherRenderer::draw(const glm::vec2& ndc_min, const glm::vec2& ndc_max, float amount, float time) {
+void WeatherRenderer::draw(const ScreenField& field, float request, float time) {
+	if (field.kind != OverlayKind::RainField)
+		return;
 	static constexpr int max_streaks = 10000;
+	const float amount = std::clamp(field.cloud * request, 0.0f, 1.0f);
 	const bool depth = glIsEnabled(GL_DEPTH_TEST);
 	glDisable(GL_DEPTH_TEST);
 	enable_blend(glm::vec4(1.0f));
 
 	const auto& shader = GetWeatherShader().Use();
-	shader.SetUniform("u_ndc_min", ndc_min.x, ndc_min.y);
-	shader.SetUniform("u_ndc_max", ndc_max.x, ndc_max.y);
 	shader.SetUniform("u_amount", amount);
 	shader.SetUniform("u_time", time);
+	shader.SetUniform("u_shape", glm::vec4(field.speed, field.width, field.length, field.tilt));
 
-	const int streaks = std::clamp(static_cast<int>(std::lround(amount * max_streaks)), 0, max_streaks);
+	const int streaks = std::clamp(static_cast<int>(std::lround(amount * field.density * max_streaks)), 0, max_streaks);
 	glBindVertexArray(_vao);
 	glDrawArraysInstanced(GL_TRIANGLES, 0, 6, streaks);
 	glBindVertexArray(0);
