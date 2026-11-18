@@ -83,12 +83,6 @@ int render_class(bool stage, bool background, bool replaces_stage, bool prerende
 	return 1;
 }
 
-enum class WeatherTrack {
-	none,
-	rain,
-	snow,
-};
-
 bool weather_prefix(std::string_view lower, std::string_view prefix) {
 	if (lower.rfind(prefix, 0) != 0 || lower.size() <= prefix.size())
 		return false;
@@ -96,25 +90,33 @@ bool weather_prefix(std::string_view lower, std::string_view prefix) {
 	return std::isdigit(static_cast<unsigned char>(next)) != 0 || next == '_';
 }
 
-// RAIN_FOG/SNOW_FOG are the only tracks that act as screen-space weather masks.
-// The rain01_*/rain_02 tracks are animated splash sprites and must stay visible
-// geometry; clear-weather effects such as Rainbow_01 are not particles.
-WeatherTrack weather_mask_track(std::string_view name) {
-	std::string lower(name);
-	std::transform(
-		lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-	if (lower.rfind("rain_fog", 0) == 0)
-		return WeatherTrack::rain;
-	if (lower.rfind("snow_fog", 0) == 0)
-		return WeatherTrack::snow;
-	return WeatherTrack::none;
-}
-
 bool weather_particle_track(std::string_view name) {
 	std::string lower(name);
 	std::transform(
 		lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 	return weather_prefix(lower, "rain") || weather_prefix(lower, "snow");
+}
+
+bool weather_fog_track(std::string_view name) {
+	std::string lower(name);
+	std::transform(
+		lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+	return lower.rfind("rain_fog", 0) == 0 || lower.rfind("snow_fog", 0) == 0;
+}
+
+bool weather_rain_fog_track(std::string_view name) {
+	std::string lower(name);
+	std::transform(
+		lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+	return lower.rfind("rain_fog", 0) == 0;
+}
+
+// BBS objects carry one weather-type bit per DrCreateStage argument. A zero
+// mask means the object is not weather-gated.
+bool weather_visible(const StageLayer& layer, int weather_type) {
+	if (layer.weather_mask == 0 || weather_type < 0 || weather_type >= 8)
+		return true;
+	return (layer.weather_mask & (1u << weather_type)) != 0;
 }
 
 std::string quote(std::string_view value) { return "\"" + asb::trace::quote(value) + "\""; }
@@ -236,6 +238,7 @@ void SceneRenderer::reset_stage() {
 void SceneRenderer::set_stage(const StageComposition& composition) {
 	reset_stage();
 	_stage_layer_specs = composition.layers;
+	_weather_type = composition.weather_type;
 	_weather_amount = composition.weather_amount;
 	_weather_fog = composition.weather_fog;
 	_stage_mbs = composition.mbs;
@@ -384,33 +387,47 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 					? &asset->data.tracks[static_cast<size_t>(spec.track_index)]
 					: nullptr;
 			bool weather_particle = false;
+			bool weather_fog = false;
 			if (track) {
-				const WeatherTrack mask = weather_mask_track(track->name);
-				if (mask != WeatherTrack::none) {
-					WeatherRegion region;
-					region.spec = spec;
-					region.bounds = track->bounds;
-					region.rain = mask == WeatherTrack::rain;
+				weather_particle = weather_particle_track(track->name);
+				weather_fog = weather_particle && weather_fog_track(track->name);
+				// BBS cloud is the weather intensity. A zero value means the
+				// preset is clear/fog-only, even when the object mask contains
+				// the current bit.
+				if (weather_particle && (!weather_visible(spec, _weather_type) || _weather_amount <= 0.01f)) {
 					spdlog::trace(
-						"weather: layer={} track={} name={} rain={} bounds=({},{},{},{})",
+						"weather: skip layer={} track={} name={} mask=0x{:02x} type={} amount={}",
 						i,
 						spec.track_index,
 						track->name,
-						region.rain,
+						spec.weather_mask,
+						_weather_type,
+						_weather_amount);
+					continue;
+				}
+				if (weather_particle) {
+					spdlog::trace(
+						"weather: draw layer={} track={} name={} mask=0x{:02x} type={} bounds=({},{},{},{})",
+						i,
+						spec.track_index,
+						track->name,
+						spec.weather_mask,
+						_weather_type,
 						track->bounds.x,
 						track->bounds.y,
 						track->bounds.z,
 						track->bounds.w);
-					_weather_regions.push_back(std::move(region));
-					continue;
 				}
-				weather_particle = weather_particle_track(track->name);
+				if (weather_fog) {
+					WeatherRegion region;
+					region.spec = spec;
+					region.bounds = track->bounds;
+					region.rain = weather_rain_fog_track(track->name);
+					_weather_regions.push_back(std::move(region));
+				}
 			}
-			// The rain/snow particle tracks are the visible splash geometry; they
-			// belong to the weather system, so a dry preset never instantiates them
-			// and the live FlWeatherFade scale fades them with the screen pass.
-			if (weather_particle && _weather_amount <= 0.01f)
-				continue;
+			// RAIN_FOG/SNOW_FOG are ordinary MBS sprite layers. The rain fog
+			// region is also fed to the screen-space falling-rain fallback.
 			asb::RuntimeEntity e;
 			e.name = "__stage__:" + std::to_string(i);
 			e.kind = "StageLayer";
@@ -427,26 +444,31 @@ void SceneRenderer::sync(const asb::SceneState& scene) {
 			e.pos[2] = spec.z;
 			e.scale = spec.scale;
 			e.scale_y = spec.scale_y;
-			e.alpha = spec.alpha;
+			const int layer_alpha =
+				weather_fog
+					? std::clamp(static_cast<int>(std::lround(static_cast<double>(spec.alpha) * _weather_amount)), 0, 255)
+					: spec.alpha;
+			e.alpha = layer_alpha;
 			RenderItem object;
 			object.stage = true;
 			object.stage_layer = true;
 			object.additive = spec.additive;
 			object.weather_particle = weather_particle;
-			object.base_alpha = spec.alpha;
+			object.base_alpha = layer_alpha;
 			rebuild(object, e, std::move(asset));
 			_stage_layer_items.push_back(std::move(object));
 		}
 		++_object_generation;
 		spdlog::debug(
-			"weather: stage amount={} request={} fog={} regions={}",
+			"weather: stage type={} amount={} request={} fog={} regions={}",
+			_weather_type,
 			_weather_amount,
 			_weather_request,
 			_weather_fog,
 			_weather_regions.size());
 	}
 
-	const float weather_scale = _weather_amount > 0.01f ? _weather_request : 0.0f;
+	const float weather_scale = _weather_request;
 	for (auto& object : _stage_layer_items) {
 		if (!object.weather_particle)
 			continue;
@@ -979,8 +1001,6 @@ void SceneRenderer::render_weather(const glm::mat4& projection, const Camera& ca
 	if (amount <= 0.01f || _weather_regions.empty())
 		return;
 	const glm::mat4 mvp = projection * camera.lookAt();
-	glm::vec2 ndc_min{1.0f, 1.0f};
-	glm::vec2 ndc_max{-1.0f, -1.0f};
 	bool any = false;
 	for (const auto& region : _weather_regions) {
 		if (!region.rain)
@@ -996,19 +1016,20 @@ void SceneRenderer::render_weather(const glm::mat4& projection, const Camera& ca
 		};
 		for (const auto& corner : corners) {
 			const glm::vec4 clip = mvp * glm::vec4(spec.x + corner.x * spec.scale, spec.y + corner.y * sy, 0.0f, 1.0f);
-			if (clip.w <= 0.0f)
-				continue;
-			const glm::vec2 ndc{clip.x / clip.w, clip.y / clip.w};
-			ndc_min = glm::min(ndc_min, ndc);
-			ndc_max = glm::max(ndc_max, ndc);
-			any = true;
+			if (clip.w > 0.0f) {
+				any = true;
+				break;
+			}
 		}
+		if (any)
+			break;
 	}
 	if (!any)
 		return;
-	ndc_min = glm::clamp(ndc_min, glm::vec2(-1.0f), glm::vec2(1.0f));
-	ndc_max = glm::clamp(ndc_max, glm::vec2(-1.0f), glm::vec2(1.0f));
-	_weather.draw(ndc_min, ndc_max, amount, static_cast<float>(_frame) / 60.0f);
+	// Falling rain is camera-relative; the BBS RAIN_FOG bounds describe the
+	// local ground fog quad, not the rain volume. Do not clip the streaks to
+	// that quad or they disappear when the fog sits below the view.
+	_weather.draw(glm::vec2(-1.0f), glm::vec2(1.0f), amount, static_cast<float>(_frame) / 60.0f);
 }
 
 void SceneRenderer::clear() {

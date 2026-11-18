@@ -4,14 +4,23 @@
 
 #include <glm/glm.hpp>
 
+#include <algorithm>
+#include <cmath>
+
 WeatherRenderer::WeatherRenderer() {
 	static const float quad[] = {
-		-1.0f,
-		-1.0f,
-		3.0f,
-		-1.0f,
-		-1.0f,
-		3.0f,
+		0.0f,
+		0.0f,
+		1.0f,
+		0.0f,
+		1.0f,
+		1.0f,
+		0.0f,
+		0.0f,
+		1.0f,
+		1.0f,
+		0.0f,
+		1.0f,
 	};
 	glGenVertexArrays(1, &_vao);
 	glGenBuffers(1, &_vbo);
@@ -32,6 +41,7 @@ WeatherRenderer::~WeatherRenderer() {
 }
 
 void WeatherRenderer::draw(const glm::vec2& ndc_min, const glm::vec2& ndc_max, float amount, float time) {
+	static constexpr int max_streaks = 10000;
 	const bool depth = glIsEnabled(GL_DEPTH_TEST);
 	glDisable(GL_DEPTH_TEST);
 	enable_blend(glm::vec4(1.0f));
@@ -42,8 +52,9 @@ void WeatherRenderer::draw(const glm::vec2& ndc_min, const glm::vec2& ndc_max, f
 	shader.SetUniform("u_amount", amount);
 	shader.SetUniform("u_time", time);
 
+	const int streaks = std::clamp(static_cast<int>(std::lround(amount * max_streaks)), 0, max_streaks);
 	glBindVertexArray(_vao);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glDrawArraysInstanced(GL_TRIANGLES, 0, 6, streaks);
 	glBindVertexArray(0);
 
 	if (depth)

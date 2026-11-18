@@ -22,6 +22,9 @@ struct StageLayer {
 	int alpha = 255;
 	int order = 0;
 	bool additive = false; // BBS material selects additive blending for effect keyframes
+	// BBS object flags bits 24..31: one bit per DrCreateStage weather type.
+	// Zero means un-gated.
+	uint8_t weather_mask = 0;
 };
 
 struct StageComposition {
@@ -29,10 +32,10 @@ struct StageComposition {
 	std::string ftx;
 	std::vector<StageMpdLayer> mpd_layers;
 	std::vector<StageLayer> layers;
-	// Weather type and fog are carried for the fog/snow/sky-grade pass; the rain
-	// gate only reads weather_amount.
+	// DrCreateStage weather type, used to test each BBS object's weather mask.
 	int weather_type = 0;
-	// Screen-weather amount from the BBS weather preset (bbs::weather_record::cloud).
+	// Atmosphere/post-effect strength from the BBS preset (weather_record::cloud).
+	// This is not a rain gate; rain/snow layers are selected by object weather_mask.
 	float weather_amount = 0.0f;
 	float weather_fog = 0.0f;
 

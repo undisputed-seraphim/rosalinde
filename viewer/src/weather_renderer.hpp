@@ -3,10 +3,11 @@
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 
-// Screen-space weather pass. The engine submits rain/snow as procedural streaks
-// clipped by a screen-space mask rect per draw; the viewer draws one pass over
-// the union of the projected RAIN_FOG/SNOW_FOG regions. The mask is in NDC, so
-// callers pass the bounds directly without touching the GL state machine.
+// Screen-space weather pass. The engine submits rain/snow as procedural
+// particles clipped by a screen-space mask rect per draw; the viewer draws one
+// instanced particle field over the union of the projected RAIN_FOG/SNOW_FOG
+// regions. The mask is in NDC, so callers pass the bounds directly without
+// touching the GL state machine.
 class WeatherRenderer {
 public:
 	WeatherRenderer();

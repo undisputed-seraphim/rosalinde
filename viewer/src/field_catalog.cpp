@@ -191,6 +191,7 @@ std::optional<StageComposition> FieldCatalog::bbs_background(const StageRequest&
 		placed.scale_y = object.scale_y > 0.0f ? object.scale_y : placed.scale;
 		placed.alpha = std::clamp(static_cast<int>(std::lround(object.alpha * 255.0f)), 0, 255);
 		placed.order = static_cast<int>(i);
+		placed.weather_mask = static_cast<uint8_t>((object.flags >> 24) & 0xff);
 		if (object.material < file->materials.size()) {
 			const auto& material = file->materials[object.material].data;
 			const uint32_t flags = uint32_t{material[12]} | (uint32_t{material[13]} << 8) |

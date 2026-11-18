@@ -110,6 +110,7 @@ private:
 	std::vector<WeatherRegion> _weather_regions;
 	SpriteBatch _sprites;
 	WeatherRenderer _weather;
+	int _weather_type = 0;
 	float _weather_amount = 0.0f;
 	float _weather_fog = 0.0f;
 	// The engine's fade scale is 1.0 when the stage has no weather fade object.
